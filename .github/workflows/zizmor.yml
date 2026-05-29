@@ -1,0 +1,31 @@
+name: Zizmor (reusable)
+
+# Reusable zizmor audit of the calling repository's GitHub Actions workflows
+# (template-injection, over-broad permissions, unpinned actions, …). Callers
+# invoke it via `uses: magicsunday/.github/.github/workflows/zizmor.yml@main`
+# and must grant `security-events: write`.
+on:
+    workflow_call:
+
+permissions:
+    contents: read
+
+jobs:
+    zizmor:
+        name: Zizmor (workflow security)
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+            security-events: write
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v4
+                with:
+                    persist-credentials: false
+
+            # The action runs zizmor over the repository's workflows and uploads
+            # the SARIF results to the code-scanning dashboard.
+            -   name: Run zizmor
+                uses: zizmorcore/zizmor-action@v0.5.6

@@ -1,0 +1,30 @@
+name: Dependency review (reusable)
+
+# Reusable dependency-review gate. Runs on pull requests and flags newly
+# introduced vulnerable dependencies before they merge — complementing
+# Dependabot, which only alerts after merge. Callers invoke it via
+# `uses: magicsunday/.github/.github/workflows/dependency-review.yml@main`.
+on:
+    workflow_call:
+
+permissions:
+    contents: read
+
+jobs:
+    dependency-review:
+        name: Dependency review
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+            pull-requests: write
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v4
+
+            -   name: Dependency review
+                uses: actions/dependency-review-action@v5
+                with:
+                    comment-summary-in-pr: on-failure
+                    fail-on-severity: high
