@@ -1,0 +1,56 @@
+name: Code scanning (reusable)
+
+# Reusable Semgrep scan shared across all magicsunday repositories. Callers
+# invoke it via `uses: magicsunday/.github/.github/workflows/code-scanning.yml@main`
+# and must grant `security-events: write`.
+on:
+    workflow_call:
+
+permissions:
+    contents: read
+
+jobs:
+    semgrep:
+        name: Semgrep
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+            security-events: write
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v4
+
+            -   name: Set up Python
+                uses: actions/setup-python@v5
+                with:
+                    python-version: '3.12'
+
+            -   name: Install Semgrep
+                run: pip install --quiet semgrep
+
+            # Multi-language security rule sets — CodeQL does not support PHP, so
+            # Semgrep covers the PHP surface plus JavaScript and generic secret
+            # patterns. Findings are uploaded as alerts; the step never fails the
+            # build so they inform rather than block.
+            -   name: Run Semgrep
+                continue-on-error: true
+                run: |
+                    semgrep scan \
+                        --config p/security-audit \
+                        --config p/secrets \
+                        --config p/php \
+                        --config p/javascript \
+                        --sarif --output semgrep.sarif \
+                        --exclude '*.min.js' \
+                        --exclude vendor \
+                        --exclude node_modules \
+                        --exclude .build \
+                        --metrics off
+
+            -   name: Upload SARIF to code scanning
+                if: always()
+                uses: github/codeql-action/upload-sarif@v4
+                with:
+                    sarif_file: semgrep.sarif

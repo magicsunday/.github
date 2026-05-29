@@ -1,0 +1,41 @@
+name: Scorecard (reusable)
+
+# Reusable OSSF Scorecard supply-chain analysis shared across all magicsunday
+# repositories. Callers invoke it via
+# `uses: magicsunday/.github/.github/workflows/scorecard.yml@main` and must grant
+# `security-events: write` and `id-token: write`. Only meaningful on public repos.
+on:
+    workflow_call:
+
+permissions:
+    contents: read
+
+jobs:
+    analysis:
+        name: Scorecard analysis
+        runs-on: ubuntu-latest
+
+        permissions:
+            # Upload the results to the code-scanning dashboard.
+            security-events: write
+            # Publish the results to the public OpenSSF dashboard.
+            id-token: write
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@v4
+                with:
+                    persist-credentials: false
+
+            -   name: Run OSSF Scorecard
+                uses: ossf/scorecard-action@v2.4.0
+                with:
+                    results_file: scorecard.sarif
+                    results_format: sarif
+                    publish_results: true
+
+            -   name: Upload SARIF to code scanning
+                if: always()
+                uses: github/codeql-action/upload-sarif@v4
+                with:
+                    sarif_file: scorecard.sarif
