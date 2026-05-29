@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest an improvement or new capability
+labels: [ "enhancement" ]
+body:
+    -   type: markdown
+        attributes:
+            value: |
+                Thanks for the suggestion. A clear use case makes it much easier
+                to evaluate.
+    -   type: textarea
+        id: problem
+        attributes:
+            label: Problem / motivation
+            description: What are you trying to achieve, and what is missing today?
+        validations:
+            required: true
+    -   type: textarea
+        id: proposal
+        attributes:
+            label: Proposed solution
+            description: How might this work? Sketches, examples, or API ideas welcome.
+        validations:
+            required: false
+    -   type: textarea
+        id: alternatives
+        attributes:
+            label: Alternatives considered
+            description: Other approaches you have thought about, and why they fall short.
+        validations:
+            required: false

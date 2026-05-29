@@ -1,0 +1,41 @@
+name: Auto-merge dependencies (reusable)
+
+# Reusable Dependabot auto-merge shared across all magicsunday repositories.
+# Approves and enables auto-merge for safe (semver patch / minor) Dependabot
+# pull requests; majors are left for a human. Auto-merge only completes once the
+# repository's required status checks pass, so it gates on green CI when branch
+# protection is configured. Callers invoke it on `pull_request_target` via
+# `uses: magicsunday/.github/.github/workflows/auto-merge-deps.yml@main`.
+on:
+    workflow_call:
+
+permissions: {}
+
+jobs:
+    auto-merge:
+        name: Auto-merge Dependabot PRs
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+
+        permissions:
+            contents: write
+            pull-requests: write
+
+        steps:
+            -   name: Dependabot metadata
+                id: metadata
+                uses: dependabot/fetch-metadata@v2
+                with:
+                    github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            # Patch and minor bumps merge automatically; majors are approved-only
+            # and left for a human to review.
+            -   name: Enable auto-merge for patch / minor
+                if: >-
+                    steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+                    steps.metadata.outputs.update-type == 'version-update:semver-minor'
+                env:
+                    PR_URL: ${{ github.event.pull_request.html_url }}
+                    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                run: gh pr merge --auto --squash "$PR_URL"

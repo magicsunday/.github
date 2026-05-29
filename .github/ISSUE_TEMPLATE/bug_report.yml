@@ -1,0 +1,45 @@
+name: Bug report
+description: Report a problem so it can be reproduced and fixed
+labels: [ "bug" ]
+body:
+    -   type: markdown
+        attributes:
+            value: |
+                Thanks for taking the time to file a bug report. A minimal
+                reproduction is the single most helpful thing you can provide.
+    -   type: textarea
+        id: description
+        attributes:
+            label: Description of the problem
+            description: What happened, and what did you expect to happen instead?
+        validations:
+            required: true
+    -   type: textarea
+        id: reproduction
+        attributes:
+            label: Steps to reproduce
+            description: Minimal steps, input data, or a code snippet that triggers the problem.
+        validations:
+            required: true
+    -   type: input
+        id: version
+        attributes:
+            label: Package / module version
+            description: Which version (or commit) does this occur with?
+        validations:
+            required: true
+    -   type: input
+        id: environment
+        attributes:
+            label: Environment
+            description: PHP / Node version, OS, and any other relevant context.
+        validations:
+            required: false
+    -   type: textarea
+        id: logs
+        attributes:
+            label: Logs or screenshots
+            description: Relevant error messages, stack traces, or screenshots.
+            render: shell
+        validations:
+            required: false
