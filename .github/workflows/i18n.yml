@@ -1,0 +1,102 @@
+name: i18n (reusable)
+
+# Reusable translation-catalogue check for repositories that ship gettext
+# locales. Two concerns, deliberately different severities:
+#
+#   1. Layout (HARD FAIL): every tracked .po/.mo must live at
+#      <lang-dir>/<locale>/messages.{po,mo}. A catalogue committed anywhere
+#      else — e.g. a stray top-level messages.po — fails the check, so a
+#      contributor's misplaced file blocks the pull request until corrected.
+#      The local pre-commit hook only runs for committers who opted in; this
+#      check enforces the layout for every PR, including forks.
+#
+#   2. Fuzzy (ADVISORY, never fails): fuzzy PO entries are surfaced as
+#      non-blocking annotations. They compile out to the English fallback,
+#      which is acceptable, so they must not gate a merge — requiring a
+#      contributor to translate every locale before merging would be hostile.
+#      New languages and partial translations therefore pass freely.
+#
+# The generated .pot template is gitignored and never appears in the tree, so
+# it needs no special handling. Callers invoke this via
+# `uses: magicsunday/.github/.github/workflows/i18n.yml@main` and may override
+# `lang-dir` if their catalogues live outside `resources/lang`.
+on:
+    workflow_call:
+        inputs:
+            lang-dir:
+                description: 'Root directory holding the per-locale catalogues.'
+                type: string
+                default: 'resources/lang'
+
+permissions:
+    contents: read
+
+jobs:
+    i18n:
+        name: Catalogue layout
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+                with:
+                    persist-credentials: false
+
+            -   name: Check catalogue layout and fuzzy entries
+                env:
+                    LANG_DIR: ${{ inputs.lang-dir }}
+                run: |
+                    set -euo pipefail
+
+                    lang_dir="${LANG_DIR%/}"
+                    allowed_re="^${lang_dir}/[^/]+/messages\.(po|mo)$"
+
+                    # 1. Layout — collect every tracked catalogue not at the
+                    # expected <lang_dir>/<locale>/messages.{po,mo} path.
+                    misplaced=()
+                    while IFS= read -r f; do
+                        [ -n "$f" ] || continue
+                        [[ "$f" =~ $allowed_re ]] || misplaced+=("$f")
+                    done < <(git ls-files '*.po' '*.mo')
+
+                    # 2. Fuzzy — count per PO, emit a non-blocking warning each.
+                    fuzzy_total=0
+                    fuzzy_lines=()
+                    while IFS= read -r po; do
+                        [ -n "$po" ] || continue
+                        n=$(awk '/^#~/{next} /^#,.*fuzzy/{c++} END{print c+0}' "$po")
+                        [ "$n" -gt 0 ] || continue
+                        fuzzy_total=$((fuzzy_total + n))
+                        fuzzy_lines+=("${po}: ${n}")
+                        echo "::warning file=${po}::${n} fuzzy entries compile out to the English fallback (non-blocking; native-speaker update welcome)."
+                    done < <(git ls-files "${lang_dir}/*.po")
+
+                    {
+                        echo "## i18n catalogue check"
+                        echo
+                        echo "Expected layout: \`${lang_dir}/<locale>/messages.{po,mo}\`"
+                        echo
+                        if [ ${#misplaced[@]} -eq 0 ]; then
+                            echo "- **Layout:** ✔ all catalogues correctly placed"
+                        else
+                            echo "- **Layout:** ✘ ${#misplaced[@]} misplaced file(s):"
+                            printf '  - `%s`\n' "${misplaced[@]}"
+                        fi
+                        echo "- **Fuzzy (advisory, non-blocking):** ${fuzzy_total} entries"
+                        if [ ${#fuzzy_lines[@]} -gt 0 ]; then
+                            printf '  - `%s`\n' "${fuzzy_lines[@]}"
+                        fi
+                    } >> "$GITHUB_STEP_SUMMARY"
+
+                    if [ ${#misplaced[@]} -gt 0 ]; then
+                        for f in "${misplaced[@]}"; do
+                            echo "::error file=${f}::Translation catalogue must live at ${lang_dir}/<locale>/messages.{po,mo}."
+                        done
+                        echo "i18n layout check failed: ${#misplaced[@]} misplaced catalogue file(s)." >&2
+                        exit 1
+                    fi
+
+                    echo "i18n layout check passed."
