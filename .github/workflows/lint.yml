@@ -1,0 +1,17 @@
+name: Lint
+
+# Dogfood the reusable yamllint check against this repository's own
+# workflow YAML so the shared templates cannot regress the house style.
+on:
+    push:
+        branches: [main, master]
+    pull_request:
+
+permissions:
+    contents: read
+
+jobs:
+    yamllint:
+        uses: ./.github/workflows/yamllint.yml
+        permissions:
+            contents: read

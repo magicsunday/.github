@@ -1,0 +1,54 @@
+name: yamllint (reusable)
+
+# Reusable yamllint check of the calling repository's GitHub Actions
+# workflow YAML. Callers invoke it via
+# `uses: magicsunday/.github/.github/workflows/yamllint.yml@main` and may
+# override `paths` to lint additional YAML. line-length is demoted to a
+# warning (GHA `run:` blocks legitimately carry long inline strings); every
+# other rule keeps the yamllint default.
+on:
+    workflow_call:
+        inputs:
+            paths:
+                description: 'Space-separated YAML paths to lint.'
+                required: false
+                type: string
+                default: '.github/workflows/'
+
+permissions:
+    contents: read
+
+jobs:
+    yamllint:
+        name: yamllint (workflow YAML)
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+              with:
+                  persist-credentials: false
+
+            - name: Set up Python
+              uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+              with:
+                  python-version: '3.12'
+
+            - name: Install yamllint
+              run: pip install --quiet yamllint
+
+            # PATHS is consumed from the environment (not inlined into the
+            # command) so a caller-supplied value cannot inject shell; the
+            # unquoted expansion is intentional — it is a space-separated
+            # path list.
+            - name: Run yamllint
+              env:
+                  PATHS: ${{ inputs.paths }}
+              run: |
+                  # shellcheck disable=SC2086
+                  yamllint \
+                      -d "{extends: default, rules: {line-length: {max: 200, level: warning}, document-start: disable, truthy: {check-keys: false}, comments: {min-spaces-from-content: 1}}}" \
+                      $PATHS
