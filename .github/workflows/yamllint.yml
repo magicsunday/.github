@@ -4,8 +4,10 @@ name: yamllint (reusable)
 # workflow YAML. Callers invoke it via
 # `uses: magicsunday/.github/.github/workflows/yamllint.yml@main` and may
 # override `paths` to lint additional YAML. line-length is demoted to a
-# warning (GHA `run:` blocks legitimately carry long inline strings); every
-# other rule keeps the yamllint default.
+# warning (GHA `run:` blocks legitimately carry long inline strings) and
+# indentation is pinned to 4 spaces (the house standard — yamllint's default
+# `consistent` would otherwise accept 2-space files); every other rule keeps
+# the yamllint default.
 on:
     workflow_call:
         inputs:
@@ -50,5 +52,5 @@ jobs:
               run: |
                   # shellcheck disable=SC2086
                   yamllint \
-                      -d "{extends: default, rules: {line-length: {max: 200, level: warning}, document-start: disable, truthy: {check-keys: false}, comments: {min-spaces-from-content: 1}}}" \
+                      -d "{extends: default, rules: {line-length: {max: 200, level: warning}, document-start: disable, truthy: {check-keys: false}, comments: {min-spaces-from-content: 1}, indentation: {spaces: 4, indent-sequences: true}}}" \
                       $PATHS
