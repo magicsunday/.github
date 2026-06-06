@@ -16,6 +16,14 @@ name: i18n (reusable)
 #      contributor to translate every locale before merging would be hostile.
 #      New languages and partial translations therefore pass freely.
 #
+#   3. Pipeline freshness (HARD FAIL, opt-in via `check-pipeline: true`): runs
+#      the module's source-driven `make lang` and fails if it errors or leaves
+#      a non-empty diff. This catches a stale catalogue (a source string added
+#      or removed without re-running the pipeline) and a broken pipeline (such
+#      as a bad msgmerge flag) before either ships green. Repositories whose
+#      `make lang` is still compile-only leave `check-pipeline` at its default
+#      (false) and the job is skipped.
+#
 # The generated .pot template is gitignored and never appears in the tree, so
 # it needs no special handling. Callers invoke this via
 # `uses: magicsunday/.github/.github/workflows/i18n.yml@main` and may override
@@ -27,6 +35,14 @@ on:
                 description: 'Root directory holding the per-locale catalogues.'
                 type: string
                 default: 'resources/lang'
+            check-pipeline:
+                description: 'Run `make lang` and fail on a non-empty diff (source-driven pipeline only).'
+                type: boolean
+                default: false
+            node-image:
+                description: 'Container image whose gettext/msgfmt must match the maintainer''s local `make lang`.'
+                type: string
+                default: 'node:lts-alpine'
 
 permissions:
     contents: read
@@ -100,3 +116,66 @@ jobs:
                     fi
 
                     echo "i18n layout check passed."
+
+    pipeline:
+        name: Pipeline freshness
+        if: ${{ inputs.check-pipeline }}
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            -   name: Checkout
+                uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+                with:
+                    persist-credentials: false
+
+            -   name: Run `make lang` and assert the catalogue is up to date
+                timeout-minutes: 15
+                env:
+                    NODE_IMAGE: ${{ inputs.node-image }}
+                run: |
+                    set -euo pipefail
+
+                    # Drive the whole pipeline inside the same image the
+                    # maintainer's `make lang` uses, so xgettext / msgmerge /
+                    # msgfmt output is byte-identical to the committed
+                    # catalogue (a host gettext of a different version would
+                    # reflow PO lines and trip a phantom diff). COMPOSE_RUN is
+                    # emptied so each recipe runs in this container instead of
+                    # spawning a nested `docker compose` service; the
+                    # fuzzy-resolver (python3) runs in the same container, so no
+                    # host/container ownership split corrupts the PO files.
+                    # `set -e` + visible apk stderr so a failed toolchain
+                    # install aborts loudly instead of later in an opaque way.
+                    docker run --rm -v "$PWD":/app -w /app "$NODE_IMAGE" sh -c '
+                        set -e
+                        apk add --no-cache make bash gettext python3 >/dev/null
+                        make lang COMPOSE_RUN=
+                    '
+
+                    # Stage everything so the check also catches NEW untracked
+                    # catalogue files (a freshly seeded locale, or a .mo for a
+                    # .po that lacked one) — `git diff` alone ignores untracked
+                    # files. Gitignored artefacts (the generated .pot) stay out.
+                    git add -A
+                    if git diff --cached --quiet; then
+                        echo "i18n pipeline freshness check passed: \`make lang\` is a no-op." >> "$GITHUB_STEP_SUMMARY"
+                        exit 0
+                    fi
+
+                    echo "::error::make lang produced changes — the committed catalogue is out of date or the pipeline is broken. Run make lang locally and commit the result."
+                    {
+                        echo "## i18n pipeline freshness"
+                        echo
+                        echo "Running \`make lang\` changed the tree. Either the catalogue is stale (a source string was added or removed without re-running the pipeline) or the pipeline itself drifted."
+                        echo
+                        echo '### Changes'
+                        echo '```'
+                        git diff --cached --stat
+                        echo '```'
+                    } >> "$GITHUB_STEP_SUMMARY"
+
+                    git --no-pager diff --cached
+                    exit 1
