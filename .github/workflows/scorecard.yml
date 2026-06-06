@@ -22,20 +22,20 @@ jobs:
             id-token: write
 
         steps:
-            -   name: Checkout
-                uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-                with:
-                    persist-credentials: false
+            - name: Checkout
+              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+              with:
+                  persist-credentials: false
 
-            -   name: Run OSSF Scorecard
-                uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
-                with:
-                    results_file: scorecard.sarif
-                    results_format: sarif
-                    publish_results: true
+            - name: Run OSSF Scorecard
+              uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+              with:
+                  results_file: scorecard.sarif
+                  results_format: sarif
+                  publish_results: true
 
-            -   name: Upload SARIF to code scanning
-                if: always()
-                uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4
-                with:
-                    sarif_file: scorecard.sarif
+            - name: Upload SARIF to code scanning
+              if: always()
+              uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4
+              with:
+                  sarif_file: scorecard.sarif
