@@ -56,66 +56,66 @@ jobs:
             contents: read
 
         steps:
-            -   name: Checkout
-                uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-                with:
-                    persist-credentials: false
+            - name: Checkout
+              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+              with:
+                  persist-credentials: false
 
-            -   name: Check catalogue layout and fuzzy entries
-                env:
-                    LANG_DIR: ${{ inputs.lang-dir }}
-                run: |
-                    set -euo pipefail
+            - name: Check catalogue layout and fuzzy entries
+              env:
+                  LANG_DIR: ${{ inputs.lang-dir }}
+              run: |
+                  set -euo pipefail
 
-                    lang_dir="${LANG_DIR%/}"
-                    allowed_re="^${lang_dir}/[^/]+/messages\.(po|mo)$"
+                  lang_dir="${LANG_DIR%/}"
+                  allowed_re="^${lang_dir}/[^/]+/messages\.(po|mo)$"
 
-                    # 1. Layout — collect every tracked catalogue not at the
-                    # expected <lang_dir>/<locale>/messages.{po,mo} path.
-                    misplaced=()
-                    while IFS= read -r f; do
-                        [ -n "$f" ] || continue
-                        [[ "$f" =~ $allowed_re ]] || misplaced+=("$f")
-                    done < <(git ls-files '*.po' '*.mo')
+                  # 1. Layout — collect every tracked catalogue not at the
+                  # expected <lang_dir>/<locale>/messages.{po,mo} path.
+                  misplaced=()
+                  while IFS= read -r f; do
+                      [ -n "$f" ] || continue
+                      [[ "$f" =~ $allowed_re ]] || misplaced+=("$f")
+                  done < <(git ls-files '*.po' '*.mo')
 
-                    # 2. Fuzzy — count per PO, emit a non-blocking warning each.
-                    fuzzy_total=0
-                    fuzzy_lines=()
-                    while IFS= read -r po; do
-                        [ -n "$po" ] || continue
-                        n=$(awk '/^#~/{next} /^#,.*fuzzy/{c++} END{print c+0}' "$po")
-                        [ "$n" -gt 0 ] || continue
-                        fuzzy_total=$((fuzzy_total + n))
-                        fuzzy_lines+=("${po}: ${n}")
-                        echo "::warning file=${po}::${n} fuzzy entries compile out to the English fallback (non-blocking; native-speaker update welcome)."
-                    done < <(git ls-files "${lang_dir}/*.po")
+                  # 2. Fuzzy — count per PO, emit a non-blocking warning each.
+                  fuzzy_total=0
+                  fuzzy_lines=()
+                  while IFS= read -r po; do
+                      [ -n "$po" ] || continue
+                      n=$(awk '/^#~/{next} /^#,.*fuzzy/{c++} END{print c+0}' "$po")
+                      [ "$n" -gt 0 ] || continue
+                      fuzzy_total=$((fuzzy_total + n))
+                      fuzzy_lines+=("${po}: ${n}")
+                      echo "::warning file=${po}::${n} fuzzy entries compile out to the English fallback (non-blocking; native-speaker update welcome)."
+                  done < <(git ls-files "${lang_dir}/*.po")
 
-                    {
-                        echo "## i18n catalogue check"
-                        echo
-                        echo "Expected layout: \`${lang_dir}/<locale>/messages.{po,mo}\`"
-                        echo
-                        if [ ${#misplaced[@]} -eq 0 ]; then
-                            echo "- **Layout:** ✔ all catalogues correctly placed"
-                        else
-                            echo "- **Layout:** ✘ ${#misplaced[@]} misplaced file(s):"
-                            printf '  - `%s`\n' "${misplaced[@]}"
-                        fi
-                        echo "- **Fuzzy (advisory, non-blocking):** ${fuzzy_total} entries"
-                        if [ ${#fuzzy_lines[@]} -gt 0 ]; then
-                            printf '  - `%s`\n' "${fuzzy_lines[@]}"
-                        fi
-                    } >> "$GITHUB_STEP_SUMMARY"
+                  {
+                      echo "## i18n catalogue check"
+                      echo
+                      echo "Expected layout: \`${lang_dir}/<locale>/messages.{po,mo}\`"
+                      echo
+                      if [ ${#misplaced[@]} -eq 0 ]; then
+                          echo "- **Layout:** ✔ all catalogues correctly placed"
+                      else
+                          echo "- **Layout:** ✘ ${#misplaced[@]} misplaced file(s):"
+                          printf '  - `%s`\n' "${misplaced[@]}"
+                      fi
+                      echo "- **Fuzzy (advisory, non-blocking):** ${fuzzy_total} entries"
+                      if [ ${#fuzzy_lines[@]} -gt 0 ]; then
+                          printf '  - `%s`\n' "${fuzzy_lines[@]}"
+                      fi
+                  } >> "$GITHUB_STEP_SUMMARY"
 
-                    if [ ${#misplaced[@]} -gt 0 ]; then
-                        for f in "${misplaced[@]}"; do
-                            echo "::error file=${f}::Translation catalogue must live at ${lang_dir}/<locale>/messages.{po,mo}."
-                        done
-                        echo "i18n layout check failed: ${#misplaced[@]} misplaced catalogue file(s)." >&2
-                        exit 1
-                    fi
+                  if [ ${#misplaced[@]} -gt 0 ]; then
+                      for f in "${misplaced[@]}"; do
+                          echo "::error file=${f}::Translation catalogue must live at ${lang_dir}/<locale>/messages.{po,mo}."
+                      done
+                      echo "i18n layout check failed: ${#misplaced[@]} misplaced catalogue file(s)." >&2
+                      exit 1
+                  fi
 
-                    echo "i18n layout check passed."
+                  echo "i18n layout check passed."
 
     pipeline:
         name: Pipeline freshness
@@ -126,56 +126,56 @@ jobs:
             contents: read
 
         steps:
-            -   name: Checkout
-                uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-                with:
-                    persist-credentials: false
+            - name: Checkout
+              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+              with:
+                  persist-credentials: false
 
-            -   name: Run `make lang` and assert the catalogue is up to date
-                timeout-minutes: 15
-                env:
-                    NODE_IMAGE: ${{ inputs.node-image }}
-                run: |
-                    set -euo pipefail
+            - name: Run `make lang` and assert the catalogue is up to date
+              timeout-minutes: 15
+              env:
+                  NODE_IMAGE: ${{ inputs.node-image }}
+              run: |
+                  set -euo pipefail
 
-                    # Drive the whole pipeline inside the same image the
-                    # maintainer's `make lang` uses, so xgettext / msgmerge /
-                    # msgfmt output is byte-identical to the committed
-                    # catalogue (a host gettext of a different version would
-                    # reflow PO lines and trip a phantom diff). COMPOSE_RUN is
-                    # emptied so each recipe runs in this container instead of
-                    # spawning a nested `docker compose` service; the
-                    # fuzzy-resolver (python3) runs in the same container, so no
-                    # host/container ownership split corrupts the PO files.
-                    # `set -e` + visible apk stderr so a failed toolchain
-                    # install aborts loudly instead of later in an opaque way.
-                    docker run --rm -v "$PWD":/app -w /app "$NODE_IMAGE" sh -c '
-                        set -e
-                        apk add --no-cache make bash gettext python3 >/dev/null
-                        make lang COMPOSE_RUN=
-                    '
+                  # Drive the whole pipeline inside the same image the
+                  # maintainer's `make lang` uses, so xgettext / msgmerge /
+                  # msgfmt output is byte-identical to the committed
+                  # catalogue (a host gettext of a different version would
+                  # reflow PO lines and trip a phantom diff). COMPOSE_RUN is
+                  # emptied so each recipe runs in this container instead of
+                  # spawning a nested `docker compose` service; the
+                  # fuzzy-resolver (python3) runs in the same container, so no
+                  # host/container ownership split corrupts the PO files.
+                  # `set -e` + visible apk stderr so a failed toolchain
+                  # install aborts loudly instead of later in an opaque way.
+                  docker run --rm -v "$PWD":/app -w /app "$NODE_IMAGE" sh -c '
+                      set -e
+                      apk add --no-cache make bash gettext python3 >/dev/null
+                      make lang COMPOSE_RUN=
+                  '
 
-                    # Stage everything so the check also catches NEW untracked
-                    # catalogue files (a freshly seeded locale, or a .mo for a
-                    # .po that lacked one) — `git diff` alone ignores untracked
-                    # files. Gitignored artefacts (the generated .pot) stay out.
-                    git add -A
-                    if git diff --cached --quiet; then
-                        echo "i18n pipeline freshness check passed: \`make lang\` is a no-op." >> "$GITHUB_STEP_SUMMARY"
-                        exit 0
-                    fi
+                  # Stage everything so the check also catches NEW untracked
+                  # catalogue files (a freshly seeded locale, or a .mo for a
+                  # .po that lacked one) — `git diff` alone ignores untracked
+                  # files. Gitignored artefacts (the generated .pot) stay out.
+                  git add -A
+                  if git diff --cached --quiet; then
+                      echo "i18n pipeline freshness check passed: \`make lang\` is a no-op." >> "$GITHUB_STEP_SUMMARY"
+                      exit 0
+                  fi
 
-                    echo "::error::make lang produced changes — the committed catalogue is out of date or the pipeline is broken. Run make lang locally and commit the result."
-                    {
-                        echo "## i18n pipeline freshness"
-                        echo
-                        echo "Running \`make lang\` changed the tree. Either the catalogue is stale (a source string was added or removed without re-running the pipeline) or the pipeline itself drifted."
-                        echo
-                        echo '### Changes'
-                        echo '```'
-                        git diff --cached --stat
-                        echo '```'
-                    } >> "$GITHUB_STEP_SUMMARY"
+                  echo "::error::make lang produced changes — the committed catalogue is out of date or the pipeline is broken. Run make lang locally and commit the result."
+                  {
+                      echo "## i18n pipeline freshness"
+                      echo
+                      echo "Running \`make lang\` changed the tree. Either the catalogue is stale (a source string was added or removed without re-running the pipeline) or the pipeline itself drifted."
+                      echo
+                      echo '### Changes'
+                      echo '```'
+                      git diff --cached --stat
+                      echo '```'
+                  } >> "$GITHUB_STEP_SUMMARY"
 
-                    git --no-pager diff --cached
-                    exit 1
+                  git --no-pager diff --cached
+                  exit 1
