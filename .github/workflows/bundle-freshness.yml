@@ -1,0 +1,102 @@
+name: Bundle freshness (reusable)
+
+# Reusable JavaScript-bundle freshness check for repositories that ship a
+# committed Rollup bundle (resources/js/*.min.js) built from source plus a
+# pinned @magicsunday/webtrees-chart-lib dependency.
+#
+# Why this exists: a Dependabot bump — or a hand edit of the chart-lib pin, or
+# any source change — updates package.json and the lockfile but NEVER rebuilds
+# the committed bundle. The shipped *.min.js therefore silently lags the
+# resolved dependency: the manifest claims chart-lib X, the bundle still embeds
+# chart-lib Y. This gate rebuilds the bundle inside the SAME container image the
+# maintainer's local `make build` uses, then fails on any non-empty diff —
+# turning a stale artefact into a hard CI failure for every pull request
+# (Dependabot and human alike). It is the bundle analogue of the i18n
+# "Pipeline freshness" check.
+#
+# Determinism: the rebuild runs in `node:lts-alpine` — the exact image the
+# compose `node` service (and thus `make build`) uses locally — so terser's
+# mangled output is byte-identical to the committed bundle. A different Node /
+# terser would remangle and trip a phantom diff. terser itself is deterministic
+# for a locked toolchain, so a moving `lts` tag does not change the bytes.
+#
+# Callers invoke this via
+# `uses: magicsunday/.github/.github/workflows/bundle-freshness.yml@main`
+# and may override `bundle-dir` if their committed bundle lives elsewhere.
+on:
+    workflow_call:
+        inputs:
+            bundle-dir:
+                description: 'Directory whose committed bundle artefacts must match a clean rebuild.'
+                type: string
+                default: 'resources/js'
+            node-image:
+                description: 'Container image whose Node/Rollup/terser must match the maintainer''s local `make build`.'
+                type: string
+                default: 'node:lts-alpine'
+
+permissions:
+    contents: read
+
+jobs:
+    bundle-freshness:
+        name: Bundle freshness
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+              with:
+                  persist-credentials: false
+
+            - name: Rebuild the bundle and assert it is up to date
+              timeout-minutes: 15
+              env:
+                  BUNDLE_DIR: ${{ inputs.bundle-dir }}
+                  NODE_IMAGE: ${{ inputs.node-image }}
+              run: |
+                  set -euo pipefail
+
+                  # Build inside the same image the maintainer's `make build`
+                  # uses (compose `node` service = node:lts-alpine) so terser's
+                  # output is byte-identical to the committed bundle. `npm ci`
+                  # needs git to fetch the `github:`-pinned chart-lib
+                  # dependency; the container has no SSH key, so the insteadOf
+                  # rewrite resolves the lockfile's git+ssh URL over anonymous
+                  # HTTPS (chart-lib is a public repo). `npm run prepare` is the
+                  # repo's Rollup build — the same recipe as `make build`.
+                  docker run --rm -v "$PWD":/app -w /app "$NODE_IMAGE" sh -c '
+                      set -e
+                      apk add --no-cache git >/dev/null
+                      git config --global url."https://github.com/".insteadOf "git@github.com:"
+                      git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+                      npm ci
+                      npm run prepare
+                  '
+
+                  # Stage everything so a NEW untracked bundle file is caught
+                  # too — `git diff` alone ignores untracked files. node_modules
+                  # is gitignored and stays out.
+                  git add -A
+                  if git diff --cached --quiet; then
+                      echo "Bundle freshness check passed: the committed bundle matches a clean rebuild." >> "$GITHUB_STEP_SUMMARY"
+                      exit 0
+                  fi
+
+                  echo "::error::The committed JavaScript bundle is out of date. Run \`make build\` locally and commit the resulting ${BUNDLE_DIR} changes."
+                  {
+                      echo "## Bundle freshness"
+                      echo
+                      echo "Rebuilding changed the tree: the committed \`${BUNDLE_DIR}\` bundle lags the resolved dependencies (typically a chart-lib bump not followed by \`make build\`)."
+                      echo
+                      echo '### Changes'
+                      echo '```'
+                      git diff --cached --stat
+                      echo '```'
+                  } >> "$GITHUB_STEP_SUMMARY"
+
+                  git --no-pager diff --cached -- "$BUNDLE_DIR"
+                  exit 1
