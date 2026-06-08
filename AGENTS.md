@@ -1,12 +1,12 @@
 # AGENTS.md
 
-Conventions for AI agents and contributors working in this repository. See
-[`README.md`](README.md) for what the repo is and how its workflows are consumed.
+Conventions for AI agents and contributors working in this repository — the
+`magicsunday` account's shared community-health files and reusable CI workflows.
 
 ## What this repo is
 
-This is the `magicsunday` organization's `.github` repository. It holds two kinds
-of files, with **org-wide blast radius**:
+This is the `magicsunday` account's `.github` repository. It holds two kinds
+of files, with **account-wide blast radius**:
 
 - **Community-health defaults** (`CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`,
   `SECURITY.md`, `pull_request_template.md`, `.github/ISSUE_TEMPLATE/`) are inherited
@@ -15,7 +15,10 @@ of files, with **org-wide blast radius**:
 - **Reusable workflows** in `.github/workflows/` are called by sibling repos via
   `workflow_call`. A change on `main` reaches every consumer pinned to `@main` on its
   next run.
-- `profile/README.md` renders the **public org profile** at `github.com/magicsunday`.
+The public profile page at `github.com/magicsunday` is **not** rendered from here —
+`magicsunday` is a user account, so its profile lives in the separate
+`magicsunday/magicsunday` repository's root `README.md` (an org account would use
+`profile/README.md` here instead).
 
 ## Rules
 
@@ -25,9 +28,9 @@ of files, with **org-wide blast radius**:
   the dash *content*) — reindent by structure, then verify.
 - **Reusable-workflow permission cap.** A called workflow's `GITHUB_TOKEN` is capped by
   the **caller's top-level `permissions:`**. A job-level grant inside the reusable
-  workflow does not survive the move. When you add a scope a workflow needs, document
-  it as a *caller* requirement in `README.md` — do not assume the job-level grant is
-  enough.
+  workflow does not survive the move. When you add a scope a workflow needs, note it as
+  a *caller* requirement in that workflow's own header comment (as the existing
+  workflows do) — do not assume the job-level grant is enough.
 - **Validate a workflow-file change before merge.** A reusable workflow cannot be
   exercised from a PR on this repo alone. Point one consumer caller at
   `@<branch>`, let its real CI run, confirm green, then flip back to `@main`.
