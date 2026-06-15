@@ -1,0 +1,17 @@
+name: Auto-merge dependency PRs
+
+# Dogfood the reusable Dependabot auto-merge workflow against this
+# repository's own dependency PRs, mirroring how lint.yml dogfoods the
+# shared yamllint check. The caller is referenced locally so a change to
+# the reusable definition is exercised on its own branch before it ships.
+on:
+    pull_request:
+
+permissions: {}
+
+jobs:
+    auto-merge:
+        uses: ./.github/workflows/auto-merge-deps.yml
+        permissions:
+            contents: write
+            pull-requests: write
