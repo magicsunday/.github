@@ -14,11 +14,13 @@ name: Bundle freshness (reusable)
 # (Dependabot and human alike). It is the bundle analogue of the i18n
 # "Pipeline freshness" check.
 #
-# Determinism: the rebuild runs in `node:lts-alpine` — the exact image the
-# compose `node` service (and thus `make build`) uses locally — so terser's
-# mangled output is byte-identical to the committed bundle. A different Node /
-# terser would remangle and trip a phantom diff. terser itself is deterministic
-# for a locked toolchain, so a moving `lts` tag does not change the bytes.
+# Determinism: the rebuild runs in the caller's `node-image` (default
+# `node:24-alpine`) — pinned to the SAME exact Node major the compose `node`
+# service, the buildbox and `make build` use — so terser's mangled output is
+# byte-identical to the committed bundle. A different Node major remangles and
+# trips a phantom diff, so the image is pinned to an EXACT major; a floating
+# `lts`/`latest` tag must NOT be used (an LTS major rollover would re-mangle
+# every committed bundle at once).
 #
 # Callers invoke this via
 # `uses: magicsunday/.github/.github/workflows/bundle-freshness.yml@main`
@@ -33,7 +35,7 @@ on:
             node-image:
                 description: 'Container image whose Node/Rollup/terser must match the maintainer''s local `make build`.'
                 type: string
-                default: 'node:lts-alpine'
+                default: 'node:24-alpine'
 
 permissions:
     contents: read
@@ -61,7 +63,7 @@ jobs:
                   set -euo pipefail
 
                   # Build inside the same image the maintainer's `make build`
-                  # uses (compose `node` service = node:lts-alpine) so terser's
+                  # uses (compose `node` service = node:24-alpine) so terser's
                   # output is byte-identical to the committed bundle. `npm ci`
                   # needs git to fetch the `github:`-pinned chart-lib
                   # dependency; the container has no SSH key, so the insteadOf
