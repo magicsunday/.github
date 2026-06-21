@@ -42,7 +42,7 @@ on:
             node-image:
                 description: 'Container image whose gettext/msgfmt must match the maintainer''s local `make lang`.'
                 type: string
-                default: 'node:lts-alpine'
+                default: 'node:24-alpine'
 
 permissions:
     contents: read
