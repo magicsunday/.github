@@ -27,7 +27,9 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   A naive 2→4 conversion breaks sequence items (`- ` is two chars; the body aligns to
   the dash *content*) — reindent by structure, then verify.
 - **Reusable-workflow permission cap.** A called workflow's `GITHUB_TOKEN` is capped by
-  the **caller's top-level `permissions:`**. A job-level grant inside the reusable
+  the **calling job's `permissions:`** when it declares one — a job-level block
+  replaces the caller's top-level block rather than merging with it — otherwise the
+  caller's top-level block, otherwise the repository default. A job-level grant inside the reusable
   workflow does not survive the move. When you add a scope a workflow needs, note it as
   a *caller* requirement in that workflow's own header comment (as the existing
   workflows do) — do not assume the job-level grant is enough.
@@ -41,9 +43,18 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
 
 ## Commits
 
-- Subject line: capitalized imperative verb, optionally prefixed `GH-<N>: ` for an
-  issue-tied change. **No** conventional-commit prefixes (`feat:`/`fix:`/`chore:`),
-  no lowercase or path-style starts.
+- Subject line: enforced by `.github/workflows/commit-convention.yml`, whose header
+  holds the normative definition. A subject starting with `GH-` must match
+  `^GH-\d+: <capital>`; every other subject must start with a capital. No
+  conventional-commit prefixes and no path-like starts, whatever their case.
+  `Merge …` / `Revert …` subjects git writes itself are exempt. The gate does NOT
+  enforce that commits on a `GH-<N>` branch carry the prefix — it is keyed on the
+  subject alone, so that the rule stays decidable for commits already on `main`,
+  where the branch no longer exists.
+  Do not restate the rule as "optionally prefixed `GH-<N>: `" — that folds the two
+  branches into one optional group, which enforces nothing after the prefix,
+  because the group can be skipped and the `G` of `GH-` then satisfies the capital
+  on its own.
 - One concern per commit; keep style/lint fixes separate from content changes.
 - **No** `Co-Authored-By:` trailer or other AI attribution.
 - Commit only after the relevant lint/CI is green.

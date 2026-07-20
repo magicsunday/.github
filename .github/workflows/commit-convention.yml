@@ -1,0 +1,331 @@
+name: Commit convention (reusable)
+
+# Reusable check of the magicsunday commit-subject convention. Callers invoke it
+# via `uses: magicsunday/.github/.github/workflows/commit-convention.yml@main`.
+#
+# Callers must grant `pull-requests: read`. The ceiling is the CALLING JOB's
+# `permissions:` block when it has one — a job-level block replaces the caller's
+# top-level block rather than merging with it — otherwise the caller's top-level
+# block, otherwise the repository default. A caller that grants the scope at the
+# top level but declares `contents: read` on the calling job does not merely get a
+# weaker token: the run is rejected before any step runs, because this workflow's
+# job requests `pull-requests: read` and a called workflow cannot exceed its
+# caller. The error names the scope, so look there rather than at the step log.
+#
+# Callers must also include `edited` in their `types:`, or a title fixed after a
+# red run never re-runs the check, and a title broken after a green one is never
+# re-judged — see `commit-lint.yml` in this repository for the shape.
+#
+# The status context a branch-protection rule must list is the composite
+# `<calling-job-id> / Commit convention`, not `Commit convention` alone.
+#
+# Known limit: the commits endpoint returns at most 250 entries whatever the
+# pagination, so a pull request with more commits than that fails the count
+# check and cannot pass. Split it, or squash the branch.
+#
+# A `merge_group` run skips. The subject that reaches the default branch is the
+# pull-request title, which the `pull_request` run has already judged — with
+# `edited` in the trigger list, including after a late edit — and the merge-queue
+# head commit itself carries a git-generated `Merge …` subject, which the rule
+# exempts anyway. Failing the queue instead would make this gate impossible to
+# adopt alongside one.
+#
+# One residual, stated rather than hidden: a title edited AFTER the pull request
+# is queued is not re-judged, because the queue merges on the merge_group result
+# and a newly-red pull_request run does not evict the entry. Require the check on
+# the pull request as well as on the queue to close that window.
+#
+# The rule, stated once here so the prose in each repository's AGENTS.md has a
+# single executable definition to point at:
+#
+#   - A subject starting with `GH-` must match `^GH-\d+: <capital>`.
+#   - Every other subject must start with a capital letter.
+#   - Conventional-commit prefixes are banned whatever their case: `feat:`,
+#     `Feat:`, `fix(scope):` alike.
+#   - Path-like starts are banned whatever their case: `src/Module.php: …`.
+#   - Subjects git writes itself (`Merge …`, `Revert "…"`) are exempt.
+#
+# Adoption assumes squash-merge, which is what makes the title the subject that
+# reaches the default branch. Under merge commits the commit checks still hold
+# but the title check loses its point, and the merge_group skip loses its
+# justification along with it.
+#
+# Both the pull-request title and every commit in the pull request are checked.
+# The title matters because these repositories squash-merge: the title is what
+# ends up on the default branch. Existing history is never re-judged — subjects
+# predating the convention would otherwise turn every pull request red.
+#
+# The predicate is written to a file and self-tested against a decision table
+# before it is applied. Every counting loop asserts how much it actually
+# inspected, because the failure mode this gate must not have is passing without
+# having checked anything.
+on:
+    workflow_call:
+
+permissions:
+    contents: read
+
+jobs:
+    commit-convention:
+        name: Commit convention
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+            pull-requests: read
+
+        # `[[:upper:]]` is locale-dependent: under LC_ALL=C a subject starting
+        # with `Ä` is NOT considered uppercase and a valid subject would be
+        # rejected. Pinning a UTF-8 locale is load-bearing, and the decision
+        # table below fails loudly if this is ever dropped.
+        env:
+            LC_ALL: C.UTF-8
+            # Lower bound on the decision table's size, and the ONLY thing that
+            # detects rows going missing — the per-row shape assertion can only
+            # judge rows it actually read. Raise it in lockstep when adding a
+            # case, or each new row buys back one row of undetectable truncation.
+            MIN_CASES: '25'
+
+        steps:
+            - name: Write and self-test the subject predicate
+              shell: bash
+              run: |
+                  set -euo pipefail
+
+                  cat > "${RUNNER_TEMP}/subject-lint.sh" <<'PREDICATE'
+                  # Returns 0 when the subject satisfies the convention.
+                  subject_is_valid() {
+                      local subject="$1"
+                      local lowered
+
+                      # An absent subject is never acceptable.
+                      [ -n "$subject" ] || return 1
+
+                      # Subjects git generates itself keep their own wording. This
+                      # is checked BEFORE the prefix ban on purpose, so reverting
+                      # someone else's conventional-commit subject does not fail —
+                      # a table row pins that order.
+                      case "$subject" in
+                          "Merge "*|"Revert "*) return 0 ;;
+                      esac
+
+                      # Conventional-commit prefixes, any case, with or without
+                      # a scope. Matched against the finite set of types rather
+                      # than "any word followed by a colon", so an ordinary
+                      # subject that happens to contain a colon is unaffected.
+                      # One expression rather than a `case` arm per spelling: the
+                      # type, the optional scope and the optional breaking-change
+                      # `!` combine, and enumerating the combinations left the
+                      # unscoped bang form (`Feat!:`) accepted while the scoped
+                      # one was blocked.
+                      lowered=$(printf '%s' "$subject" | tr '[:upper:]' '[:lower:]')
+                      if [[ "$lowered" =~ ^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^\)]*\))?!?: ]]; then
+                          return 1
+                      fi
+
+                      # A path-like start: a slash before the first colon. No
+                      # whitespace is required after it — `Src/Module.php:fix`
+                      # is the same mistake as `Src/Module.php: fix`, and the
+                      # character class cannot cross a colon, so an ordinary
+                      # subject containing a later path is unaffected.
+                      if [[ "$subject" =~ ^[^:[:space:]]*/[^:[:space:]]*: ]]; then
+                          return 1
+                      fi
+
+                      # Keyed on the subject, not on the branch, so the rule stays
+                      # decidable for commits already on the default branch.
+                      if [[ "$subject" == GH-* ]]; then
+                          [[ "$subject" =~ ^GH-[0-9]+:\ [[:upper:]] ]]
+                      else
+                          [[ "$subject" =~ ^[[:upper:]] ]]
+                      fi
+                  }
+                  PREDICATE
+
+                  # shellcheck source=/dev/null
+                  . "${RUNNER_TEMP}/subject-lint.sh"
+
+                  # The one variable whose job is to make a mangled table loud
+                  # must not be able to fail quietly: `[ x -lt "" ]` exits 2,
+                  # which an `if` reads as false and the assertion is skipped.
+                  if ! [[ "${MIN_CASES}" =~ ^[0-9]+$ ]]; then
+                      echo "::error::MIN_CASES must be an integer, got \"${MIN_CASES}\""
+                      exit 1
+                  fi
+
+                  failures=0
+                  cases=0
+
+                  # No skip-guard on the row: a row that arrives empty is a
+                  # mangled table, and the case counter below turns that into a
+                  # failure rather than a silent omission.
+                  while IFS='|' read -r subject expected; do
+                      cases=$((cases + 1))
+
+                      # A row that lost its verdict column would otherwise be
+                      # compared against an empty string and merely look like a
+                      # mismatch, hiding the real cause.
+                      case "$expected" in
+                          PASS|BLOCK) ;;
+                          *)
+                              echo "::error::malformed table row: \"${subject}|${expected}\""
+                              failures=$((failures + 1))
+                              continue
+                              ;;
+                      esac
+
+                      if subject_is_valid "$subject"; then
+                          actual=PASS
+                      else
+                          actual=BLOCK
+                      fi
+
+                      if [ "$actual" != "$expected" ]; then
+                          echo "::error::self-test: \"${subject}\" gave ${actual}, expected ${expected}"
+                          failures=$((failures + 1))
+                      fi
+                  done <<'TABLE'
+                  GH-123: Fix it|PASS
+                  GH-123: fix it|BLOCK
+                  GH-123: Über die Regel|PASS
+                  Fix it|PASS
+                  fix it|BLOCK
+                  GH-Actions cleanup|BLOCK
+                  GH-: Fix it|BLOCK
+                  feat: add thing|BLOCK
+                  Feat: add thing|BLOCK
+                  fix(scope): add thing|BLOCK
+                  Feat!: add thing|BLOCK
+                  Feat(api)!: add thing|BLOCK
+                  src/Module.php: fix|BLOCK
+                  Src/Module.php: fix|BLOCK
+                  Src/Module.php:fix|BLOCK
+                  GH-1: Fix a/b: thing|PASS
+                  Merge pull request #216 from magicsunday/GH-77|PASS
+                  Merge branch 'main' into GH-77|PASS
+                  Revert "Center silhouette assets on canvas"|PASS
+                  Revert "feat: add thing"|PASS
+                  Bump foo from 1.0 to 1.1|PASS
+                  Ändern der Regel|PASS
+                  ändern der Regel|BLOCK
+                  Release 3.7.1|PASS
+                   |BLOCK
+                  TABLE
+
+                  # The table cannot express the empty subject — a blank row is
+                  # indistinguishable from a mangled one — so it is asserted here.
+                  if subject_is_valid ""; then
+                      echo "::error::self-test: an empty subject must not be accepted"
+                      failures=$((failures + 1))
+                  fi
+
+                  if [ "$cases" -lt "${MIN_CASES}" ]; then
+                      echo "::error::self-test read ${cases} table rows, expected at least ${MIN_CASES} — the decision table did not survive the heredoc"
+                      exit 1
+                  fi
+
+                  if [ "$failures" -gt 0 ]; then
+                      echo "::error::the subject predicate disagrees with its decision table in ${failures} case(s)"
+                      exit 1
+                  fi
+
+                  echo "  ✔ predicate agrees with all ${cases} cases"
+
+            # The title is checked because these repositories squash-merge, so it
+            # becomes the subject on the default branch. Values reach the script
+            # through the environment, never interpolated into the shell.
+            - name: Check the pull-request title and commits
+              shell: bash
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  EVENT_NAME: ${{ github.event_name }}
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+                  PR_TITLE: ${{ github.event.pull_request.title }}
+                  PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  set -euo pipefail
+
+                  # Keyed on the pull-request number rather than the event name so
+                  # `pull_request_target` — which carries the same payload — is
+                  # checked instead of silently skipped. An event that ought to
+                  # carry a pull request but does not is a misconfiguration and
+                  # fails; only a genuinely PR-less trigger skips.
+                  if [ -z "${PR_NUMBER}" ]; then
+                      case "${EVENT_NAME}" in
+                          pull_request|pull_request_target)
+                              echo "::error::${EVENT_NAME} carried no pull-request number — the payload is not what this gate expects"
+                              exit 1
+                              ;;
+                          merge_group)
+                              # The queued title was already judged on the
+                              # pull_request event; the queue's own head commit
+                              # is a git-generated `Merge …` subject, which the
+                              # rule exempts. Failing here would stall the queue
+                              # on a check that has nothing left to decide.
+                              echo "::notice::merge_group — the title was judged on the pull_request event"
+                              exit 0
+                              ;;
+                          *)
+                              echo "::notice::no pull request in this event (${EVENT_NAME}) — nothing to check"
+                              exit 0
+                              ;;
+                      esac
+                  fi
+
+                  # shellcheck source=/dev/null
+                  . "${RUNNER_TEMP}/subject-lint.sh"
+
+                  failures=0
+                  checked=0
+
+                  report() {
+                      echo "::error::${1}: \"${2}\""
+                      failures=$((failures + 1))
+                  }
+
+                  subject_is_valid "${PR_TITLE}" \
+                      || report "pull-request title violates the commit convention" "${PR_TITLE}"
+
+                  # `--paginate` lifts the page size, but this endpoint returns at
+                  # most 250 commits whatever the pagination — the count check
+                  # below turns that ceiling into a visible failure instead of a
+                  # quietly shortened run.
+                  # `"" | split("\n")` is `[]`, so a commit with an empty message
+                  # would render as the literal word `null` and be reported as if
+                  # that were its subject. The sentinel keeps the count exact,
+                  # still fails the predicate, and names the real problem.
+                  subjects=$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/commits" \
+                      --jq '.[].commit.message | (split("\n")[0] // "") | if . == "" then "(empty commit subject)" else . end') \
+                      || { echo "::error::could not list commits for ${REPO}#${PR_NUMBER} — the API call failed. The token holds pull-requests: read or this run would have been rejected before starting, so look for a transient error or a rate limit."; exit 1; }
+
+                  # A here-string, not a pipe: a piped loop runs in a subshell and
+                  # the counters would be discarded, so the step would exit 0 with
+                  # violations already reported. Guarding the whole loop rather
+                  # than each line keeps a genuinely empty subject reaching the
+                  # predicate, which rejects it.
+                  if [ -n "$subjects" ]; then
+                      while IFS= read -r subject; do
+                          checked=$((checked + 1))
+
+                          subject_is_valid "$subject" \
+                              || report "commit subject violates the commit convention" "$subject"
+                      done <<< "$subjects"
+                  fi
+
+                  if [ "$checked" -eq 0 ]; then
+                      echo "::error::no commit subjects returned for ${REPO}#${PR_NUMBER} — the commit half of this gate did not run"
+                      exit 1
+                  fi
+
+                  if [ -n "${PR_COMMIT_COUNT}" ] && [ "$checked" -lt "${PR_COMMIT_COUNT}" ]; then
+                      echo "::error::checked ${checked} subjects but the event reported ${PR_COMMIT_COUNT} commits — the listing was short, so part of the branch went unjudged"
+                      exit 1
+                  fi
+
+                  if [ "$failures" -gt 0 ]; then
+                      echo "::error::${failures} subject(s) violate the commit convention — see AGENTS.md"
+                      exit 1
+                  fi
+
+                  echo "  ✔ title and all ${checked} commit subjects follow the convention"
