@@ -1,8 +1,13 @@
 name: Commit convention (reusable)
 
 # Reusable check of the magicsunday commit-subject convention. Callers invoke it
-# via `uses: magicsunday/.github/.github/workflows/commit-convention.yml@main`
-# from a pull_request-triggered workflow.
+# via `uses: magicsunday/.github/.github/workflows/commit-convention.yml@main`.
+#
+# Callers must grant `pull-requests: read` in their top-level `permissions:`
+# block — a called workflow's token is capped by the caller's ceiling, so a
+# caller declaring only `contents: read` leaves this job unable to list the
+# pull request's commits. The job skips itself on events other than
+# `pull_request`, so it is safe to wire into a workflow that also runs on push.
 #
 # The rule, stated once here so the prose in each repository's AGENTS.md has a
 # single executable definition to point at:
@@ -20,8 +25,9 @@ name: Commit convention (reusable)
 # predating the convention would otherwise turn every pull request red.
 #
 # The predicate is written to a file and self-tested against a decision table
-# before it is applied, so a change to the pattern that breaks a known case
-# fails here rather than in the repositories that consume it.
+# before it is applied. Every counting loop asserts how much it actually
+# inspected, because the failure mode this gate must not have is passing without
+# having checked anything.
 on:
     workflow_call:
 
@@ -43,15 +49,25 @@ jobs:
         # table below fails loudly if this is ever dropped.
         env:
             LC_ALL: C.UTF-8
+            # Number of rows the decision table must contain. The self-test
+            # compares against it so a mangled heredoc cannot report agreement
+            # with a table it never read.
+            EXPECTED_CASES: '20'
 
         steps:
             - name: Write and self-test the subject predicate
+              shell: bash
               run: |
+                  set -euo pipefail
+
                   cat > "${RUNNER_TEMP}/subject-lint.sh" <<'PREDICATE'
                   # Returns 0 when the subject satisfies the convention.
                   subject_is_valid() {
                       local subject="$1"
                       local lowered
+
+                      # An absent subject is never acceptable.
+                      [ -n "$subject" ] || return 1
 
                       # Subjects git generates itself keep their own wording.
                       case "$subject" in
@@ -87,9 +103,13 @@ jobs:
                   . "${RUNNER_TEMP}/subject-lint.sh"
 
                   failures=0
+                  cases=0
 
+                  # No skip-guard on the row: a row that arrives empty is a
+                  # mangled table, and the case counter below turns that into a
+                  # failure rather than a silent omission.
                   while IFS='|' read -r subject expected; do
-                      [ -n "$subject" ] || continue
+                      cases=$((cases + 1))
 
                       if subject_is_valid "$subject"; then
                           actual=PASS
@@ -121,34 +141,55 @@ jobs:
                   Ändern der Regel|PASS
                   ändern der Regel|BLOCK
                   Release 3.7.1|PASS
+                   |BLOCK
                   TABLE
+
+                  # The table cannot express the empty subject — a blank row is
+                  # indistinguishable from a mangled one — so it is asserted here.
+                  if subject_is_valid ""; then
+                      echo "::error::self-test: an empty subject must not be accepted"
+                      failures=$((failures + 1))
+                  fi
+
+                  if [ "$cases" -ne "${EXPECTED_CASES}" ]; then
+                      echo "::error::self-test read ${cases} of ${EXPECTED_CASES} table rows — the decision table did not survive the heredoc"
+                      exit 1
+                  fi
 
                   if [ "$failures" -gt 0 ]; then
                       echo "::error::the subject predicate disagrees with its decision table in ${failures} case(s)"
                       exit 1
                   fi
 
-                  echo "  ✔ predicate agrees with the decision table"
+                  echo "  ✔ predicate agrees with all ${cases} cases"
 
             # The title is checked because these repositories squash-merge, so it
             # becomes the subject on the default branch. Values reach the script
             # through the environment, never interpolated into the shell.
             - name: Check the pull-request title and commits
+              shell: bash
               env:
                   GH_TOKEN: ${{ github.token }}
+                  EVENT_NAME: ${{ github.event_name }}
                   PR_NUMBER: ${{ github.event.pull_request.number }}
                   PR_TITLE: ${{ github.event.pull_request.title }}
+                  PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
                   REPO: ${{ github.repository }}
               run: |
-                  if [ -z "${PR_NUMBER}" ]; then
-                      echo "::error::this workflow only runs on pull_request events"
-                      exit 1
+                  set -euo pipefail
+
+                  # There is no pull request to judge on other events, so this is
+                  # a skip rather than a pass — nothing goes unchecked.
+                  if [ "${EVENT_NAME}" != "pull_request" ] || [ -z "${PR_NUMBER}" ]; then
+                      echo "::notice::no pull request in this event (${EVENT_NAME}) — nothing to check"
+                      exit 0
                   fi
 
                   # shellcheck source=/dev/null
                   . "${RUNNER_TEMP}/subject-lint.sh"
 
                   failures=0
+                  checked=0
 
                   report() {
                       echo "::error::${1}: \"${2}\""
@@ -158,23 +199,41 @@ jobs:
                   subject_is_valid "${PR_TITLE}" \
                       || report "pull-request title violates the commit convention" "${PR_TITLE}"
 
-                  # The API is paginated; --paginate keeps a long pull request
-                  # from silently passing on its first thirty commits.
+                  # `--paginate` lifts the page size, but this endpoint returns at
+                  # most 250 commits whatever the pagination — the count check
+                  # below turns that ceiling into a visible failure instead of a
+                  # quietly shortened run.
                   subjects=$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/commits" \
-                      --jq '.[].commit.message | split("\n")[0]')
+                      --jq '.[].commit.message | split("\n")[0]') \
+                      || { echo "::error::could not list commits for ${REPO}#${PR_NUMBER} — does the caller grant pull-requests: read?"; exit 1; }
 
-                  # A here-string rather than a pipe: under `set -o pipefail` a
-                  # loop that exits early would mask the producer's status.
-                  while IFS= read -r subject; do
-                      [ -n "$subject" ] || continue
+                  # A here-string, not a pipe: a piped loop runs in a subshell and
+                  # the counters would be discarded, so the step would exit 0 with
+                  # violations already reported. Guarding the whole loop rather
+                  # than each line keeps a genuinely empty subject reaching the
+                  # predicate, which rejects it.
+                  if [ -n "$subjects" ]; then
+                      while IFS= read -r subject; do
+                          checked=$((checked + 1))
 
-                      subject_is_valid "$subject" \
-                          || report "commit subject violates the commit convention" "$subject"
-                  done <<< "$subjects"
+                          subject_is_valid "$subject" \
+                              || report "commit subject violates the commit convention" "$subject"
+                      done <<< "$subjects"
+                  fi
+
+                  if [ "$checked" -eq 0 ]; then
+                      echo "::error::no commit subjects returned for ${REPO}#${PR_NUMBER} — the commit half of this gate did not run"
+                      exit 1
+                  fi
+
+                  if [ -n "${PR_COMMIT_COUNT}" ] && [ "$checked" -lt "${PR_COMMIT_COUNT}" ]; then
+                      echo "::error::checked ${checked} of ${PR_COMMIT_COUNT} commits — the listing was truncated, so the tail went unjudged"
+                      exit 1
+                  fi
 
                   if [ "$failures" -gt 0 ]; then
                       echo "::error::${failures} subject(s) violate the commit convention — see AGENTS.md"
                       exit 1
                   fi
 
-                  echo "  ✔ pull-request title and all commit subjects follow the convention"
+                  echo "  ✔ title and all ${checked} commit subjects follow the convention"

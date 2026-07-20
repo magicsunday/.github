@@ -1,0 +1,20 @@
+name: Commit lint
+
+# Dogfoods the reusable commit-convention gate against this repository, the same
+# way `lint.yml` dogfoods the yamllint one. Beyond catching a broken subject
+# here, it proves the caller contract: the top-level `pull-requests: read` below
+# is what lifts the called job's token ceiling far enough to list a pull
+# request's commits, and a consumer that omits it will fail where this passes.
+on:
+    pull_request:
+
+permissions:
+    contents: read
+    pull-requests: read
+
+jobs:
+    commit-convention:
+        uses: ./.github/workflows/commit-convention.yml
+        permissions:
+            contents: read
+            pull-requests: read
