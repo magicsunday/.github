@@ -21,6 +21,13 @@ name: Commit convention (reusable)
 # pagination, so a pull request with more commits than that fails the count
 # check and cannot pass. Split it, or squash the branch.
 #
+# A `merge_group` run skips. The subject that reaches the default branch is the
+# pull-request title, which the `pull_request` run has already judged — with
+# `edited` in the trigger list, including after a late edit — and the merge-queue
+# head commit itself carries a git-generated `Merge …` subject, which the rule
+# exempts anyway. Failing the queue instead would make this gate impossible to
+# adopt alongside one.
+#
 # The rule, stated once here so the prose in each repository's AGENTS.md has a
 # single executable definition to point at:
 #
@@ -61,11 +68,10 @@ jobs:
         # table below fails loudly if this is ever dropped.
         env:
             LC_ALL: C.UTF-8
-            # Lower bound on the decision table's size. A floor rather than an
-            # exact count: adding a row stays a one-place edit, while a heredoc
-            # that lost its content still fails. Row *shape* is asserted inside
-            # the loop, so a truncated-but-well-formed table cannot slip through
-            # on the count alone.
+            # Lower bound on the decision table's size, and the ONLY thing that
+            # detects rows going missing — the per-row shape assertion can only
+            # judge rows it actually read. Raise it in lockstep when adding a
+            # case, or each new row buys back one row of undetectable truncation.
             MIN_CASES: '20'
 
         steps:
@@ -224,8 +230,13 @@ jobs:
                               exit 1
                               ;;
                           merge_group)
-                              echo "::error::merge_group is not supported: the queued title would reach the default branch unjudged"
-                              exit 1
+                              # The queued title was already judged on the
+                              # pull_request event; the queue's own head commit
+                              # is a git-generated `Merge …` subject, which the
+                              # rule exempts. Failing here would stall the queue
+                              # on a check that has nothing left to decide.
+                              echo "::notice::merge_group — the title was judged on the pull_request event"
+                              exit 0
                               ;;
                           *)
                               echo "::notice::no pull request in this event (${EVENT_NAME}) — nothing to check"
