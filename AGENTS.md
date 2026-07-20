@@ -47,9 +47,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   holds the normative definition. A subject starting with `GH-` must match
   `^GH-\d+: <capital>`; every other subject must start with a capital. No
   conventional-commit prefixes and no path-like starts, whatever their case.
-  `Merge …` / `Revert …` subjects git writes itself are exempt. Not enforced by the
-  gate, because it is keyed on the subject alone so it stays decidable on `main`:
-  that commits on a `GH-<N>` branch carry the prefix.
+  `Merge …` / `Revert …` subjects git writes itself are exempt. The gate does NOT
+  enforce that commits on a `GH-<N>` branch carry the prefix — it is keyed on the
+  subject alone, so that the rule stays decidable for commits already on `main`,
+  where the branch no longer exists.
   Do not restate the rule as "optionally prefixed `GH-<N>: `" — that folds the two
   branches into one optional group, which enforces nothing after the prefix,
   because the group can be skipped and the `G` of `GH-` then satisfies the capital

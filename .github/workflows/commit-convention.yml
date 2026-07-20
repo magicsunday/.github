@@ -45,6 +45,11 @@ name: Commit convention (reusable)
 #   - Path-like starts are banned whatever their case: `src/Module.php: …`.
 #   - Subjects git writes itself (`Merge …`, `Revert "…"`) are exempt.
 #
+# Adoption assumes squash-merge, which is what makes the title the subject that
+# reaches the default branch. Under merge commits the commit checks still hold
+# but the title check loses its point, and the merge_group skip loses its
+# justification along with it.
+#
 # Both the pull-request title and every commit in the pull request are checked.
 # The title matters because these repositories squash-merge: the title is what
 # ends up on the default branch. Existing history is never re-judged — subjects
@@ -79,7 +84,7 @@ jobs:
             # detects rows going missing — the per-row shape assertion can only
             # judge rows it actually read. Raise it in lockstep when adding a
             # case, or each new row buys back one row of undetectable truncation.
-            MIN_CASES: '24'
+            MIN_CASES: '25'
 
         steps:
             - name: Write and self-test the subject predicate
@@ -96,7 +101,10 @@ jobs:
                       # An absent subject is never acceptable.
                       [ -n "$subject" ] || return 1
 
-                      # Subjects git generates itself keep their own wording.
+                      # Subjects git generates itself keep their own wording. This
+                      # is checked BEFORE the prefix ban on purpose, so reverting
+                      # someone else's conventional-commit subject does not fail —
+                      # a table row pins that order.
                       case "$subject" in
                           "Merge "*|"Revert "*) return 0 ;;
                       esac
@@ -196,6 +204,7 @@ jobs:
                   Merge pull request #216 from magicsunday/GH-77|PASS
                   Merge branch 'main' into GH-77|PASS
                   Revert "Center silhouette assets on canvas"|PASS
+                  Revert "feat: add thing"|PASS
                   Bump foo from 1.0 to 1.1|PASS
                   Ändern der Regel|PASS
                   ändern der Regel|BLOCK
