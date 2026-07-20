@@ -79,7 +79,7 @@ jobs:
             # detects rows going missing — the per-row shape assertion can only
             # judge rows it actually read. Raise it in lockstep when adding a
             # case, or each new row buys back one row of undetectable truncation.
-            MIN_CASES: '22'
+            MIN_CASES: '24'
 
         steps:
             - name: Write and self-test the subject predicate
@@ -105,11 +105,15 @@ jobs:
                       # a scope. Matched against the finite set of types rather
                       # than "any word followed by a colon", so an ordinary
                       # subject that happens to contain a colon is unaffected.
+                      # One expression rather than a `case` arm per spelling: the
+                      # type, the optional scope and the optional breaking-change
+                      # `!` combine, and enumerating the combinations left the
+                      # unscoped bang form (`Feat!:`) accepted while the scoped
+                      # one was blocked.
                       lowered=$(printf '%s' "$subject" | tr '[:upper:]' '[:lower:]')
-                      case "$lowered" in
-                          build:*|chore:*|ci:*|docs:*|feat:*|fix:*|perf:*|refactor:*|revert:*|style:*|test:*) return 1 ;;
-                          build\(*|chore\(*|ci\(*|docs\(*|feat\(*|fix\(*|perf\(*|refactor\(*|revert\(*|style\(*|test\(*) return 1 ;;
-                      esac
+                      if [[ "$lowered" =~ ^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^\)]*\))?!?: ]]; then
+                          return 1
+                      fi
 
                       # A path-like start: a slash before the first colon. No
                       # whitespace is required after it — `Src/Module.php:fix`
@@ -183,6 +187,8 @@ jobs:
                   feat: add thing|BLOCK
                   Feat: add thing|BLOCK
                   fix(scope): add thing|BLOCK
+                  Feat!: add thing|BLOCK
+                  Feat(api)!: add thing|BLOCK
                   src/Module.php: fix|BLOCK
                   Src/Module.php: fix|BLOCK
                   Src/Module.php:fix|BLOCK
@@ -282,7 +288,7 @@ jobs:
                   # still fails the predicate, and names the real problem.
                   subjects=$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/commits" \
                       --jq '.[].commit.message | (split("\n")[0] // "") | if . == "" then "(empty commit subject)" else . end') \
-                      || { echo "::error::could not list commits for ${REPO}#${PR_NUMBER} — does the caller grant pull-requests: read?"; exit 1; }
+                      || { echo "::error::could not list commits for ${REPO}#${PR_NUMBER} — the API call failed. The token holds pull-requests: read or this run would have been rejected before starting, so look for a transient error or a rate limit."; exit 1; }
 
                   # A here-string, not a pipe: a piped loop runs in a subshell and
                   # the counters would be discarded, so the step would exit 0 with
