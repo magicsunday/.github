@@ -1,0 +1,180 @@
+name: Commit convention (reusable)
+
+# Reusable check of the magicsunday commit-subject convention. Callers invoke it
+# via `uses: magicsunday/.github/.github/workflows/commit-convention.yml@main`
+# from a pull_request-triggered workflow.
+#
+# The rule, stated once here so the prose in each repository's AGENTS.md has a
+# single executable definition to point at:
+#
+#   - A subject starting with `GH-` must match `^GH-\d+: <capital>`.
+#   - Every other subject must start with a capital letter.
+#   - Conventional-commit prefixes are banned whatever their case: `feat:`,
+#     `Feat:`, `fix(scope):` alike.
+#   - Path-like starts are banned whatever their case: `src/Module.php: …`.
+#   - Subjects git writes itself (`Merge …`, `Revert "…"`) are exempt.
+#
+# Both the pull-request title and every commit in the pull request are checked.
+# The title matters because these repositories squash-merge: the title is what
+# ends up on the default branch. Existing history is never re-judged — subjects
+# predating the convention would otherwise turn every pull request red.
+#
+# The predicate is written to a file and self-tested against a decision table
+# before it is applied, so a change to the pattern that breaks a known case
+# fails here rather than in the repositories that consume it.
+on:
+    workflow_call:
+
+permissions:
+    contents: read
+
+jobs:
+    commit-convention:
+        name: Commit convention
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+            pull-requests: read
+
+        # `[[:upper:]]` is locale-dependent: under LC_ALL=C a subject starting
+        # with `Ä` is NOT considered uppercase and a valid subject would be
+        # rejected. Pinning a UTF-8 locale is load-bearing, and the decision
+        # table below fails loudly if this is ever dropped.
+        env:
+            LC_ALL: C.UTF-8
+
+        steps:
+            - name: Write and self-test the subject predicate
+              run: |
+                  cat > "${RUNNER_TEMP}/subject-lint.sh" <<'PREDICATE'
+                  # Returns 0 when the subject satisfies the convention.
+                  subject_is_valid() {
+                      local subject="$1"
+                      local lowered
+
+                      # Subjects git generates itself keep their own wording.
+                      case "$subject" in
+                          "Merge "*|"Revert "*) return 0 ;;
+                      esac
+
+                      # Conventional-commit prefixes, any case, with or without
+                      # a scope. Matched against the finite set of types rather
+                      # than "any word followed by a colon", so an ordinary
+                      # subject that happens to contain a colon is unaffected.
+                      lowered=$(printf '%s' "$subject" | tr '[:upper:]' '[:lower:]')
+                      case "$lowered" in
+                          build:*|chore:*|ci:*|docs:*|feat:*|fix:*|perf:*|refactor:*|revert:*|style:*|test:*) return 1 ;;
+                          build\(*|chore\(*|ci\(*|docs\(*|feat\(*|fix\(*|perf\(*|refactor\(*|revert\(*|style\(*|test\(*) return 1 ;;
+                      esac
+
+                      # A path-like start: a slash before the first colon.
+                      if [[ "$subject" =~ ^[^:[:space:]]*/[^:[:space:]]*:[[:space:]] ]]; then
+                          return 1
+                      fi
+
+                      # Keyed on the subject, not on the branch, so the rule stays
+                      # decidable for commits already on the default branch.
+                      if [[ "$subject" == GH-* ]]; then
+                          [[ "$subject" =~ ^GH-[0-9]+:\ [[:upper:]] ]]
+                      else
+                          [[ "$subject" =~ ^[[:upper:]] ]]
+                      fi
+                  }
+                  PREDICATE
+
+                  # shellcheck source=/dev/null
+                  . "${RUNNER_TEMP}/subject-lint.sh"
+
+                  failures=0
+
+                  while IFS='|' read -r subject expected; do
+                      [ -n "$subject" ] || continue
+
+                      if subject_is_valid "$subject"; then
+                          actual=PASS
+                      else
+                          actual=BLOCK
+                      fi
+
+                      if [ "$actual" != "$expected" ]; then
+                          echo "::error::self-test: \"${subject}\" gave ${actual}, expected ${expected}"
+                          failures=$((failures + 1))
+                      fi
+                  done <<'TABLE'
+                  GH-123: Fix it|PASS
+                  GH-123: fix it|BLOCK
+                  GH-123: Über die Regel|PASS
+                  Fix it|PASS
+                  fix it|BLOCK
+                  GH-Actions cleanup|BLOCK
+                  GH-: Fix it|BLOCK
+                  feat: add thing|BLOCK
+                  Feat: add thing|BLOCK
+                  fix(scope): add thing|BLOCK
+                  src/Module.php: fix|BLOCK
+                  Src/Module.php: fix|BLOCK
+                  Merge pull request #216 from magicsunday/GH-77|PASS
+                  Merge branch 'main' into GH-77|PASS
+                  Revert "Center silhouette assets on canvas"|PASS
+                  Bump foo from 1.0 to 1.1|PASS
+                  Ändern der Regel|PASS
+                  ändern der Regel|BLOCK
+                  Release 3.7.1|PASS
+                  TABLE
+
+                  if [ "$failures" -gt 0 ]; then
+                      echo "::error::the subject predicate disagrees with its decision table in ${failures} case(s)"
+                      exit 1
+                  fi
+
+                  echo "  ✔ predicate agrees with the decision table"
+
+            # The title is checked because these repositories squash-merge, so it
+            # becomes the subject on the default branch. Values reach the script
+            # through the environment, never interpolated into the shell.
+            - name: Check the pull-request title and commits
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+                  PR_TITLE: ${{ github.event.pull_request.title }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  if [ -z "${PR_NUMBER}" ]; then
+                      echo "::error::this workflow only runs on pull_request events"
+                      exit 1
+                  fi
+
+                  # shellcheck source=/dev/null
+                  . "${RUNNER_TEMP}/subject-lint.sh"
+
+                  failures=0
+
+                  report() {
+                      echo "::error::${1}: \"${2}\""
+                      failures=$((failures + 1))
+                  }
+
+                  subject_is_valid "${PR_TITLE}" \
+                      || report "pull-request title violates the commit convention" "${PR_TITLE}"
+
+                  # The API is paginated; --paginate keeps a long pull request
+                  # from silently passing on its first thirty commits.
+                  subjects=$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/commits" \
+                      --jq '.[].commit.message | split("\n")[0]')
+
+                  # A here-string rather than a pipe: under `set -o pipefail` a
+                  # loop that exits early would mask the producer's status.
+                  while IFS= read -r subject; do
+                      [ -n "$subject" ] || continue
+
+                      subject_is_valid "$subject" \
+                          || report "commit subject violates the commit convention" "$subject"
+                  done <<< "$subjects"
+
+                  if [ "$failures" -gt 0 ]; then
+                      echo "::error::${failures} subject(s) violate the commit convention — see AGENTS.md"
+                      exit 1
+                  fi
+
+                  echo "  ✔ pull-request title and all commit subjects follow the convention"
