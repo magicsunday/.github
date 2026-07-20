@@ -14,6 +14,10 @@ name: Commit lint
 # Cancelling in progress removes that race, and is safe because this gate mutates
 # nothing — only the newest title is meant to be judged.
 #
+# The group key falls back to `github.ref` for the benefit of consumers who copy
+# this file and add a trigger without a pull request. Without the fallback every
+# such run would share one empty group and cancel its predecessor.
+#
 # The calling job deliberately declares no `permissions:` block of its own: a
 # job-level block would replace the top-level one rather than merge with it, so
 # leaving it off is what makes the top-level grant below the thing that is
@@ -27,7 +31,7 @@ permissions:
     pull-requests: read
 
 concurrency:
-    group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
     cancel-in-progress: true
 
 jobs:

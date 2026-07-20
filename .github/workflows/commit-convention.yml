@@ -7,8 +7,10 @@ name: Commit convention (reusable)
 # `permissions:` block when it has one — a job-level block replaces the caller's
 # top-level block rather than merging with it — otherwise the caller's top-level
 # block, otherwise the repository default. A caller that grants the scope at the
-# top level but declares `contents: read` on the calling job still ends up with a
-# token that cannot list the pull request's commits.
+# top level but declares `contents: read` on the calling job does not merely get a
+# weaker token: the run is rejected before any step runs, because this workflow's
+# job requests `pull-requests: read` and a called workflow cannot exceed its
+# caller. The error names the scope, so look there rather than at the step log.
 #
 # Callers must also include `edited` in their `types:`, or a title fixed after a
 # red run never re-runs the check, and a title broken after a green one is never
@@ -27,6 +29,11 @@ name: Commit convention (reusable)
 # head commit itself carries a git-generated `Merge …` subject, which the rule
 # exempts anyway. Failing the queue instead would make this gate impossible to
 # adopt alongside one.
+#
+# One residual, stated rather than hidden: a title edited AFTER the pull request
+# is queued is not re-judged, because the queue merges on the merge_group result
+# and a newly-red pull_request run does not evict the entry. Require the check on
+# the pull request as well as on the queue to close that window.
 #
 # The rule, stated once here so the prose in each repository's AGENTS.md has a
 # single executable definition to point at:
@@ -72,7 +79,7 @@ jobs:
             # detects rows going missing — the per-row shape assertion can only
             # judge rows it actually read. Raise it in lockstep when adding a
             # case, or each new row buys back one row of undetectable truncation.
-            MIN_CASES: '20'
+            MIN_CASES: '22'
 
         steps:
             - name: Write and self-test the subject predicate
@@ -104,8 +111,12 @@ jobs:
                           build\(*|chore\(*|ci\(*|docs\(*|feat\(*|fix\(*|perf\(*|refactor\(*|revert\(*|style\(*|test\(*) return 1 ;;
                       esac
 
-                      # A path-like start: a slash before the first colon.
-                      if [[ "$subject" =~ ^[^:[:space:]]*/[^:[:space:]]*:[[:space:]] ]]; then
+                      # A path-like start: a slash before the first colon. No
+                      # whitespace is required after it — `Src/Module.php:fix`
+                      # is the same mistake as `Src/Module.php: fix`, and the
+                      # character class cannot cross a colon, so an ordinary
+                      # subject containing a later path is unaffected.
+                      if [[ "$subject" =~ ^[^:[:space:]]*/[^:[:space:]]*: ]]; then
                           return 1
                       fi
 
@@ -174,6 +185,8 @@ jobs:
                   fix(scope): add thing|BLOCK
                   src/Module.php: fix|BLOCK
                   Src/Module.php: fix|BLOCK
+                  Src/Module.php:fix|BLOCK
+                  GH-1: Fix a/b: thing|PASS
                   Merge pull request #216 from magicsunday/GH-77|PASS
                   Merge branch 'main' into GH-77|PASS
                   Revert "Center silhouette assets on canvas"|PASS
