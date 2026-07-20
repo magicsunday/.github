@@ -3,11 +3,23 @@ name: Commit convention (reusable)
 # Reusable check of the magicsunday commit-subject convention. Callers invoke it
 # via `uses: magicsunday/.github/.github/workflows/commit-convention.yml@main`.
 #
-# Callers must grant `pull-requests: read` in their top-level `permissions:`
-# block — a called workflow's token is capped by the caller's ceiling, so a
-# caller declaring only `contents: read` leaves this job unable to list the
-# pull request's commits. The job skips itself on events other than
-# `pull_request`, so it is safe to wire into a workflow that also runs on push.
+# Callers must grant `pull-requests: read`. The ceiling is the CALLING JOB's
+# `permissions:` block when it has one — a job-level block replaces the caller's
+# top-level block rather than merging with it — otherwise the caller's top-level
+# block, otherwise the repository default. A caller that grants the scope at the
+# top level but declares `contents: read` on the calling job still ends up with a
+# token that cannot list the pull request's commits.
+#
+# Callers must also include `edited` in their `types:`, or a title fixed after a
+# red run never re-runs the check, and a title broken after a green one is never
+# re-judged — see `commit-lint.yml` in this repository for the shape.
+#
+# The status context a branch-protection rule must list is the composite
+# `<calling-job-id> / Commit convention`, not `Commit convention` alone.
+#
+# Known limit: the commits endpoint returns at most 250 entries whatever the
+# pagination, so a pull request with more commits than that fails the count
+# check and cannot pass. Split it, or squash the branch.
 #
 # The rule, stated once here so the prose in each repository's AGENTS.md has a
 # single executable definition to point at:
@@ -49,10 +61,12 @@ jobs:
         # table below fails loudly if this is ever dropped.
         env:
             LC_ALL: C.UTF-8
-            # Number of rows the decision table must contain. The self-test
-            # compares against it so a mangled heredoc cannot report agreement
-            # with a table it never read.
-            EXPECTED_CASES: '20'
+            # Lower bound on the decision table's size. A floor rather than an
+            # exact count: adding a row stays a one-place edit, while a heredoc
+            # that lost its content still fails. Row *shape* is asserted inside
+            # the loop, so a truncated-but-well-formed table cannot slip through
+            # on the count alone.
+            MIN_CASES: '20'
 
         steps:
             - name: Write and self-test the subject predicate
@@ -102,6 +116,14 @@ jobs:
                   # shellcheck source=/dev/null
                   . "${RUNNER_TEMP}/subject-lint.sh"
 
+                  # The one variable whose job is to make a mangled table loud
+                  # must not be able to fail quietly: `[ x -lt "" ]` exits 2,
+                  # which an `if` reads as false and the assertion is skipped.
+                  if ! [[ "${MIN_CASES}" =~ ^[0-9]+$ ]]; then
+                      echo "::error::MIN_CASES must be an integer, got \"${MIN_CASES}\""
+                      exit 1
+                  fi
+
                   failures=0
                   cases=0
 
@@ -110,6 +132,18 @@ jobs:
                   # failure rather than a silent omission.
                   while IFS='|' read -r subject expected; do
                       cases=$((cases + 1))
+
+                      # A row that lost its verdict column would otherwise be
+                      # compared against an empty string and merely look like a
+                      # mismatch, hiding the real cause.
+                      case "$expected" in
+                          PASS|BLOCK) ;;
+                          *)
+                              echo "::error::malformed table row: \"${subject}|${expected}\""
+                              failures=$((failures + 1))
+                              continue
+                              ;;
+                      esac
 
                       if subject_is_valid "$subject"; then
                           actual=PASS
@@ -151,8 +185,8 @@ jobs:
                       failures=$((failures + 1))
                   fi
 
-                  if [ "$cases" -ne "${EXPECTED_CASES}" ]; then
-                      echo "::error::self-test read ${cases} of ${EXPECTED_CASES} table rows — the decision table did not survive the heredoc"
+                  if [ "$cases" -lt "${MIN_CASES}" ]; then
+                      echo "::error::self-test read ${cases} table rows, expected at least ${MIN_CASES} — the decision table did not survive the heredoc"
                       exit 1
                   fi
 
@@ -178,11 +212,26 @@ jobs:
               run: |
                   set -euo pipefail
 
-                  # There is no pull request to judge on other events, so this is
-                  # a skip rather than a pass — nothing goes unchecked.
-                  if [ "${EVENT_NAME}" != "pull_request" ] || [ -z "${PR_NUMBER}" ]; then
-                      echo "::notice::no pull request in this event (${EVENT_NAME}) — nothing to check"
-                      exit 0
+                  # Keyed on the pull-request number rather than the event name so
+                  # `pull_request_target` — which carries the same payload — is
+                  # checked instead of silently skipped. An event that ought to
+                  # carry a pull request but does not is a misconfiguration and
+                  # fails; only a genuinely PR-less trigger skips.
+                  if [ -z "${PR_NUMBER}" ]; then
+                      case "${EVENT_NAME}" in
+                          pull_request|pull_request_target)
+                              echo "::error::${EVENT_NAME} carried no pull-request number — the payload is not what this gate expects"
+                              exit 1
+                              ;;
+                          merge_group)
+                              echo "::error::merge_group is not supported: the queued title would reach the default branch unjudged"
+                              exit 1
+                              ;;
+                          *)
+                              echo "::notice::no pull request in this event (${EVENT_NAME}) — nothing to check"
+                              exit 0
+                              ;;
+                      esac
                   fi
 
                   # shellcheck source=/dev/null
@@ -203,8 +252,12 @@ jobs:
                   # most 250 commits whatever the pagination — the count check
                   # below turns that ceiling into a visible failure instead of a
                   # quietly shortened run.
+                  # `"" | split("\n")` is `[]`, so a commit with an empty message
+                  # would render as the literal word `null` and be reported as if
+                  # that were its subject. The sentinel keeps the count exact,
+                  # still fails the predicate, and names the real problem.
                   subjects=$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/commits" \
-                      --jq '.[].commit.message | split("\n")[0]') \
+                      --jq '.[].commit.message | (split("\n")[0] // "") | if . == "" then "(empty commit subject)" else . end') \
                       || { echo "::error::could not list commits for ${REPO}#${PR_NUMBER} — does the caller grant pull-requests: read?"; exit 1; }
 
                   # A here-string, not a pipe: a piped loop runs in a subshell and
@@ -227,7 +280,7 @@ jobs:
                   fi
 
                   if [ -n "${PR_COMMIT_COUNT}" ] && [ "$checked" -lt "${PR_COMMIT_COUNT}" ]; then
-                      echo "::error::checked ${checked} of ${PR_COMMIT_COUNT} commits — the listing was truncated, so the tail went unjudged"
+                      echo "::error::checked ${checked} subjects but the event reported ${PR_COMMIT_COUNT} commits — the listing was short, so part of the branch went unjudged"
                       exit 1
                   fi
 

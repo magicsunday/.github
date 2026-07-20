@@ -1,12 +1,21 @@
 name: Commit lint
 
 # Dogfoods the reusable commit-convention gate against this repository, the same
-# way `lint.yml` dogfoods the yamllint one. Beyond catching a broken subject
-# here, it proves the caller contract: the top-level `pull-requests: read` below
-# is what lifts the called job's token ceiling far enough to list a pull
-# request's commits, and a consumer that omits it will fail where this passes.
+# way `lint.yml` dogfoods the yamllint one, and doubles as the copy-template for
+# consumers.
+#
+# `edited` is in the trigger list on purpose. The gate checks the pull-request
+# title because these repositories squash-merge, and the default activity types
+# do not include title edits — without it a title broken after a green run is
+# never re-judged, and a title fixed after a red one has nothing to re-run.
+#
+# The calling job deliberately declares no `permissions:` block of its own: a
+# job-level block would replace the top-level one rather than merge with it, so
+# leaving it off is what makes the top-level grant below the thing that is
+# actually exercised. Consumers copying this file get the working shape.
 on:
     pull_request:
+        types: [opened, reopened, synchronize, edited]
 
 permissions:
     contents: read
@@ -15,6 +24,3 @@ permissions:
 jobs:
     commit-convention:
         uses: ./.github/workflows/commit-convention.yml
-        permissions:
-            contents: read
-            pull-requests: read
