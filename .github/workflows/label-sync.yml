@@ -2,9 +2,18 @@ name: Label sync (reusable)
 
 # Reusable label synchroniser shared across all magicsunday repositories. It
 # fetches the canonical label manifest from magicsunday/.github and applies it
-# to the calling repository. Callers invoke it via
-# `uses: magicsunday/.github/.github/workflows/label-sync.yml@main` and must
-# grant `issues: write`.
+# to the calling repository.
+#
+# The caller job MUST grant `issues: write` — a reusable workflow's token is
+# capped by the caller's ceiling, so without it the label writes fail at
+# runtime with a 403. Copy this call verbatim:
+#
+#     jobs:
+#         sync:
+#             uses: magicsunday/.github/.github/workflows/label-sync.yml@main
+#             permissions:
+#                 contents: read
+#                 issues: write
 #
 # skip-delete keeps the sync non-destructive: canonical labels are created and
 # updated, but repo-specific labels are left untouched.

@@ -13,6 +13,12 @@ on:
 permissions:
     contents: read
 
+# Serialise runs so an overlapping schedule/dispatch/push cannot drive two
+# concurrent label mutations; do not cancel an in-flight sync mid-write.
+concurrency:
+    group: ${{ github.workflow }}
+    cancel-in-progress: false
+
 jobs:
     sync:
         uses: ./.github/workflows/label-sync.yml
