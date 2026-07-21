@@ -39,7 +39,11 @@ name: Commit convention (reusable)
 # single executable definition to point at:
 #
 #   - A subject starting with `GH-` must match `^GH-\d+: <capital>`.
-#   - Every other subject must start with a capital letter.
+#   - Every other subject must start with a capital letter. `<capital>` is any
+#     Unicode capital as far as this gate is concerned, while the convention
+#     asks for an ASCII `[A-Z]`, commit subjects being English. The gate does
+#     not enforce that narrowing — `Ändern der Regel` passes it — which is the
+#     price of the width explained at the predicate below.
 #   - Conventional-commit prefixes are banned whatever their case: `feat:`,
 #     `Feat:`, `fix(scope):` alike.
 #   - Path-like starts are banned whatever their case: `src/Module.php: …`.
@@ -74,10 +78,30 @@ jobs:
             contents: read
             pull-requests: read
 
+        # Commit subjects are written in English, so in practice the leading
+        # capital is always A-Z and the documented convention says so. This one
+        # character class stays deliberately wider here: the capital *match* sits only
+        # in accept positions (the byte-based `tr` below uses the class
+        # too, but on ASCII only), so widening it can only add PASSes and cannot
+        # produce a false block. Narrowing it to `[A-Z]` would buy nothing —
+        # no subject in this repository's history starts with a non-ASCII
+        # capital — while turning a documentation change into a behaviour one.
+        #
+        # That is a claim about the capital class ALONE, not about the gate. The
+        # gate is not a superset of `^[A-Z]` — the `GH-` routing, the
+        # conventional-commit ban and the path-like ban below each reject
+        # subjects that do start with a capital, on purpose, and the convention
+        # states every one of them too.
+        #
         # `[[:upper:]]` is locale-dependent: under LC_ALL=C a subject starting
-        # with `Ä` is NOT considered uppercase and a valid subject would be
-        # rejected. Pinning a UTF-8 locale is load-bearing, and the decision
-        # table below fails loudly if this is ever dropped.
+        # with `Ä` is NOT considered uppercase and would be rejected. Pinning a
+        # UTF-8 locale is load-bearing for that width. The two umlaut rows in
+        # the decision table detect a non-UTF-8 effective locale, but they
+        # cannot detect this pin being DROPPED — a runner whose ambient LANG is
+        # already UTF-8 keeps them green — so the pin is asserted outright
+        # below. The pin buys that width for the bash regex only: `tr` is
+        # byte-based here and lowercases ASCII alone, which suffices because
+        # every banned prefix is ASCII.
         env:
             LC_ALL: C.UTF-8
             # Lower bound on the decision table's size, and the ONLY thing that
@@ -153,9 +177,31 @@ jobs:
                       exit 1
                   fi
 
+                  # The umlaut rows below fail on a non-UTF-8 locale, but stay
+                  # green when the pin is simply deleted on a runner whose
+                  # ambient LANG is already UTF-8. Assert a UTF-8 codeset so that
+                  # drop is loud — matching the property the rows depend on, not
+                  # one spelling, so a re-pin to `C.utf8`/`en_US.UTF-8` is fine.
+                  case "${LC_ALL:-}" in
+                      *.[Uu][Tt][Ff]-8|*.[Uu][Tt][Ff]8|*.[Uu][Tt][Ff]-8@*|*.[Uu][Tt][Ff]8@*) : ;;
+                      *)
+                          echo "::error::LC_ALL is \"${LC_ALL:-unset}\", not a UTF-8 locale (pin C.UTF-8)"
+                          exit 1
+                          ;;
+                  esac
+
                   failures=0
                   cases=0
 
+                  # The table pins what this GATE does. On the capital class
+                  # alone the gate is deliberately wider than the convention
+                  # (see the note above) — that is why the two umlaut rows
+                  # assert PASS, and they are what keeps the effective locale
+                  # honest. Elsewhere the gate is the NARROWER of the two: the
+                  # `|BLOCK` rows starting with a capital (a bad `GH-` shape, a
+                  # conventional-commit type, a path) reject a subject the bare
+                  # `^[A-Z]` convention would pass.
+                  #
                   # No skip-guard on the row: a row that arrives empty is a
                   # mangled table, and the case counter below turns that into a
                   # failure rather than a silent omission.
