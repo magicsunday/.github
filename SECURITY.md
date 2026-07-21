@@ -12,6 +12,8 @@ Do **not** report vulnerabilities in public issues or pull requests.
 
 Report vulnerabilities privately using GitHub Security Advisories: open a private
 advisory from the **Security** tab of the affected repository ("Report a vulnerability").
+See [Privately reporting a security vulnerability](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/report-privately)
+for the exact steps.
 
 ### What to Include
 
