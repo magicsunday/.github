@@ -14,19 +14,29 @@ Every workflow is called with the `@main` ref. **The calling job must grant the
 permissions listed here**: a reusable workflow's token is capped by the caller's
 ceiling, so a missing permission does not fail the lint — it fails at runtime.
 
+The permission column is the **complete** block to put on the calling job — a
+job-level block replaces the caller's top-level one instead of merging with it,
+so an omitted scope is dropped to `none` and the run is rejected before any step
+runs.
+
 | Workflow | Purpose | Permissions the caller must grant |
 | --- | --- | --- |
-| `code-scanning.yml` | Semgrep scan, results uploaded as code-scanning alerts | `security-events: write` |
-| `zizmor.yml` | Audit of the caller's workflow YAML (injection, permissions, pins) | `security-events: write` |
+| `code-scanning.yml` | Semgrep scan, results uploaded as code-scanning alerts | `contents: read`, `security-events: write` |
+| `zizmor.yml` | Audit of the caller's workflow YAML (injection, permissions, pins) | `contents: read`, `security-events: write` |
 | `scorecard.yml` | OSSF Scorecard supply-chain analysis (public repositories) | `security-events: write`, `id-token: write` |
-| `dependency-review.yml` | Blocks vulnerable dependencies in a pull request | `pull-requests: write` |
-| `label-sync.yml` | Applies the canonical label set from `labels.yml` | `issues: write` |
-| `commit-convention.yml` | Enforces the commit-subject convention | — |
-| `yamllint.yml` | Lints YAML against the house style (4-space indent) | — |
-| `i18n.yml` | Verifies the gettext catalogues are complete and fresh | — |
-| `bundle-freshness.yml` | Verifies committed build artefacts match a clean rebuild | — |
+| `dependency-review.yml` | Blocks vulnerable dependencies in a pull request | `contents: read`, `pull-requests: write` |
+| `label-sync.yml` | Applies the canonical label set from `labels.yml` | `contents: read`, `issues: write` |
+| `commit-convention.yml` | Enforces the commit-subject convention | `contents: read`, `pull-requests: read` |
+| `yamllint.yml` | Lints YAML against the house style (4-space indent) | `contents: read` |
+| `i18n.yml` | Enforces the catalogue layout; optional `make lang` freshness gate | `contents: read` |
+| `bundle-freshness.yml` | Verifies committed build artefacts match a clean rebuild | `contents: read` |
 | `greetings.yml` | Greets first-time contributors | `issues: write`, `pull-requests: write` |
-| `auto-merge-deps.yml` | Auto-merges passing dependency bumps | `contents: write`, `pull-requests: write` |
+| `auto-merge-deps.yml` | Auto-merges passing dependency bumps (patch and minor only) | `contents: write`, `pull-requests: write` |
+
+Two contracts are easy to miss when adopting `commit-convention.yml`: the caller
+must include `edited` in its `pull_request` `types:`, or a corrected subject is
+never re-checked; and the status context to require in branch protection is
+`<calling-job-id> / Commit convention`, not `Commit convention`.
 
 ### Inputs
 
