@@ -1,0 +1,37 @@
+name: Security
+
+# Dogfood the reusable security scanners against this repository's own workflow
+# YAML so a template regression is caught here before it ships to consumers. The
+# scanners are invoked through a local `./` ref rather than the published
+# `magicsunday/.github/...@main` ref that downstream repositories use.
+on:
+    push:
+        branches: [main]
+    pull_request:
+    schedule:
+        - cron: '27 3 * * 1'
+
+permissions:
+    contents: read
+
+jobs:
+    zizmor:
+        uses: ./.github/workflows/zizmor.yml
+        permissions:
+            contents: read
+            security-events: write
+
+    scorecard:
+        # Scorecard publishes against the default branch; skip pull-request runs.
+        if: github.event_name != 'pull_request'
+        uses: ./.github/workflows/scorecard.yml
+        permissions:
+            contents: read
+            security-events: write
+            id-token: write
+
+    code-scanning:
+        uses: ./.github/workflows/code-scanning.yml
+        permissions:
+            contents: read
+            security-events: write
