@@ -9,6 +9,9 @@ name: PHP quality (reusable)
 # aggregate is the local pre-commit hook, so a suite wired only into it would
 # never run in CI — a green local run is not evidence of CI coverage.
 #
+# Copy-paste detection is deliberately NOT part of this workflow: jscpd is a Node
+# tool, so it belongs with the calling repository's JS lane where Node is set up.
+#
 # Adopting this workflow RENAMES the reported status checks (a reusable reports
 # as `<caller job> / <reusable job> (<matrix value>)`), so the calling
 # repository's branch-protection required-checks list must be updated in the
@@ -26,11 +29,6 @@ on:
                 required: false
                 type: boolean
                 default: false
-            run-cpd:
-                description: 'Run copy-paste detection (composer ci:test:php:cpd).'
-                required: false
-                type: boolean
-                default: true
             run-infection:
                 description: 'Run mutation testing (composer ci:test:php:infection), on the infection-php leg only.'
                 required: false
@@ -94,10 +92,6 @@ jobs:
 
             - name: Unit tests
               run: composer ci:test:php:unit
-
-            - name: Copy-paste detection
-              if: ${{ inputs.run-cpd }}
-              run: composer ci:test:php:cpd
 
             - name: Mutation testing
               if: ${{ inputs.run-infection && matrix.php == inputs.infection-php }}
