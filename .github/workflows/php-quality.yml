@@ -1,0 +1,104 @@
+name: PHP quality (reusable)
+
+# Reusable PHP quality gate for the magicsunday/* projects. Runs the canonical
+# granular `composer ci:test:php:*` steps across a PHP matrix, each as its own
+# step so a red build names the gate that broke. Callers invoke it via
+# `uses: magicsunday/.github/.github/workflows/php-quality.yml@main`.
+#
+# The steps are deliberately granular rather than the `ci:test` aggregate: the
+# aggregate is the local pre-commit hook, so a suite wired only into it would
+# never run in CI — a green local run is not evidence of CI coverage.
+#
+# Adopting this workflow RENAMES the reported status checks (a reusable reports
+# as `<caller job> / <reusable job> (<matrix value>)`), so the calling
+# repository's branch-protection required-checks list must be updated in the
+# same change.
+on:
+    workflow_call:
+        inputs:
+            php-versions:
+                description: 'JSON array of PHP versions for the build matrix.'
+                required: false
+                type: string
+                default: '["8.3", "8.4", "8.5"]'
+            run-psr4:
+                description: 'Run the strict PSR-4 autoload check (composer ci:test:php:psr4).'
+                required: false
+                type: boolean
+                default: false
+            run-cpd:
+                description: 'Run copy-paste detection (composer ci:test:php:cpd).'
+                required: false
+                type: boolean
+                default: true
+            run-infection:
+                description: 'Run mutation testing (composer ci:test:php:infection), on the infection-php leg only.'
+                required: false
+                type: boolean
+                default: false
+            infection-php:
+                description: 'The single PHP version leg that runs mutation testing.'
+                required: false
+                type: string
+                default: '8.4'
+
+permissions:
+    contents: read
+
+jobs:
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        strategy:
+            fail-fast: false
+            matrix:
+                php: ${{ fromJSON(inputs.php-versions) }}
+
+        steps:
+            # Mutation testing needs a coverage driver; every other leg runs
+            # without one so the matrix stays fast.
+            - name: Set up PHP version ${{ matrix.php }}
+              uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+              with:
+                  php-version: ${{ matrix.php }}
+                  tools: composer:v2
+                  coverage: ${{ (inputs.run-infection && matrix.php == inputs.infection-php) && 'pcov' || 'none' }}
+
+            - name: Checkout
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+              with:
+                  persist-credentials: false
+
+            - name: Install dependencies
+              run: composer install --prefer-dist --no-interaction --no-progress
+
+            - name: Lint
+              run: composer ci:test:php:lint
+
+            - name: PSR-4 autoload
+              if: ${{ inputs.run-psr4 }}
+              run: composer ci:test:php:psr4
+
+            - name: PHPStan
+              run: composer ci:test:php:phpstan
+
+            - name: Rector
+              run: composer ci:test:php:rector
+
+            - name: Coding guidelines
+              run: composer ci:test:php:cgl
+
+            - name: Unit tests
+              run: composer ci:test:php:unit
+
+            - name: Copy-paste detection
+              if: ${{ inputs.run-cpd }}
+              run: composer ci:test:php:cpd
+
+            - name: Mutation testing
+              if: ${{ inputs.run-infection && matrix.php == inputs.infection-php }}
+              run: composer ci:test:php:infection
