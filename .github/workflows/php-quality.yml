@@ -93,6 +93,35 @@ jobs:
             - name: Unit tests
               run: composer ci:test:php:unit
 
+            # The coding-standard package ships two optional consumer-side gates — the
+            # template lockstep gate and the phpat subject-liveness guard. A consumer
+            # opts in by defining the composer script; this probe detects each so the
+            # steps below stay green for consumers that have not adopted them yet.
+            - name: Detect optional consumer gates
+              id: gates
+              run: |
+                  has() {
+                      if jq -e --arg k "$1" '.scripts[$k]' composer.json >/dev/null 2>&1; then
+                          echo 'true'
+                      else
+                          echo 'false'
+                      fi
+                  }
+                  {
+                      echo "templates=$(has ci:test:php:templates)"
+                      echo "phpat_subjects=$(has ci:test:php:phpat-subjects)"
+                  } >> "$GITHUB_OUTPUT"
+
+            # Both gates are PHP-version-independent (they read config files and parse
+            # source), so they run once on the first matrix leg only.
+            - name: Template lockstep gate
+              if: ${{ steps.gates.outputs.templates == 'true' && matrix.php == fromJSON(inputs.php-versions)[0] }}
+              run: composer ci:test:php:templates
+
+            - name: PHPat subject-liveness guard
+              if: ${{ steps.gates.outputs.phpat_subjects == 'true' && matrix.php == fromJSON(inputs.php-versions)[0] }}
+              run: composer ci:test:php:phpat-subjects
+
             - name: Mutation testing
               if: ${{ inputs.run-infection && matrix.php == inputs.infection-php }}
               run: composer ci:test:php:infection
