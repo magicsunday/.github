@@ -93,10 +93,11 @@ jobs:
             - name: Unit tests
               run: composer ci:test:php:unit
 
-            # The coding-standard package ships two optional consumer-side gates — the
-            # template lockstep gate and the phpat subject-liveness guard. A consumer
-            # opts in by defining the composer script; this probe detects each so the
-            # steps below stay green for consumers that have not adopted them yet.
+            # The coding-standard package ships three optional consumer-side gates — the
+            # template lockstep gate, the phpat subject-liveness guard and the Deptrac
+            # architecture-layer check. A consumer opts in by defining the composer
+            # script; this probe detects each so the steps below stay green for consumers
+            # that have not adopted them yet.
             - name: Detect optional consumer gates
               id: gates
               run: |
@@ -110,9 +111,10 @@ jobs:
                   {
                       echo "templates=$(has ci:test:php:templates)"
                       echo "phpat_subjects=$(has ci:test:php:phpat-subjects)"
+                      echo "deptrac=$(has ci:test:php:deptrac)"
                   } >> "$GITHUB_OUTPUT"
 
-            # Both gates are PHP-version-independent (they read config files and parse
+            # These gates are PHP-version-independent (they read config files and parse
             # source), so they run once on the first matrix leg only.
             - name: Template lockstep gate
               if: ${{ steps.gates.outputs.templates == 'true' && matrix.php == fromJSON(inputs.php-versions)[0] }}
@@ -121,6 +123,10 @@ jobs:
             - name: PHPat subject-liveness guard
               if: ${{ steps.gates.outputs.phpat_subjects == 'true' && matrix.php == fromJSON(inputs.php-versions)[0] }}
               run: composer ci:test:php:phpat-subjects
+
+            - name: Deptrac architecture layers
+              if: ${{ steps.gates.outputs.deptrac == 'true' && matrix.php == fromJSON(inputs.php-versions)[0] }}
+              run: composer ci:test:php:deptrac
 
             - name: Mutation testing
               if: ${{ inputs.run-infection && matrix.php == inputs.infection-php }}
