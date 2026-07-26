@@ -39,6 +39,10 @@ reviews:
         - "!**/resources/js/**/*.min.js"
         - "!**/resources/lang/**/*.mo"
     path_instructions:
+        # The checks below the style line encode the recurring findings mined from
+        # this account's own bot-review history (see magicsunday/.github
+        # analysis/bot-review-findings.md) — the issues that repeatedly reached PRs
+        # despite the linters, so they are worth calling out explicitly.
         - path: "src/**/*.php"
           instructions: >-
               Enforce the house PHP style: declare(strict_types=1); no `mixed`,
@@ -46,21 +50,66 @@ reviews:
               built-ins; never `@phpstan-ignore` (fix the type instead); every
               method and constant needs a real PHPDoc with capitalised
               descriptions; final readonly value objects. Flag any stdClass use.
+              Correctness patterns to flag: a `preg_*` pattern missing the `/u`
+              modifier when its subject can be UTF-8 or its class uses non-ASCII;
+              byte-wise `strtoupper`/`strtolower`/`ucfirst`/`lcfirst`/`ucwords`
+              on text that can be UTF-8 — they fold ASCII only, so
+              strtolower('GEBÜRTIGE') stays 'gebÜrtige' and never matches
+              'gebürtige', and ucfirst('über') is a silent no-op; a
+              regex that requires a trailing space and so fails when the keyword
+              ends the string; a parse branch that bails without resetting all
+              derived state; a nullable value passed into a non-null parameter or
+              a dropped `!== null` guard before `array_key_exists`/offset access;
+              mis-shaped input silently coerced to ''/null instead of throwing the
+              domain exception; unchecked `glob()`/`Normalizer::normalize()`
+              (can return false/null); a per-request cache on a shared service
+              with no clear, a discarded `Process`, or `flush($e)`/`detach($e)`
+              that leaks the rest of the identity map; `buffer[$i + 1]` at buffer
+              end; empty-but-not-EOF read loops with no backoff; a rebuilt
+              regex/decoder/IntlCalendar in a hot path where a cached instance
+              belongs; `array_key_exists` where `isset` suffices in a tight loop;
+              a class declared `final readonly` that writes a property outside the
+              constructor or extends a non-readonly parent. Back-compat: new
+              constructor/method parameters must be appended, never spliced before
+              existing ones (breaks positional callers); match any newly-used API
+              (e.g. hash('xxh128') needing PHP 8.1.2) to the declared version floor.
         - path: "tests/**/*.php"
           instructions: >-
               Behavioural assertions only — flag getter/setter or coverage-only
               tests, vacuous assertions, over-mocking the unit under test, and
-              access-control tests that run as a privileged identity.
+              access-control tests that run as a privileged identity. Flag a new
+              code branch or edge case that ships without a test asserting its
+              observable outcome, and non-cross-platform test helpers (e.g.
+              popen('cat …')) that leak processes or fail on Windows.
         - path: "**/*.{js,ts,css,svg}"
           instructions: >-
               Enforce Biome style (4-space, double quotes, lineWidth 100),
-              `.js` extension on local ESM imports, and defensive DOM/SVG/D3
-              handling. Comments in English.
+              `.js` extension on local ESM imports (flag a mix of `./x` and
+              `./x.js` that can duplicate a module instance), and defensive
+              DOM/SVG/D3 handling. Comments in English. Flag: HTML built via
+              `.html()` from unescaped user-controlled strings (XSS); a search
+              offset advanced by `pos` instead of `pos + match.length`; drawing
+              or observing a node after an `await` without re-checking
+              `node.isConnected`; a d3 transition counter decremented only on
+              `end` and not on `interrupt`/`cancel`; and browser APIs newer than
+              the build's transpile target (e.g. Object.hasOwn, ES2022).
         - path: ".github/workflows/**"
           instructions: >-
               Check least-privilege permissions, persist-credentials on
               checkout, reusable-workflow permission caps, and cron/dispatch
               concurrency races.
+        - path: "composer.json"
+          instructions: >-
+              Flag a `require`/`require-dev` block that is not alphabetically
+              sorted when `sort-packages: true` is set (run composer normalize),
+              tool install hooks registered only under `post-update-cmd` (a fresh
+              `composer install` then never provisions them), and a version floor
+              that is lower than an API the code now relies on.
+        - path: "**/*.po"
+          instructions: >-
+              Flag a Plural-Forms formula that treats 0 as singular (`n>1` where
+              `n != 1` is meant), untranslated or inconsistent catalogue strings,
+              and encoders that fail to escape control characters and quotes.
 
 chat:
     auto_reply: true
