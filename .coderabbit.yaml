@@ -39,10 +39,13 @@ reviews:
         - "!**/resources/js/**/*.min.js"
         - "!**/resources/lang/**/*.mo"
     path_instructions:
-        # The checks below the style line encode the recurring findings mined from
-        # this account's own bot-review history (see magicsunday/.github
-        # analysis/bot-review-findings.md) — the issues that repeatedly reached PRs
-        # despite the linters, so they are worth calling out explicitly.
+        # The checks below the style line are not a generic wish list. Each one
+        # encodes a defect class that repeatedly reached a merged PR across these
+        # repositories despite phpstan max, rector, php-cs-fixer and biome — found
+        # by a one-off review of the bot comments on every closed PR (July 2026).
+        # So treat an entry here as evidence-backed: remove one only after checking
+        # that the class it describes is now caught mechanically, and add one only
+        # for a defect that has actually shipped, not one that might.
         - path: "src/**/*.php"
           instructions: >-
               Enforce the house PHP style: declare(strict_types=1); no `mixed`,
