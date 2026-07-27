@@ -55,9 +55,13 @@ reviews:
               descriptions; final readonly value objects. Flag any stdClass use.
               Correctness patterns to flag: a `preg_*` pattern that depends on
               character semantics but lacks the `/u` modifier — a non-ASCII
-              literal or class, a `.` or negated class whose match is captured or
-              replaced, `\w`/`\b`/`\s` meant to include non-ASCII, `/i` meant to
-              fold non-ASCII, or a `{n,m}` counting characters rather than bytes.
+              character CLASS ([ÄÖÜ] compiles to the set of those bytes, so it
+              misses 'Ä' and matches a bare \xc3), a `.` or negated class whose
+              match is captured or replaced, `\w`/`\b`/`\s` meant to include
+              non-ASCII, `/i` meant to fold non-ASCII, or a `{n,m}`/`.` counting
+              characters rather than bytes. A plain non-ASCII LITERAL is fine
+              without it — `preg_match('~Müller~', 'Müller')` matches the exact
+              byte sequence.
               A UTF-8 subject alone is NOT a reason: UTF-8 is ASCII-compatible, so
               a pattern of ASCII literals (`^\d{4}$`, `\s*,\s*`) is correct without
               `/u`, and adding it there changes behaviour — with `/u`, an invalid
@@ -72,8 +76,10 @@ reviews:
               derived state; a nullable value passed into a non-null parameter or
               a dropped `!== null` guard before `array_key_exists`/offset access;
               mis-shaped input silently coerced to ''/null instead of throwing the
-              domain exception; unchecked `glob()`/`Normalizer::normalize()`
-              (can return false/null); a per-request cache on a shared service
+              domain exception; unchecked `glob()` (array|false — and an empty
+              array is a legitimate no-match, not an error) or
+              `Normalizer::normalize()` (string|false); a per-request cache on a
+              shared service
               with no clear, a discarded `Process`, or `flush($e)`/`detach($e)`
               that leaks the rest of the identity map; `buffer[$i + 1]` at buffer
               end; empty-but-not-EOF read loops with no backoff; a rebuilt
@@ -103,7 +109,12 @@ reviews:
               access-control tests that run as a privileged identity. Flag a
               changed code branch or edge case that ships without a test asserting
               its observable outcome, and non-cross-platform test helpers (e.g.
-              popen('cat …')) that leak processes or fail on Windows.
+              popen('cat …')) that leak processes or fail on Windows. Apply the
+              version-floor check here too: a test calling an API that only the
+              TOP of the declared constraint provides is a red CI leg at the
+              bottom of it (a PHPUnit 13 API under ^12||^13 runs as PHPUnit 12 on
+              an 8.4.0 runner), and a test-only diff leaves composer.json
+              unchanged, so no manifest instruction matches it.
         - path: "**/*.{js,ts,css,svg}"
           instructions: >-
               Enforce Biome style (4-space, double quotes, lineWidth 100),
