@@ -39,6 +39,13 @@ reviews:
         - "!**/resources/js/**/*.min.js"
         - "!**/resources/lang/**/*.mo"
     path_instructions:
+        # The checks below the style line are not a generic wish list. Each one
+        # encodes a defect class that repeatedly reached a merged PR across these
+        # repositories despite phpstan max, rector, php-cs-fixer and biome — found
+        # by a one-off review of the bot comments on every closed PR (July 2026).
+        # So treat an entry here as evidence-backed: remove one only after checking
+        # that the class it describes is now caught mechanically, and add one only
+        # for a defect that has actually shipped, not one that might.
         - path: "src/**/*.php"
           instructions: >-
               Enforce the house PHP style: declare(strict_types=1); no `mixed`,
@@ -46,21 +53,106 @@ reviews:
               built-ins; never `@phpstan-ignore` (fix the type instead); every
               method and constant needs a real PHPDoc with capitalised
               descriptions; final readonly value objects. Flag any stdClass use.
+              Correctness patterns to flag: a `preg_*` pattern that depends on
+              character semantics but lacks the `/u` modifier — a non-ASCII
+              character CLASS — [ÄÖÜ] compiles to the SET OF ITS BYTES, so it
+              stops discriminating: unanchored it matches 'Ä', 'Ö' and even 'æ'
+              alike on their shared \xc3 lead byte and captures that byte alone,
+              and anchored it fails outright, a `.` or negated class whose
+              match is captured or replaced, `\w`/`\b`/`\s` meant to include
+              non-ASCII, `/i` meant to fold non-ASCII, or a `{n,m}`/`.` counting
+              characters rather than bytes. A plain non-ASCII LITERAL is fine
+              without it — `preg_match('~Müller~', 'Müller')` matches the exact
+              byte sequence.
+              A UTF-8 subject alone is NOT a reason: UTF-8 is ASCII-compatible, so
+              a pattern of ASCII literals (`^\d{4}$`, `\s*,\s*`) is correct without
+              `/u`, and adding it there changes behaviour — with `/u`, an invalid
+              UTF-8 subject makes preg_match return false rather than 0, so a
+              truthiness test silently reads it as "no match";
+              byte-wise `strtoupper`/`strtolower`/`ucfirst`/`lcfirst`/`ucwords`
+              on text that can be UTF-8 — they fold ASCII only, so
+              strtolower('GEBÜRTIGE') stays 'gebÜrtige' and never matches
+              'gebürtige', and ucfirst('über') is a silent no-op; a
+              regex that requires a trailing space and so fails when the keyword
+              ends the string; a parse branch that bails without resetting all
+              derived state; a nullable value passed into a non-null parameter or
+              a dropped `!== null` guard before `array_key_exists`/offset access;
+              mis-shaped input silently coerced to ''/null instead of throwing the
+              domain exception; unchecked `glob()` (array|false — and an empty
+              array is a legitimate no-match, not an error) or
+              `Normalizer::normalize()` (string|false); a per-request cache on a
+              shared service
+              with no clear, a discarded `Process`, or `flush($e)`/`detach($e)`
+              that leaks the rest of the identity map; `buffer[$i + 1]` at buffer
+              end; empty-but-not-EOF read loops with no backoff; a rebuilt
+              regex/decoder/IntlCalendar in a hot path where a cached instance
+              belongs; `array_key_exists` where `isset` suffices in a tight loop;
+              a class declared `final readonly` that REASSIGNS an
+              already-initialized property, or extends a non-readonly parent — a
+              one-time write to a still-uninitialized readonly property from
+              inside the declaring class is legal, so do not flag a factory or
+              deferred-initialization method for it. Flag an encoder or
+              serializer that writes a text format (PO, CSV, JSON-ish) without
+              escaping control characters and quotes. Back-compat: a new parameter
+              on an existing public signature must be BOTH appended and optional —
+              splicing it before existing ones shifts every positional caller's
+              arguments silently, and appending it without a default breaks every
+              unchanged caller with an ArgumentCountError. A required addition is a
+              breaking API change; say so rather than accepting it as appended.
+              Match any newly-used API
+              to the declared version floor — check the introduced-in version in
+              the manual, and remember the floor is the constraint's LOWEST
+              satisfiable release, not its minor (phpunit/phpunit 13 needs
+              >=8.4.1, so an ^12||^13 repo silently runs 12 on an 8.4.0 leg).
+              Coverage: when this change adds a conditional branch or an edge
+              case, say so and ask for the test asserting its observable outcome —
+              a source-only diff is exactly where a missing test hides, because no
+              test file is in the diff for the test-path instructions to match.
         - path: "tests/**/*.php"
           instructions: >-
               Behavioural assertions only — flag getter/setter or coverage-only
               tests, vacuous assertions, over-mocking the unit under test, and
-              access-control tests that run as a privileged identity.
+              access-control tests that run as a privileged identity. Flag a
+              changed code branch or edge case that ships without a test asserting
+              its observable outcome, and non-cross-platform test helpers (e.g.
+              popen('cat …')) that leak processes or fail on Windows. Apply the
+              version-floor check here too: a test calling an API that only the
+              TOP of the declared constraint provides is a red CI leg at the
+              bottom of it (a PHPUnit 13 API under ^12||^13 runs as PHPUnit 12 on
+              an 8.4.0 runner), and a test-only diff leaves composer.json
+              unchanged, so no manifest instruction matches it.
         - path: "**/*.{js,ts,css,svg}"
           instructions: >-
               Enforce Biome style (4-space, double quotes, lineWidth 100),
-              `.js` extension on local ESM imports, and defensive DOM/SVG/D3
-              handling. Comments in English.
+              `.js` extension on local ESM imports (flag a mix of `./x` and
+              `./x.js` that can duplicate a module instance), and defensive
+              DOM/SVG/D3 handling. Comments in English. Flag: HTML built via
+              `.html()` from unescaped user-controlled strings (XSS); a search
+              offset advanced by `pos` instead of `pos + match.length`; drawing
+              or observing a node after an `await` without re-checking
+              `node.isConnected`; a d3 transition counter decremented only on
+              `end` and not on `interrupt`/`cancel`; and browser APIs newer than
+              the build's transpile target (e.g. Object.hasOwn, ES2022).
         - path: ".github/workflows/**"
           instructions: >-
               Check least-privilege permissions, persist-credentials on
               checkout, reusable-workflow permission caps, and cron/dispatch
               concurrency races.
+        - path: "composer.json"
+          instructions: >-
+              Flag a `require`/`require-dev` block that is not alphabetically
+              sorted when `sort-packages: true` is set (run composer normalize),
+              tool install hooks registered only under `post-update-cmd` (a fresh
+              `composer install` then never provisions them), and a version floor
+              that is lower than an API the code now relies on.
+        - path: "**/*.po"
+          instructions: >-
+              Flag a Plural-Forms formula that treats 0 as singular (`n>1` where
+              `n != 1` is meant), untranslated or inconsistent catalogue strings,
+              and an msgstr carrying an unescaped control character or quote.
+              (The encoder that PRODUCES these files is reviewed under the source
+              paths — an encoder regression usually ships without a regenerated
+              catalogue in the diff, so this path would never match it.)
 
 chat:
     auto_reply: true
