@@ -55,8 +55,10 @@ reviews:
               descriptions; final readonly value objects. Flag any stdClass use.
               Correctness patterns to flag: a `preg_*` pattern that depends on
               character semantics but lacks the `/u` modifier — a non-ASCII
-              character CLASS ([ÄÖÜ] compiles to the set of those bytes, so it
-              misses 'Ä' and matches a bare \xc3), a `.` or negated class whose
+              character CLASS — [ÄÖÜ] compiles to the SET OF ITS BYTES, so it
+              stops discriminating: unanchored it matches 'Ä', 'Ö' and even 'æ'
+              alike on their shared \xc3 lead byte and captures that byte alone,
+              and anchored it fails outright, a `.` or negated class whose
               match is captured or replaced, `\w`/`\b`/`\s` meant to include
               non-ASCII, `/i` meant to fold non-ASCII, or a `{n,m}`/`.` counting
               characters rather than bytes. A plain non-ASCII LITERAL is fine
