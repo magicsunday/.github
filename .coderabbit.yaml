@@ -93,9 +93,13 @@ reviews:
               inside the declaring class is legal, so do not flag a factory or
               deferred-initialization method for it. Flag an encoder or
               serializer that writes a text format (PO, CSV, JSON-ish) without
-              escaping control characters and quotes. Back-compat: new
-              constructor/method parameters must be appended, never spliced before
-              existing ones (breaks positional callers); match any newly-used API
+              escaping control characters and quotes. Back-compat: a new parameter
+              on an existing public signature must be BOTH appended and optional —
+              splicing it before existing ones shifts every positional caller's
+              arguments silently, and appending it without a default breaks every
+              unchanged caller with an ArgumentCountError. A required addition is a
+              breaking API change; say so rather than accepting it as appended.
+              Match any newly-used API
               to the declared version floor — check the introduced-in version in
               the manual, and remember the floor is the constraint's LOWEST
               satisfiable release, not its minor (phpunit/phpunit 13 needs
