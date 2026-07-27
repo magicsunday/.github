@@ -50,8 +50,16 @@ reviews:
               built-ins; never `@phpstan-ignore` (fix the type instead); every
               method and constant needs a real PHPDoc with capitalised
               descriptions; final readonly value objects. Flag any stdClass use.
-              Correctness patterns to flag: a `preg_*` pattern missing the `/u`
-              modifier when its subject can be UTF-8 or its class uses non-ASCII;
+              Correctness patterns to flag: a `preg_*` pattern that depends on
+              character semantics but lacks the `/u` modifier — a non-ASCII
+              literal or class, a `.` or negated class whose match is captured or
+              replaced, `\w`/`\b`/`\s` meant to include non-ASCII, `/i` meant to
+              fold non-ASCII, or a `{n,m}` counting characters rather than bytes.
+              A UTF-8 subject alone is NOT a reason: UTF-8 is ASCII-compatible, so
+              a pattern of ASCII literals (`^\d{4}$`, `\s*,\s*`) is correct without
+              `/u`, and adding it there changes behaviour — with `/u`, an invalid
+              UTF-8 subject makes preg_match return false rather than 0, so a
+              truthiness test silently reads it as "no match";
               byte-wise `strtoupper`/`strtolower`/`ucfirst`/`lcfirst`/`ucwords`
               on text that can be UTF-8 — they fold ASCII only, so
               strtolower('GEBÜRTIGE') stays 'gebÜrtige' and never matches
