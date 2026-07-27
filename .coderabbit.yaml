@@ -68,18 +68,27 @@ reviews:
               end; empty-but-not-EOF read loops with no backoff; a rebuilt
               regex/decoder/IntlCalendar in a hot path where a cached instance
               belongs; `array_key_exists` where `isset` suffices in a tight loop;
-              a class declared `final readonly` that writes a property outside the
-              constructor or extends a non-readonly parent. Back-compat: new
+              a class declared `final readonly` that REASSIGNS an
+              already-initialized property, or extends a non-readonly parent — a
+              one-time write to a still-uninitialized readonly property from
+              inside the declaring class is legal, so do not flag a factory or
+              deferred-initialization method for it. Flag an encoder or
+              serializer that writes a text format (PO, CSV, JSON-ish) without
+              escaping control characters and quotes. Back-compat: new
               constructor/method parameters must be appended, never spliced before
               existing ones (breaks positional callers); match any newly-used API
               (e.g. hash('xxh128') needing PHP 8.1.2) to the declared version floor.
+              Coverage: when this change adds a conditional branch or an edge
+              case, say so and ask for the test asserting its observable outcome —
+              a source-only diff is exactly where a missing test hides, because no
+              test file is in the diff for the test-path instructions to match.
         - path: "tests/**/*.php"
           instructions: >-
               Behavioural assertions only — flag getter/setter or coverage-only
               tests, vacuous assertions, over-mocking the unit under test, and
-              access-control tests that run as a privileged identity. Flag a new
-              code branch or edge case that ships without a test asserting its
-              observable outcome, and non-cross-platform test helpers (e.g.
+              access-control tests that run as a privileged identity. Flag a
+              changed code branch or edge case that ships without a test asserting
+              its observable outcome, and non-cross-platform test helpers (e.g.
               popen('cat …')) that leak processes or fail on Windows.
         - path: "**/*.{js,ts,css,svg}"
           instructions: >-
@@ -109,7 +118,10 @@ reviews:
           instructions: >-
               Flag a Plural-Forms formula that treats 0 as singular (`n>1` where
               `n != 1` is meant), untranslated or inconsistent catalogue strings,
-              and encoders that fail to escape control characters and quotes.
+              and an msgstr carrying an unescaped control character or quote.
+              (The encoder that PRODUCES these files is reviewed under the source
+              paths — an encoder regression usually ships without a regenerated
+              catalogue in the diff, so this path would never match it.)
 
 chat:
     auto_reply: true
