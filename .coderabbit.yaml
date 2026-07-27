@@ -88,7 +88,10 @@ reviews:
               escaping control characters and quotes. Back-compat: new
               constructor/method parameters must be appended, never spliced before
               existing ones (breaks positional callers); match any newly-used API
-              (e.g. hash('xxh128') needing PHP 8.1.2) to the declared version floor.
+              to the declared version floor — check the introduced-in version in
+              the manual, and remember the floor is the constraint's LOWEST
+              satisfiable release, not its minor (phpunit/phpunit 13 needs
+              >=8.4.1, so an ^12||^13 repo silently runs 12 on an 8.4.0 leg).
               Coverage: when this change adds a conditional branch or an edge
               case, say so and ask for the test asserting its observable outcome —
               a source-only diff is exactly where a missing test hides, because no
