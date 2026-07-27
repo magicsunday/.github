@@ -93,11 +93,27 @@ jobs:
             - name: Unit tests
               run: composer ci:test:php:unit
 
-            # The coding-standard package ships three optional consumer-side gates — the
-            # template lockstep gate, the phpat subject-liveness guard and the Deptrac
-            # architecture-layer check. A consumer opts in by defining the composer
-            # script; this probe detects each so the steps below stay green for consumers
-            # that have not adopted them yet.
+            # Four optional consumer-side gates. Three of them adopt an asset the
+            # coding-standard package ships — the template lockstep gate, the phpat
+            # subject-liveness guard and the Deptrac architecture-layer check; the
+            # fourth, a PHPStan pass over glue code, is configured per consumer. A
+            # consumer opts in to each by defining the composer script under the exact
+            # name probed below, so the steps stay green for consumers that have not
+            # adopted them yet.
+            #
+            # Because each probe matches one exact name, a consumer whose script is
+            # spelled differently is indistinguishable from one that never adopted the
+            # gate: both skip green. The step therefore also logs every `ci:test:`
+            # script the consumer declares, so the raw material for that diagnosis is
+            # in the step log rather than having to be reconstructed from the repository.
+            # The listing is not itself a detector — a `false` verdict standing beside a
+            # similar-looking name is the normal case, since every consumer declares
+            # near neighbours such as `ci:test:php:phpstan`. What keeps a divergent name
+            # from reaching CI is the adoption contract: a consumer renames its script
+            # to the probed name as part of migrating its PHP lane to this workflow.
+            #
+            # Both lines are plain log output. An annotation would attach to every green
+            # run of every consumer for a gate most of them have not adopted.
             - name: Detect optional consumer gates
               id: gates
               run: |
@@ -108,10 +124,24 @@ jobs:
                           echo 'false'
                       fi
                   }
+                  templates=$(has ci:test:php:templates)
+                  phpat_subjects=$(has ci:test:php:phpat-subjects)
+                  deptrac=$(has ci:test:php:deptrac)
+                  phpstan_glue=$(has ci:test:php:phpstan:glue)
+                  # `ci:test:` rather than `ci:test:php:`, so a script that drops the
+                  # `php:` segment still appears. The listing is best-effort by nature —
+                  # a name drifting far enough falls outside any fixed prefix — and it
+                  # is diagnostic only, so it must never fail the step: both terminators
+                  # are flattened so no script name can break the line apart, and the
+                  # fallback keeps it inert should a future `set -o pipefail` land here.
+                  declared=$(jq -r '.scripts // {} | keys[] | select(startswith("ci:test:"))' composer.json 2>/dev/null | tr '\r\n' '  ') || declared=''
+                  echo "Optional consumer gates probed: templates=${templates} phpat_subjects=${phpat_subjects} deptrac=${deptrac} phpstan_glue=${phpstan_glue}"
+                  echo "composer.json declares: ${declared}"
                   {
-                      echo "templates=$(has ci:test:php:templates)"
-                      echo "phpat_subjects=$(has ci:test:php:phpat-subjects)"
-                      echo "deptrac=$(has ci:test:php:deptrac)"
+                      echo "templates=${templates}"
+                      echo "phpat_subjects=${phpat_subjects}"
+                      echo "deptrac=${deptrac}"
+                      echo "phpstan_glue=${phpstan_glue}"
                   } >> "$GITHUB_OUTPUT"
 
             # These gates are PHP-version-independent (they read config files and parse
@@ -127,6 +157,26 @@ jobs:
             - name: Deptrac architecture layers
               if: ${{ steps.gates.outputs.deptrac == 'true' && matrix.php == fromJSON(inputs.php-versions)[0] }}
               run: composer ci:test:php:deptrac
+
+            # Procedural glue PHP — CLI scripts, the root module entry point, build
+            # tooling — usually sits outside the paths the main PHPStan config
+            # analyses, so it drifts from refactored service signatures unseen. A
+            # consumer brings it under a dedicated config by defining this script.
+            #
+            # Unlike the three gates above, this one resolves language-level behaviour
+            # per interpreter, so it runs on every matrix leg rather than only the
+            # first. It sits behind them for exactly that reason: a step failing under
+            # the default `if: success()` skips the rest, and since those three run on
+            # the first leg alone, a red gate ahead of them would leave all three
+            # without a verdict on any leg.
+            #
+            # That argument does not extend to the mutation step below, which is skipped
+            # by a red gate here on its one leg. The order there is the deliberate
+            # opposite: a cheap static gate belongs ahead of the expensive mutation run,
+            # so a failure short-circuits it rather than paying for it first.
+            - name: PHPStan (glue code)
+              if: ${{ steps.gates.outputs.phpstan_glue == 'true' }}
+              run: composer ci:test:php:phpstan:glue
 
             - name: Mutation testing
               if: ${{ inputs.run-infection && matrix.php == inputs.infection-php }}
