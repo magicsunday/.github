@@ -47,7 +47,11 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   so this repository's files are not in the workspace. Check them out separately with
   `repository: ${{ job.workflow_repository }}` and `ref: ${{ job.workflow_sha }}` —
   the revision of the workflow being executed, so a file always matches the workflow
-  reading it — then remove that checkout before the job inspects the tree.
+  reading it — then remove that checkout before the job inspects the tree. Check
+  first that the path is free: that removal is unconditional, so a caller that
+  happens to keep a path of that name would have it dropped from the workspace,
+  and with it from whatever the job goes on to lint or scan — without anything
+  being reported as missing. Fail with a message naming the path instead.
   `github.job_workflow_sha` looks like the right property and is **not**: it exists
   only as an OIDC claim and interpolates to an empty string here, which
   `actions/checkout` silently treats as "default branch". Measured on both call

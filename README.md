@@ -52,6 +52,12 @@ That works with the caller's own `GITHUB_TOKEN` because this repository is
 public, and it is the reason it has to stay public: making it private would red
 `yamllint`, a required check in several repositories.
 
+That second checkout lands at `.magicsunday-shared` and is deleted again before
+the job scans or lints anything, so **`.magicsunday-shared` is a reserved path
+in a calling repository**. Both workflows stop with a message naming it rather
+than deleting a path of that name, which would leave it out of the scan without
+anything appearing to be missing.
+
 ### Inputs
 
 Workflows not listed here take no inputs.

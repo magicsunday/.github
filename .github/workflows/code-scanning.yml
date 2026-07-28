@@ -38,7 +38,11 @@ jobs:
             # workflow itself (see AGENTS.md). An undefined context property
             # would interpolate to an empty string and silently degrade to the
             # default branch, so both values are asserted before they are used.
-            - name: Assert the workflow revision resolved
+            # The checkout path is claimed rather than assumed free: the install
+            # step deletes it unconditionally, so a caller carrying a path of
+            # that name would have it removed before the scan and the report
+            # would omit it while still reading as complete.
+            - name: Check the shared-checkout preconditions
               env:
                   WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
                   WORKFLOW_SHA: ${{ job.workflow_sha }}
@@ -46,6 +50,7 @@ jobs:
                   set -euo pipefail
                   test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
                   test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
+                  test ! -e .magicsunday-shared || { echo "::error::This repository contains a path named '.magicsunday-shared', which the shared workflows reserve for their own checkout and delete again - rename it, or the scan would silently skip it."; exit 1; }
 
             - name: Check out the pinned requirements
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
