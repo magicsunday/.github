@@ -31,11 +31,29 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             # Patch and minor bumps merge automatically; majors are left for a
-            # human to review.
+            # human to review. The exception is the shared repository's own `pip`
+            # manifests: `.github/requirements/*.txt` hold the tool versions the
+            # shared gates run, so a bump changes gate behaviour in every
+            # repository at once, while a green run there only proves the new
+            # version against that repository's own files.
+            #
+            # The condition names the repository as well as the ecosystem —
+            # inside a reusable workflow `github.repository` is the CALLER — so a
+            # consumer's own Python dependency keeps merging normally. There it
+            # is written as "is `github_actions`" rather than "is not `pip`", the
+            # two ecosystems that repository declares: an ecosystem the metadata
+            # step failed to determine then holds the pull request instead of
+            # releasing it.
+            #
+            # These literals are Dependabot's BRANCH segments, which is what
+            # `fetch-metadata` reports — `github_actions` and `npm_and_yarn`
+            # carry underscores, unlike the hyphenated keys in `dependabot.yml`.
             - name: Enable auto-merge for patch / minor
               if: >-
-                  steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-                  steps.metadata.outputs.update-type == 'version-update:semver-minor'
+                  (github.repository != 'magicsunday/.github' ||
+                  steps.metadata.outputs.package-ecosystem == 'github_actions') &&
+                  (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+                  steps.metadata.outputs.update-type == 'version-update:semver-minor')
               env:
                   PR_URL: ${{ github.event.pull_request.html_url }}
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

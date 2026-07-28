@@ -31,12 +31,19 @@ runs.
 | `i18n.yml` | Enforces the catalogue layout; optional `make lang` freshness gate | `contents: read` |
 | `bundle-freshness.yml` | Verifies committed build artefacts match a clean rebuild | `contents: read` |
 | `greetings.yml` | Greets first-time contributors | `issues: write`, `pull-requests: write` |
-| `auto-merge-deps.yml` | Auto-merges passing dependency bumps (patch and minor only) | `contents: write`, `pull-requests: write` |
+| `auto-merge-deps.yml` | Auto-merges passing dependency bumps (patch and minor only; `pip` is excluded — see below) | `contents: write`, `pull-requests: write` |
 
 Two contracts are easy to miss when adopting `commit-convention.yml`: the caller
 must include `edited` in its `pull_request` `types:`, or a corrected subject is
 never re-checked; and the status context to require in branch protection is
 `<calling-job-id> / Commit convention`, not `Commit convention`.
+
+`auto-merge-deps.yml` skips the `pip` ecosystem **in this repository only**:
+`.github/requirements/*.txt` hold the pinned tool versions the shared gates run,
+so such a bump changes how a gate behaves in every repository, and a green run
+here only proves the new version against this repository's own files. Those pull
+requests stay open for a human. A consumer's own Python dependency is unaffected
+and keeps auto-merging.
 
 `code-scanning.yml` and `yamllint.yml` check this repository out a second time,
 at the revision of the workflow being executed, to read the pinned tool

@@ -37,7 +37,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   install re-resolves on every run, so a new upstream release changes the behaviour of
   a gate across the whole account with nothing here having changed — and `yamllint` is
   a required check. Dependabot tracks these files through its `pip` ecosystem; an
-  inline `pip install <tool>` in a `run:` block is invisible to it, pinned or not. (The rule is
+  inline `pip install <tool>` in a `run:` block is invisible to it, pinned or not.
+  These bumps are excluded from auto-merge — see `auto-merge-deps.yml`. (The rule is
   about what a workflow installs *itself*: a SHA-pinned action that brings its own
   binary, as `zizmor.yml` does, already has its version tracked by the
   `github-actions` ecosystem.)
