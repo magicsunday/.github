@@ -3,7 +3,10 @@ name: yamllint (reusable)
 # Reusable yamllint check of the calling repository's GitHub Actions
 # workflow YAML. Callers invoke it via
 # `uses: magicsunday/.github/.github/workflows/yamllint.yml@main` and may
-# override `paths` to lint additional YAML. line-length is demoted to a
+# override `paths` to lint additional YAML. The pinned tool version is read
+# from this repository, so a caller's job needs to be able to read it — which
+# holds because it is public, and would stop holding if it were not: this check
+# is required in several repositories. line-length is demoted to a
 # warning (GHA `run:` blocks legitimately carry long inline strings) and
 # indentation is pinned to 4 spaces (the house standard — yamllint's default
 # `consistent` would otherwise accept 2-space files); every other rule keeps
@@ -39,8 +42,42 @@ jobs:
               with:
                   python-version: '3.12'
 
+            # The workspace holds the CALLER's checkout, so this repository's
+            # pinned requirements are fetched separately, from the commit of this
+            # workflow itself (see AGENTS.md). An undefined context property
+            # would interpolate to an empty string and silently degrade to the
+            # default branch, so both values are asserted before they are used.
+            # The checkout path is claimed rather than assumed free: the install
+            # step deletes it unconditionally, so YAML a caller keeps under a
+            # path of that name would be removed rather than linted. `-e`
+            # follows symlinks and the deletion does not, so a dangling link of
+            # that name is rejected explicitly rather than left to the narrower
+            # test.
+            - name: Check the shared-checkout preconditions
+              env:
+                  WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+                  WORKFLOW_SHA: ${{ job.workflow_sha }}
+              run: |
+                  set -euo pipefail
+                  test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
+                  test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
+                  { test ! -e .magicsunday-shared && test ! -L .magicsunday-shared; } || { echo "::error::This repository contains a path named '.magicsunday-shared', which the shared workflows reserve for their own checkout and delete again - rename it, or the lint would silently skip it."; exit 1; }
+
+            - name: Check out the pinned requirements
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
+                  path: .magicsunday-shared
+                  persist-credentials: false
+
+            # The shared checkout is removed once the install is done, so
+            # yamllint only ever sees the caller's own tree.
             - name: Install yamllint
-              run: pip install --quiet yamllint
+              run: |
+                  set -euo pipefail
+                  pip install --quiet --only-binary=:all: -r .magicsunday-shared/.github/requirements/yamllint.txt
+                  rm -rf .magicsunday-shared
 
             # PATHS is consumed from the environment (not inlined into the
             # command) so a caller-supplied value cannot inject shell; the
