@@ -2,7 +2,11 @@ name: Code scanning (reusable)
 
 # Reusable Semgrep scan shared across all magicsunday repositories. Callers
 # invoke it via `uses: magicsunday/.github/.github/workflows/code-scanning.yml@main`
-# and must grant `security-events: write`.
+# and must grant `security-events: write`. The pinned engine version is read
+# from this repository, so a caller's job needs to be able to read it — which
+# holds because it is public. The job fails rather than uploading a report from
+# a scan that did not run to completion; where a repository requires this
+# context, that holds the merge until the scan runs again.
 on:
     workflow_call:
 
@@ -29,30 +33,102 @@ jobs:
               with:
                   python-version: '3.12'
 
+            # The workspace holds the CALLER's checkout, so this repository's
+            # pinned requirements are fetched separately, from the commit of this
+            # workflow itself (see AGENTS.md). An undefined context property
+            # would interpolate to an empty string and silently degrade to the
+            # default branch, so both values are asserted before they are used.
+            # The checkout path is claimed rather than assumed free: the install
+            # step deletes it unconditionally, so a caller carrying a path of
+            # that name would have it removed before the scan and the report
+            # would omit it while still reading as complete. `-e` follows
+            # symlinks and the deletion does not, so a dangling link of that
+            # name is rejected explicitly rather than left to the narrower test.
+            - name: Check the shared-checkout preconditions
+              env:
+                  WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+                  WORKFLOW_SHA: ${{ job.workflow_sha }}
+              run: |
+                  set -euo pipefail
+                  test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
+                  test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
+                  { test ! -e .magicsunday-shared && test ! -L .magicsunday-shared; } || { echo "::error::This repository contains a path named '.magicsunday-shared', which the shared workflows reserve for their own checkout and delete again - rename it, or the scan would silently skip it."; exit 1; }
+
+            - name: Check out the pinned requirements
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
+                  path: .magicsunday-shared
+                  persist-credentials: false
+
+            # The shared checkout is removed once the install is done, so no
+            # finding can be reported against a file this repository brought in.
             - name: Install Semgrep
-              run: pip install --quiet semgrep
+              run: |
+                  set -euo pipefail
+                  pip install --quiet --only-binary=:all: -r .magicsunday-shared/.github/requirements/semgrep.txt
+                  rm -rf .magicsunday-shared
 
             # Multi-language security rule sets — CodeQL does not support PHP, so
             # Semgrep covers the PHP surface plus JavaScript and generic secret
-            # patterns. Findings are uploaded as alerts; the step never fails the
-            # build so they inform rather than block.
+            # patterns.
+            #
+            # Findings alone exit 0, so they inform rather than block without any
+            # help from the step. A non-zero exit therefore means the scan hit an
+            # error, and Semgrep writes its report before deciding that exit
+            # code: unresolvable rule packs exit 7 with a well-formed report
+            # holding zero results, a rule the pinned engine cannot parse exits
+            # after a scan that did produce some. Either way the report covers
+            # less than it claims to, and code scanning reads what a report omits
+            # as fixed — so the job fails and the upload never runs, instead of
+            # sending a partial picture. Where a repository requires this context
+            # in branch protection, blocking the merge until the scan runs again
+            # is precisely what requiring it asks for; everywhere else the
+            # failure is visible without gating anything.
+            #
+            # The report is written outside the workspace. Inside it, the run
+            # would have to clear a stale file before the scan and remove a
+            # rejected one after it — two deletions in a tree belonging to the
+            # caller, one of them ahead of the scan that walks that tree. The
+            # runner's temporary directory is per-job and starts empty, so there
+            # is nothing to clear and nothing of the caller's to lose. The shared
+            # checkout cannot take the same way out: `actions/checkout` rejects a
+            # `path:` outside the workspace, which is why that one is guarded
+            # instead.
             - name: Run Semgrep
-              continue-on-error: true
+              env:
+                  SARIF_FILE: ${{ runner.temp }}/semgrep.sarif
               run: |
+                  set -euo pipefail
+
+                  rc=0
                   semgrep scan \
                       --config p/security-audit \
                       --config p/secrets \
                       --config p/php \
                       --config p/javascript \
-                      --sarif --output semgrep.sarif \
+                      --sarif --output "$SARIF_FILE" \
                       --exclude '*.min.js' \
                       --exclude vendor \
                       --exclude node_modules \
                       --exclude .build \
-                      --metrics off
+                      --metrics off || rc=$?
+
+                  # Failing here is what discards the report: the upload step
+                  # carries no condition, so it does not run once this one has
+                  # failed.
+                  if [ "$rc" -ne 0 ]; then
+                      echo "::error::Semgrep exited ${rc} - its report covers less than a complete scan, so nothing was uploaded and no alerts were touched."
+                      exit "$rc"
+                  fi
+
+                  if [ ! -s "$SARIF_FILE" ]; then
+                      echo "::error::Semgrep exited 0 but wrote no report - the scan step is misconfigured."
+                      exit 1
+                  fi
 
             - name: Upload SARIF to code scanning
-              if: always()
               uses: github/codeql-action/upload-sarif@e0647621c2984b5ed2f768cb892365bf2a616ad1 # v4.37.2
               with:
-                  sarif_file: semgrep.sarif
+                  sarif_file: ${{ runner.temp }}/semgrep.sarif

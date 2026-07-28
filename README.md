@@ -21,7 +21,7 @@ runs.
 
 | Workflow | Purpose | Permissions the caller must grant |
 | --- | --- | --- |
-| `code-scanning.yml` | Semgrep scan, results uploaded as code-scanning alerts | `contents: read`, `security-events: write` |
+| `code-scanning.yml` | Semgrep scan, results uploaded as code-scanning alerts; fails when the scan does not complete | `contents: read`, `security-events: write` |
 | `zizmor.yml` | Audit of the caller's workflow YAML (injection, permissions, pins) | `contents: read`, `security-events: write` |
 | `scorecard.yml` | OSSF Scorecard supply-chain analysis (public repositories) | `security-events: write`, `id-token: write` |
 | `dependency-review.yml` | Blocks vulnerable dependencies in a pull request | `contents: read`, `pull-requests: write` |
@@ -31,12 +31,32 @@ runs.
 | `i18n.yml` | Enforces the catalogue layout; optional `make lang` freshness gate | `contents: read` |
 | `bundle-freshness.yml` | Verifies committed build artefacts match a clean rebuild | `contents: read` |
 | `greetings.yml` | Greets first-time contributors | `issues: write`, `pull-requests: write` |
-| `auto-merge-deps.yml` | Auto-merges passing dependency bumps (patch and minor only) | `contents: write`, `pull-requests: write` |
+| `auto-merge-deps.yml` | Auto-merges passing dependency bumps (patch and minor only; `pip` is excluded — see below) | `contents: write`, `pull-requests: write` |
 
 Two contracts are easy to miss when adopting `commit-convention.yml`: the caller
 must include `edited` in its `pull_request` `types:`, or a corrected subject is
 never re-checked; and the status context to require in branch protection is
 `<calling-job-id> / Commit convention`, not `Commit convention`.
+
+`auto-merge-deps.yml` skips the `pip` ecosystem **in this repository only**:
+`.github/requirements/*.txt` hold the pinned tool versions the shared gates run,
+so such a bump changes how a gate behaves in every repository, and a green run
+here only proves the new version against this repository's own files. Those pull
+requests stay open for a human. A consumer's own Python dependency is unaffected
+and keeps auto-merging.
+
+`code-scanning.yml` and `yamllint.yml` check this repository out a second time,
+at the revision of the workflow being executed, to read the pinned tool
+versions in `.github/requirements/`.
+That works with the caller's own `GITHUB_TOKEN` because this repository is
+public, and it is the reason it has to stay public: making it private would red
+`yamllint`, a required check in several repositories.
+
+That second checkout lands at `.magicsunday-shared` and is deleted again before
+the job scans or lints anything, so **`.magicsunday-shared` is a reserved path
+in a calling repository**. Both workflows stop with a message naming it rather
+than deleting a path of that name, which would leave it out of the scan without
+anything appearing to be missing.
 
 ### Inputs
 
