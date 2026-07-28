@@ -49,7 +49,10 @@ jobs:
             # default branch, so both values are asserted before they are used.
             # The checkout path is claimed rather than assumed free: the install
             # step deletes it unconditionally, so YAML a caller keeps under a
-            # path of that name would be removed rather than linted.
+            # path of that name would be removed rather than linted. `-e`
+            # follows symlinks and the deletion does not, so a dangling link of
+            # that name is rejected explicitly rather than left to the narrower
+            # test.
             - name: Check the shared-checkout preconditions
               env:
                   WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
@@ -58,7 +61,7 @@ jobs:
                   set -euo pipefail
                   test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
                   test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
-                  test ! -e .magicsunday-shared || { echo "::error::This repository contains a path named '.magicsunday-shared', which the shared workflows reserve for their own checkout and delete again - rename it, or the lint would silently skip it."; exit 1; }
+                  { test ! -e .magicsunday-shared && test ! -L .magicsunday-shared; } || { echo "::error::This repository contains a path named '.magicsunday-shared', which the shared workflows reserve for their own checkout and delete again - rename it, or the lint would silently skip it."; exit 1; }
 
             - name: Check out the pinned requirements
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
