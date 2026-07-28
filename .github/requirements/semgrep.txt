@@ -1,0 +1,5 @@
+# Pinned Semgrep ENGINE version for the reusable code-scanning workflow — see
+# AGENTS.md for why the pin lives here. The `p/*` rule packs that workflow scans
+# with are fetched from the Semgrep registry at scan time and are NOT pinned by
+# this file.
+semgrep==1.171.0

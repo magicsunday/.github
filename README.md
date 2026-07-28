@@ -38,6 +38,13 @@ must include `edited` in its `pull_request` `types:`, or a corrected subject is
 never re-checked; and the status context to require in branch protection is
 `<calling-job-id> / Commit convention`, not `Commit convention`.
 
+`code-scanning.yml` and `yamllint.yml` check this repository out a second time,
+at the revision of the workflow being executed, to read the pinned tool
+versions in `.github/requirements/`.
+That works with the caller's own `GITHUB_TOKEN` because this repository is
+public, and it is the reason it has to stay public: making it private would red
+`yamllint`, a required check in several repositories.
+
 ### Inputs
 
 Workflows not listed here take no inputs.

@@ -11,3 +11,13 @@ updates:
             github-actions:
                 patterns:
                     - "*"
+
+    # The pinned tool versions the reusable workflows install. Kept ungrouped:
+    # each bump changes the behaviour of a different gate in every repository of
+    # the account, so they do not travel together.
+    -   package-ecosystem: pip
+        directory: /.github/requirements
+        schedule:
+            interval: weekly
+        cooldown:
+            default-days: 7

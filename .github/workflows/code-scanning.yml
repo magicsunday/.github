@@ -2,7 +2,9 @@ name: Code scanning (reusable)
 
 # Reusable Semgrep scan shared across all magicsunday repositories. Callers
 # invoke it via `uses: magicsunday/.github/.github/workflows/code-scanning.yml@main`
-# and must grant `security-events: write`.
+# and must grant `security-events: write`. The pinned engine version is read
+# from this repository, so a caller's job needs to be able to read it — which
+# holds because it is public.
 on:
     workflow_call:
 
@@ -29,8 +31,35 @@ jobs:
               with:
                   python-version: '3.12'
 
+            # The workspace holds the CALLER's checkout, so this repository's
+            # pinned requirements are fetched separately, from the commit of this
+            # workflow itself (see AGENTS.md). An undefined context property
+            # would interpolate to an empty string and silently degrade to the
+            # default branch, so both values are asserted before they are used.
+            - name: Assert the workflow revision resolved
+              env:
+                  WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+                  WORKFLOW_SHA: ${{ job.workflow_sha }}
+              run: |
+                  set -euo pipefail
+                  test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
+                  test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
+
+            - name: Check out the pinned requirements
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
+                  path: .magicsunday-shared
+                  persist-credentials: false
+
+            # The shared checkout is removed once the install is done, so no
+            # finding can be reported against a file this repository brought in.
             - name: Install Semgrep
-              run: pip install --quiet semgrep
+              run: |
+                  set -euo pipefail
+                  pip install --quiet --only-binary=:all: -r .magicsunday-shared/.github/requirements/semgrep.txt
+                  rm -rf .magicsunday-shared
 
             # Multi-language security rule sets — CodeQL does not support PHP, so
             # Semgrep covers the PHP surface plus JavaScript and generic secret
