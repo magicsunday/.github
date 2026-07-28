@@ -4,7 +4,9 @@ name: Code scanning (reusable)
 # invoke it via `uses: magicsunday/.github/.github/workflows/code-scanning.yml@main`
 # and must grant `security-events: write`. The pinned engine version is read
 # from this repository, so a caller's job needs to be able to read it — which
-# holds because it is public.
+# holds because it is public. The job fails rather than uploading a report from
+# a scan that did not run to completion; where a repository requires this
+# context, that holds the merge until the scan runs again.
 on:
     workflow_call:
 
@@ -63,11 +65,29 @@ jobs:
 
             # Multi-language security rule sets — CodeQL does not support PHP, so
             # Semgrep covers the PHP surface plus JavaScript and generic secret
-            # patterns. Findings are uploaded as alerts; the step never fails the
-            # build so they inform rather than block.
+            # patterns.
+            #
+            # Findings alone exit 0, so they inform rather than block without any
+            # help from the step. A non-zero exit therefore means the scan hit an
+            # error, and Semgrep writes its report before deciding that exit
+            # code: unresolvable rule packs exit 7 with a well-formed report
+            # holding zero results, a rule the pinned engine cannot parse exits
+            # after a scan that did produce some. Either way the report covers
+            # less than it claims to, and code scanning reads what a report omits
+            # as fixed — so it is dropped and the job fails instead of uploading
+            # a partial picture. Where a repository requires this context in
+            # branch protection, blocking the merge until the scan runs again is
+            # precisely what requiring it asks for; everywhere else the failure is
+            # visible without gating anything.
             - name: Run Semgrep
-              continue-on-error: true
               run: |
+                  set -euo pipefail
+
+                  # Only a report this run wrote may be uploaded, so anything
+                  # already sitting in the caller's workspace goes first.
+                  rm -f semgrep.sarif
+
+                  rc=0
                   semgrep scan \
                       --config p/security-audit \
                       --config p/secrets \
@@ -78,10 +98,24 @@ jobs:
                       --exclude vendor \
                       --exclude node_modules \
                       --exclude .build \
-                      --metrics off
+                      --metrics off || rc=$?
+
+                  # The annotation comes first: `run:` blocks execute under
+                  # `bash -e`, which `set -uo pipefail` does not turn off, so a
+                  # command placed ahead of the message would take it and the
+                  # exit code down with it.
+                  if [ "$rc" -ne 0 ]; then
+                      echo "::error::Semgrep exited ${rc} - its report covers less than a complete scan, so it was discarded and no alerts were uploaded."
+                      rm -f semgrep.sarif || true
+                      exit "$rc"
+                  fi
+
+                  if [ ! -s semgrep.sarif ]; then
+                      echo "::error::Semgrep exited 0 but wrote no report - the scan step is misconfigured."
+                      exit 1
+                  fi
 
             - name: Upload SARIF to code scanning
-              if: always()
               uses: github/codeql-action/upload-sarif@e0647621c2984b5ed2f768cb892365bf2a616ad1 # v4.37.2
               with:
                   sarif_file: semgrep.sarif

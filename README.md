@@ -21,7 +21,7 @@ runs.
 
 | Workflow | Purpose | Permissions the caller must grant |
 | --- | --- | --- |
-| `code-scanning.yml` | Semgrep scan, results uploaded as code-scanning alerts | `contents: read`, `security-events: write` |
+| `code-scanning.yml` | Semgrep scan, results uploaded as code-scanning alerts; fails when the scan does not complete | `contents: read`, `security-events: write` |
 | `zizmor.yml` | Audit of the caller's workflow YAML (injection, permissions, pins) | `contents: read`, `security-events: write` |
 | `scorecard.yml` | OSSF Scorecard supply-chain analysis (public repositories) | `security-events: write`, `id-token: write` |
 | `dependency-review.yml` | Blocks vulnerable dependencies in a pull request | `contents: read`, `pull-requests: write` |
