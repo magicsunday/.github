@@ -48,6 +48,15 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   about what a workflow installs *itself*: a SHA-pinned action that brings its own
   binary, as `zizmor.yml` does, already has its version tracked by the
   `github-actions` ecosystem.)
+- **A scan report is only uploaded once the report itself says it is complete.**
+  Code scanning reads what an uploaded report omits as *fixed*, so a scan that
+  quietly covered less than the tree retires real alerts, and an exit code does not
+  carry that. `code-scanning.yml` therefore checks a skip inventory; its comments
+  hold the mechanics and the commands that re-derive them. Two prohibitions before
+  you edit it: do not drop the flags it calls load-bearing, and do not turn its
+  allow list of tolerated skip reasons into a deny list — widen that list only for a
+  reason meaning the file was never a scan target, and only against the engine's own
+  definition.
 - **Read a reusable workflow's own files with the `job` context, never the `github`
   one.** A reusable workflow's `actions/checkout` fetches the **caller's** repository,
   so this repository's files are not in the workspace. Check them out separately with
