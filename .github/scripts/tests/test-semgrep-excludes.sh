@@ -5,10 +5,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/harness.sh
+source "${SCRIPT_DIR}/lib/harness.sh"
 # shellcheck source=../lib/semgrep-excludes.sh
 source "${SCRIPT_DIR}/../lib/semgrep-excludes.sh"
-
-failures=0
 
 assert_args() {
     local description="$1"
@@ -87,9 +87,4 @@ case $- in
 esac
 set +f
 
-if [ "${failures}" -gt 0 ]; then
-    echo "${failures} failure(s)."
-    exit 1
-fi
-
-echo "All exclude-argument tests passed."
+report_and_exit "exclude-argument tests"

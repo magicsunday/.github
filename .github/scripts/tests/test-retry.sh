@@ -10,10 +10,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/harness.sh
+source "${SCRIPT_DIR}/lib/harness.sh"
 # shellcheck source=../lib/retry.sh
 source "${SCRIPT_DIR}/../lib/retry.sh"
-
-failures=0
 
 # Overrides the real `sleep` so a test that forces several retries runs
 # instantly instead of actually waiting — a bash function takes precedence
@@ -101,9 +101,4 @@ run_with_retry flaky 2 || rc=$?
 assert_eq "default backoff used when RETRY_BACKOFF_SECONDS is unset: exit code" 0 "${rc}"
 assert_eq "default backoff used when RETRY_BACKOFF_SECONDS is unset: sleep argument" 5 "${sleep_calls[0]}"
 
-if [ "${failures}" -gt 0 ]; then
-    echo "${failures} failure(s)."
-    exit 1
-fi
-
-echo "All retry tests passed."
+report_and_exit "retry tests"

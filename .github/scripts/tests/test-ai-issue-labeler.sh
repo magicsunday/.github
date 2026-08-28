@@ -5,10 +5,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/harness.sh
+source "${SCRIPT_DIR}/lib/harness.sh"
 # shellcheck source=../lib/ai-issue-labeler.sh
 source "${SCRIPT_DIR}/../lib/ai-issue-labeler.sh"
-
-failures=0
 
 pass() {
     echo "PASS: $1"
@@ -185,9 +185,4 @@ else
     fail "build_labels_payload: comma-containing label was split - got $(jq -c '.labels' <<<"${payload}")"
 fi
 
-if [ "${failures}" -gt 0 ]; then
-    echo "${failures} failure(s)."
-    exit 1
-fi
-
-echo "All AI issue-labeler tests passed."
+report_and_exit "AI issue-labeler tests"
