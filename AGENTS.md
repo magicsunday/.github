@@ -79,9 +79,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   making them available to others as a service, which a commit to this public,
   account-wide repository would be; and `semgrep scan --config` has no versioned or
   digest-addressed form of a registry entry — `p/<name>` is a mutable alias with no
-  pinned variant, confirmed against the CLI reference and against the still-open
-  upstream feature request for offline/cached rulesets (issue #44 has the full
-  chain). What the workflow does instead is retry the scan once, via
+  pinned variant (verified 2026-08-28 against `semgrep scan --help`'s `--config`
+  section, and against the still-open upstream feature request for offline/cached
+  rulesets; issue #44 has the full chain — re-check both before trusting this claim
+  past that date). What the workflow does instead is retry the scan once, via
   `.github/scripts/lib/retry.sh`'s `run_with_retry()`, so a transient registry
   outage does not fail a run that a moment later would have succeeded — this
   narrows the failure window, it does not pin the policy. A renamed or removed rule
