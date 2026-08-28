@@ -106,19 +106,31 @@ extract_tool_input() {
 # building the request and resolving its response. When nothing survives
 # confidently, GH-57 asks for a `needs-triage` fallback where the repository
 # has one - never a guess.
+#
+# The two `|| return 1` below are load-bearing, not defensive noise: `set -e`
+# does NOT propagate into a command substitution by default (and does not
+# even with `shopt -s inherit_errexit` once the substitution sits inside a
+# tested context like the caller's `if ! x=$(resolve_labels_to_apply ...)`),
+# so without them a malformed argument here would silently continue with an
+# empty `confident`/`selected` and this function would still return 0 -
+# reported by the caller as "not confident" rather than "internal error".
+# Re-derive: run either jq assignment against `--argjson known "not-json"`
+# with and without the `||`, under `set -e`, called as
+# `if ! x=$(that_function ...); then echo caught; fi` - only the guarded
+# version reports `caught`.
 resolve_labels_to_apply() {
     local tool_input_json="$1"
     local labels_json="$2"
 
     local confident
-    confident=$(jq -r '.confident' <<<"${tool_input_json}")
+    confident=$(jq -r '.confident' <<<"${tool_input_json}") || return 1
 
     local selected
     selected=$(jq -r --argjson known "${labels_json}" '
         ($known | map(.name)) as $names
         | .labels[]
         | select(. as $label | $names | index($label) != null)
-    ' <<<"${tool_input_json}")
+    ' <<<"${tool_input_json}") || return 1
 
     if [ "${confident}" = "true" ] && [ -n "${selected}" ]; then
         printf '%s\n' "${selected}"
