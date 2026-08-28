@@ -1,7 +1,9 @@
 name: Lint
 
 # Dogfood the reusable yamllint check against this repository's own
-# workflow YAML so the shared templates cannot regress the house style.
+# workflow YAML so the shared templates cannot regress the house style, and
+# run the shell-logic tests that pin the `run:` blocks the reusable workflows
+# source from .github/scripts/lib/.
 on:
     push:
         branches: [main, master]
@@ -15,3 +17,19 @@ jobs:
         uses: ./.github/workflows/yamllint.yml
         permissions:
             contents: read
+
+    shell-tests:
+        name: Shell logic tests
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            - name: Run shell-logic tests
+              run: bash .github/scripts/tests/run-tests.sh
