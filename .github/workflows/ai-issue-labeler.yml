@@ -175,12 +175,17 @@ jobs:
                   # (DNS, TLS, or a stalled response - no HTTP status at all)
                   # into the same fast, visible failure as any other
                   # transient error, rather than blocking the job for the
-                  # runner's own default timeout.
+                  # runner's own default timeout. The body is streamed via
+                  # `--data-binary @-` (stdin) rather than `-d "$request_body"`
+                  # (an argv entry): a large issue body plus a large label set
+                  # can push the generated JSON past Linux's 128 KiB
+                  # per-argument limit, which would otherwise fail this
+                  # `execve()` before curl even starts.
                   http_response=$(curl -sS --connect-timeout 10 --max-time 30 -w '\n%{http_code}' https://api.anthropic.com/v1/messages \
                       -H "Content-Type: application/json" \
                       -H "x-api-key: ${ANTHROPIC_API_KEY}" \
                       -H "anthropic-version: 2023-06-01" \
-                      -d "$request_body") \
+                      --data-binary @- <<<"$request_body") \
                       || warn_and_skip "Could not reach the Anthropic API for issue #${ISSUE_NUMBER}; leaving labels untouched."
                   http_status=$(tail -n1 <<<"$http_response")
                   response_body=$(sed '$d' <<<"$http_response")
