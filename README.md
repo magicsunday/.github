@@ -64,6 +64,7 @@ Workflows not listed here take no inputs.
 
 | Workflow | Input | Default |
 | --- | --- | --- |
+| `code-scanning.yml` | `excludes` — whitespace-separated extra paths to keep out of the scan. Every path declared here leaves the uploaded report, so code scanning retires whatever alerts it held: declare only files that are not source | *(none)* |
 | `yamllint.yml` | `paths` — space-separated YAML paths to lint | `.github/workflows/` |
 | `i18n.yml` | `lang-dir` — root directory holding the per-locale catalogues | `resources/lang` |
 | | `check-pipeline` — run `make lang` and fail on a non-empty diff | `false` |
