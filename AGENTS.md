@@ -51,14 +51,23 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
 - **A scan report is only uploaded once the report itself says it is complete.**
   Code scanning reads what an uploaded report omits as *fixed*, so a scan that
   quietly covered less than the tree retires real alerts, and an exit code does not
-  carry that. `code-scanning.yml` therefore checks a skip inventory; its comments
-  hold the mechanics and the commands that re-derive them. Two prohibitions before
-  you edit it: do not drop the flags it calls load-bearing, and do not turn its
-  allow list of tolerated skip reasons into a deny list — widen that list only for a
-  reason meaning the file was never a scan target or its content cannot carry a
-  finding any rule could make, and only against the engine's own definition.
-  `minified` is the one documented exception to both grounds, tolerated as an
-  accepted risk (issue #50).
+  carry that. `code-scanning.yml` sources `.github/scripts/lib/semgrep-report-check.sh`
+  to check a skip inventory; its comments hold the mechanics and the commands that
+  re-derive them. Two prohibitions before you edit it: do not drop the flags it calls
+  load-bearing, and do not turn its allow list of tolerated skip reasons into a deny
+  list — widen that list only for a reason meaning the file was never a scan target
+  or its content cannot carry a finding any rule could make, and only against the
+  engine's own definition. `minified` is the one documented exception to both
+  grounds, tolerated as an accepted risk (issue #50).
+- **The shell logic a reusable workflow's `run:` block executes lives in
+  `.github/scripts/lib/*.sh`, sourced by the workflow rather than duplicated into
+  it.** `.github/scripts/tests/test-*.sh` sources the same files and is run by
+  `lint.yml`'s `shell-tests` job on every push and pull request, so a regression in
+  that logic fails CI before it reaches a caller — a workflow-only copy could drift
+  silently, since nothing re-checks a `run:` block otherwise. Add a new library file
+  (never inline the logic back into the workflow) and a matching `test-*.sh` when a
+  `run:` block grows real logic (argument construction, exit-code classification,
+  report assertions) worth pinning this way.
 - **Read a reusable workflow's own files with the `job` context, never the `github`
   one.** A reusable workflow's `actions/checkout` fetches the **caller's** repository,
   so this repository's files are not in the workspace. Check them out separately with

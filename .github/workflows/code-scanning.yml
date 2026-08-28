@@ -78,12 +78,22 @@ jobs:
                   path: .magicsunday-shared
                   persist-credentials: false
 
-            # The shared checkout is removed once the install is done, so no
-            # finding can be reported against a file this repository brought in.
+            # The shared checkout is removed once the install and the script
+            # copy are done, so no finding can be reported against a file this
+            # repository brought in. The library scripts the next step sources
+            # are copied out to the runner's temp dir first, for the same
+            # reason the reports below are written there rather than into the
+            # workspace: this checkout, and the shell logic it carries,
+            # belongs to this repository, not the caller's tree.
             - name: Install Semgrep
+              env:
+                  SCRIPT_LIB: ${{ runner.temp }}/semgrep-lib
               run: |
                   set -euo pipefail
                   pip install --quiet --only-binary=:all: -r .magicsunday-shared/.github/requirements/semgrep.txt
+                  mkdir -p "$SCRIPT_LIB"
+                  cp .magicsunday-shared/.github/scripts/lib/semgrep-excludes.sh "$SCRIPT_LIB/"
+                  cp .magicsunday-shared/.github/scripts/lib/semgrep-report-check.sh "$SCRIPT_LIB/"
                   rm -rf .magicsunday-shared
 
             # Multi-language security rule sets — CodeQL does not support PHP, so
@@ -141,46 +151,27 @@ jobs:
                   SARIF_FILE: ${{ runner.temp }}/semgrep.sarif
                   JSON_FILE: ${{ runner.temp }}/semgrep.json
                   EXTRA_EXCLUDES: ${{ inputs.excludes }}
+                  SCRIPT_LIB: ${{ runner.temp }}/semgrep-lib
               run: |
                   set -euo pipefail
 
+                  # Both functions sourced below are the actual shipped text,
+                  # not a copy of it: .github/scripts/tests/ sources the same
+                  # two files from this repository's own tree, so a test
+                  # failure there means this step would fail identically.
+                  # shellcheck source=scripts/lib/semgrep-excludes.sh
+                  source "$SCRIPT_LIB/semgrep-excludes.sh"
+                  # shellcheck source=scripts/lib/semgrep-report-check.sh
+                  source "$SCRIPT_LIB/semgrep-report-check.sh"
+
                   # The caller's list is consumed from the environment rather
                   # than inlined into the command, so a value cannot inject
-                  # shell. It is split on spaces WITHOUT pathname expansion:
-                  # an unquoted expansion would also glob, and glob is the
-                  # wrong matcher here, because it resolves the pattern against
-                  # the runner's checkout instead of handing it to Semgrep.
-                  # The divergence is a SLASH-FREE pattern: measured on the
-                  # pinned engine, `--exclude '*.pdf'` skips a PDF at any
-                  # depth, while the shell expands it against the working
-                  # directory only and leaves a nested one to be read — which
-                  # then fails this gate and is reported as undeclared. A
-                  # pattern WITH a slash is anchored one level either way, so
-                  # it is the wrong example to reason from. Re-derive:
-                  #
-                  # Read `.paths.skipped`, not `.paths.scanned`: no language
-                  # claims a PDF, so it is absent from BOTH inventories when
-                  # unexcluded, and a scanned-side check would read as
-                  # confirmation even if the pattern had stopped matching at
-                  # depth.
-                  #
-                  #   semgrep scan --config p/php --exclude '*.pdf' \
-                  #       --json-output=j.json --verbose --metrics off
-                  #   jq -r '.paths.skipped[]
-                  #       | select(.reason == "cli_exclude_flags_match")
-                  #       | .path' j.json   # the nested PDF is listed too
-                  #
-                  # Globbing is switched off around the loop rather than the
-                  # split being hand-rolled: the default `IFS` already splits
-                  # on space, tab and newline, which is what a caller writing
-                  # the YAML block form sends.
+                  # shell; build_semgrep_exclude_args() keeps every pattern
+                  # literal rather than letting the shell glob it against the
+                  # runner's checkout — see semgrep-excludes.sh for the
+                  # measured divergence this guards against.
                   extra=()
-                  set -f
-                  # shellcheck disable=SC2086
-                  for pattern in ${EXTRA_EXCLUDES:-}; do
-                      extra+=(--exclude "$pattern")
-                  done
-                  set +f
+                  build_semgrep_exclude_args "${EXTRA_EXCLUDES:-}"
 
                   # Discarding stdout is not tidiness. Asking for the report by
                   # format flag re-enables the primary output, which as text
@@ -235,158 +226,13 @@ jobs:
                       exit 1
                   fi
 
-                  # Readability is a property of the file, decided once here
-                  # rather than at each of the reads below, so a malformed
-                  # report fails with an explanation instead of a bare jq abort
-                  # at whichever read reaches it first.
-                  jq . "$JSON_FILE" > /dev/null || {
-                      echo "::error::Semgrep's JSON report could not be read, so the scan could not be shown to be complete - nothing was uploaded."
-                      exit 1
-                  }
-
-                  # Which skips are acceptable is decided by an allow list, so a
-                  # reason this list does not name fails the job — including one
-                  # a later engine introduces. A deny list naming today's known
-                  # bad reasons would let exactly that next addition through
-                  # silently, which is the defect this check exists to prevent.
-                  #
-                  # A reason is tolerated on one of two grounds: the file was
-                  # never a scan target (this workflow's `--exclude` flags, an
-                  # ignore file, a rule's own path rules), or its content cannot
-                  # carry a finding any rule could make (`binary`).
-                  #
-                  # `minified` is neither, and is tolerated as an accepted risk.
-                  # Minified JavaScript still parses, and `p/secrets` is regex
-                  # work that minification does not defeat, so a token inlined
-                  # by a build would sit in exactly such a file — and
-                  # `bundle-freshness.yml` means consumers commit bundles by
-                  # design, including ones the `*.min.js` exclude does not name.
-                  # Denying it would red those consumers, which is a fleet
-                  # policy change with its own review: issue #50.
-                  #
-                  # Everything else means a file that WAS a target went unread —
-                  # it exceeded a limit, could not be parsed, or could not be
-                  # opened — and its findings are missing from a report that
-                  # does not say so. Re-derive the engine's full set; whatever
-                  # it names that is absent below fails the job, so the two sets
-                  # stay a partition by construction rather than by a count kept
-                  # in step:
-                  #
-                  #   sed -n '/^class SkipReason/,/^class /p' "$(python3 -c \
-                  #       'from semgrep.semgrep_interfaces import \
-                  #        semgrep_output_v1 as m; print(m.__file__)')" \
-                  #       | grep -oE "'[A-Za-z_]+'" | grep -vx "'SkipReason'" \
-                  #       | sort -u
-                  #
-                  # The character class has to admit capitals, or it drops the
-                  # three PascalCase wire values and its output then agrees with
-                  # this list and reads as complete. It also has to drop the
-                  # class's own name, which the generated file repeats inside
-                  # the same block.
-                  #
-                  # Those three — `Dotfile`, `Gitignore_patterns_match`,
-                  # `Nonexistent_file` — are denied, but measured on the pin the
-                  # scan path never emits them: a dotfile directory is scanned,
-                  # and a gitignored path is reported as
-                  # `semgrepignore_patterns_match`, which this list tolerates.
-                  # So denying them is a decision about the schema, not live
-                  # coverage — a `.gitignore` DIRECTORY entry covering tracked
-                  # files does drop them silently, and that is the accepted risk
-                  # recorded in issue #48 rather than something denied here.
-                  # Re-derive, in a git checkout, since targets come from
-                  # `git ls-files` when one is present:
-                  #
-                  #   mkdir -p dist .hidden
-                  #   printf '<?php eval($_GET["x"]);\n' > dist/x.php
-                  #   printf '<?php eval($_GET["y"]);\n' > .hidden/y.php
-                  #   printf 'dist/\n' > .gitignore && git add -Af . &&
-                  #   semgrep scan --config p/php --json-output=j.json \
-                  #       --verbose --metrics off
-                  #   jq -r '.paths.skipped[] | "\(.path): \(.reason)"' j.json
-                  #       # dist/x.php: semgrepignore_patterns_match — tracked,
-                  #       # holding a finding, dropped, and tolerated here
-                  #   jq -r '.paths.scanned[]' j.json
-                  #       # .hidden/y.php — the dotfile directory was scanned
-                  #
-                  # Both fixtures have to exist, or the commands print nothing
-                  # and the empty output reads as confirmation.
-                  ALLOWED_SKIP_REASONS='[
-                      "always_skipped",
-                      "binary",
-                      "cli_exclude_flags_match",
-                      "cli_include_flags_do_not_match",
-                      "excluded_by_config",
-                      "irrelevant_rule",
-                      "minified",
-                      "semgrepignore_patterns_match",
-                      "wrong_language"
-                  ]'
-
-                  # A missing inventory is treated as a finding rather than as an
-                  # empty one, so dropping `--verbose` cannot quietly pass.
-                  #
-                  # Paths are sanitised because the result is folded into a
-                  # workflow command below, where `%0A` is the newline it uses
-                  # to carry more than one line. A path holding a literal `%`
-                  # would otherwise be read as that markup, and git permits a
-                  # raw newline in a path, which would end the annotation early
-                  # and leave the rest as an unattributed log line.
-                  unexpected="$(jq -r --argjson allowed "$ALLOWED_SKIP_REASONS" '
-                      if (.paths.skipped | type) != "array" then
-                          ["(whole report): no-skipped-inventory"]
-                      else
-                          [.paths.skipped[]
-                              | (.reason // "unknown") as $reason
-                              | select(($allowed | index($reason)) == null)
-                              | ((.path // "(no path)")
-                                  | gsub("%"; "%25")
-                                  | gsub("[[:cntrl:]]"; "?")) as $path
-                              | "\($path): \($reason)"]
-                      end
-                      | join("%0A")
-                  ' "$JSON_FILE")"
-
-                  # The offenders are folded into the annotation itself: a plain
-                  # log line does not reach the checks pane, so a message
-                  # promising a list would arrive without one.
-                  if [ -n "$unexpected" ]; then
-                      echo "::error::Semgrep exited 0 but did not scan every file it was given, so its report understates what is in the tree and code scanning would retire the alerts of the files below. If a file is not meant to be scanned, declare it through this workflow's 'excludes' input in the caller; otherwise fix what stopped it being read. A pattern holding a slash is anchored at the root and its '*' does not cross one, so a nested file needs its directory, its literal path, or a '**' pattern.%0A${unexpected}"
-                      exit 1
-                  fi
-
-                  # A report over an empty file set is well-formed and asserts
-                  # that nothing is wrong, which would retire every alert at
-                  # once. An absent inventory counts as empty here: jq gives
-                  # `null | length` as 0, and the check above has already
-                  # rejected the reports where the inventory is missing.
-                  scanned="$(jq '.paths.scanned | length' "$JSON_FILE")"
-
-                  if [ "$scanned" -lt 1 ]; then
-                      echo "::error::Semgrep scanned no files at all, so its report asserts a clean tree it never looked at."
-                      exit 1
-                  fi
-
-                  # A tolerated skip is still a file whose alerts this upload
-                  # retires, so what was skipped has to be legible in the run
-                  # that did it — but the engine already writes that: `--verbose`
-                  # puts a `Files skipped:` section naming each path, and a
-                  # `Scan skipped:` breakdown per reason, on stderr, which is
-                  # kept. Undocumented in `--help`, only observable by running
-                  # it. Self-contained re-derive (the size-limit fixture from
-                  # the exit-code check above, on its own — no `GITHUB_ACTIONS`
-                  # or `--json`, both of which only affect whether match text
-                  # also lands on the same stream, not whether these sections
-                  # exist):
-                  #
-                  #   printf '<?php\n' > huge.php
-                  #   yes '// pad' | head -200000 >> huge.php
-                  #   semgrep scan --config p/php --verbose --metrics off \
-                  #       huge.php 2>err.txt
-                  #   grep -c "Files skipped:\|Scan skipped:" err.txt  # 2
-                  #
-                  # Reprinting it from the JSON gave counts without the
-                  # paths, so only the gate's own verdict is echoed here.
-                  echo "Scanned ${scanned} files, no undeclared skips."
+                  # assert_semgrep_report_complete() carries the readability
+                  # check, the allowed-skip-reasons partition (including the
+                  # `minified`/issue #50 and `Dotfile`/`Gitignore_patterns_match`/
+                  # `Nonexistent_file`/issue #48 rationale and their re-derive
+                  # commands), the scanned-file-count check, and the single-
+                  # annotation sanitisation — see semgrep-report-check.sh.
+                  assert_semgrep_report_complete "$JSON_FILE"
 
             - name: Upload SARIF to code scanning
               uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
