@@ -55,8 +55,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   hold the mechanics and the commands that re-derive them. Two prohibitions before
   you edit it: do not drop the flags it calls load-bearing, and do not turn its
   allow list of tolerated skip reasons into a deny list — widen that list only for a
-  reason meaning the file was never a scan target, and only against the engine's own
-  definition.
+  reason meaning the file was never a scan target or its content cannot carry a
+  finding any rule could make, and only against the engine's own definition.
+  `minified` is the one documented exception to both grounds, tolerated as an
+  accepted risk (issue #50).
 - **Read a reusable workflow's own files with the `job` context, never the `github`
   one.** A reusable workflow's `actions/checkout` fetches the **caller's** repository,
   so this repository's files are not in the workspace. Check them out separately with

@@ -187,7 +187,11 @@ jobs:
                   # echoes every finding WITH ITS MATCHED LINE — and `p/secrets`
                   # matches live credentials into a log that outlives the file
                   # they came from. `--quiet` is not an alternative: it is
-                  # mutually exclusive with `--verbose`.
+                  # mutually exclusive with `--verbose` — undocumented in
+                  # `--help`, only observable by running it. Re-derive:
+                  #
+                  #   semgrep scan --quiet --verbose --metrics off /dev/null
+                  #   # [ERROR]: mutually exclusive options --quiet/--verbose/--debug
                   #
                   # `--json` is what keeps the diagnostics. Semgrep collapses
                   # onto a SINGLE stream when `GITHUB_ACTIONS` is set and the
@@ -367,7 +371,13 @@ jobs:
                   # that did it — but the engine already writes that: `--verbose`
                   # puts a `Files skipped:` section naming each path, and a
                   # `Scan skipped:` breakdown per reason, on stderr, which is
-                  # kept. Reprinting it from the JSON gave counts without the
+                  # kept. Undocumented in `--help`, only observable by running
+                  # it — reuses the stderr capture from the `GITHUB_ACTIONS`
+                  # check above. Re-derive:
+                  #
+                  #   grep -c "Files skipped:\|Scan skipped:" err.txt  # 2
+                  #
+                  # Reprinting it from the JSON gave counts without the
                   # paths, so only the gate's own verdict is echoed here.
                   echo "Scanned ${scanned} files, no undeclared skips."
 
