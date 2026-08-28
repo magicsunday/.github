@@ -28,15 +28,24 @@
 #       | .path' j.json   # the nested PDF is listed too
 #
 # Globbing is switched off around the loop rather than the split being
-# hand-rolled: the default `IFS` already splits on space, tab and newline,
-# which is what a caller writing the YAML block form sends.
+# hand-rolled: a function-local default `IFS` already splits on space, tab
+# and newline, which is what a caller writing the YAML block form sends —
+# `local IFS` rather than trusting whatever the CALLER's IFS happens to be,
+# since this is sourced rather than run in a subshell: a caller with
+# `IFS=$'\n'` would otherwise turn a space-separated pattern list into one
+# literal pattern. The pre-call noglob state is restored rather than
+# unconditionally cleared, since a caller that itself runs under `set -f`
+# would otherwise have pathname expansion silently re-enabled on return.
 build_semgrep_exclude_args() {
     local patterns="${1:-}"
+    local IFS=$' \t\n'
+    local had_noglob=0
+    case $- in *f*) had_noglob=1 ;; esac
 
     set -f
     # shellcheck disable=SC2086
     for pattern in ${patterns}; do
         extra+=(--exclude "$pattern")
     done
-    set +f
+    [ "$had_noglob" -eq 1 ] || set +f
 }
