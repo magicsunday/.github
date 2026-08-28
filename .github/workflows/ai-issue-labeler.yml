@@ -149,13 +149,19 @@ jobs:
                   # shellcheck source=scripts/lib/ai-issue-labeler.sh
                   source "$SCRIPT_LIB/ai-issue-labeler.sh"
 
-                  # Guarded the same way as the curl call below: a transient
-                  # GitHub API failure here must degrade to "leave labels
-                  # untouched", not fail the whole job under `set -e`.
-                  if ! labels_json=$(gh api "repos/${REPO}/labels" --paginate | jq -s 'flatten | [.[] | {name: .name, description: (.description // "")}]'); then
-                      echo "::warning::Could not fetch the label set for ${REPO}; leaving labels untouched for issue #${ISSUE_NUMBER}."
+                  # Every TRANSIENT failure below degrades to "leave labels
+                  # untouched" rather than failing this best-effort job - a
+                  # STANDING misconfiguration (the 401/403 branch further
+                  # down) is the one deliberate exception, and stays a
+                  # separate `::error::` + `exit 1` rather than going
+                  # through this helper.
+                  warn_and_skip() {
+                      echo "::warning::$1"
                       exit 0
-                  fi
+                  }
+
+                  labels_json=$(gh api "repos/${REPO}/labels" --paginate | jq -s 'flatten | [.[] | {name: .name, description: (.description // "")}]') \
+                      || warn_and_skip "Could not fetch the label set for ${REPO}; leaving labels untouched for issue #${ISSUE_NUMBER}."
                   label_count=$(jq 'length' <<<"$labels_json")
 
                   if [ "$label_count" -eq 0 ]; then
@@ -165,20 +171,17 @@ jobs:
 
                   request_body=$(build_ai_labeler_request "$REPO" "$ISSUE_TITLE" "${ISSUE_BODY:-}" "$labels_json")
 
-                  # Under `set -e`, a network-level failure (DNS, TLS, timeout
-                  # - no HTTP response at all) would otherwise abort the
-                  # script before the HTTP-status check below ever runs.
                   # `--connect-timeout`/`--max-time` turn a hung connection
-                  # into the same fast, visible failure rather than blocking
-                  # the job for the runner's own default timeout.
-                  if ! http_response=$(curl -sS --connect-timeout 10 --max-time 30 -w '\n%{http_code}' https://api.anthropic.com/v1/messages \
+                  # (DNS, TLS, or a stalled response - no HTTP status at all)
+                  # into the same fast, visible failure as any other
+                  # transient error, rather than blocking the job for the
+                  # runner's own default timeout.
+                  http_response=$(curl -sS --connect-timeout 10 --max-time 30 -w '\n%{http_code}' https://api.anthropic.com/v1/messages \
                       -H "Content-Type: application/json" \
                       -H "x-api-key: ${ANTHROPIC_API_KEY}" \
                       -H "anthropic-version: 2023-06-01" \
-                      -d "$request_body"); then
-                      echo "::warning::Could not reach the Anthropic API for issue #${ISSUE_NUMBER}; leaving labels untouched."
-                      exit 0
-                  fi
+                      -d "$request_body") \
+                      || warn_and_skip "Could not reach the Anthropic API for issue #${ISSUE_NUMBER}; leaving labels untouched."
                   http_status=$(tail -n1 <<<"$http_response")
                   response_body=$(sed '$d' <<<"$http_response")
 
@@ -187,15 +190,11 @@ jobs:
                       exit 1
                   fi
 
-                  if [ "$http_status" != "200" ]; then
-                      echo "::warning::Anthropic API request failed for issue #${ISSUE_NUMBER} (HTTP ${http_status}); leaving labels untouched."
-                      exit 0
-                  fi
+                  [ "$http_status" = "200" ] \
+                      || warn_and_skip "Anthropic API request failed for issue #${ISSUE_NUMBER} (HTTP ${http_status}); leaving labels untouched."
 
-                  if ! tool_input=$(extract_tool_input "$response_body"); then
-                      echo "::warning::Anthropic response for issue #${ISSUE_NUMBER} carried no assign_labels tool call; leaving labels untouched."
-                      exit 0
-                  fi
+                  tool_input=$(extract_tool_input "$response_body") \
+                      || warn_and_skip "Anthropic response for issue #${ISSUE_NUMBER} carried no assign_labels tool call; leaving labels untouched."
 
                   # Captured into a plain variable (not piped straight into
                   # `mapfile < <(...)`) so resolve_labels_to_apply's own
@@ -204,10 +203,8 @@ jobs:
                   # process substitution would instead see only whatever
                   # partial output reached the dead subshell and report
                   # success regardless.
-                  if ! selected_output=$(resolve_labels_to_apply "$tool_input" "$labels_json"); then
-                      echo "::warning::Could not resolve which labels to apply for issue #${ISSUE_NUMBER}; leaving labels untouched."
-                      exit 0
-                  fi
+                  selected_output=$(resolve_labels_to_apply "$tool_input" "$labels_json") \
+                      || warn_and_skip "Could not resolve which labels to apply for issue #${ISSUE_NUMBER}; leaving labels untouched."
                   selected_labels=()
                   if [ -n "$selected_output" ]; then
                       mapfile -t selected_labels <<<"$selected_output"
@@ -222,11 +219,15 @@ jobs:
                   for label in "${selected_labels[@]}"; do
                       add_flags+=(--add-label "$label")
                   done
-                  # A label resolved above but deleted/renamed by someone
-                  # else between the fetch and here would otherwise fail the
-                  # job on this best-effort gate - warn instead.
-                  if ! gh issue edit "$ISSUE_NUMBER" --repo "$REPO" "${add_flags[@]}"; then
-                      echo "::warning::Could not apply labels to issue #${ISSUE_NUMBER} (label set may have changed concurrently): ${selected_labels[*]}"
-                      exit 0
-                  fi
+                  # Deliberately NOT routed through warn_and_skip: `gh issue
+                  # edit` failing here is far more likely a standing
+                  # misconfiguration (the caller forgot `issues: write`, a
+                  # broken GH_TOKEN) than the label set actually changing
+                  # mid-run, and warn_and_skip cannot tell those apart from
+                  # `gh`'s error text without depending on its exact
+                  # wording. Failing the job here is the safer default - a
+                  # rare TOCTOU race surfaces as one visible failure instead
+                  # of every misconfigured caller silently never getting
+                  # labels applied.
+                  gh issue edit "$ISSUE_NUMBER" --repo "$REPO" "${add_flags[@]}"
                   echo "Applied labels to issue #${ISSUE_NUMBER}: ${selected_labels[*]}"
