@@ -94,6 +94,7 @@ jobs:
                   mkdir -p "$SCRIPT_LIB"
                   cp .magicsunday-shared/.github/scripts/lib/semgrep-excludes.sh "$SCRIPT_LIB/"
                   cp .magicsunday-shared/.github/scripts/lib/semgrep-report-check.sh "$SCRIPT_LIB/"
+                  cp .magicsunday-shared/.github/scripts/lib/retry.sh "$SCRIPT_LIB/"
                   rm -rf .magicsunday-shared
 
             # Multi-language security rule sets — CodeQL does not support PHP, so
@@ -155,14 +156,16 @@ jobs:
               run: |
                   set -euo pipefail
 
-                  # Both functions sourced below are the actual shipped text,
-                  # not a copy of it: .github/scripts/tests/ sources the same
-                  # two files from this repository's own tree, so a test
+                  # All three functions sourced below are the actual shipped
+                  # text, not a copy of it: .github/scripts/tests/ sources the
+                  # same files from this repository's own tree, so a test
                   # failure there means this step would fail identically.
                   # shellcheck source=scripts/lib/semgrep-excludes.sh
                   source "$SCRIPT_LIB/semgrep-excludes.sh"
                   # shellcheck source=scripts/lib/semgrep-report-check.sh
                   source "$SCRIPT_LIB/semgrep-report-check.sh"
+                  # shellcheck source=scripts/lib/retry.sh
+                  source "$SCRIPT_LIB/retry.sh"
 
                   # The caller's list is consumed from the environment rather
                   # than inlined into the command, so a value cannot inject
@@ -196,28 +199,65 @@ jobs:
                   #       --sarif-output=s.sarif --json-output=j.json \
                   #       --metrics off >out.txt 2>err.txt
                   #   wc -c < err.txt        # 0 without `--json`, non-zero with
+                  #
+                  # A transient outage while fetching the p/* rule packs from
+                  # the Semgrep registry fails the run identically to a
+                  # genuine scan error below — see issue #44 for why the
+                  # packs cannot be pinned or vendored instead, which would
+                  # remove this dependency on the registry's availability
+                  # entirely. The two failure shapes are not distinguishable
+                  # by exit code alone: measured on the pin, a
+                  # renamed/removed rule pack (registry reachable) exits 7
+                  # with a clean error and still writes both report files,
+                  # while an unreachable registry exits 2 via an unhandled
+                  # connection exception and writes neither. Retrying once
+                  # unconditionally, rather than branching on the exit code,
+                  # avoids relying on that undocumented and version-fragile
+                  # distinction — a permanent failure such as the
+                  # renamed-pack case simply fails the same way on the retry,
+                  # at the cost of one extra scan. Re-derive:
+                  #
+                  #   HTTPS_PROXY=http://127.0.0.1:1 semgrep scan \
+                  #       --config p/php --sarif-output=s.sarif \
+                  #       --json-output=j.json --metrics off
+                  #   echo "exit $?"; test -f s.sarif && echo has-sarif
+                  #   # exit 2, no s.sarif — vs. exit 7 with both files
+                  #   # present for `--config p/does-not-exist`
+                  #
+                  # attempt_semgrep_scan() removes both report files before
+                  # every try, so a first attempt's report — well-formed even
+                  # on the renamed-pack case — can never be the one the
+                  # checks below end up inspecting; only the last attempt's
+                  # outcome does, since run_with_retry returns that attempt's
+                  # exit code and the checks below run against whatever that
+                  # attempt left behind.
+                  attempt_semgrep_scan() {
+                      rm -f "$SARIF_FILE" "$JSON_FILE"
+                      semgrep scan \
+                          --config p/security-audit \
+                          --config p/secrets \
+                          --config p/php \
+                          --config p/javascript \
+                          --json \
+                          --sarif-output="$SARIF_FILE" \
+                          --json-output="$JSON_FILE" \
+                          --verbose \
+                          --exclude '*.min.js' \
+                          --exclude vendor \
+                          --exclude node_modules \
+                          --exclude .build \
+                          "${extra[@]}" \
+                          --metrics off > /dev/null
+                  }
+
                   rc=0
-                  semgrep scan \
-                      --config p/security-audit \
-                      --config p/secrets \
-                      --config p/php \
-                      --config p/javascript \
-                      --json \
-                      --sarif-output="$SARIF_FILE" \
-                      --json-output="$JSON_FILE" \
-                      --verbose \
-                      --exclude '*.min.js' \
-                      --exclude vendor \
-                      --exclude node_modules \
-                      --exclude .build \
-                      "${extra[@]}" \
-                      --metrics off > /dev/null || rc=$?
+                  run_with_retry attempt_semgrep_scan || rc=$?
 
                   # Failing here is what discards the report: the upload step
                   # carries no condition, so it does not run once this one has
                   # failed.
                   if [ "$rc" -ne 0 ]; then
-                      echo "::error::Semgrep exited ${rc} - its report covers less than a complete scan, so nothing was uploaded and no alerts were touched."
+                      echo "::error::Semgrep exited ${rc} after ${RETRY_ATTEMPTS} attempt(s) - its report covers less than a complete scan, so nothing was uploaded and no alerts were touched."
                       exit "$rc"
                   fi
 
