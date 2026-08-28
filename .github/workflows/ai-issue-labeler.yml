@@ -191,8 +191,14 @@ jobs:
                   http_status=$(tail -n1 <<<"$http_response")
                   response_body=$(sed '$d' <<<"$http_response")
 
-                  if [ "$http_status" = "401" ] || [ "$http_status" = "403" ]; then
-                      echo "::error::Anthropic API rejected the request for issue #${ISSUE_NUMBER} (HTTP ${http_status}) - ANTHROPIC_API_KEY is likely invalid, expired, revoked, or out of credit balance (Anthropic's billing_error also returns 403). Failing loudly so this gets noticed and fixed, rather than silently leaving every future issue unlabeled."
+                  # Anthropic's own error reference (platform.claude.com/docs/en/api/errors,
+                  # verified 2026-08-28) is authoritative here: 401 authentication_error
+                  # (bad/expired/revoked key), 402 billing_error (no credit balance), 403
+                  # permission_error (key lacks access to the resource) - all three are
+                  # STANDING account problems, never a one-off blip, so all three fail
+                  # loudly rather than going through warn_and_skip.
+                  if [ "$http_status" = "401" ] || [ "$http_status" = "402" ] || [ "$http_status" = "403" ]; then
+                      echo "::error::Anthropic API rejected the request for issue #${ISSUE_NUMBER} (HTTP ${http_status}) - ANTHROPIC_API_KEY is likely invalid, expired, revoked, or out of credit balance. Failing loudly so this gets noticed and fixed, rather than silently leaving every future issue unlabeled."
                       exit 1
                   fi
 
