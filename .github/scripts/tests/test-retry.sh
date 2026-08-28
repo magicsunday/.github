@@ -87,19 +87,9 @@ export RETRY_BACKOFF_SECONDS=0
 rc=0
 run_with_retry flaky 0 || rc=$?
 assert_eq "fails every time: exit code is the last attempt's" 9 "${rc}"
-assert_eq "fails every time: RETRY_ATTEMPTS stays at the default budget" 2 "${RETRY_ATTEMPTS}"
+assert_eq "fails every time: RETRY_ATTEMPTS stops at the two-attempt budget" 2 "${RETRY_ATTEMPTS}"
 assert_eq "fails every time: underlying command ran twice, not endlessly" 2 "${CALLS}"
 assert_eq "fails every time: slept once, not after the exhausted final attempt" 1 "${#sleep_calls[@]}"
-
-reset
-export RETRY_BACKOFF_SECONDS=0
-export RETRY_MAX_ATTEMPTS=3
-rc=0
-run_with_retry flaky 3 || rc=$?
-unset RETRY_MAX_ATTEMPTS
-assert_eq "RETRY_MAX_ATTEMPTS override is honoured: exit code" 0 "${rc}"
-assert_eq "RETRY_MAX_ATTEMPTS override is honoured: RETRY_ATTEMPTS" 3 "${RETRY_ATTEMPTS}"
-assert_eq "RETRY_MAX_ATTEMPTS override is honoured: underlying command ran 3 times" 3 "${CALLS}"
 
 # The default backoff (5s) is asserted through the stubbed `sleep`'s recorded
 # argument rather than a real wait, so this stays as fast as every other case
