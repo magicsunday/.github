@@ -155,6 +155,27 @@ else
     pass "resolve_labels_to_apply: returns non-zero when labels_json is malformed"
 fi
 
+# --- build_labels_payload ---
+
+payload=$(build_labels_payload "$(printf '%s\n' "bug" "needs-triage")")
+expected=$(jq -n '{labels: ["bug", "needs-triage"]}')
+if [ "$(jq -c -S . <<<"${payload}")" = "$(jq -c -S . <<<"${expected}")" ]; then
+    pass "build_labels_payload: builds a JSON array from a newline-separated list"
+else
+    fail "build_labels_payload: expected ${expected} - got ${payload}"
+fi
+
+# A label name containing a comma must survive as ONE atomic array entry -
+# gh issue edit --add-label would instead split it into two labels (its
+# own --help example shows "bug,help wanted" -> two labels), which is
+# exactly why the REST payload is built here instead.
+payload=$(build_labels_payload "$(printf '%s\n' "docs,api")")
+if [ "$(jq -c '.labels' <<<"${payload}")" = '["docs,api"]' ]; then
+    pass "build_labels_payload: keeps a comma-containing label name atomic"
+else
+    fail "build_labels_payload: comma-containing label was split - got $(jq -c '.labels' <<<"${payload}")"
+fi
+
 if [ "${failures}" -gt 0 ]; then
     echo "${failures} failure(s)."
     exit 1
