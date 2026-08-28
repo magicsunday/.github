@@ -1,0 +1,179 @@
+name: AI issue labeler (reusable)
+
+# Reusable AI-based issue auto-labeler shared across all magicsunday
+# repositories. A thin per-repo caller invokes this on `issues: [opened]`
+# (mirroring the existing `labels.yml` -> `label-sync.yml` split) to classify
+# a newly opened issue against the CALLING repository's own live label set
+# and apply the labels Claude is confident about.
+#
+# CALLER REQUIREMENTS - copy this call verbatim, adjusting only the ref:
+#
+#     on:
+#         issues:
+#             types: [opened]
+#
+#     jobs:
+#         label:
+#             uses: magicsunday/.github/.github/workflows/ai-issue-labeler.yml@main
+#             permissions:
+#                 contents: read
+#                 issues: write
+#             secrets:
+#                 anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+#
+# This account is a personal GitHub user, not an organization, so there is no
+# account-wide secret store: every consuming repository must create its own
+# `ANTHROPIC_API_KEY` repository secret and pass it through explicitly - a
+# reusable workflow never inherits a caller's secret implicitly.
+#
+# The label set is fetched live from the calling repository on every run
+# (never hardcoded), so a tool call is constrained to an `enum` of exactly
+# those names - the model can never invent a label. A repository with zero
+# labels, or a classification Claude is not confident about, applies
+# `needs-triage` where that label exists and otherwise leaves the issue
+# unlabeled - it never guesses.
+on:
+    workflow_call:
+        secrets:
+            anthropic_api_key:
+                description: 'Anthropic API key used to classify the issue. Required - this account has no org-wide secret inheritance.'
+                required: true
+
+permissions: {}
+
+jobs:
+    label:
+        name: Label the issue
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+            issues: write
+
+        steps:
+            # This is the account's first Harden Runner step: every other
+            # reusable workflow only reads the caller's checkout and the
+            # GitHub API on the job's own token. This job is the first to
+            # also call an EXTERNAL service (the Anthropic API) while holding
+            # a repository secret, which is exactly the shape Harden Runner
+            # exists to audit. `audit` (not `block`) because this is the
+            # first run of a brand-new egress shape here - nothing has yet
+            # characterised its real traffic to pin an allow-list against.
+            - name: Harden the runner (audit mode)
+              uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+              with:
+                  egress-policy: audit
+
+            # The workflow's own files are needed here (the lib script this
+            # step sources), not the caller's - see AGENTS.md on reading a
+            # reusable workflow's own files via the `job` context. Checked
+            # out to a claimed, non-colliding path and removed once the
+            # script is copied out, for the same reason code-scanning.yml
+            # does: nothing in this job should be able to read a caller's
+            # tree back into this repository's own checkout.
+            - name: Check the shared-checkout preconditions
+              env:
+                  WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+                  WORKFLOW_SHA: ${{ job.workflow_sha }}
+              run: |
+                  set -euo pipefail
+                  test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
+                  test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
+                  { test ! -e .magicsunday-shared && test ! -L .magicsunday-shared; } || { echo "::error::This repository contains a path named '.magicsunday-shared', which the shared workflows reserve for their own checkout and delete again - rename it, or this job would silently skip its own script."; exit 1; }
+
+            - name: Check out the labeler script
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
+                  path: .magicsunday-shared
+                  persist-credentials: false
+
+            - name: Copy the labeler script
+              env:
+                  SCRIPT_LIB: ${{ runner.temp }}/ai-issue-labeler-lib
+              run: |
+                  set -euo pipefail
+                  mkdir -p "$SCRIPT_LIB"
+                  cp .magicsunday-shared/.github/scripts/lib/ai-issue-labeler.sh "$SCRIPT_LIB/"
+                  rm -rf .magicsunday-shared
+
+            # Fetches the calling repository's OWN label set live via the
+            # GitHub API on the job's own token - never hardcoded, and never
+            # the checkout above, which carries only this repository's own
+            # workflow files. `jq -s 'flatten'` merges every page into one
+            # array regardless of how many pages `--paginate` produced: `gh
+            # api --jq` applies its filter PER PAGE rather than to the
+            # combined result, so a repository with more labels than fit on
+            # one page would otherwise silently see only its first page.
+            #
+            # Anthropic's Messages API and the GitHub API this step calls are
+            # the two hosts this job's egress touches. Claude's title/body
+            # classification runs entirely inside that one request - no
+            # tool-use loop, so there is no risk of it calling back out.
+            - name: Classify and label the issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+                  ISSUE_NUMBER: ${{ github.event.issue.number }}
+                  ISSUE_TITLE: ${{ github.event.issue.title }}
+                  ISSUE_BODY: ${{ github.event.issue.body }}
+                  ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+                  SCRIPT_LIB: ${{ runner.temp }}/ai-issue-labeler-lib
+              run: |
+                  set -euo pipefail
+                  # shellcheck source=scripts/lib/ai-issue-labeler.sh
+                  source "$SCRIPT_LIB/ai-issue-labeler.sh"
+
+                  labels_json=$(gh api "repos/${REPO}/labels" --paginate | jq -s 'flatten | [.[] | {name: .name, description: (.description // "")}]')
+                  label_count=$(jq 'length' <<<"$labels_json")
+
+                  if [ "$label_count" -eq 0 ]; then
+                      echo "::notice::${REPO} has no labels defined; skipping AI labeling for issue #${ISSUE_NUMBER}."
+                      exit 0
+                  fi
+
+                  request_body=$(build_ai_labeler_request "$REPO" "$ISSUE_TITLE" "${ISSUE_BODY:-}" "$labels_json")
+
+                  # A classification failure never blocks issue creation -
+                  # this gate is best-effort labeling, not a required check,
+                  # so every branch below that gives up warns and exits 0
+                  # rather than failing the job. The curl call itself is
+                  # guarded the same way: under `set -e`, a network-level
+                  # failure (DNS, TLS, timeout - no HTTP response at all)
+                  # would otherwise abort the script before the HTTP-status
+                  # check below ever runs.
+                  if ! http_response=$(curl -sS -w '\n%{http_code}' https://api.anthropic.com/v1/messages \
+                      -H "Content-Type: application/json" \
+                      -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+                      -H "anthropic-version: 2023-06-01" \
+                      -d "$request_body"); then
+                      echo "::warning::Could not reach the Anthropic API for issue #${ISSUE_NUMBER}; leaving labels untouched."
+                      exit 0
+                  fi
+                  http_status=$(tail -n1 <<<"$http_response")
+                  response_body=$(sed '$d' <<<"$http_response")
+
+                  if [ "$http_status" != "200" ]; then
+                      echo "::warning::Anthropic API request failed for issue #${ISSUE_NUMBER} (HTTP ${http_status}); leaving labels untouched."
+                      exit 0
+                  fi
+
+                  if ! tool_input=$(extract_tool_input "$response_body"); then
+                      echo "::warning::Anthropic response for issue #${ISSUE_NUMBER} carried no assign_labels tool call; leaving labels untouched."
+                      exit 0
+                  fi
+
+                  mapfile -t selected_labels < <(resolve_labels_to_apply "$tool_input" "$labels_json")
+
+                  if [ "${#selected_labels[@]}" -eq 0 ]; then
+                      echo "No confident label match for issue #${ISSUE_NUMBER} and no needs-triage label exists; leaving unlabeled."
+                      exit 0
+                  fi
+
+                  add_flags=()
+                  for label in "${selected_labels[@]}"; do
+                      add_flags+=(--add-label "$label")
+                  done
+                  gh issue edit "$ISSUE_NUMBER" --repo "$REPO" "${add_flags[@]}"
+                  echo "Applied labels to issue #${ISSUE_NUMBER}: ${selected_labels[*]}"

@@ -68,7 +68,9 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   request, so a regression in that logic fails CI before it reaches a caller — a
   workflow-only copy could drift silently, since nothing else re-checks a `run:`
   block. `code-scanning.yml` is migrated this way (`semgrep-excludes.sh`,
-  `semgrep-report-check.sh`); `yamllint.yml` and `i18n.yml` carry comparable inline
+  `semgrep-report-check.sh`), as is `ai-issue-labeler.yml`
+  (`ai-issue-labeler.sh` — request construction and response parsing);
+  `yamllint.yml` and `i18n.yml` carry comparable inline
   `run:` logic that was deliberately left un-migrated when this convention was
   introduced (GH-47) — extending it to those is a separate decision, not something
   this bullet already claims is done.
@@ -98,6 +100,16 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   Do not widen a scope without a concrete reason.
 - **No secrets passing.** The workflows run on the caller's `GITHUB_TOKEN`. Do not add
   `secrets:` inputs unless a workflow genuinely needs a non-default token.
+  `ai-issue-labeler.yml` is the one exception: it calls the Anthropic API, which needs
+  its own key, and this account has no org-wide secret inheritance to source it from —
+  every consuming repository configures its own `ANTHROPIC_API_KEY` and passes it
+  through explicitly (see that workflow's own header comment for the exact shape).
+- **Harden Runner.** `ai-issue-labeler.yml` is the first workflow in this account to
+  add a `step-security/harden-runner` step, in `audit` (not `block`) mode — it is also
+  the first to call an external service (the Anthropic API) while holding a repository
+  secret, which is the shape Harden Runner exists to audit. No other reusable workflow
+  here carries one; adding it elsewhere is a separate decision, not a convention this
+  bullet already claims is universal.
 
 ## Commits
 
