@@ -372,9 +372,16 @@ jobs:
                   # puts a `Files skipped:` section naming each path, and a
                   # `Scan skipped:` breakdown per reason, on stderr, which is
                   # kept. Undocumented in `--help`, only observable by running
-                  # it — reuses the stderr capture from the `GITHUB_ACTIONS`
-                  # check above. Re-derive:
+                  # it. Self-contained re-derive (the size-limit fixture from
+                  # the exit-code check above, on its own — no `GITHUB_ACTIONS`
+                  # or `--json`, both of which only affect whether match text
+                  # also lands on the same stream, not whether these sections
+                  # exist):
                   #
+                  #   printf '<?php\n' > huge.php
+                  #   yes '// pad' | head -200000 >> huge.php
+                  #   semgrep scan --config p/php --verbose --metrics off \
+                  #       huge.php 2>err.txt
                   #   grep -c "Files skipped:\|Scan skipped:" err.txt  # 2
                   #
                   # Reprinting it from the JSON gave counts without the
