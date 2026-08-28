@@ -142,6 +142,19 @@ else
     fail "resolve_labels_to_apply: expected needs-triage fallback - got '${result}'"
 fi
 
+# A malformed argument must make the function itself return non-zero -
+# the caller relies on this (`if ! x=$(resolve_labels_to_apply ...)`) to
+# distinguish "internal error" from "legitimately not confident", and
+# `set -e` alone does not surface an internal jq failure through a
+# command substitution sitting inside a tested `if !` (see the function's
+# own comment for the re-derive command this pins).
+valid_tool_input=$(jq -n '{labels: ["bug"], confident: true}')
+if resolve_labels_to_apply "${valid_tool_input}" "not-json" >/dev/null 2>&1; then
+    fail "resolve_labels_to_apply: returned success despite malformed labels_json"
+else
+    pass "resolve_labels_to_apply: returns non-zero when labels_json is malformed"
+fi
+
 if [ "${failures}" -gt 0 ]; then
     echo "${failures} failure(s)."
     exit 1
