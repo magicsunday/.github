@@ -22,15 +22,66 @@ assert_semgrep_report_complete() {
     fi
 
     # Which skips are acceptable is decided by an allow list, so a reason
-    # this list does not name fails the job, including one a later engine
-    # introduces. A reason is tolerated on one of two grounds: the file was
-    # never a scan target (this workflow's --exclude flags, an ignore file, a
-    # rule's own path rules), or its content cannot carry a finding any rule
-    # could make (binary). `minified` is neither and is tolerated as an
-    # accepted risk — see code-scanning.yml for the full rationale, the
-    # re-derive commands for every entry, and why the character class in the
-    # sanitiser below has to admit capitals and drop the SkipReason class's
-    # own name.
+    # this list does not name fails the job — including one a later engine
+    # introduces. A deny list naming today's known bad reasons would let
+    # exactly that next addition through silently, which is the defect this
+    # check exists to prevent.
+    #
+    # A reason is tolerated on one of two grounds: the file was never a scan
+    # target (this workflow's --exclude flags, an ignore file, a rule's own
+    # path rules), or its content cannot carry a finding any rule could make
+    # (binary).
+    #
+    # `minified` is neither, and is tolerated as an accepted risk. Minified
+    # JavaScript still parses, and `p/secrets` is regex work that
+    # minification does not defeat, so a token inlined by a build would sit
+    # in exactly such a file — and `bundle-freshness.yml` means consumers
+    # commit bundles by design, including ones the `*.min.js` exclude does
+    # not name. Denying it would red those consumers, which is a fleet
+    # policy change with its own review: issue #50.
+    #
+    # Everything else means a file that WAS a target went unread — it
+    # exceeded a limit, could not be parsed, or could not be opened — and its
+    # findings are missing from a report that does not say so. Re-derive the
+    # engine's full set; whatever it names that is absent below fails the
+    # job, so the two sets stay a partition by construction rather than by a
+    # count kept in step:
+    #
+    #   sed -n '/^class SkipReason/,/^class /p' "$(python3 -c \
+    #       'from semgrep.semgrep_interfaces import \
+    #        semgrep_output_v1 as m; print(m.__file__)')" \
+    #       | grep -oE "'[A-Za-z_]+'" | grep -vx "'SkipReason'" \
+    #       | sort -u
+    #
+    # The character class below has to admit capitals, or it drops the three
+    # PascalCase wire values and its output then agrees with this list and
+    # reads as complete. It also has to drop the class's own name, which the
+    # generated file repeats inside the same block.
+    #
+    # Those three — `Dotfile`, `Gitignore_patterns_match`,
+    # `Nonexistent_file` — are denied, but measured on the pin the scan path
+    # never emits them: a dotfile directory is scanned, and a gitignored path
+    # is reported as `semgrepignore_patterns_match`, which this list
+    # tolerates. So denying them is a decision about the schema, not live
+    # coverage — a `.gitignore` DIRECTORY entry covering tracked files does
+    # drop them silently, and that is the accepted risk recorded in issue #48
+    # rather than something denied here. Re-derive, in a git checkout, since
+    # targets come from `git ls-files` when one is present:
+    #
+    #   mkdir -p dist .hidden
+    #   printf '<?php eval($_GET["x"]);\n' > dist/x.php
+    #   printf '<?php eval($_GET["y"]);\n' > .hidden/y.php
+    #   printf 'dist/\n' > .gitignore && git add -Af . &&
+    #   semgrep scan --config p/php --json-output=j.json \
+    #       --verbose --metrics off
+    #   jq -r '.paths.skipped[] | "\(.path): \(.reason)"' j.json
+    #       # dist/x.php: semgrepignore_patterns_match — tracked,
+    #       # holding a finding, dropped, and tolerated here
+    #   jq -r '.paths.scanned[]' j.json
+    #       # .hidden/y.php — the dotfile directory was scanned
+    #
+    # Both fixtures have to exist, or the commands print nothing and the
+    # empty output reads as confirmation.
     local allowed_skip_reasons='[
         "always_skipped",
         "binary",
@@ -68,10 +119,15 @@ assert_semgrep_report_complete() {
 
     # A report over an empty file set is well-formed and asserts that
     # nothing is wrong, which would retire every alert at once. An absent
-    # inventory counts as empty here: jq gives `null | length` as 0, and the
-    # check above has already rejected the reports where the inventory is
-    # missing.
+    # OR malformed inventory counts as empty here: `type != "array"` catches
+    # a report whose `.paths.scanned` is a string or object rather than a
+    # list, which jq's polymorphic `length` would otherwise answer for
+    # (a string's character count) instead of failing the scan closed.
     local scanned
+    if [ "$(jq '.paths.scanned | type' "$json_file")" != '"array"' ]; then
+        echo "::error::Semgrep's report does not have a scanned-files list, so it cannot be shown to have scanned anything."
+        return 1
+    fi
     scanned="$(jq '.paths.scanned | length' "$json_file")"
 
     if [ "$scanned" -lt 1 ]; then
@@ -79,6 +135,21 @@ assert_semgrep_report_complete() {
         return 1
     fi
 
+    # A tolerated skip is still a file whose alerts this upload retires, so
+    # what was skipped has to be legible in the run that did it — but the
+    # engine already writes that: `--verbose` puts a `Files skipped:` section
+    # naming each path, and a `Scan skipped:` breakdown per reason, on
+    # stderr, which is kept. Undocumented in `--help`, only observable by
+    # running it. Self-contained re-derive:
+    #
+    #   printf '<?php\n' > huge.php
+    #   yes '// pad' | head -200000 >> huge.php
+    #   semgrep scan --config p/php --verbose --metrics off \
+    #       huge.php 2>err.txt
+    #   grep -c "Files skipped:\|Scan skipped:" err.txt  # 2
+    #
+    # Reprinting it from the JSON gave counts without the paths, so only the
+    # gate's own verdict is echoed here.
     echo "Scanned ${scanned} files, no undeclared skips."
     return 0
 }

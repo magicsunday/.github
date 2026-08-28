@@ -59,15 +59,19 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   or its content cannot carry a finding any rule could make, and only against the
   engine's own definition. `minified` is the one documented exception to both
   grounds, tolerated as an accepted risk (issue #50).
-- **The shell logic a reusable workflow's `run:` block executes lives in
-  `.github/scripts/lib/*.sh`, sourced by the workflow rather than duplicated into
-  it.** `.github/scripts/tests/test-*.sh` sources the same files and is run by
-  `lint.yml`'s `shell-tests` job on every push and pull request, so a regression in
-  that logic fails CI before it reaches a caller — a workflow-only copy could drift
-  silently, since nothing re-checks a `run:` block otherwise. Add a new library file
-  (never inline the logic back into the workflow) and a matching `test-*.sh` when a
-  `run:` block grows real logic (argument construction, exit-code classification,
-  report assertions) worth pinning this way.
+- **When a reusable workflow's `run:` block grows real logic (argument
+  construction, report assertions — a bare exit-code check is usually too small to
+  be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
+  sourced by the workflow rather than duplicated into it,** with a matching
+  `.github/scripts/tests/test-*.sh` that sources the SAME file. `lint.yml`'s
+  `shell-tests` job runs every `test-*.sh` on push to main/master and on every pull
+  request, so a regression in that logic fails CI before it reaches a caller — a
+  workflow-only copy could drift silently, since nothing else re-checks a `run:`
+  block. `code-scanning.yml` is migrated this way (`semgrep-excludes.sh`,
+  `semgrep-report-check.sh`); `yamllint.yml` and `i18n.yml` carry comparable inline
+  `run:` logic that was deliberately left un-migrated when this convention was
+  introduced (GH-47) — extending it to those is a separate decision, not something
+  this bullet already claims is done.
 - **Read a reusable workflow's own files with the `job` context, never the `github`
   one.** A reusable workflow's `actions/checkout` fetches the **caller's** repository,
   so this repository's files are not in the workspace. Check them out separately with

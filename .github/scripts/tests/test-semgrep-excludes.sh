@@ -41,7 +41,7 @@ assert_args() {
 # files exist relative to the current directory, and the pattern must still
 # reach the array unexpanded and singular. cd (not a subshell) so a failure
 # still increments the shared `failures` counter.
-work_dir="$(mktemp -d)"
+work_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${work_dir}"' EXIT
 mkdir -p "${work_dir}/docs/sub"
 : > "${work_dir}/docs/a.pdf"
