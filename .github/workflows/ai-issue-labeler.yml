@@ -215,19 +215,16 @@ jobs:
                       exit 0
                   fi
 
-                  add_flags=()
-                  for label in "${selected_labels[@]}"; do
-                      add_flags+=(--add-label "$label")
-                  done
-                  # Deliberately NOT routed through warn_and_skip: `gh issue
-                  # edit` failing here is far more likely a standing
-                  # misconfiguration (the caller forgot `issues: write`, a
-                  # broken GH_TOKEN) than the label set actually changing
-                  # mid-run, and warn_and_skip cannot tell those apart from
-                  # `gh`'s error text without depending on its exact
-                  # wording. Failing the job here is the safer default - a
-                  # rare TOCTOU race surfaces as one visible failure instead
-                  # of every misconfigured caller silently never getting
+                  labels_payload=$(build_labels_payload "$(printf '%s\n' "${selected_labels[@]}")")
+                  # Deliberately NOT routed through warn_and_skip: a failure
+                  # here is far more likely a standing misconfiguration (the
+                  # caller forgot `issues: write`, a broken GH_TOKEN) than
+                  # the label set actually changing mid-run, and
+                  # warn_and_skip cannot tell those apart from the API's
+                  # error text without depending on its exact wording.
+                  # Failing the job here is the safer default - a rare
+                  # TOCTOU race surfaces as one visible failure instead of
+                  # every misconfigured caller silently never getting
                   # labels applied.
-                  gh issue edit "$ISSUE_NUMBER" --repo "$REPO" "${add_flags[@]}"
+                  gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/labels" -X POST --input - <<<"$labels_payload" > /dev/null
                   echo "Applied labels to issue #${ISSUE_NUMBER}: ${selected_labels[*]}"

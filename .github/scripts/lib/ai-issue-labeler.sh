@@ -143,3 +143,16 @@ resolve_labels_to_apply() {
 
     return 0
 }
+
+# Builds the JSON body for `POST /repos/{owner}/{repo}/issues/{n}/labels`
+# from a newline-separated label list (`resolve_labels_to_apply`'s output).
+# Deliberately NOT `gh issue edit --add-label`: that flag is a pflag
+# StringSlice, and its own `--help` example ("bug,help wanted") shows a
+# comma splitting ONE flag value into two labels, regardless of how many
+# times the flag is repeated - so a repository label whose own name
+# contains a comma would silently split into the wrong labels. A JSON
+# array has no such delimiter; a comma in a string is just a character.
+build_labels_payload() {
+    local labels="$1"
+    jq -R . <<<"${labels}" | jq -s '{labels: .}'
+}
