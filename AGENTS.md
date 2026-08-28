@@ -68,12 +68,24 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   request, so a regression in that logic fails CI before it reaches a caller — a
   workflow-only copy could drift silently, since nothing else re-checks a `run:`
   block. `code-scanning.yml` is migrated this way (`semgrep-excludes.sh`,
-  `semgrep-report-check.sh`), as is `ai-issue-labeler.yml`
+  `semgrep-report-check.sh`, `retry.sh`), as is `ai-issue-labeler.yml`
   (`ai-issue-labeler.sh` — request construction and response parsing);
   `yamllint.yml` and `i18n.yml` carry comparable inline
   `run:` logic that was deliberately left un-migrated when this convention was
   introduced (GH-47) — extending it to those is a separate decision, not something
   this bullet already claims is done.
+- **The `p/*` Semgrep rule packs `code-scanning.yml` scans with cannot be pinned or
+  vendored.** The Semgrep Rules License v. 1.0 forbids distributing the rules or
+  making them available to others as a service, which a commit to this public,
+  account-wide repository would be; and `semgrep scan --config` has no versioned or
+  digest-addressed form of a registry entry — `p/<name>` is a mutable alias with no
+  pinned variant, confirmed against the CLI reference and against the still-open
+  upstream feature request for offline/cached rulesets (issue #44 has the full
+  chain). What the workflow does instead is retry the scan once, via
+  `.github/scripts/lib/retry.sh`'s `run_with_retry()`, so a transient registry
+  outage does not fail a run that a moment later would have succeeded — this
+  narrows the failure window, it does not pin the policy. A renamed or removed rule
+  pack is a permanent failure and simply fails the same way on the retry.
 - **Read a reusable workflow's own files with the `job` context, never the `github`
   one.** A reusable workflow's `actions/checkout` fetches the **caller's** repository,
   so this repository's files are not in the workspace. Check them out separately with
