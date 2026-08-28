@@ -110,13 +110,13 @@ extract_tool_input() {
 # The two `|| return 1` below are load-bearing, not defensive noise: `set -e`
 # does NOT propagate into a command substitution by default (and does not
 # even with `shopt -s inherit_errexit` once the substitution sits inside a
-# tested context like the caller's `if ! x=$(resolve_labels_to_apply ...)`),
-# so without them a malformed argument here would silently continue with an
-# empty `confident`/`selected` and this function would still return 0 -
-# reported by the caller as "not confident" rather than "internal error".
-# Re-derive: run either jq assignment against `--argjson known "not-json"`
-# with and without the `||`, under `set -e`, called as
-# `if ! x=$(that_function ...); then echo caught; fi` - only the guarded
+# tested context like the caller's `x=$(resolve_labels_to_apply ...) ||
+# warn_and_skip ...`), so without them a malformed argument here would
+# silently continue with an empty `confident`/`selected` and this function
+# would still return 0 - reported by the caller as "not confident" rather
+# than "internal error". Re-derive: run either jq assignment against
+# `--argjson known "not-json"` with and without the `||`, under `set -e`,
+# called as `x=$(that_function ...) || echo caught` - only the guarded
 # version reports `caught`.
 resolve_labels_to_apply() {
     local tool_input_json="$1"
