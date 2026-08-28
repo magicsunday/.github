@@ -21,10 +21,18 @@ build_ai_labeler_request() {
     local body="$3"
     local labels_json="$4"
 
+    # `|| return 1` on both: same reasoning as resolve_labels_to_apply's
+    # own comment below in this file - an internal jq failure that is not
+    # this function's OWN last command would otherwise return 0 silently
+    # (verified: a broken `label_list` alone does not fail the trailing
+    # `jq -n` call, because it is interpolated via `--arg`, which accepts
+    # an empty string as valid input - only a broken `label_names` happens
+    # to be caught today, by `--argjson` rejecting empty input, and only
+    # because it is reached last).
     local label_names
-    label_names=$(jq '[.[].name]' <<<"${labels_json}")
+    label_names=$(jq '[.[].name]' <<<"${labels_json}") || return 1
     local label_list
-    label_list=$(jq -r '.[] | "- \(.name): \(.description)"' <<<"${labels_json}")
+    label_list=$(jq -r '.[] | "- \(.name): \(.description)"' <<<"${labels_json}") || return 1
 
     jq -n \
         --arg repo "${repo}" \

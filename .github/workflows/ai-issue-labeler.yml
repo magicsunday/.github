@@ -169,7 +169,8 @@ jobs:
                       exit 0
                   fi
 
-                  request_body=$(build_ai_labeler_request "$REPO" "$ISSUE_TITLE" "${ISSUE_BODY:-}" "$labels_json")
+                  request_body=$(build_ai_labeler_request "$REPO" "$ISSUE_TITLE" "${ISSUE_BODY:-}" "$labels_json") \
+                      || warn_and_skip "Could not build the classification request for issue #${ISSUE_NUMBER}; leaving labels untouched."
 
                   # `--connect-timeout`/`--max-time` turn a hung connection
                   # (DNS, TLS, or a stalled response - no HTTP status at all)
