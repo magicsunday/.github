@@ -63,6 +63,15 @@ else
     fail "build_ai_labeler_request: user message missing the issue title or body"
 fi
 
+# Same class as resolve_labels_to_apply's own malformed-input test above:
+# an internal jq failure must make the function itself return non-zero,
+# not silently continue and report success with a corrupted request body.
+if build_ai_labeler_request "magicsunday/example" "t" "b" "not-json" >/dev/null 2>&1; then
+    fail "build_ai_labeler_request: returned success despite malformed labels_json"
+else
+    pass "build_ai_labeler_request: returns non-zero when labels_json is malformed"
+fi
+
 # --- extract_tool_input ---
 
 response_tool_use=$(jq -n '{
