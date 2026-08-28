@@ -192,7 +192,7 @@ jobs:
                   response_body=$(sed '$d' <<<"$http_response")
 
                   if [ "$http_status" = "401" ] || [ "$http_status" = "403" ]; then
-                      echo "::error::Anthropic API rejected the request for issue #${ISSUE_NUMBER} (HTTP ${http_status}) - ANTHROPIC_API_KEY is likely invalid, expired or revoked. Failing loudly so this gets noticed and the secret rotated, rather than silently leaving every future issue unlabeled."
+                      echo "::error::Anthropic API rejected the request for issue #${ISSUE_NUMBER} (HTTP ${http_status}) - ANTHROPIC_API_KEY is likely invalid, expired, revoked, or out of credit balance (Anthropic's billing_error also returns 403). Failing loudly so this gets noticed and fixed, rather than silently leaving every future issue unlabeled."
                       exit 1
                   fi
 
