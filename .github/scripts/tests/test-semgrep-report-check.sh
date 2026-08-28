@@ -9,10 +9,11 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/harness.sh
+source "${SCRIPT_DIR}/lib/harness.sh"
 # shellcheck source=../lib/semgrep-report-check.sh
 source "${SCRIPT_DIR}/../lib/semgrep-report-check.sh"
 
-failures=0
 work_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${work_dir}"' EXIT
 
@@ -133,9 +134,4 @@ newline_value=$'line1\nline2'
 jq -n --arg p "${newline_value}" '{paths: {scanned: ["a.php"], skipped: [{path: $p, reason: "some_bad_reason"}]}}' > "${newline_path}"
 assert_fail "path with a raw newline stays one annotation" "${newline_path}" "line1?line2: some_bad_reason"
 
-if [ "${failures}" -gt 0 ]; then
-    echo "${failures} failure(s)."
-    exit 1
-fi
-
-echo "All report-check tests passed."
+report_and_exit "report-check tests"
