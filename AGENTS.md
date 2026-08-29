@@ -57,8 +57,9 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   load-bearing, and do not turn its allow list of tolerated skip reasons into a deny
   list — widen that list only for a reason meaning the file was never a scan target
   or its content cannot carry a finding any rule could make, and only against the
-  engine's own definition. `minified` is the one documented exception to both
-  grounds, tolerated as an accepted risk (issue #50).
+  engine's own definition. `minified` was carried as a tolerated exception to both
+  grounds until issue #50 verified against the pinned engine that it cannot occur
+  through this workflow's invocation — it is not on the list.
 - **When a reusable workflow's `run:` block grows real logic (argument
   construction, report assertions — a bare exit-code check is usually too small to
   be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
