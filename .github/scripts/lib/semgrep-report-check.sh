@@ -39,8 +39,9 @@ assert_semgrep_report_complete() {
     # it worried about does not exist against the pinned engine: `semgrep
     # scan`'s Python wrapper hardcodes `exclude_minified_files=False` with no
     # CLI flag reaching it (`--exclude-minified-files` is undocumented-broken
-    # outside `--experimental`, itself an open upstream bug since 2024 —
-    # semgrep/semgrep#10454), so this workflow's exact invocation cannot
+    # outside `--experimental` — semgrep/semgrep#10454, open as of 2026-08-29;
+    # re-check its state before citing it as still open past that date), so
+    # this workflow's exact invocation cannot
     # produce a `minified` skip. Confirmed against the pinned engine with a
     # fixture crossing both of the engine's own thresholds for the reason
     # (< 7% whitespace, > 1000 bytes/line), holding a token `p/secrets`
