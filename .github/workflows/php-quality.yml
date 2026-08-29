@@ -71,6 +71,24 @@ jobs:
               with:
                   persist-credentials: false
 
+            - id: composer-cache-vars
+              name: Composer cache vars
+              run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+            # Keyed on the lockfile hash rather than a timestamp, so a rerun
+            # with an unchanged lockfile hits the cache instead of always
+            # falling through to `restore-keys` (the previous per-repo
+            # implementations mixed a timestamp into the key, which
+            # guaranteed a miss on every run).
+            - name: Cache Composer dependencies
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: ${{ steps.composer-cache-vars.outputs.dir }}
+                  key: ${{ runner.os }}-composer-${{ matrix.php }}-${{ hashFiles('**/composer.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-composer-${{ matrix.php }}-
+                      ${{ runner.os }}-composer-
+
             - name: Install dependencies
               run: composer install --prefer-dist --no-interaction --no-progress
 
