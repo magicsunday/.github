@@ -52,13 +52,18 @@ assert_semgrep_report_complete() {
     #       --verbose --metrics off b.js
     #   jq '.paths.skipped, (.results | length)' j.json  # [], 1
     #
-    # Historically this WAS a live gap: Semgrep auto-excluded minified files
-    # by default for three weeks in 2021 (v0.66.0, reverted in v0.69.0), and
-    # the opt-in flag that could reintroduce it (v1.80.0, 2024) defaults to
-    # off. So `minified` stays off the allow list on purpose — a future
-    # engine bump that makes it reachable again should fail this gate and
-    # force a fresh re-derive, not be tolerated pre-emptively. Full history
-    # and the original risk framing this replaces: issue #50.
+    # The `.paths.skipped == []` half is engine-behaviour and holds until the
+    # pin changes. The `(.results | length) == 1` half additionally depends
+    # on the live, unpinned `p/secrets` registry pack (AGENTS.md: "The `p/*`
+    # Semgrep rule packs ... cannot be pinned or vendored") still flagging
+    # this token shape — a re-run showing `.paths.skipped == []` with zero
+    # results still confirms the point (not skipped), just without that
+    # pack's corroboration.
+    #
+    # `minified` stays off the allow list on purpose — a future engine bump
+    # that makes it reachable again should fail this gate and force a fresh
+    # re-derive, not be tolerated pre-emptively. Full history and the
+    # original risk framing this replaces: issue #50.
     #
     # Everything else means a file that WAS a target went unread — it
     # exceeded a limit, could not be parsed, or could not be opened — and its
