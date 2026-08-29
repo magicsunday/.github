@@ -32,13 +32,54 @@ assert_semgrep_report_complete() {
     # path rules), or its content cannot carry a finding any rule could make
     # (binary).
     #
-    # `minified` is neither, and is tolerated as an accepted risk. Minified
-    # JavaScript still parses, and `p/secrets` is regex work that
-    # minification does not defeat, so a token inlined by a build would sit
-    # in exactly such a file — and `bundle-freshness.yml` means consumers
-    # commit bundles by design, including ones the `*.min.js` exclude does
-    # not name. Denying it would red those consumers, which is a fleet
-    # policy change with its own review: issue #50.
+    # `minified` is deliberately NOT on this list, despite an earlier revision
+    # of this comment tolerating it as an accepted risk on the theory that
+    # minified JavaScript still parses and `p/secrets` is regex work
+    # minification does not defeat. That theory was never wrong, but the risk
+    # it worried about does not exist against the pinned engine: `semgrep
+    # scan`'s Python wrapper hardcodes `exclude_minified_files=False` with no
+    # CLI flag reaching it (`--exclude-minified-files` is undocumented-broken
+    # outside `--experimental` — semgrep/semgrep#10454, open as of 2026-08-29;
+    # re-check its state before citing it as still open past that date), so
+    # this workflow's exact invocation cannot
+    # produce a `minified` skip. Confirmed against the pinned engine with a
+    # fixture crossing both of the engine's own thresholds for the reason —
+    # `< 7% whitespace, or ... average of > 1000 bytes per line`, the pinned
+    # engine's own wording for `--exclude-minified-files`, re-derive with:
+    #
+    #   semgrep scan --help | grep -A2 "Skip minified files"
+    #
+    # — holding a token `p/secrets` matches:
+    #
+    #   printf 'function f(a,b,c){return a+b+c;}%.0s' {1..80} > b.js
+    #   printf 'var k="%s%s";' 'AKIA' 'ABCDEFGHIJKLMNOP' >> b.js
+    #   semgrep scan --config p/secrets --json-output=j.json \
+    #       --verbose --metrics off b.js
+    #   jq '.paths.skipped, (.results | length)' j.json  # [], 1
+    #
+    # The token is split across two printf arguments on purpose: joined into
+    # one literal, this recipe's own source line matches the very rule it is
+    # demonstrating, and this repo's own Semgrep code-scanning flagged it as
+    # a false positive (`security/code-scanning/19`). A `nosemgrep` comment
+    # on the joined literal did NOT clear it — Semgrep's SARIF still carries
+    # a nosemgrep'd result marked merely `suppressions: [{kind: inSource}]`,
+    # and code scanning opened a second alert (`/20`) on that same commit
+    # regardless. Only removing the matching literal from the source (this
+    # split) closed both. Keep it split; do not "simplify" it back into one
+    # quoted string.
+    #
+    # The `.paths.skipped == []` half is engine-behaviour and holds until the
+    # pin changes. The `(.results | length) == 1` half additionally depends
+    # on the live, unpinned `p/secrets` registry pack (AGENTS.md: "The `p/*`
+    # Semgrep rule packs ... cannot be pinned or vendored") still flagging
+    # this token shape — a re-run showing `.paths.skipped == []` with zero
+    # results still confirms the point (not skipped), just without that
+    # pack's corroboration.
+    #
+    # `minified` stays off the allow list on purpose — a future engine bump
+    # that makes it reachable again should fail this gate and force a fresh
+    # re-derive, not be tolerated pre-emptively. Full history and the
+    # original risk framing this replaces: issue #50.
     #
     # Everything else means a file that WAS a target went unread — it
     # exceeded a limit, could not be parsed, or could not be opened — and its
@@ -89,7 +130,6 @@ assert_semgrep_report_complete() {
         "cli_include_flags_do_not_match",
         "excluded_by_config",
         "irrelevant_rule",
-        "minified",
         "semgrepignore_patterns_match",
         "wrong_language"
     ]'
