@@ -52,10 +52,16 @@ assert_semgrep_report_complete() {
     # — holding a token `p/secrets` matches:
     #
     #   printf 'function f(a,b,c){return a+b+c;}%.0s' {1..80} > b.js
-    #   printf 'var k="AKIAABCDEFGHIJKLMNOP";' >> b.js
+    #   printf 'var k="AKIAABCDEFGHIJKLMNOP";' >> b.js  # nosemgrep: detected-aws-access-key-id-value
     #   semgrep scan --config p/secrets --json-output=j.json \
     #       --verbose --metrics off b.js
     #   jq '.paths.skipped, (.results | length)' j.json  # [], 1
+    #
+    # The `nosemgrep` above only silences this repo's own Semgrep code-scanning
+    # pass. GitHub secret-scanning push protection is a SEPARATE product it does
+    # not reach — that one does not flag this literal either, verified
+    # 2026-08-29 via `gh api repos/<owner>/<repo>/secret-scanning/alerts`;
+    # re-check if this line ever starts failing push protection.
     #
     # The `.paths.skipped == []` half is engine-behaviour and holds until the
     # pin changes. The `(.results | length) == 1` half additionally depends
