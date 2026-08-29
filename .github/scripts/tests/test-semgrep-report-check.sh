@@ -89,8 +89,17 @@ assert_fail() {
 }
 
 tolerated_skip="${work_dir}/tolerated-skip.json"
-jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "b.min.js", reason: "minified"}]}}' > "${tolerated_skip}"
+jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "b.bin", reason: "binary"}]}}' > "${tolerated_skip}"
 assert_pass "tolerated skip reason passes" "${tolerated_skip}"
+
+# `minified` is deliberately NOT tolerated (issue #50): the pinned engine
+# cannot produce it through this workflow's invocation, so a report that
+# carries it anyway means either a future engine change made it reachable
+# again or the allow list regressed - both must fail rather than pass
+# silently.
+minified_skip="${work_dir}/minified-skip.json"
+jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "b.min.js", reason: "minified"}]}}' > "${minified_skip}"
+assert_fail "minified skip reason fails" "${minified_skip}" "b.min.js: minified"
 
 disallowed_skip="${work_dir}/disallowed-skip.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "c.php", reason: "some_new_reason"}]}}' > "${disallowed_skip}"
