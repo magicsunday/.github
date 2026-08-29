@@ -59,15 +59,13 @@ assert_semgrep_report_complete() {
     #
     # The token is split across two printf arguments on purpose: joined into
     # one literal, this recipe's own source line matches the very rule it is
-    # demonstrating, and this repo's own Semgrep code-scanning flags it as a
-    # false positive (`security/code-scanning/19`, `/20`) even after a
-    # `nosemgrep` suppression, which is why it is split rather than
-    # suppressed. GitHub secret-scanning push protection is a separate
-    # product and was checked separately — it did NOT flag the joined
-    # literal (`gh api repos/<owner>/<repo>/secret-scanning/alerts` returned
-    # no alert of any state, measured 2026-08-29) — but keep it split anyway,
-    # since a future change to that product's own heuristics could start
-    # matching it; re-check both before "simplifying" this back into one
+    # demonstrating, and this repo's own Semgrep code-scanning flagged it as
+    # a false positive (`security/code-scanning/19`). A `nosemgrep` comment
+    # on the joined literal did NOT clear it — Semgrep's SARIF still carries
+    # a nosemgrep'd result marked merely `suppressions: [{kind: inSource}]`,
+    # and code scanning opened a second alert (`/20`) on that same commit
+    # regardless. Only removing the matching literal from the source (this
+    # split) closed both. Keep it split; do not "simplify" it back into one
     # quoted string.
     #
     # The `.paths.skipped == []` half is engine-behaviour and holds until the
