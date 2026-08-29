@@ -43,9 +43,13 @@ assert_semgrep_report_complete() {
     # re-check its state before citing it as still open past that date), so
     # this workflow's exact invocation cannot
     # produce a `minified` skip. Confirmed against the pinned engine with a
-    # fixture crossing both of the engine's own thresholds for the reason
-    # (< 7% whitespace, > 1000 bytes/line), holding a token `p/secrets`
-    # matches:
+    # fixture crossing both of the engine's own thresholds for the reason —
+    # `< 7% whitespace, or ... average of > 1000 bytes per line`, the pinned
+    # engine's own wording for `--exclude-minified-files`, re-derive with:
+    #
+    #   semgrep scan --help | grep -A2 "Skip minified files"
+    #
+    # — holding a token `p/secrets` matches:
     #
     #   printf 'function f(a,b,c){return a+b+c;}%.0s' {1..80} > b.js
     #   printf 'var k="AKIAABCDEFGHIJKLMNOP";' >> b.js
