@@ -71,6 +71,44 @@ jobs:
               with:
                   persist-credentials: false
 
+            # A plain `echo "dir=$(composer config cache-files-dir)"` would let a
+            # single embedded newline in the resolved path forge extra
+            # `$GITHUB_OUTPUT` keys, and would mask a failing `composer config`
+            # behind `echo`'s own exit status (the subshell's non-zero code never
+            # reaches -e). The delimited form closes both: a collision between
+            # the random delimiter and a real cache-dir path is vanishingly
+            # unlikely, and `composer config` runs as a bare command in the
+            # group, so its own failure trips `-e`.
+            - id: composer-cache-vars
+              name: Composer cache vars
+              run: |
+                  delimiter="composer_cache_dir_$(openssl rand -hex 8)"
+                  {
+                      echo "dir<<${delimiter}"
+                      composer config cache-files-dir
+                      echo "${delimiter}"
+                  } >> "$GITHUB_OUTPUT"
+
+            # Keyed on composer.json/composer.lock content rather than a
+            # timestamp, so a rerun with an unchanged manifest hits the cache
+            # instead of always falling through to `restore-keys` (the previous
+            # per-repo implementations mixed a timestamp into the key, which
+            # guaranteed a miss on every run). composer.json is included because
+            # hashing composer.lock alone hashes to '' for a consumer with no
+            # committed lockfile, which would leave the key never varying with a
+            # dependency bump. Kept per PHP matrix leg: without a committed
+            # lockfile, `composer install` resolves against the active platform,
+            # so the downloaded package set is not guaranteed to match across
+            # the matrix.
+            - name: Cache Composer dependencies
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: ${{ steps.composer-cache-vars.outputs.dir }}
+                  key: ${{ runner.os }}-composer-${{ matrix.php }}-${{ hashFiles('composer.lock', 'composer.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-composer-${{ matrix.php }}-
+                      ${{ runner.os }}-composer-
+
             - name: Install dependencies
               run: composer install --prefer-dist --no-interaction --no-progress
 
