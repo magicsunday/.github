@@ -71,22 +71,40 @@ jobs:
               with:
                   persist-credentials: false
 
+            # A plain `echo "dir=$(composer config cache-files-dir)"` would let a
+            # single embedded newline in the resolved path forge extra
+            # `$GITHUB_OUTPUT` keys, and would mask a failing `composer config`
+            # behind `echo`'s own exit status (the subshell's non-zero code never
+            # reaches -e). The delimited form closes both: a random delimiter
+            # cannot be reproduced by the resolved path, and `composer config`
+            # runs as a bare command in the group, so its own failure trips `-e`.
             - id: composer-cache-vars
               name: Composer cache vars
-              run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+              run: |
+                  delimiter="composer_cache_dir_$(openssl rand -hex 8)"
+                  {
+                      echo "dir<<${delimiter}"
+                      composer config cache-files-dir
+                      echo "${delimiter}"
+                  } >> "$GITHUB_OUTPUT"
 
-            # Keyed on the lockfile hash rather than a timestamp, so a rerun
-            # with an unchanged lockfile hits the cache instead of always
-            # falling through to `restore-keys` (the previous per-repo
-            # implementations mixed a timestamp into the key, which
-            # guaranteed a miss on every run).
+            # Keyed on composer.json/composer.lock content rather than a
+            # timestamp, so a rerun with an unchanged manifest hits the cache
+            # instead of always falling through to `restore-keys` (the previous
+            # per-repo implementations mixed a timestamp into the key, which
+            # guaranteed a miss on every run). composer.json is included because
+            # none of this workflow's current consumers commit composer.lock, so
+            # the lockfile alone would hash to '' and the key would never vary
+            # with a dependency change. Not keyed per PHP matrix leg: composer's
+            # package archive cache is resolved from the manifest alone and is
+            # identical across the matrix, so a per-php segment would only
+            # triple the stored cache with no benefit.
             - name: Cache Composer dependencies
               uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: ${{ steps.composer-cache-vars.outputs.dir }}
-                  key: ${{ runner.os }}-composer-${{ matrix.php }}-${{ hashFiles('**/composer.lock') }}
+                  key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock', 'composer.json') }}
                   restore-keys: |
-                      ${{ runner.os }}-composer-${{ matrix.php }}-
                       ${{ runner.os }}-composer-
 
             - name: Install dependencies
