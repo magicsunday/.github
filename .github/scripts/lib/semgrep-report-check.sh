@@ -52,16 +52,17 @@ assert_semgrep_report_complete() {
     # — holding a token `p/secrets` matches:
     #
     #   printf 'function f(a,b,c){return a+b+c;}%.0s' {1..80} > b.js
-    #   printf 'var k="AKIAABCDEFGHIJKLMNOP";' >> b.js  # nosemgrep: detected-aws-access-key-id-value
+    #   printf 'var k="%s%s";' 'AKIA' 'ABCDEFGHIJKLMNOP' >> b.js
     #   semgrep scan --config p/secrets --json-output=j.json \
     #       --verbose --metrics off b.js
     #   jq '.paths.skipped, (.results | length)' j.json  # [], 1
     #
-    # The `nosemgrep` above only silences this repo's own Semgrep code-scanning
-    # pass. GitHub secret-scanning push protection is a SEPARATE product it does
-    # not reach — that one does not flag this literal either, verified
-    # 2026-08-29 via `gh api repos/<owner>/<repo>/secret-scanning/alerts`;
-    # re-check if this line ever starts failing push protection.
+    # The token is split across two printf arguments on purpose: joined into
+    # one literal, this recipe's own source line matches the very rule it is
+    # demonstrating, and both this repo's Semgrep code-scanning AND GitHub's
+    # separate secret-scanning push protection flag it (measured 2026-08-29,
+    # PR #66) — a `nosemgrep` comment silences only the former. Keep it split;
+    # do not "simplify" it back into one quoted string.
     #
     # The `.paths.skipped == []` half is engine-behaviour and holds until the
     # pin changes. The `(.results | length) == 1` half additionally depends
