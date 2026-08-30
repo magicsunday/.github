@@ -86,8 +86,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   claim is wrong for what actually installs today. Re-derive with
   `python3 -c "from piptools.scripts.compile import cli; print(next(o for o in cli.params if o.name == 'no_index').default)"`
   inside the pinned image — `Sentinel.UNSET` reproduces this, `False` means a
-  newer `click` fixed it and the header claim above no longer holds). Not
-  evidence the committed file was produced by a different command.) Never
+  newer `click` fixed it and the header claim above no longer holds; this is
+  not evidence the committed file was produced by a different command.) Never
   hand-edit a `.txt` — the next compile overwrites
   it, and a hand-added line carries no hash. The install steps pass
   `--require-hashes` together with `--only-binary=:all:`, so a resolved package
