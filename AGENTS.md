@@ -60,15 +60,24 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   different architecture (e.g. Apple Silicon) resolves different wheels/hashes
   than the runner installs and `--only-binary=:all:` then fails the install rather
   than silently degrading:
-  `docker run --rm --platform linux/amd64 -v "$PWD/.github/requirements:/work" -w /work python:3.12 bash -c "pip install pip-tools==7.6.1 && pip-compile --allow-unsafe --generate-hashes --output-file=<name>.txt <name>.in"`.
-  Pinning the `pip-tools` version too keeps two regenerations of the same `.in`
-  byte-identical, so a genuine dependency change never hides inside tool-driven
-  hash churn. Verify the result installs before committing:
+  `docker run --rm --platform linux/amd64 -v "$PWD/.github/requirements:/work" -w /work python:3.12 bash -c "pip install pip-tools==7.6.1 && pip-compile --allow-unsafe --generate-hashes --output-file=<name>.txt <name>.in"`
+  (run from the repo root — the mount source is relative to the caller's `$PWD`).
+  Pinning the `pip-tools` version too avoids tool-version-driven hash churn
+  between two regenerations of the same `.in`, so a genuine dependency change
+  doesn't hide inside noise from an unrelated `pip-tools` bump — it does not by
+  itself guarantee byte-identical output across time, since pip-compile still
+  resolves transitive versions against whatever the live index currently serves.
+  Verify the result installs before committing:
   `pip install --only-binary=:all: --require-hashes -r <name>.txt`. (pip-compile's
   own header may record `--no-index` even though this command hits the real
-  index — a `pip-tools` 7.6.1 quirk, not evidence the committed file was produced
-  by a different command; re-check with `pip-compile -v` if a future `pip-tools`
-  version changes this.) Never hand-edit a `.txt` — the next compile overwrites
+  index: `get_compile_command()` in `pip-tools` 7.6.1's `utils.py` omits an
+  option from the reconstructed header only when `option.default == value`, and
+  the plain `--no-index` flag's reported default no longer matches its actual
+  unset value under this pinned `pip-tools`/`click` combination — re-derive with
+  `python3 -c "import inspect, piptools.utils as u; print(inspect.getsource(u.get_compile_command))"`
+  inside the pinned image, or re-check with `pip-compile -v` if a future
+  `pip-tools` version changes this. Not evidence the committed file was produced
+  by a different command.) Never hand-edit a `.txt` — the next compile overwrites
   it, and a hand-added line carries no hash. The install steps pass
   `--require-hashes` together with `--only-binary=:all:`, so a resolved package
   lacking a wheel for that platform, or a hash mismatch, fails the install rather
