@@ -68,8 +68,11 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   doesn't hide inside noise from an unrelated `pip-tools` bump — it does not by
   itself guarantee byte-identical output across time, since pip-compile still
   resolves transitive versions against whatever the live index currently serves.
-  Verify the result installs before committing:
-  `pip install --only-binary=:all: --require-hashes -r <name>.txt`. (pip-compile's
+  Verify the result installs before committing, in the same container so the
+  platform and Python version actually match what CI installs against (run
+  from the repo root, same as the regenerate command above):
+  `docker run --rm --platform linux/amd64 -v "$PWD/.github/requirements:/work" -w /work python:3.12 pip install --only-binary=:all: --require-hashes -r <name>.txt`.
+  (pip-compile's
   own header may record `--no-index` even though this command hits the real
   index: `get_compile_command()` in `pip-tools` 7.6.1's `utils.py` omits an
   option from the reconstructed header only when `option.default == value`; for
