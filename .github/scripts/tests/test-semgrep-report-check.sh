@@ -197,11 +197,6 @@ tmp_scan_dir="${TMPDIR:-/tmp}"
 before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)"
 assert_semgrep_report_complete "${non_string_path}" > /dev/null 2>&1
 after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)"
-if [ "${after_tmp_count}" -eq "${before_tmp_count}" ]; then
-    echo "PASS: jq's stderr temp file does not survive a crash-path call"
-else
-    echo "FAIL: jq's stderr temp file does not survive a crash-path call: count went from ${before_tmp_count} to ${after_tmp_count}"
-    failures=$((failures + 1))
-fi
+assert_eq "jq's stderr temp file does not survive a crash-path call" "${before_tmp_count}" "${after_tmp_count}"
 
 report_and_exit "report-check tests"
