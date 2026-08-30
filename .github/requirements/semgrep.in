@@ -1,0 +1,10 @@
+# Pinned Semgrep ENGINE version for the reusable code-scanning workflow — see
+# AGENTS.md for why the pin lives here. The `p/*` rule packs that workflow scans
+# with are fetched from the Semgrep registry at scan time and are NOT pinned by
+# this file.
+#
+# semgrep.txt is the compiled, hash-locked closure — never hand-edit it.
+# Regenerate after bumping the version below: search AGENTS.md for
+# "hash-locked closure" for the exact command (platform/pip-tools pins and
+# working directory matter — don't improvise a shorter one).
+semgrep==1.174.0

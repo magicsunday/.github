@@ -90,7 +90,7 @@ jobs:
                   SCRIPT_LIB: ${{ runner.temp }}/semgrep-lib
               run: |
                   set -euo pipefail
-                  pip install --quiet --only-binary=:all: -r .magicsunday-shared/.github/requirements/semgrep.txt
+                  pip install --quiet --only-binary=:all: --require-hashes -r .magicsunday-shared/.github/requirements/semgrep.txt
                   mkdir -p "$SCRIPT_LIB"
                   cp .magicsunday-shared/.github/scripts/lib/semgrep-excludes.sh "$SCRIPT_LIB/"
                   cp .magicsunday-shared/.github/scripts/lib/semgrep-report-check.sh "$SCRIPT_LIB/"
