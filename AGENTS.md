@@ -52,15 +52,27 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   Pinning only the direct requirement (`semgrep==1.173.0`) still lets `pip install
   -r` re-resolve every transitive dependency live on each run — the direct pin
   stops an upstream release from changing the tool version, but not from changing
-  what it depends on. Bump the version in the `.in` file, then regenerate with
-  `pip-tools` (matching the workflows' `python-version: '3.12'` on
-  `ubuntu-latest`, e.g. via `python:3.12` in Docker so wheel selection matches):
-  `pip-compile --allow-unsafe --generate-hashes --output-file=<name>.txt <name>.in`.
-  Never hand-edit a `.txt` — the next compile overwrites it, and a hand-added line
-  carries no hash. The install steps pass `--require-hashes` together with
-  `--only-binary=:all:`, so a resolved package lacking a wheel for that platform,
-  or a hash mismatch, fails the install rather than resolving to something
-  unverified.
+  what it depends on. Bump the version in the `.in` file, then regenerate matching
+  the runner these tools actually install on
+  (`grep -h "python-version:\|runs-on:" .github/workflows/code-scanning.yml
+  .github/workflows/yamllint.yml`; both currently `'3.12'` on `ubuntu-latest`, i.e.
+  linux/amd64) — pin the container platform explicitly, or a Docker host on a
+  different architecture (e.g. Apple Silicon) resolves different wheels/hashes
+  than the runner installs and `--only-binary=:all:` then fails the install rather
+  than silently degrading:
+  `docker run --rm --platform linux/amd64 -v "$PWD/.github/requirements:/work" -w /work python:3.12 bash -c "pip install pip-tools==7.6.1 && pip-compile --allow-unsafe --generate-hashes --output-file=<name>.txt <name>.in"`.
+  Pinning the `pip-tools` version too keeps two regenerations of the same `.in`
+  byte-identical, so a genuine dependency change never hides inside tool-driven
+  hash churn. Verify the result installs before committing:
+  `pip install --only-binary=:all: --require-hashes -r <name>.txt`. (pip-compile's
+  own header may record `--no-index` even though this command hits the real
+  index — a `pip-tools` 7.6.1 quirk, not evidence the committed file was produced
+  by a different command; re-check with `pip-compile -v` if a future `pip-tools`
+  version changes this.) Never hand-edit a `.txt` — the next compile overwrites
+  it, and a hand-added line carries no hash. The install steps pass
+  `--require-hashes` together with `--only-binary=:all:`, so a resolved package
+  lacking a wheel for that platform, or a hash mismatch, fails the install rather
+  than resolving to something unverified.
 - **A scan report is only uploaded once the report itself says it is complete.**
   Code scanning reads what an uploaded report omits as *fixed*, so a scan that
   quietly covered less than the tree retires real alerts, and an exit code does not

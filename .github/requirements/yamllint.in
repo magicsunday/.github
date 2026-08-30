@@ -1,6 +1,7 @@
 # Pinned tool version for the reusable yamllint workflow — see AGENTS.md.
 #
 # yamllint.txt is the compiled, hash-locked closure — never hand-edit it.
-# Regenerate after bumping the version below:
-#   pip-compile --allow-unsafe --generate-hashes --output-file=yamllint.txt yamllint.in
+# Regenerate after bumping the version below (see AGENTS.md for why the
+# platform pin and pip-tools version below matter):
+#   docker run --rm --platform linux/amd64 -v "$PWD:/work" -w /work python:3.12 bash -c "pip install pip-tools==7.6.1 && pip-compile --allow-unsafe --generate-hashes --output-file=yamllint.txt yamllint.in"
 yamllint==1.38.0
