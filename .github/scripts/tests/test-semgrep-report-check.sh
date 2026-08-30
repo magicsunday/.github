@@ -121,6 +121,16 @@ unreadable="${work_dir}/unreadable.json"
 printf 'not json' > "${unreadable}"
 assert_fail "unreadable report fails" "${unreadable}" "could not be read"
 
+# A non-string `.path` crashes the jq filter that builds the unexpected-
+# reasons list, mid-evaluation, after it has already produced no output for
+# the genuinely disallowed entry ahead of it. Without an exit-status check on
+# that command substitution, the crash's empty stdout reads as "no unexpected
+# reasons" and the gate reports success on a report it could not evaluate
+# (issue #65).
+non_string_path="${work_dir}/non-string-path.json"
+jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "x.php", reason: "some_bad_reason"}, {path: 123, reason: "some_reason"}]}}' > "${non_string_path}"
+assert_fail "non-string skipped-path entry fails closed rather than masking a crash" "${non_string_path}" "jq failed"
+
 # A path holding a literal percent sign and a control character must still
 # collapse into exactly one annotation, sanitised rather than passed through
 # raw. The control character is injected via jq --arg (an ANSI-C \x01
