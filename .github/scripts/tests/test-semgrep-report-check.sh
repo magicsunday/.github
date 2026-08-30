@@ -199,4 +199,15 @@ assert_semgrep_report_complete "${non_string_path}" > /dev/null 2>&1
 after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)"
 assert_eq "jq's stderr temp file does not survive a crash-path call" "${before_tmp_count}" "${after_tmp_count}"
 
+# The crash-path assertion above only exercises the `rm -f` inside the
+# `|| { ... }` handler - it proves nothing about the OTHER cleanup site,
+# which runs on every non-crashing report (the far more common branch, hit
+# by every fixture above this one). Deleting that second `rm -f` in a
+# scratch copy left this suite green even with it removed, which is exactly
+# the coverage gap a fixture naming only one branch cannot catch.
+before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)"
+assert_semgrep_report_complete "${tolerated_skip}" > /dev/null 2>&1
+after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)"
+assert_eq "jq's stderr temp file does not survive a successful call" "${before_tmp_count}" "${after_tmp_count}"
+
 report_and_exit "report-check tests"
