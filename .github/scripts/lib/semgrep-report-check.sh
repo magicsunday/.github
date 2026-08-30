@@ -148,21 +148,27 @@ assert_semgrep_report_complete() {
     # `2>/dev/null`, run through the same two substitutions applied to a
     # `.path` value above (a raw excerpt could otherwise carry unsanitised
     # report content into the annotation) via bash builtins rather than a
-    # second jq process - jq's own error text is plain ASCII by the time it
-    # needs sanitising, and a second jq invocation here would itself need
-    # its own fail-closed handling under this function's caller, which runs
-    # with `set -e` - truncated, and folded into the single `::error::` line
-    # below (issue #69).
+    # second jq process - a second jq invocation here would itself need its
+    # own fail-closed handling under this function's caller, which runs with
+    # `set -e` - truncated, and folded into the single `::error::` line
+    # below. `cat` and `tr` are guarded the same way for the same reason:
+    # every command between creating the temp file and removing it must
+    # degrade to a placeholder rather than abort the script, or the whole
+    # point of this branch - printing one attributable annotation - is lost
+    # to a bare `set -e` exit instead (issue #69).
+    #
+    # Cleanup is two explicit `rm -f` calls (crash branch, success
+    # continuation) rather than `trap ... RETURN`: that trap is NOT scoped to
+    # the function that sets it - verified with bash 5.2, a RETURN trap set
+    # inside a called function persists and fires again on the CALLER's own
+    # return, using a `local` variable that has since gone out of scope,
+    # which crashes under this function's caller's `set -u` with "unbound
+    # variable" instead of cleaning anything up.
     local jq_stderr_file
     jq_stderr_file="$(mktemp)" || {
         echo "::error::jq failed while evaluating the skip inventory, so the report cannot be shown complete."
         return 1
     }
-    # RETURN rather than EXIT so cleanup is scoped to this function and
-    # covers every return path below - including one a later edit adds -
-    # without touching any trap the caller (this function is sourced, not
-    # executed) relies on for itself.
-    trap 'rm -f "$jq_stderr_file"' RETURN
 
     local unexpected
     unexpected="$(jq -r --argjson allowed "$allowed_skip_reasons" '
@@ -180,15 +186,18 @@ assert_semgrep_report_complete() {
         | join("%0A")
     ' "$json_file" 2>"$jq_stderr_file")" || {
         local jq_error
-        jq_error="$(cat "$jq_stderr_file")"
+        jq_error="$(cat "$jq_stderr_file" 2>/dev/null)" || jq_error="(diagnostic unavailable)"
         jq_error="${jq_error//%/%25}"
-        jq_error="$(printf '%s' "${jq_error}" | tr '[:cntrl:]' '?')"
+        jq_error="$(printf '%s' "${jq_error}" | tr '[:cntrl:]' '?' 2>/dev/null)" || jq_error="(diagnostic unavailable)"
         if [ "${#jq_error}" -gt 200 ]; then
             jq_error="${jq_error:0:197}..."
         fi
+        rm -f "$jq_stderr_file"
         echo "::error::jq failed while evaluating the skip inventory, so the report cannot be shown complete: ${jq_error}"
         return 1
     }
+
+    rm -f "$jq_stderr_file"
 
     if [ -n "$unexpected" ]; then
         echo "::error::Semgrep exited 0 but did not scan every file it was given, so its report understates what is in the tree and code scanning would retire the alerts of the files below. If a file is not meant to be scanned, declare it through this workflow's 'excludes' input in the caller; otherwise fix what stopped it being read. A pattern holding a slash is anchored at the root and its '*' does not cross one, so a nested file needs its directory, its literal path, or a '**' pattern.%0A${unexpected}"

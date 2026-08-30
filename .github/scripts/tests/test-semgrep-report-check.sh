@@ -131,7 +131,8 @@ assert_fail "unreadable report fails" "${unreadable}" "could not be read"
 # fails this test rather than passing on the shape alone (issue #69).
 non_string_path="${work_dir}/non-string-path.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "x.php", reason: "some_bad_reason"}, {path: 123, reason: "some_reason"}]}}' > "${non_string_path}"
-assert_fail "non-string skipped-path entry fails closed rather than masking a crash" "${non_string_path}" "jq failed while evaluating the skip inventory, so the report cannot be shown complete: jq: error"
+assert_fail "non-string skipped-path entry fails closed rather than masking a crash" "${non_string_path}" "jq failed while evaluating the skip inventory, so the report cannot be shown complete: jq: error (at ${non_string_path}:"
+assert_fail "non-string skipped-path entry: annotation carries jq's actual diagnostic body, not a hardcoded stand-in" "${non_string_path}" "number (123) cannot be matched, as it is not a string"
 
 # jq's own crash diagnostic previews the offending value verbatim (truncated,
 # but not sanitised by jq itself), so a `%` inside it reaches the annotation
@@ -139,13 +140,28 @@ assert_fail "non-string skipped-path entry fails closed rather than masking a cr
 # to a report `.path` value - actually runs. A non-string array whose first
 # element contains a literal `%` reproduces this deterministically: jq's own
 # "array ([...) cannot be matched" preview echoes that element back
-# (verified: `jq -r '.path' ` on `["weird%valuex","b"]` as a non-string
-# crashes with `array (["weird%val...) cannot be matched, as it is not a
-# string`), so an unsanitised excerpt would leave a raw `%` in the annotation
-# (issue #69).
+# (verified: `jq -r '.path | gsub("%"; "%25")'` on `{"path":
+# ["weird%valuex","b"]}` crashes with `array (["weird%val...) cannot be
+# matched, as it is not a string` - the plain `jq -r '.path'` does not crash,
+# since a non-string result prints fine; the crash needs the same `gsub`
+# this library's real filter applies), so an unsanitised excerpt would leave
+# a raw `%` in the annotation (issue #69).
 percent_in_jq_diagnostic="${work_dir}/percent-in-jq-diagnostic.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: [{path: ["weird%valuex", "b"], reason: "x"}]}}' > "${percent_in_jq_diagnostic}"
 assert_fail "a percent sign inside jq's own crash diagnostic is sanitised" "${percent_in_jq_diagnostic}" "weird%25val"
+
+# jq only bounds the previewed VALUE in its own diagnostic, never the
+# "(at <file>:<line>)" portion - a report living at a long enough path
+# produces a raw diagnostic past this library's own 200-character budget.
+# Padding the fixture's own path (rather than the JSON content) reproduces
+# this without depending on jq's value-preview truncation point. A fixture
+# that never exceeds the budget cannot tell a truncating implementation from
+# one that forgot to truncate at all.
+long_path_dir="${work_dir}/$(printf 'a%.0s' $(seq 1 200))"
+mkdir -p "${long_path_dir}"
+long_path_diagnostic="${long_path_dir}/non-string-path.json"
+jq -n '{paths: {scanned: ["a.php"], skipped: [{path: 123, reason: "some_reason"}]}}' > "${long_path_diagnostic}"
+assert_fail "a diagnostic past the 200-character budget is truncated, still one annotation" "${long_path_diagnostic}" "aaa..."
 
 # A path holding a literal percent sign and a control character must still
 # collapse into exactly one annotation, sanitised rather than passed through
@@ -168,5 +184,24 @@ newline_path="${work_dir}/newline-path.json"
 newline_value=$'line1\nline2'
 jq -n --arg p "${newline_value}" '{paths: {scanned: ["a.php"], skipped: [{path: $p, reason: "some_bad_reason"}]}}' > "${newline_path}"
 assert_fail "path with a raw newline stays one annotation" "${newline_path}" "line1?line2: some_bad_reason"
+
+# The temp file mktemp creates for jq's stderr is only useful for the
+# duration of one crash-path evaluation - assert it does not survive past
+# the call, rather than trusting the two `rm -f` call sites to be exhaustive
+# by inspection alone. This class of gap is exactly what an earlier
+# `trap ... RETURN` attempt at this cleanup got wrong in a way inspection
+# alone did not catch (issue #69): the trap looked scoped to the function on
+# a read but was not, so this assertion outlives the specific mechanism used
+# to satisfy it.
+tmp_scan_dir="${TMPDIR:-/tmp}"
+before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)"
+assert_semgrep_report_complete "${non_string_path}" > /dev/null 2>&1
+after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)"
+if [ "${after_tmp_count}" -eq "${before_tmp_count}" ]; then
+    echo "PASS: jq's stderr temp file does not survive a crash-path call"
+else
+    echo "FAIL: jq's stderr temp file does not survive a crash-path call: count went from ${before_tmp_count} to ${after_tmp_count}"
+    failures=$((failures + 1))
+fi
 
 report_and_exit "report-check tests"
