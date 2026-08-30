@@ -126,10 +126,12 @@ assert_fail "unreadable report fails" "${unreadable}" "could not be read"
 # the genuinely disallowed entry ahead of it. Without an exit-status check on
 # that command substitution, the crash's empty stdout reads as "no unexpected
 # reasons" and the gate reports success on a report it could not evaluate
-# (issue #65).
+# (issue #65). The expected substring pins jq's own diagnostic text, not just
+# the generic prefix, so a regression back to discarding it via `2>/dev/null`
+# fails this test rather than passing on the shape alone (issue #69).
 non_string_path="${work_dir}/non-string-path.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "x.php", reason: "some_bad_reason"}, {path: 123, reason: "some_reason"}]}}' > "${non_string_path}"
-assert_fail "non-string skipped-path entry fails closed rather than masking a crash" "${non_string_path}" "jq failed"
+assert_fail "non-string skipped-path entry fails closed rather than masking a crash" "${non_string_path}" "jq failed while evaluating the skip inventory, so the report cannot be shown complete: jq: error"
 
 # A path holding a literal percent sign and a control character must still
 # collapse into exactly one annotation, sanitised rather than passed through
