@@ -76,8 +76,14 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   the plain `--no-index` flag, `option.default` is `click`'s internal
   `Sentinel.UNSET` marker while the resolved value is `False` when the flag is
   unset, so the two never compare equal and the flag is always re-emitted —
-  confirmed against the currently-resolved `click` (`pip-tools` only requires
-  `click>=8`, so it floats; re-derive with
+  confirmed against the currently-resolved `click` — **run the re-derivation
+  command in a container with a genuinely fresh, unconstrained `pip install
+  pip-tools==7.6.1` (`click>=8`, no upper bound, so it floats to whatever is
+  current), never against a pre-installed or manually version-pinned `click`**:
+  an older `click` (checked: 8.1.3, 8.4.2) resolves the same option's default
+  to the plain bool `False` instead of `Sentinel.UNSET`, which looks like this
+  claim is false but only means the test environment was stale, not that the
+  claim is wrong for what actually installs today. Re-derive with
   `python3 -c "from piptools.scripts.compile import cli; print(next(o for o in cli.params if o.name == 'no_index').default)"`
   inside the pinned image — `Sentinel.UNSET` reproduces this, `False` means a
   newer `click` fixed it and the header claim above no longer holds). Not
