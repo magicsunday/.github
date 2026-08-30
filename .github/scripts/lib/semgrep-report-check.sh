@@ -145,18 +145,24 @@ assert_semgrep_report_complete() {
     #
     # jq's own diagnostic (which value crashed the filter, and why) is kept
     # rather than discarded: it is captured into a temp file instead of
-    # `2>/dev/null`, sanitised the same way a `.path` value is above (a raw
-    # excerpt could otherwise carry unsanitised report content into the
-    # annotation), truncated, and folded into the single `::error::` line
-    # below. Without this, any future cause of a crash here - a typo
-    # introduced while editing the filter, an `--argjson` value that becomes
-    # invalid - would reach the same generic message, unlike every other
-    # `::error::` branch in this function (issue #69).
+    # `2>/dev/null`, run through the same two substitutions applied to a
+    # `.path` value above (a raw excerpt could otherwise carry unsanitised
+    # report content into the annotation) via bash builtins rather than a
+    # second jq process - jq's own error text is plain ASCII by the time it
+    # needs sanitising, and a second jq invocation here would itself need
+    # its own fail-closed handling under this function's caller, which runs
+    # with `set -e` - truncated, and folded into the single `::error::` line
+    # below (issue #69).
     local jq_stderr_file
     jq_stderr_file="$(mktemp)" || {
         echo "::error::jq failed while evaluating the skip inventory, so the report cannot be shown complete."
         return 1
     }
+    # RETURN rather than EXIT so cleanup is scoped to this function and
+    # covers every return path below - including one a later edit adds -
+    # without touching any trap the caller (this function is sourced, not
+    # executed) relies on for itself.
+    trap 'rm -f "$jq_stderr_file"' RETURN
 
     local unexpected
     unexpected="$(jq -r --argjson allowed "$allowed_skip_reasons" '
@@ -174,16 +180,15 @@ assert_semgrep_report_complete() {
         | join("%0A")
     ' "$json_file" 2>"$jq_stderr_file")" || {
         local jq_error
-        jq_error="$(jq -nr --arg s "$(cat "$jq_stderr_file")" '
-            ($s | gsub("%"; "%25") | gsub("[[:cntrl:]]"; "?")) as $sanitized
-            | if ($sanitized | length) > 200 then ($sanitized[0:200] + "...") else $sanitized end
-        ')"
-        rm -f "$jq_stderr_file"
+        jq_error="$(cat "$jq_stderr_file")"
+        jq_error="${jq_error//%/%25}"
+        jq_error="$(printf '%s' "${jq_error}" | tr '[:cntrl:]' '?')"
+        if [ "${#jq_error}" -gt 200 ]; then
+            jq_error="${jq_error:0:197}..."
+        fi
         echo "::error::jq failed while evaluating the skip inventory, so the report cannot be shown complete: ${jq_error}"
         return 1
     }
-
-    rm -f "$jq_stderr_file"
 
     if [ -n "$unexpected" ]; then
         echo "::error::Semgrep exited 0 but did not scan every file it was given, so its report understates what is in the tree and code scanning would retire the alerts of the files below. If a file is not meant to be scanned, declare it through this workflow's 'excludes' input in the caller; otherwise fix what stopped it being read. A pattern holding a slash is anchored at the root and its '*' does not cross one, so a nested file needs its directory, its literal path, or a '**' pattern.%0A${unexpected}"
