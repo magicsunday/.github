@@ -7,4 +7,4 @@
 # Regenerate after bumping the version below: search AGENTS.md for
 # "hash-locked closure" for the exact command (platform/pip-tools pins and
 # working directory matter — don't improvise a shorter one).
-semgrep==1.173.0
+semgrep==1.174.0
