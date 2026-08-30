@@ -133,6 +133,20 @@ non_string_path="${work_dir}/non-string-path.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "x.php", reason: "some_bad_reason"}, {path: 123, reason: "some_reason"}]}}' > "${non_string_path}"
 assert_fail "non-string skipped-path entry fails closed rather than masking a crash" "${non_string_path}" "jq failed while evaluating the skip inventory, so the report cannot be shown complete: jq: error"
 
+# jq's own crash diagnostic previews the offending value verbatim (truncated,
+# but not sanitised by jq itself), so a `%` inside it reaches the annotation
+# unless this library's own sanitiser - applied to jq's stderr text, not just
+# to a report `.path` value - actually runs. A non-string array whose first
+# element contains a literal `%` reproduces this deterministically: jq's own
+# "array ([...) cannot be matched" preview echoes that element back
+# (verified: `jq -r '.path' ` on `["weird%valuex","b"]` as a non-string
+# crashes with `array (["weird%val...) cannot be matched, as it is not a
+# string`), so an unsanitised excerpt would leave a raw `%` in the annotation
+# (issue #69).
+percent_in_jq_diagnostic="${work_dir}/percent-in-jq-diagnostic.json"
+jq -n '{paths: {scanned: ["a.php"], skipped: [{path: ["weird%valuex", "b"], reason: "x"}]}}' > "${percent_in_jq_diagnostic}"
+assert_fail "a percent sign inside jq's own crash diagnostic is sanitised" "${percent_in_jq_diagnostic}" "weird%25val"
+
 # A path holding a literal percent sign and a control character must still
 # collapse into exactly one annotation, sanitised rather than passed through
 # raw. The control character is injected via jq --arg (an ANSI-C \x01
