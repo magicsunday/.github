@@ -193,10 +193,18 @@ assert_fail "path with a raw newline stays one annotation" "${newline_path}" "li
 # alone did not catch (issue #69): the trap looked scoped to the function on
 # a read but was not, so this assertion outlives the specific mechanism used
 # to satisfy it.
-tmp_scan_dir="${TMPDIR:-/tmp}"
-before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)"
-assert_semgrep_report_complete "${non_string_path}" > /dev/null 2>&1
-after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)"
+#
+# Scanning the shared /tmp for this would flake under a busy host: another
+# process creating or removing an unrelated `tmp.*` file between the two
+# counts changes the count for a reason unrelated to this library. Pointing
+# `TMPDIR` at a private directory under `work_dir` for the duration of the
+# call (mktemp honours `TMPDIR`) makes the count deterministic instead.
+tmp_scan_dir="${work_dir}/tmp-scan"
+mkdir -p "${tmp_scan_dir}"
+
+before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
+TMPDIR="${tmp_scan_dir}" assert_semgrep_report_complete "${non_string_path}" > /dev/null 2>&1
+after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
 assert_eq "jq's stderr temp file does not survive a crash-path call" "${before_tmp_count}" "${after_tmp_count}"
 
 # The crash-path assertion above only exercises the `rm -f` inside the
@@ -205,9 +213,9 @@ assert_eq "jq's stderr temp file does not survive a crash-path call" "${before_t
 # by every fixture above this one). Deleting that second `rm -f` in a
 # scratch copy left this suite green even with it removed, which is exactly
 # the coverage gap a fixture naming only one branch cannot catch.
-before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)"
-assert_semgrep_report_complete "${tolerated_skip}" > /dev/null 2>&1
-after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' 2>/dev/null | wc -l)"
+before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
+TMPDIR="${tmp_scan_dir}" assert_semgrep_report_complete "${tolerated_skip}" > /dev/null 2>&1
+after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
 assert_eq "jq's stderr temp file does not survive a successful call" "${before_tmp_count}" "${after_tmp_count}"
 
 report_and_exit "report-check tests"
