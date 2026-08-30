@@ -50,20 +50,6 @@ reset() {
     sleep_calls=()
 }
 
-assert_eq() {
-    local description="$1"
-    local expected="$2"
-    local actual="$3"
-
-    if [ "${expected}" != "${actual}" ]; then
-        echo "FAIL: ${description}: expected '${expected}', got '${actual}'"
-        failures=$((failures + 1))
-        return
-    fi
-
-    echo "PASS: ${description}"
-}
-
 reset
 export RETRY_BACKOFF_SECONDS=0
 rc=0
