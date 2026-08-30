@@ -155,7 +155,14 @@ assert_semgrep_report_complete() {
     # every command between creating the temp file and removing it must
     # degrade to a placeholder rather than abort the script, or the whole
     # point of this branch - printing one attributable annotation - is lost
-    # to a bare `set -e` exit instead (issue #69).
+    # to a bare `set -e` exit instead. `rm -f` needs the same `|| true`
+    # guard for the identical reason, despite `-f` in its name: `-f`
+    # suppresses only the missing-file case, not a genuine permission or
+    # filesystem error, which still exits non-zero - reproduced directly
+    # (`chmod 555` on the containing directory made `rm -f` on a file inside
+    # it exit 1) - and would otherwise abort this same branch, and the
+    # success continuation below, before their own cleanup or annotation
+    # runs (issue #69).
     #
     # Cleanup is two explicit `rm -f` calls (crash branch, success
     # continuation) rather than `trap ... RETURN`: that trap is NOT scoped to
@@ -192,12 +199,12 @@ assert_semgrep_report_complete() {
         if [ "${#jq_error}" -gt 200 ]; then
             jq_error="${jq_error:0:197}..."
         fi
-        rm -f "$jq_stderr_file"
+        rm -f "$jq_stderr_file" || true
         echo "::error::jq failed while evaluating the skip inventory, so the report cannot be shown complete: ${jq_error}"
         return 1
     }
 
-    rm -f "$jq_stderr_file"
+    rm -f "$jq_stderr_file" || true
 
     if [ -n "$unexpected" ]; then
         echo "::error::Semgrep exited 0 but did not scan every file it was given, so its report understates what is in the tree and code scanning would retire the alerts of the files below. If a file is not meant to be scanned, declare it through this workflow's 'excludes' input in the caller; otherwise fix what stopped it being read. A pattern holding a slash is anchored at the root and its '*' does not cross one, so a nested file needs its directory, its literal path, or a '**' pattern.%0A${unexpected}"
