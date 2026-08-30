@@ -49,8 +49,9 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   binary, as `zizmor.yml` does, already has its version tracked by the
   `github-actions` ecosystem.)
 - **Each `.txt` here is a hash-locked closure, compiled from the matching `.in`.**
-  Pinning only the direct requirement (`semgrep==1.173.0`) still lets `pip install
-  -r` re-resolve every transitive dependency live on each run — the direct pin
+  Pinning only the direct requirement (the version line in `semgrep.in`) still
+  lets `pip install -r` re-resolve every transitive dependency live on each
+  run — the direct pin
   stops an upstream release from changing the tool version, but not from changing
   what it depends on. Bump the version in the `.in` file, then regenerate matching
   the runner these tools actually install on
