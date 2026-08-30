@@ -76,7 +76,7 @@ jobs:
             - name: Install yamllint
               run: |
                   set -euo pipefail
-                  pip install --quiet --only-binary=:all: -r .magicsunday-shared/.github/requirements/yamllint.txt
+                  pip install --quiet --only-binary=:all: --require-hashes -r .magicsunday-shared/.github/requirements/yamllint.txt
                   rm -rf .magicsunday-shared
 
             # PATHS is consumed from the environment (not inlined into the

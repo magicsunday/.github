@@ -48,6 +48,19 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   about what a workflow installs *itself*: a SHA-pinned action that brings its own
   binary, as `zizmor.yml` does, already has its version tracked by the
   `github-actions` ecosystem.)
+- **Each `.txt` here is a hash-locked closure, compiled from the matching `.in`.**
+  Pinning only the direct requirement (`semgrep==1.173.0`) still lets `pip install
+  -r` re-resolve every transitive dependency live on each run — the direct pin
+  stops an upstream release from changing the tool version, but not from changing
+  what it depends on. Bump the version in the `.in` file, then regenerate with
+  `pip-tools` (matching the workflows' `python-version: '3.12'` on
+  `ubuntu-latest`, e.g. via `python:3.12` in Docker so wheel selection matches):
+  `pip-compile --allow-unsafe --generate-hashes --output-file=<name>.txt <name>.in`.
+  Never hand-edit a `.txt` — the next compile overwrites it, and a hand-added line
+  carries no hash. The install steps pass `--require-hashes` together with
+  `--only-binary=:all:`, so a resolved package lacking a wheel for that platform,
+  or a hash mismatch, fails the install rather than resolving to something
+  unverified.
 - **A scan report is only uploaded once the report itself says it is complete.**
   Code scanning reads what an uploaded report omits as *fixed*, so a scan that
   quietly covered less than the tree retires real alerts, and an exit code does not
