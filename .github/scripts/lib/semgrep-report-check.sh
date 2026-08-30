@@ -135,7 +135,13 @@ assert_semgrep_report_complete() {
     ]'
 
     # A missing inventory is treated as a finding rather than as an empty
-    # one, so dropping --verbose upstream cannot quietly pass.
+    # one, so dropping --verbose upstream cannot quietly pass. The `|| { ...;
+    # return 1; }` matters as much as the filter itself: a `.paths.skipped[]`
+    # entry whose `path` is not a string (a malformed or hand-edited report)
+    # crashes this jq filter mid-evaluation, and a plain assignment discards
+    # that non-zero exit status - the empty stdout it leaves behind would
+    # otherwise read as "no unexpected reasons" and pass a report jq could
+    # not finish evaluating (issue #65).
     local unexpected
     unexpected="$(jq -r --argjson allowed "$allowed_skip_reasons" '
         if (.paths.skipped | type) != "array" then
@@ -150,7 +156,10 @@ assert_semgrep_report_complete() {
                 | "\($path): \($reason)"]
         end
         | join("%0A")
-    ' "$json_file")"
+    ' "$json_file" 2>/dev/null)" || {
+        echo "::error::jq failed while evaluating the skip inventory, so the report cannot be shown complete."
+        return 1
+    }
 
     if [ -n "$unexpected" ]; then
         echo "::error::Semgrep exited 0 but did not scan every file it was given, so its report understates what is in the tree and code scanning would retire the alerts of the files below. If a file is not meant to be scanned, declare it through this workflow's 'excludes' input in the caller; otherwise fix what stopped it being read. A pattern holding a slash is anchored at the root and its '*' does not cross one, so a nested file needs its directory, its literal path, or a '**' pattern.%0A${unexpected}"
