@@ -4,7 +4,7 @@
 # this file.
 #
 # semgrep.txt is the compiled, hash-locked closure — never hand-edit it.
-# Regenerate after bumping the version below: see AGENTS.md's "Each .txt here
-# is a hash-locked closure" bullet for the exact command (platform/pip-tools
-# pins and working directory matter — don't improvise a shorter one).
+# Regenerate after bumping the version below: search AGENTS.md for
+# "hash-locked closure" for the exact command (platform/pip-tools pins and
+# working directory matter — don't improvise a shorter one).
 semgrep==1.173.0

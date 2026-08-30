@@ -71,13 +71,17 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   `pip install --only-binary=:all: --require-hashes -r <name>.txt`. (pip-compile's
   own header may record `--no-index` even though this command hits the real
   index: `get_compile_command()` in `pip-tools` 7.6.1's `utils.py` omits an
-  option from the reconstructed header only when `option.default == value`, and
-  the plain `--no-index` flag's reported default no longer matches its actual
-  unset value under this pinned `pip-tools`/`click` combination — re-derive with
-  `python3 -c "import inspect, piptools.utils as u; print(inspect.getsource(u.get_compile_command))"`
-  inside the pinned image, or re-check with `pip-compile -v` if a future
-  `pip-tools` version changes this. Not evidence the committed file was produced
-  by a different command.) Never hand-edit a `.txt` — the next compile overwrites
+  option from the reconstructed header only when `option.default == value`; for
+  the plain `--no-index` flag, `option.default` is `click`'s internal
+  `Sentinel.UNSET` marker while the resolved value is `False` when the flag is
+  unset, so the two never compare equal and the flag is always re-emitted —
+  confirmed against the currently-resolved `click` (`pip-tools` only requires
+  `click>=8`, so it floats; re-derive with
+  `python3 -c "from piptools.scripts.compile import cli; print(next(o for o in cli.params if o.name == 'no_index').default)"`
+  inside the pinned image — `Sentinel.UNSET` reproduces this, `False` means a
+  newer `click` fixed it and the header claim above no longer holds). Not
+  evidence the committed file was produced by a different command.) Never
+  hand-edit a `.txt` — the next compile overwrites
   it, and a hand-added line carries no hash. The install steps pass
   `--require-hashes` together with `--only-binary=:all:`, so a resolved package
   lacking a wheel for that platform, or a hash mismatch, fails the install rather
