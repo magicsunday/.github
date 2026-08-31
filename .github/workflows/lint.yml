@@ -93,9 +93,9 @@ jobs:
             # never runs the actual pinned engine, so an engine bump that changed what
             # a real scan's skip inventory looks like would pass that suite unnoticed.
             # This step runs the pinned engine itself against a fixture built to
-            # cross its own minified-file thresholds (`< 7% whitespace, or ... average
-            # of > 1000 bytes per line` - `semgrep scan --help | grep -A2 "Skip
-            # minified files"`), reproducing semgrep-report-check.sh's own re-derive
+            # cross its own minified-file thresholds (see the re-derive recipe in
+            # semgrep-report-check.sh's assert_semgrep_report_complete() for the
+            # exact wording and command), reproducing that file's own re-derive
             # recipe for the claim that `minified` cannot occur through this
             # workflow's invocation (issue #50). The rule config is a trivial local
             # pattern rather than a `p/*` registry pack: those packs are live,
