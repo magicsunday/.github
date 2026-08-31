@@ -18,7 +18,7 @@ source "${SCRIPT_DIR}/../lib/semgrepignore-guard.sh"
 
 work_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${work_dir}"' EXIT
-original_dir="$(pwd)"
+original_dir="$(pwd)" || exit 1
 
 # assert_matches DESCRIPTION EXPECTED_RELATIVE_PATH...
 # Runs find_semgrepignore_files() from inside work_dir and compares its
