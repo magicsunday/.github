@@ -47,9 +47,16 @@ assert_matches() {
 # Every case gets its OWN fresh directory - `rm -rf dir/*` does not remove
 # dotfiles (the glob does not match a leading dot), so reusing one directory
 # and globbing it clean between cases would silently leak a `.semgrepignore`
-# from one case into the next.
+# from one case into the next. The explicit `|| exit 1` matters here: this
+# script runs under `set -uo pipefail` only, not `set -e`, and `cd ""` on a
+# failed mktemp's empty output succeeds silently in bash rather than failing
+# - leaving a later assertion running from whatever directory was already
+# current instead of the isolated one it expects, exactly the leak this
+# design exists to prevent.
 fresh_case_dir() {
-    mktemp -d "${work_dir}/case-XXXXXX"
+    local dir
+    dir="$(mktemp -d "${work_dir}/case-XXXXXX")" || exit 1
+    printf '%s' "${dir}"
 }
 
 case_dir="$(fresh_case_dir)"
