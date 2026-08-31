@@ -123,6 +123,12 @@ jobs:
 
                   semgrep scan --config smoke-rule.yml --json-output=smoke.json --verbose --metrics off bundle.js
 
+                  scanned="$(jq -c '.paths.scanned' smoke.json)"
+                  if [ "$scanned" != '["bundle.js"]' ]; then
+                      echo "::error::The pinned engine did not report bundle.js as scanned - this smoke check verified nothing: ${scanned}"
+                      exit 1
+                  fi
+
                   skipped="$(jq -c '.paths.skipped' smoke.json)"
                   if [ "$skipped" != "[]" ]; then
                       echo "::error::The pinned engine skipped the bundle-like fixture - 'minified' may be reachable again, which semgrep-report-check.sh omits on the ground it is not: ${skipped}"
