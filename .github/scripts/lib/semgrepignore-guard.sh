@@ -22,3 +22,17 @@
 find_semgrepignore_files() {
     find . \( -name '.git' -o -name 'vendor' -o -name 'node_modules' -o -name '.build' \) -prune -o -name '.semgrepignore' -print
 }
+
+# Neutralizes every control character (not just newline) in a string
+# before the caller embeds it into a GitHub Actions `::error::` log
+# annotation. The runner's own log reader is .NET-based and
+# `TextReader.ReadLine()` treats a bare CR as a line terminator the same
+# way it treats LF — so a path holding an embedded CR (not just LF) can
+# forge what reads as a second, attacker-authored annotation line unless
+# every control byte is folded away, not only the newline. Mirrors
+# semgrep-report-check.sh's `tr '[:cntrl:]' '?'` sanitisation of
+# report-derived text; the second `tr` turns the placeholder into the
+# space this caller wants between joined entries.
+sanitize_for_annotation() {
+    printf '%s' "$1" | tr '[:cntrl:]' '?' | tr '?' ' '
+}
