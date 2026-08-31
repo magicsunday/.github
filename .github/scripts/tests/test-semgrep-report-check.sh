@@ -17,6 +17,23 @@ source "${SCRIPT_DIR}/../lib/semgrep-report-check.sh"
 work_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${work_dir}"' EXIT
 
+# Pins the extracted literal itself, not the engine's minified-file
+# thresholds - re-deriving those independently here would be exactly the
+# "mirror test that misses the machine" this suite's own convention avoids
+# elsewhere. A future edit that silently changes the fixture (a typo in the
+# format string, a different repeat count) breaks this fast, hermetic
+# assertion before it would only surface via the slower, engine-backed
+# semgrep-smoke CI job. Compared as raw bytes via cmp, not through
+# "$(cat ...)": command substitution strips every trailing newline on both
+# sides, which would mask a trailing-newline-only drift in the fixture -
+# a real difference the semgrep-smoke job's own byte-for-byte scan would see.
+fixture_file="${work_dir}/fixture.js"
+build_minified_fixture "${fixture_file}"
+expected_file="${work_dir}/expected.js"
+printf 'function f(a,b,c){return a+b+c;}%.0s' {1..80} > "${expected_file}"
+cmp -s "${expected_file}" "${fixture_file}" && fixture_cmp_result="match" || fixture_cmp_result="differ"
+assert_eq "build_minified_fixture() writes the expected literal fixture" "match" "${fixture_cmp_result}"
+
 assert_pass() {
     local description="$1"
     local fixture="$2"
