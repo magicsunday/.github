@@ -124,12 +124,9 @@ assert_eq "sanitize_for_annotation: percent-encoded CRLF is escaped, not decoded
     "$(sanitize_for_annotation "evil%0D%0A::error::forged/.semgrepignore")"
 
 # assert_no_semgrepignore() is the exact wiring code-scanning.yml's guard
-# step calls - the command substitution, the `||` failure handling and the
-# `-n` check - not just its two constituent functions. A prior version of
-# this test file exercised only find_semgrepignore_files() and
-# sanitize_for_annotation() individually, so a later edit that dropped the
-# `||` block or reversed the `-n` check would have passed every case here
-# while leaving the workflow step's actual fail-closed behaviour broken.
+# step calls - see that function's own comment (semgrepignore-guard.sh) for
+# why this exercises the wiring itself, not just its two constituent
+# functions.
 case_dir="$(mktemp -d "${work_dir}/case-XXXXXX")" || exit 1
 cd "${case_dir}" || exit 1
 output="$(assert_no_semgrepignore 2>&1)"
