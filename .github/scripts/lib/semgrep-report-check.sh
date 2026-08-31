@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
-# Sourced by code-scanning.yml's "Run Semgrep" step and by
-# .github/scripts/tests/test-semgrep-report-check.sh, so the workflow and its
-# test drive the same file rather than two copies that can drift apart.
+# Sourced by code-scanning.yml's "Run Semgrep" step, by lint.yml's
+# semgrep-smoke job, and by .github/scripts/tests/test-semgrep-report-check.sh,
+# so the workflows and their test drive the same file rather than copies that
+# can drift apart.
+
+# Writes a fixture crossing the pinned engine's own minified-file thresholds
+# (`< 7% whitespace, or ... average of > 1000 bytes per line` - `semgrep scan
+# --help | grep -A2 "Skip minified files"`) to the path given as $1. Shared by
+# the manual re-derive recipe inside assert_semgrep_report_complete() below
+# and lint.yml's semgrep-smoke job, so the fixture the job actually scans and
+# the recipe a reader re-derives by hand cannot drift apart.
+build_minified_fixture() {
+    printf 'function f(a,b,c){return a+b+c;}%.0s' {1..80} > "$1"
+}
 
 # Fails unless Semgrep's --json-output report shows a complete scan. Prints
 # exactly one `::error::` workflow annotation on failure (so a raw newline or
@@ -51,7 +62,8 @@ assert_semgrep_report_complete() {
     #
     # — holding a token `p/secrets` matches:
     #
-    #   printf 'function f(a,b,c){return a+b+c;}%.0s' {1..80} > b.js
+    #   source .github/scripts/lib/semgrep-report-check.sh
+    #   build_minified_fixture b.js
     #   printf 'var k="%s%s";' 'AKIA' 'ABCDEFGHIJKLMNOP' >> b.js
     #   semgrep scan --config p/secrets --json-output=j.json \
     #       --verbose --metrics off b.js

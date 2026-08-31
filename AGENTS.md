@@ -118,11 +118,13 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   Code scanning reads what an uploaded report omits as *fixed*, so a scan that
   quietly covered less than the tree retires real alerts, and an exit code does not
   carry that. `code-scanning.yml` sources `.github/scripts/lib/semgrep-report-check.sh`
-  to check a skip inventory; its comments hold the mechanics and the commands that
-  re-derive them. Two prohibitions before you edit it: do not drop the flags it calls
-  load-bearing, and do not turn its allow list of tolerated skip reasons into a deny
-  list — widen that list only for a reason meaning the file was never a scan target
-  or its content cannot carry a finding any rule could make, and only against the
+  to check a skip inventory, and `lint.yml`'s `semgrep-smoke` job sources the same
+  file for its `build_minified_fixture()` helper; its comments hold the mechanics
+  and the commands that re-derive them. Two prohibitions before you edit it: do not
+  drop the flags it calls load-bearing, and do not turn its allow list of tolerated
+  skip reasons into a deny list — widen that list only for a reason meaning the
+  file was never a scan target or its content cannot carry a finding any rule
+  could make, and only against the
   engine's own definition. `minified` was carried as a tolerated exception to both
   grounds until issue #50 verified against the pinned engine that it cannot occur
   through this workflow's invocation — it is not on the list.

@@ -70,6 +70,67 @@ jobs:
 
                   exit "${failed}"
 
+    semgrep-smoke:
+        name: Run the pinned Semgrep engine against a bundle-like fixture
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            - name: Set up Python
+              uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+              with:
+                  python-version: '3.12'
+
+            # test-semgrep-report-check.sh exercises assert_semgrep_report_complete()
+            # against hand-written JSON fixtures - it pins the gate's own logic, but
+            # never runs the actual pinned engine, so an engine bump that changed what
+            # a real scan's skip inventory looks like would pass that suite unnoticed.
+            # This step runs the pinned engine itself against a fixture built to
+            # cross its own minified-file thresholds (`< 7% whitespace, or ... average
+            # of > 1000 bytes per line` - `semgrep scan --help | grep -A2 "Skip
+            # minified files"`), reproducing semgrep-report-check.sh's own re-derive
+            # recipe for the claim that `minified` cannot occur through this
+            # workflow's invocation (issue #50). The rule config is a trivial local
+            # pattern rather than a `p/*` registry pack: those packs are live,
+            # unpinned and fetched from the Semgrep registry (AGENTS.md, "cannot be
+            # pinned or vendored"), which is exactly the flakiness a required check
+            # should not carry - a registry-backed assertion belongs in an optional,
+            # non-blocking step instead (issue #67).
+            - name: Install the pinned engine and scan a bundle-like fixture
+              run: |
+                  set -euo pipefail
+                  pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/semgrep.txt
+
+                  # shellcheck source=scripts/lib/semgrep-report-check.sh
+                  source .github/scripts/lib/semgrep-report-check.sh
+                  build_minified_fixture bundle.js
+
+                  cat > smoke-rule.yml <<'RULE'
+                  rules:
+                      - id: smoke-test-noop
+                        languages: [javascript]
+                        message: noop rule for the smoke test - only the skip inventory below is asserted
+                        severity: INFO
+                        pattern: $FUNC(...)
+                  RULE
+
+                  semgrep scan --config smoke-rule.yml --json-output=smoke.json --verbose --metrics off bundle.js
+
+                  skipped="$(jq -c '.paths.skipped' smoke.json)"
+                  if [ "$skipped" != "[]" ]; then
+                      echo "::error::The pinned engine skipped the bundle-like fixture - 'minified' may be reachable again, which semgrep-report-check.sh omits on the ground it is not: ${skipped}"
+                      exit 1
+                  fi
+
+                  echo "Pinned engine scanned the bundle-like fixture with no skips."
+
     shell-tests:
         name: Shell logic tests
         runs-on: ubuntu-latest
