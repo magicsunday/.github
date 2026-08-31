@@ -40,7 +40,7 @@ assert_eq() {
 
 # Fails with "FAIL: expected file not found: $1" and increments `failures`
 # unless "$1" exists -- the same file-existence guard
-# test-semgrepignore-prune-matches-excludes.sh and test-lib-source-cp-drift.sh
+# test-semgrep-prune-dirs.sh and test-lib-source-cp-drift.sh
 # each had inline before this was extracted, both checking their own
 # drift-guard inputs exist before comparing them.
 require_file() {
@@ -52,7 +52,7 @@ require_file() {
 
 # Fails with "FAIL: $2" and increments `failures` unless "$1" is non-empty --
 # the same drift-guard extraction-sanity check
-# test-semgrepignore-prune-matches-excludes.sh and test-lib-source-cp-drift.sh
+# test-semgrep-prune-dirs.sh and test-lib-source-cp-drift.sh
 # each had inline before this was extracted: a blind regex/shape change on
 # BOTH sides of a comparison would otherwise leave two empty strings that
 # assert_eq sees as equal, certifying a comparison that never ran.
@@ -61,4 +61,17 @@ assert_nonempty() {
         echo "FAIL: $2"
         failures=$((failures + 1))
     fi
+}
+
+# Prints the lines from the first line matching "$1" through the first
+# subsequent line matching "$2" (inclusive) out of file "$3" -- the
+# `sed -n '/start/,/end/p'` idiom test-semgrep-prune-dirs.sh and
+# test-lib-source-cp-drift.sh each had inline before this was extracted, to
+# pull a function's or a workflow step's body out for further grepping.
+extract_block() {
+    local start="$1"
+    local end="$2"
+    local file="$3"
+
+    sed -n "/${start}/,/${end}/p" "${file}"
 }

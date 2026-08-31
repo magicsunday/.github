@@ -6,14 +6,16 @@
 
 # shellcheck source=annotation-sanitize.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
+# shellcheck source=semgrep-prune-dirs.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/semgrep-prune-dirs.sh"
 
 # Prints every `.semgrepignore` path found in the checkout, one per line,
-# except one under `.git`, `vendor`, `node_modules` or `.build`. Those four
-# are pruned BY NAME rather than by top-level path, so a nested instance
-# (e.g. `packages/vendor/.semgrepignore`) is exempted too, matching the
-# any-depth (gitignore-style, unanchored) reach of the sibling Run Semgrep
-# step's own `--exclude vendor`/`--exclude node_modules`/`--exclude .build`
-# flags — a `.semgrepignore` inside a directory those flags already remove,
+# except one under `.git` or a directory named in SEMGREP_PRUNE_DIRS
+# (semgrep-prune-dirs.sh). Those are pruned BY NAME rather than by
+# top-level path, so a nested instance (e.g. `packages/vendor/.semgrepignore`)
+# is exempted too, matching the any-depth (gitignore-style, unanchored) reach
+# of the sibling Run Semgrep step's own `--exclude` flags built from the same
+# array — a `.semgrepignore` inside a directory those flags already remove,
 # at any depth, from what gets scanned cannot affect the result either way.
 # Re-derive the any-depth claim, in a scratch git checkout:
 #
@@ -31,7 +33,13 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # without following it, so a broken `.semgrepignore` symlink is caught
 # without a separate code path.
 find_semgrepignore_files() {
-    find . \( -name '.git' -o -name 'vendor' -o -name 'node_modules' -o -name '.build' \) -prune -o -name '.semgrepignore' -print
+    local -a prune_names=(-name '.git')
+    local dir
+    for dir in "${SEMGREP_PRUNE_DIRS[@]}"; do
+        prune_names+=(-o -name "${dir}")
+    done
+
+    find . \( "${prune_names[@]}" \) -prune -o -name '.semgrepignore' -print
 }
 
 # Runs the complete .semgrepignore guard code-scanning.yml's "Check the

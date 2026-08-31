@@ -97,6 +97,7 @@ jobs:
                   cp .magicsunday-shared/.github/scripts/lib/semgrepignore-guard.sh "$SCRIPT_LIB/"
                   cp .magicsunday-shared/.github/scripts/lib/annotation-sanitize.sh "$SCRIPT_LIB/"
                   cp .magicsunday-shared/.github/scripts/lib/retry.sh "$SCRIPT_LIB/"
+                  cp .magicsunday-shared/.github/scripts/lib/semgrep-prune-dirs.sh "$SCRIPT_LIB/"
                   rm -rf .magicsunday-shared
 
             # A repository-local `.semgrepignore` reaches the same outcome as
@@ -203,24 +204,31 @@ jobs:
               run: |
                   set -euo pipefail
 
-                  # All three functions sourced below are the actual shipped
-                  # text, not a copy of it: .github/scripts/tests/ sources the
-                  # same files from this repository's own tree, so a test
-                  # failure there means this step would fail identically.
+                  # All four functions/arrays sourced below are the actual
+                  # shipped text, not a copy of it: .github/scripts/tests/
+                  # sources the same files from this repository's own tree,
+                  # so a test failure there means this step would fail
+                  # identically.
                   # shellcheck source=scripts/lib/semgrep-excludes.sh
                   source "$SCRIPT_LIB/semgrep-excludes.sh"
                   # shellcheck source=scripts/lib/semgrep-report-check.sh
                   source "$SCRIPT_LIB/semgrep-report-check.sh"
                   # shellcheck source=scripts/lib/retry.sh
                   source "$SCRIPT_LIB/retry.sh"
+                  # shellcheck source=scripts/lib/semgrep-prune-dirs.sh
+                  source "$SCRIPT_LIB/semgrep-prune-dirs.sh"
 
                   # The caller's list is consumed from the environment rather
                   # than inlined into the command, so a value cannot inject
                   # shell; build_semgrep_exclude_args() keeps every pattern
                   # literal rather than letting the shell glob it against the
                   # runner's checkout — see semgrep-excludes.sh for the
-                  # measured divergence this guards against.
+                  # measured divergence this guards against. SEMGREP_PRUNE_DIRS
+                  # (semgrep-prune-dirs.sh) is fed through the same helper so
+                  # attempt_semgrep_scan() below needs no --exclude flags of
+                  # its own for the directories that array names.
                   extra=()
+                  build_semgrep_exclude_args "${SEMGREP_PRUNE_DIRS[*]}"
                   build_semgrep_exclude_args "${EXTRA_EXCLUDES:-}"
 
                   # Discarding stdout is not tidiness. Asking for the report by
@@ -290,9 +298,6 @@ jobs:
                           --json-output="$JSON_FILE" \
                           --verbose \
                           --exclude '*.min.js' \
-                          --exclude vendor \
-                          --exclude node_modules \
-                          --exclude .build \
                           "${extra[@]}" \
                           --metrics off > /dev/null
                   }
