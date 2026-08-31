@@ -39,20 +39,42 @@ if [ "${failures}" -gt 0 ]; then
     report_and_exit "semgrepignore prune/exclude drift-guard test"
 fi
 
+# Scoped to each function's own body (opening line to its first
+# standalone closing brace) rather than grepping the whole file - a
+# grep with no such boundary would also match `-name`/`--exclude` text
+# sitting in a comment elsewhere in either file, which is not the
+# invocation this test means to compare.
+guard_body="$(sed -n '/find_semgrepignore_files() {/,/^[[:space:]]*}[[:space:]]*$/p' "${GUARD_FILE}")"
+scan_body="$(sed -n '/attempt_semgrep_scan() {/,/^[[:space:]]*}[[:space:]]*$/p' "${WORKFLOW_FILE}")"
+
 # Every `-name 'X'` in the guard's find expression, minus `.git` (excluded
 # for an unrelated reason - git ls-files target enumeration, not a
 # --exclude flag - so it has no counterpart on the scan side) and
 # `.semgrepignore` itself (the search target, not a pruned directory).
-guard_dirs="$(grep -o "\-name '[^']*'" "${GUARD_FILE}" \
+guard_dirs="$(printf '%s' "${guard_body}" | grep -o "\-name '[^']*'" \
     | grep -o "'[^']*'" | tr -d "'" \
     | grep -Ev '^\.git$|^\.semgrepignore$' | sort -u)"
 
-# Every `--exclude X` in the workflow, minus the one glob pattern
+# Every `--exclude X` in the scan invocation, minus the one glob pattern
 # (*.min.js) - it names a file suffix, not a directory, so it has no
 # counterpart on the guard side either.
-scan_dirs="$(grep -oE -- "--exclude '[^']*'|--exclude [A-Za-z0-9_./*-]+" "${WORKFLOW_FILE}" \
+scan_dirs="$(printf '%s' "${scan_body}" | grep -oE -- "--exclude '[^']*'|--exclude [A-Za-z0-9_./*-]+" \
     | sed -E "s/--exclude //; s/'//g" \
     | grep -vx '\*\.min\.js' | sort -u)"
+
+# A non-empty/baseline check is deliberate, not redundant with assert_eq:
+# if BOTH extractions went blind at once (e.g. either function got
+# reformatted past what these patterns match), guard_dirs and scan_dirs
+# would both be empty strings, assert_eq would see "" == "" and pass, and
+# the test would certify a comparison it never actually performed.
+if [ -z "${guard_dirs}" ]; then
+    echo "FAIL: extracted no -name entries from find_semgrepignore_files() in ${GUARD_FILE} - regex or function shape changed"
+    failures=$((failures + 1))
+fi
+if [ -z "${scan_dirs}" ]; then
+    echo "FAIL: extracted no --exclude entries from attempt_semgrep_scan() in ${WORKFLOW_FILE} - regex or function shape changed"
+    failures=$((failures + 1))
+fi
 
 assert_eq "guard's prune list matches the Run Semgrep step's --exclude directories" \
     "${scan_dirs}" "${guard_dirs}"

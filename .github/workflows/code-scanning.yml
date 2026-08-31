@@ -138,15 +138,12 @@ jobs:
                   source "$SCRIPT_LIB/semgrepignore-guard.sh"
                   matches=$(find_semgrepignore_files)
                   if [ -n "$matches" ]; then
-                      # A caller-controlled path can carry an embedded carriage
-                      # return, which some log parsers treat as a line
-                      # boundary the same way a newline is - `tr '\n' ' '`
-                      # alone would leave that byte in place. Mapping every
-                      # control character to a space, not just newline,
-                      # closes both at once and still joins multiple paths
-                      # readably (mirrors semgrep-report-check.sh's
-                      # `tr '[:cntrl:]' '?'` sanitisation of report-derived text).
-                      safe_matches="$(printf '%s' "$matches" | tr '[:cntrl:]' '?' | tr '?' ' ')"
+                      # sanitize_for_annotation() (semgrepignore-guard.sh) keeps
+                      # a caller-controlled path from forging a second
+                      # annotation line via an embedded control character -
+                      # see that function's own comment for why plain
+                      # `tr '\n' ' '` is not enough.
+                      safe_matches="$(sanitize_for_annotation "$matches")"
                       echo "::error::This repository contains a .semgrepignore file (${safe_matches}), which replaces Semgrep's built-in ignore list instead of adding to it and cannot be told apart from the engine defaults in the report - declare exclusions via this workflow's 'excludes' input instead, then delete the file."
                       exit 1
                   fi

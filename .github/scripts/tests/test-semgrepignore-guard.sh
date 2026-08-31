@@ -101,4 +101,21 @@ mkdir -p .git vendor node_modules .build packages/vendor
 assert_matches "pruned dirs (incl. nested vendor/) never match"
 cd "${original_dir}" || exit 1
 
+# sanitize_for_annotation() is what stands between a caller-controlled path
+# and the ::error:: annotation code-scanning.yml builds from it - these
+# cases pin the exact control characters that motivated it (a bare CR is
+# a line terminator to the runner's .NET-based log reader just as LF is,
+# so both have to go, not only the one `tr '\n' ' '` alone would catch).
+assert_eq "sanitize_for_annotation: plain text is unchanged" \
+    "sub/.semgrepignore" "$(sanitize_for_annotation "sub/.semgrepignore")"
+assert_eq "sanitize_for_annotation: newline-joined paths become space-joined" \
+    "a/.semgrepignore b/.semgrepignore" \
+    "$(sanitize_for_annotation "$(printf 'a/.semgrepignore\nb/.semgrepignore')")"
+assert_eq "sanitize_for_annotation: embedded carriage return is neutralised" \
+    "evil dir/.semgrepignore" \
+    "$(sanitize_for_annotation "$(printf 'evil\rdir/.semgrepignore')")"
+assert_eq "sanitize_for_annotation: embedded tab is neutralised" \
+    "evil dir/.semgrepignore" \
+    "$(sanitize_for_annotation "$(printf 'evil\tdir/.semgrepignore')")"
+
 report_and_exit "semgrepignore-guard tests"
