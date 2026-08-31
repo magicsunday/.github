@@ -13,9 +13,9 @@
 # the $SCRIPT_LIB copy the workflow actually performs) would stay green
 # while the workflow step fails at real GitHub Actions runtime with
 # "No such file or directory", since the sourced sibling was never staged
-# into $SCRIPT_LIB alongside it. Mirrors the same drift-guard shape as
-# test-semgrepignore-prune-matches-excludes.sh, for a different pair of
-# hand-maintained lists.
+# into $SCRIPT_LIB alongside it. Mirrors the same sourcing-wiring shape
+# test-semgrep-prune-dirs.sh checks on the workflow-step side of a
+# comparable dependency.
 #
 # Run via run-tests.sh.
 set -uo pipefail
@@ -46,7 +46,7 @@ sourced_deps="$(grep -ho 'source "\$(cd "\$(dirname "\${BASH_SOURCE\[0\]}")" && 
 # Every file the "Install Semgrep" step copies into $SCRIPT_LIB, scoped to
 # that step's own body so a `cp` line elsewhere in the workflow (there is
 # none today) cannot be mistaken for this step's copy list.
-install_step_body="$(sed -n '/- name: Install Semgrep/,/- name:/p' "${WORKFLOW_FILE}")"
+install_step_body="$(extract_block '- name: Install Semgrep' '- name:' "${WORKFLOW_FILE}")"
 copied_files="$(printf '%s' "${install_step_body}" | grep -oE 'cp \.magicsunday-shared/\.github/scripts/lib/[A-Za-z0-9_-]+\.sh' \
     | grep -o '[A-Za-z0-9_-]*\.sh$' | sort -u)"
 
