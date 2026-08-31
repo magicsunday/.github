@@ -137,7 +137,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   request, so a regression in that logic fails CI before it reaches a caller — a
   workflow-only copy could drift silently, since nothing else re-checks a `run:`
   block. `code-scanning.yml` is migrated this way (`semgrep-excludes.sh`,
-  `semgrep-report-check.sh`, `semgrepignore-guard.sh`, `retry.sh`), as is
+  `semgrep-report-check.sh`, `semgrepignore-guard.sh`, `annotation-sanitize.sh`,
+  `retry.sh`), as is
   `ai-issue-labeler.yml` (`ai-issue-labeler.sh` — request construction and
   response parsing); `yamllint.yml` and `i18n.yml` carry comparable inline
   `run:` logic that was deliberately left un-migrated when this convention was

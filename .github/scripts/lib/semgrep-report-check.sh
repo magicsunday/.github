@@ -4,6 +4,9 @@
 # so the workflows and their test drive the same file rather than copies that
 # can drift apart.
 
+# shellcheck source=annotation-sanitize.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
+
 # Writes a fixture crossing the pinned engine's own minified-file thresholds
 # (see the re-derive recipe inside assert_semgrep_report_complete() below for
 # the exact wording and command) to the path given as $1. Shared by that
@@ -160,17 +163,21 @@ assert_semgrep_report_complete() {
     #
     # jq's own diagnostic (which value crashed the filter, and why) is kept
     # rather than discarded: it is captured into a temp file instead of
-    # `2>/dev/null`, run through the same two substitutions applied to a
-    # `.path` value above (a raw excerpt could otherwise carry unsanitised
-    # report content into the annotation) via bash builtins rather than a
-    # second jq process - a second jq invocation here would itself need its
-    # own fail-closed handling under this function's caller, which runs with
-    # `set -e` - truncated, and folded into the single `::error::` line
-    # below. `cat` and `tr` are guarded the same way for the same reason:
-    # every command between creating the temp file and removing it must
-    # degrade to a placeholder rather than abort the script, or the whole
-    # point of this branch - printing one attributable annotation - is lost
-    # to a bare `set -e` exit instead. `rm -f` needs the same `|| true`
+    # `2>/dev/null`, run through sanitize_for_annotation() (annotation-sanitize.sh,
+    # sourced above) - the `.path` gsub pipeline below applies the same
+    # escape-then-fold strategy in jq (a SEPARATE implementation, not
+    # byte-identical across the full input space - issue #80), so a raw
+    # excerpt cannot carry unsanitised report content into the annotation
+    # while staying inside this bash script rather than spinning up a
+    # second jq process - a second jq invocation here would
+    # itself need its own fail-closed handling under this function's caller,
+    # which runs with `set -e` - truncated, and folded into the single
+    # `::error::` line below. `cat`
+    # and `sanitize_for_annotation` are guarded the same way for the same
+    # reason: every command between creating the temp file and removing it
+    # must degrade to a placeholder rather than abort the script, or the
+    # whole point of this branch - printing one attributable annotation - is
+    # lost to a bare `set -e` exit instead. `rm -f` needs the same `|| true`
     # guard for the identical reason, despite `-f` in its name: `-f`
     # suppresses only the missing-file case, not a genuine permission or
     # filesystem error, which still exits non-zero - reproduced directly
@@ -202,15 +209,14 @@ assert_semgrep_report_complete() {
                 | select(($allowed | index($reason)) == null)
                 | ((.path // "(no path)")
                     | gsub("%"; "%25")
-                    | gsub("[[:cntrl:]]"; "?")) as $path
+                    | gsub("[[:cntrl:]]"; " ")) as $path
                 | "\($path): \($reason)"]
         end
         | join("%0A")
     ' "$json_file" 2>"$jq_stderr_file")" || {
         local jq_error
         jq_error="$(cat "$jq_stderr_file" 2>/dev/null)" || jq_error="(diagnostic unavailable)"
-        jq_error="${jq_error//%/%25}"
-        jq_error="$(printf '%s' "${jq_error}" | tr '[:cntrl:]' '?' 2>/dev/null)" || jq_error="(diagnostic unavailable)"
+        jq_error="$(sanitize_for_annotation "${jq_error}" 2>/dev/null)" || jq_error="(diagnostic unavailable)"
         if [ "${#jq_error}" -gt 200 ]; then
             jq_error="${jq_error:0:197}..."
         fi

@@ -187,11 +187,13 @@ assert_fail "a diagnostic past the 200-character budget is truncated, still one 
 # bytes are not valid inside a JSON string. The substring check confirms the
 # sanitised text itself, not just the annotation's shape - a gsub() dropped
 # from the library still produces one line and one ::error::, so only the
-# content check catches it.
+# content check catches it. The control byte folds to a space, not `?`
+# (issue #78) - `?` collides with a literal `?` a path may legally contain,
+# which is what the case below this one pins.
 weird_path="${work_dir}/weird-path.json"
 weird_value=$'weird%path\x01name'
 jq -n --arg p "${weird_value}" '{paths: {scanned: ["a.php"], skipped: [{path: $p, reason: "some_bad_reason"}]}}' > "${weird_path}"
-assert_fail "path with percent sign and control character stays one annotation" "${weird_path}" "weird%25path?name: some_bad_reason"
+assert_fail "path with percent sign and control character stays one annotation" "${weird_path}" "weird%25path name: some_bad_reason"
 
 # The library's own docstring names a raw newline as the specific character
 # that would end a workflow annotation early and leave the rest as an
@@ -200,7 +202,17 @@ assert_fail "path with percent sign and control character stays one annotation" 
 newline_path="${work_dir}/newline-path.json"
 newline_value=$'line1\nline2'
 jq -n --arg p "${newline_value}" '{paths: {scanned: ["a.php"], skipped: [{path: $p, reason: "some_bad_reason"}]}}' > "${newline_path}"
-assert_fail "path with a raw newline stays one annotation" "${newline_path}" "line1?line2: some_bad_reason"
+assert_fail "path with a raw newline stays one annotation" "${newline_path}" "line1 line2: some_bad_reason"
+
+# A literal `?` in a path must survive intact rather than collide with a
+# control byte folded to the same placeholder character - the exact
+# collision the old `gsub("[[:cntrl:]]"; "?")` shape produced here before
+# issue #78 fixed it, mirroring the case test-annotation-sanitize.sh pins for
+# the bash-side sanitizer this jq-level gsub deliberately matches.
+literal_question_mark_path="${work_dir}/literal-question-mark-path.json"
+literal_question_mark_value=$'sub?\x01dir'
+jq -n --arg p "${literal_question_mark_value}" '{paths: {scanned: ["a.php"], skipped: [{path: $p, reason: "some_bad_reason"}]}}' > "${literal_question_mark_path}"
+assert_fail "a literal question mark next to a folded control byte stays distinguishable" "${literal_question_mark_path}" "sub? dir: some_bad_reason"
 
 # The temp file mktemp creates for jq's stderr is only useful for the
 # duration of one crash-path evaluation - assert it does not survive past
