@@ -47,24 +47,24 @@ assert_matches() {
 # Every case gets its OWN fresh directory - `rm -rf dir/*` does not remove
 # dotfiles (the glob does not match a leading dot), so reusing one directory
 # and globbing it clean between cases would silently leak a `.semgrepignore`
-# from one case into the next. The explicit `|| exit 1` matters here: this
-# script runs under `set -uo pipefail` only, not `set -e`, and `cd ""` on a
-# failed mktemp's empty output succeeds silently in bash rather than failing
-# - leaving a later assertion running from whatever directory was already
-# current instead of the isolated one it expects, exactly the leak this
-# design exists to prevent.
+# from one case into the next. `fresh_case_dir()` itself carries no `|| exit`
+# guard: it is only ever called as `case_dir="$(fresh_case_dir)"`, and that
+# `$(...)` runs the function in a SUBSHELL - an `exit` inside it would only
+# end that subshell, not this script, leaving `case_dir` empty and silently
+# continuing (`cd ""` succeeds under `set -uo pipefail` without `set -e`,
+# exactly the leak this per-case-directory design exists to prevent). The
+# guard has to live at each call site instead, where `||` sees the real exit
+# status of the substitution.
 fresh_case_dir() {
-    local dir
-    dir="$(mktemp -d "${work_dir}/case-XXXXXX")" || exit 1
-    printf '%s' "${dir}"
+    mktemp -d "${work_dir}/case-XXXXXX"
 }
 
-case_dir="$(fresh_case_dir)"
+case_dir="$(fresh_case_dir)" || exit 1
 cd "${case_dir}" || exit 1
 assert_matches "clean tree: no match"
 cd "${original_dir}" || exit 1
 
-case_dir="$(fresh_case_dir)"
+case_dir="$(fresh_case_dir)" || exit 1
 cd "${case_dir}" || exit 1
 : > .semgrepignore
 assert_matches "root-level file caught" ".semgrepignore"
@@ -73,7 +73,7 @@ cd "${original_dir}" || exit 1
 # The exact case a root-only `test -e .semgrepignore` shipped once without
 # catching (issue #48 round 1) - Semgrepignore v2 honors a `.semgrepignore`
 # at any directory level, so the guard has to walk the tree.
-case_dir="$(fresh_case_dir)"
+case_dir="$(fresh_case_dir)" || exit 1
 cd "${case_dir}" || exit 1
 mkdir -p sub
 : > sub/.semgrepignore
@@ -83,7 +83,7 @@ cd "${original_dir}" || exit 1
 # A dangling symlink is matched by name, not by a successful stat of its
 # target - find_semgrepignore_files() relies on that rather than a separate
 # code path.
-case_dir="$(fresh_case_dir)"
+case_dir="$(fresh_case_dir)" || exit 1
 cd "${case_dir}" || exit 1
 ln -s /nonexistent-target .semgrepignore
 assert_matches "dangling symlink caught" ".semgrepignore"
@@ -95,7 +95,7 @@ cd "${original_dir}" || exit 1
 # either, so a `.semgrepignore` inside any of them cannot affect the result.
 # Pruned by name (not by top-level path), so this holds for a NESTED
 # instance too, matching those flags' own any-depth reach.
-case_dir="$(fresh_case_dir)"
+case_dir="$(fresh_case_dir)" || exit 1
 cd "${case_dir}" || exit 1
 mkdir -p .git vendor node_modules .build packages/vendor
 : > .git/.semgrepignore
