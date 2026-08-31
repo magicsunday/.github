@@ -136,7 +136,17 @@ jobs:
                   set -euo pipefail
                   # shellcheck source=scripts/lib/semgrepignore-guard.sh
                   source "$SCRIPT_LIB/semgrepignore-guard.sh"
-                  matches=$(find_semgrepignore_files)
+                  # `find` inside find_semgrepignore_files() can itself fail
+                  # (e.g. an unreadable subtree), and this runs under -e: an
+                  # unguarded assignment would abort the step on find's own
+                  # raw stderr instead of an actionable message - the same
+                  # degrade-to-a-placeholder-rather-than-abort shape
+                  # semgrep-report-check.sh's jq call already applies a few
+                  # steps later in this same job (issues #65, #69).
+                  matches=$(find_semgrepignore_files) || {
+                      echo "::error::Could not check the repository for a .semgrepignore file - see this step's own output above for the underlying error."
+                      exit 1
+                  }
                   if [ -n "$matches" ]; then
                       # sanitize_for_annotation() (semgrepignore-guard.sh) keeps
                       # a caller-controlled path from forging a second
