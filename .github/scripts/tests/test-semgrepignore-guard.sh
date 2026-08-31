@@ -123,4 +123,42 @@ assert_eq "sanitize_for_annotation: percent-encoded CRLF is escaped, not decoded
     "evil%250D%250A::error::forged/.semgrepignore" \
     "$(sanitize_for_annotation "evil%0D%0A::error::forged/.semgrepignore")"
 
+# assert_no_semgrepignore() is the exact wiring code-scanning.yml's guard
+# step calls - the command substitution, the `||` failure handling and the
+# `-n` check - not just its two constituent functions. A prior version of
+# this test file exercised only find_semgrepignore_files() and
+# sanitize_for_annotation() individually, so a later edit that dropped the
+# `||` block or reversed the `-n` check would have passed every case here
+# while leaving the workflow step's actual fail-closed behaviour broken.
+case_dir="$(mktemp -d "${work_dir}/case-XXXXXX")" || exit 1
+cd "${case_dir}" || exit 1
+output="$(assert_no_semgrepignore 2>&1)"
+rc=$?
+assert_eq "assert_no_semgrepignore: clean tree returns success" "0" "${rc}"
+assert_eq "assert_no_semgrepignore: clean tree prints nothing" "" "${output}"
+cd "${original_dir}" || exit 1
+
+case_dir="$(mktemp -d "${work_dir}/case-XXXXXX")" || exit 1
+cd "${case_dir}" || exit 1
+: > .semgrepignore
+output="$(assert_no_semgrepignore 2>&1)"
+rc=$?
+assert_eq "assert_no_semgrepignore: existing file fails closed" "1" "${rc}"
+assert_eq "assert_no_semgrepignore: existing file emits the found annotation" \
+    "::error::This repository contains a .semgrepignore file (./.semgrepignore), which replaces Semgrep's built-in ignore list instead of adding to it and cannot be told apart from the engine defaults in the report - declare exclusions via this workflow's 'excludes' input instead, then delete the file." \
+    "${output}"
+cd "${original_dir}" || exit 1
+
+# Simulates find_semgrepignore_files() itself failing (e.g. an unreadable
+# subtree) by overriding it for the rest of this script - safe only because
+# this is the LAST case that needs the real function; a case added after
+# this one would silently run against the stub instead.
+find_semgrepignore_files() { return 1; }
+output="$(assert_no_semgrepignore 2>&1)"
+rc=$?
+assert_eq "assert_no_semgrepignore: a find failure fails closed" "1" "${rc}"
+assert_eq "assert_no_semgrepignore: a find failure emits the could-not-check annotation" \
+    "::error::Could not check the repository for a .semgrepignore file - see this step's own output above for the underlying error." \
+    "${output}"
+
 report_and_exit "semgrepignore-guard tests"

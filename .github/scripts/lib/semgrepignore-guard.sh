@@ -60,3 +60,37 @@ find_semgrepignore_files() {
 sanitize_for_annotation() {
     printf '%s' "$1" | sed 's/%/%25/g' | tr '[:cntrl:]' ' '
 }
+
+# Runs the complete .semgrepignore guard code-scanning.yml's "Check the
+# repository does not carry a .semgrepignore file" step wires up, and
+# returns non-zero if the repository fails it - fail-closed on the `find`
+# itself erroring, and fail-closed on a `.semgrepignore` actually being
+# found. Previously this assertion (the command substitution, the `||`
+# failure handling and the `-n` check) lived only in the workflow step's
+# `run:` block, so test-semgrepignore-guard.sh could exercise
+# find_semgrepignore_files() and sanitize_for_annotation() individually but
+# never the wiring between them - a later edit that dropped the `||` block
+# or reversed the `-n` check would have passed every test while leaving a
+# caller's `.semgrepignore` free to affect the scan.
+assert_no_semgrepignore() {
+    local matches
+    # `find` inside find_semgrepignore_files() can itself fail (e.g. an
+    # unreadable subtree); degrade to an actionable annotation rather than
+    # this function's own raw, unattributed failure - the same
+    # degrade-to-a-placeholder-rather-than-abort shape
+    # semgrep-report-check.sh's jq call already applies a few steps later in
+    # the same job (issues #65, #69).
+    matches=$(find_semgrepignore_files) || {
+        echo "::error::Could not check the repository for a .semgrepignore file - see this step's own output above for the underlying error."
+        return 1
+    }
+
+    if [ -n "$matches" ]; then
+        local safe_matches
+        safe_matches="$(sanitize_for_annotation "$matches")"
+        echo "::error::This repository contains a .semgrepignore file (${safe_matches}), which replaces Semgrep's built-in ignore list instead of adding to it and cannot be told apart from the engine defaults in the report - declare exclusions via this workflow's 'excludes' input instead, then delete the file."
+        return 1
+    fi
+
+    return 0
+}
