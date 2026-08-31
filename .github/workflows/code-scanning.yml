@@ -136,27 +136,12 @@ jobs:
                   set -euo pipefail
                   # shellcheck source=scripts/lib/semgrepignore-guard.sh
                   source "$SCRIPT_LIB/semgrepignore-guard.sh"
-                  # `find` inside find_semgrepignore_files() can itself fail
-                  # (e.g. an unreadable subtree), and this runs under -e: an
-                  # unguarded assignment would abort the step on find's own
-                  # raw stderr instead of an actionable message - the same
-                  # degrade-to-a-placeholder-rather-than-abort shape
-                  # semgrep-report-check.sh's jq call already applies a few
-                  # steps later in this same job (issues #65, #69).
-                  matches=$(find_semgrepignore_files) || {
-                      echo "::error::Could not check the repository for a .semgrepignore file - see this step's own output above for the underlying error."
-                      exit 1
-                  }
-                  if [ -n "$matches" ]; then
-                      # sanitize_for_annotation() (semgrepignore-guard.sh) keeps
-                      # a caller-controlled path from forging a second
-                      # annotation line via an embedded control character -
-                      # see that function's own comment for why plain
-                      # `tr '\n' ' '` is not enough.
-                      safe_matches="$(sanitize_for_annotation "$matches")"
-                      echo "::error::This repository contains a .semgrepignore file (${safe_matches}), which replaces Semgrep's built-in ignore list instead of adding to it and cannot be told apart from the engine defaults in the report - declare exclusions via this workflow's 'excludes' input instead, then delete the file."
-                      exit 1
-                  fi
+                  # assert_no_semgrepignore() (semgrepignore-guard.sh) carries
+                  # the complete fail-closed assertion - including the
+                  # find-failure fallback and the sanitize_for_annotation()
+                  # call - so test-semgrepignore-guard.sh exercises the exact
+                  # wiring this step relies on, not just its parts.
+                  assert_no_semgrepignore
 
             # Multi-language security rule sets — CodeQL does not support PHP, so
             # Semgrep covers the PHP surface plus JavaScript and generic secret
