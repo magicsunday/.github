@@ -101,18 +101,18 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   the `pip-tools` version the CI freshness check below installs itself comes from
   a pinned, Dependabot-tracked file rather than a bare inline `pip install`,
   which the "Pin every tool a workflow installs" rule above forbids. `lint.yml`'s
-  `pip-closures-fresh` job installs `pip-tools` from that closure, then for every
-  `.in` file present regenerates the matching `.txt` and diffs it against the
-  committed copy (`git diff --exit-code`), failing on any difference. It runs on
-  every pull request and on every push to `main`/`master` (`lint.yml`'s own
-  triggers), so a bumped `.in` with a forgotten regeneration no longer stays
-  green. This relies on `pip-compile` treating an already-committed output file
-  as its resolution baseline (no `--upgrade`) to avoid also firing on unrelated
-  upstream releases of transitive dependencies — this is the same
-  baseline-reuse behaviour described above, and carries the same caveat: it is
-  not a guarantee of byte-identical output across time, since pip-compile still
-  resolves transitive versions against whatever the live index currently serves
-  when a re-resolution is actually forced (a yanked release, a repinned hash).
+  `pip-closures-fresh` job installs `pip-tools` from that closure, checks every
+  committed `.txt` has a matching `.in` (an orphan of either fails the job), then
+  for every `.in` file present regenerates the matching `.txt`, stages it, and
+  diffs the STAGED copy against the committed one (`git add` then
+  `git diff --cached --exit-code`) — plain `git diff` is silent on an untracked
+  path, so this also catches a new `.in` whose `.txt` was never committed at
+  all, not only a stale one. It runs on every pull request and on every push to
+  `main`/`master` (`lint.yml`'s own triggers), so a bumped `.in` with a
+  forgotten regeneration no longer stays green. This relies on `pip-compile`
+  treating an already-committed output file as its resolution baseline (no
+  `--upgrade`), the same baseline-reuse behaviour — and the same caveat about
+  it — described above.
 - **A scan report is only uploaded once the report itself says it is complete.**
   Code scanning reads what an uploaded report omits as *fixed*, so a scan that
   quietly covered less than the tree retires real alerts, and an exit code does not

@@ -1,6 +1,6 @@
-# Pinned pip-tools version used to compile the OTHER hash-locked closures in
-# this directory (semgrep.txt, yamllint.txt) — see AGENTS.md for why the pin
-# lives here rather than as a bare inline `pip install` in a workflow step.
+# Pinned pip-tools version used to compile the other hash-locked closures in
+# this directory — see AGENTS.md for why the pin lives here rather than as a
+# bare inline `pip install` in a workflow step.
 #
 # pip-tools.txt is the compiled, hash-locked closure — never hand-edit it.
 # Regenerate after bumping the version below: search AGENTS.md for

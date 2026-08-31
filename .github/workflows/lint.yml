@@ -39,7 +39,10 @@ jobs:
             # See AGENTS.md, "hash-locked closure", for why pip-compile
             # without --upgrade only reports genuine .in drift here, rather
             # than also firing on unrelated upstream releases of transitive
-            # dependencies.
+            # dependencies. `git add` before the cached diff is load-bearing,
+            # not decoration: a plain `git diff` is silent on an untracked
+            # path, so a new .in whose .txt was never committed would
+            # otherwise false-green instead of failing.
             - name: Regenerate each closure and diff against the committed copy
               working-directory: .github/requirements
               run: |
@@ -47,10 +50,19 @@ jobs:
                   pip install --quiet --only-binary=:all: --require-hashes -r pip-tools.txt
 
                   failed=0
+                  for txt_file in *.txt; do
+                      name="${txt_file%.txt}"
+                      if [ ! -f "${name}.in" ]; then
+                          echo "::error::${txt_file} has no matching ${name}.in - remove the orphaned closure or restore its source."
+                          failed=1
+                      fi
+                  done
+
                   for in_file in *.in; do
                       name="${in_file%.in}"
                       pip-compile --allow-unsafe --generate-hashes --output-file="${name}.txt" "${in_file}"
-                      if ! git diff -u --exit-code -- "${name}.txt"; then
+                      git add -- "${name}.txt"
+                      if ! git diff --cached -u --exit-code -- "${name}.txt"; then
                           echo "::error::${name}.txt is not current with ${in_file} - regenerate it (see AGENTS.md, 'hash-locked closure')."
                           failed=1
                       fi
