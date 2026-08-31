@@ -16,11 +16,6 @@
 # reappeared. Mirrors the sourcing-wiring shape test-lib-source-cp-drift.sh
 # already checks for the cp side of the same dependency.
 #
-# The sourcing checks strip full-line comments before grepping (a `source`
-# mention inside a comment, e.g. this file's own prose above, must not
-# satisfy the "does it actually source the file" assertion - caught in
-# review, see the commit this file was introduced in).
-#
 # Run via run-tests.sh.
 set -uo pipefail
 
