@@ -53,13 +53,34 @@ jobs:
             # tell a caller's file apart from those defaults (issue #48).
             # Rejecting it here keeps exclusions visible in this run's log via
             # the `excludes` input instead of hidden in a file the report
-            # cannot distinguish. `-e` follows symlinks, so a dangling link of
-            # that name is rejected explicitly rather than left to the
-            # narrower test.
+            # cannot distinguish. Semgrepignore v2 (the pinned engine's
+            # default) honors a `.semgrepignore` at ANY directory level, not
+            # only the root, so a single root-only `test -e` would leave the
+            # exact channel this closes reachable one directory down -
+            # measured: a `sub/.semgrepignore` naming `bad.php` drops
+            # `sub/bad.php` from the scan with reason `semgrepignore_patterns_match`,
+            # identically to a root-level file, while a root-only check passes.
+            # `find -name` matches a dangling symlink by name without
+            # following it, so that case needs no separate test. `.git`,
+            # `vendor`, `node_modules` and `.build` are pruned because the Run
+            # Semgrep step below excludes them unconditionally - a file there
+            # cannot affect what actually gets scanned. Re-derive, in a git
+            # checkout:
+            #
+            #   mkdir -p sub && printf '<?php eval($_GET["x"]);\n' > sub/bad.php
+            #   printf 'bad.php\n' > sub/.semgrepignore && git add -Af .
+            #   semgrep scan --config p/php --json-output=j.json \
+            #       --verbose --metrics off
+            #   jq -r '.paths.skipped[] | "\(.path): \(.reason)"' j.json
+            #       # sub/bad.php: semgrepignore_patterns_match
             - name: Check the repository does not carry a .semgrepignore file
               run: |
                   set -euo pipefail
-                  { test ! -e .semgrepignore && test ! -L .semgrepignore; } || { echo "::error::This repository contains a .semgrepignore file, which replaces Semgrep's built-in ignore list instead of adding to it and cannot be told apart from the engine defaults in the report - declare exclusions via this workflow's 'excludes' input instead, then delete the file."; exit 1; }
+                  matches=$(find . \( -path './.git' -o -path './vendor' -o -path './node_modules' -o -path './.build' \) -prune -o -name '.semgrepignore' -print)
+                  if [ -n "$matches" ]; then
+                      echo "::error::This repository contains a .semgrepignore file ($(printf '%s' "$matches" | tr '\n' ' ')), which replaces Semgrep's built-in ignore list instead of adding to it and cannot be told apart from the engine defaults in the report - declare exclusions via this workflow's 'excludes' input instead, then delete the file."
+                      exit 1
+                  fi
 
             - name: Set up Python
               uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
