@@ -44,44 +44,6 @@ jobs:
               with:
                   persist-credentials: false
 
-            # A repository-local `.semgrepignore` reaches the same outcome as
-            # the `excludes` input above but REPLACES Semgrep's built-in
-            # ignore list rather than adding to it, silently widening what
-            # gets scanned everywhere else in that repository - and every
-            # skip it causes carries the same `semgrepignore_patterns_match`
-            # reason the engine's own defaults produce, so the report cannot
-            # tell a caller's file apart from those defaults (issue #48).
-            # Rejecting it here keeps exclusions visible in this run's log via
-            # the `excludes` input instead of hidden in a file the report
-            # cannot distinguish. Semgrepignore v2 (the pinned engine's
-            # default) honors a `.semgrepignore` at ANY directory level, not
-            # only the root, so a single root-only `test -e` would leave the
-            # exact channel this closes reachable one directory down -
-            # measured: a `sub/.semgrepignore` naming `bad.php` drops
-            # `sub/bad.php` from the scan with reason `semgrepignore_patterns_match`,
-            # identically to a root-level file, while a root-only check passes.
-            # `find -name` matches a dangling symlink by name without
-            # following it, so that case needs no separate test. `.git`,
-            # `vendor`, `node_modules` and `.build` are pruned because the Run
-            # Semgrep step below excludes them unconditionally - a file there
-            # cannot affect what actually gets scanned. Re-derive, in a git
-            # checkout:
-            #
-            #   mkdir -p sub && printf '<?php eval($_GET["x"]);\n' > sub/bad.php
-            #   printf 'bad.php\n' > sub/.semgrepignore && git add -Af .
-            #   semgrep scan --config p/php --json-output=j.json \
-            #       --verbose --metrics off
-            #   jq -r '.paths.skipped[] | "\(.path): \(.reason)"' j.json
-            #       # sub/bad.php: semgrepignore_patterns_match
-            - name: Check the repository does not carry a .semgrepignore file
-              run: |
-                  set -euo pipefail
-                  matches=$(find . \( -path './.git' -o -path './vendor' -o -path './node_modules' -o -path './.build' \) -prune -o -name '.semgrepignore' -print)
-                  if [ -n "$matches" ]; then
-                      echo "::error::This repository contains a .semgrepignore file ($(printf '%s' "$matches" | tr '\n' ' ')), which replaces Semgrep's built-in ignore list instead of adding to it and cannot be told apart from the engine defaults in the report - declare exclusions via this workflow's 'excludes' input instead, then delete the file."
-                      exit 1
-                  fi
-
             - name: Set up Python
               uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
               with:
@@ -132,8 +94,53 @@ jobs:
                   mkdir -p "$SCRIPT_LIB"
                   cp .magicsunday-shared/.github/scripts/lib/semgrep-excludes.sh "$SCRIPT_LIB/"
                   cp .magicsunday-shared/.github/scripts/lib/semgrep-report-check.sh "$SCRIPT_LIB/"
+                  cp .magicsunday-shared/.github/scripts/lib/semgrepignore-guard.sh "$SCRIPT_LIB/"
                   cp .magicsunday-shared/.github/scripts/lib/retry.sh "$SCRIPT_LIB/"
                   rm -rf .magicsunday-shared
+
+            # A repository-local `.semgrepignore` reaches the same outcome as
+            # the `excludes` input above but REPLACES Semgrep's built-in
+            # ignore list rather than adding to it, silently widening what
+            # gets scanned everywhere else in that repository - and every
+            # skip it causes carries the same `semgrepignore_patterns_match`
+            # reason the engine's own defaults produce, so the report cannot
+            # tell a caller's file apart from those defaults (issue #48).
+            # Rejecting it here keeps exclusions visible in this run's log via
+            # the `excludes` input instead of hidden in a file the report
+            # cannot distinguish. Semgrepignore v2 (the pinned engine's
+            # default) honors a `.semgrepignore` at ANY directory level, not
+            # only the root, so a root-only check would leave the exact
+            # channel this closes reachable one directory down - measured: a
+            # `sub/.semgrepignore` naming `bad.php` drops `sub/bad.php` from
+            # the scan with reason `semgrepignore_patterns_match`, identically
+            # to a root-level file. `find_semgrepignore_files()`
+            # (semgrepignore-guard.sh, sourced below) walks the whole
+            # checkout instead of testing a single path; see that file for
+            # why `.git`/`vendor`/`node_modules`/`.build` are pruned. This
+            # step runs after `Install Semgrep` rather than right after
+            # `Checkout`, because the function it sources only exists once
+            # that step has copied it out of the shared checkout - trading a
+            # slightly later failure for a guard `.github/scripts/tests/`
+            # can actually exercise. Re-derive, in a git checkout:
+            #
+            #   mkdir -p sub && printf '<?php eval($_GET["x"]);\n' > sub/bad.php
+            #   printf 'bad.php\n' > sub/.semgrepignore && git add -Af .
+            #   semgrep scan --config p/php --json-output=j.json \
+            #       --verbose --metrics off
+            #   jq -r '.paths.skipped[] | "\(.path): \(.reason)"' j.json
+            #       # sub/bad.php: semgrepignore_patterns_match
+            - name: Check the repository does not carry a .semgrepignore file
+              env:
+                  SCRIPT_LIB: ${{ runner.temp }}/semgrep-lib
+              run: |
+                  set -euo pipefail
+                  # shellcheck source=scripts/lib/semgrepignore-guard.sh
+                  source "$SCRIPT_LIB/semgrepignore-guard.sh"
+                  matches=$(find_semgrepignore_files)
+                  if [ -n "$matches" ]; then
+                      echo "::error::This repository contains a .semgrepignore file ($(printf '%s' "$matches" | tr '\n' ' ')), which replaces Semgrep's built-in ignore list instead of adding to it and cannot be told apart from the engine defaults in the report - declare exclusions via this workflow's 'excludes' input instead, then delete the file."
+                      exit 1
+                  fi
 
             # Multi-language security rule sets — CodeQL does not support PHP, so
             # Semgrep covers the PHP surface plus JavaScript and generic secret
