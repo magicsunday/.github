@@ -123,18 +123,12 @@ assert_eq "find_semgrepignore_files() builds prune_names from no literal beyond 
 # (run_semgrep_code), not just attempt_semgrep_scan()'s body: `extra=()` and
 # the build_semgrep_exclude_args() calls that populate it sit OUTSIDE that
 # function, at the step's top level, so a hardcoded `extra+=(--exclude
-# vendor)` added there - a plausible edit site, not the function - would
-# read as clean if only the function body were scanned (CodeRabbit finding,
-# PR #82). After the fix, everything SEMGREP_PRUNE_DIRS names reaches the
-# scan only via "${extra[@]}"; any literal --exclude beyond '*.min.js' found
-# anywhere in this step is a reintroduced hardcoded copy. A hardcoded
-# literal ARGUMENT passed directly to build_semgrep_exclude_args() (e.g.
-# `build_semgrep_exclude_args "vendor"` in place of
-# `"${SEMGREP_PRUNE_DIRS[*]}"`) contains no literal `--exclude` text and so
-# is not caught here - out of scope for the same reason the guard-side
-# bareword/multiline evasion is (see that comment above): a maintainer
-# willing to hand-craft that specific call to dodge this check could edit
-# the test itself just as easily.
+# vendor)` added there would read as clean if only the function body were
+# scanned. A hardcoded literal ARGUMENT passed directly to
+# build_semgrep_exclude_args() (e.g. `build_semgrep_exclude_args "vendor"`
+# in place of `"${SEMGREP_PRUNE_DIRS[*]}"`) contains no literal `--exclude`
+# text and so is not caught here - same out-of-scope reasoning as the
+# guard-side bareword/multiline evasion above.
 scan_literal_excludes="$(grep -oE -- "--exclude '[^']*'|--exclude \"[^\"\$]*\"|--exclude [A-Za-z0-9_./*-]+" <<<"${run_semgrep_code}" \
     | sed -E 's/--exclude //; s/["'"'"']//g' | grep -vx '\*\.min\.js' | sort -u)"
 assert_eq "the Run Semgrep step hardcodes no --exclude literal beyond '*.min.js'" \
