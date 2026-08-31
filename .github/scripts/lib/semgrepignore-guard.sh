@@ -35,9 +35,9 @@ find_semgrepignore_files() {
 # `::error::` log annotation, closing two independent forgery channels a
 # caller-controlled path can carry:
 #
-# - A raw control byte. The runner's log reader is .NET-based and
-#   `TextReader.ReadLine()` treats a bare CR as a line terminator the same
-#   way it treats LF (verified 2026-08-31 against a real Actions run) — so
+# - A raw control byte. As observed 2026-08-31 against a real Actions run,
+#   the runner's log reader was .NET-based and `TextReader.ReadLine()`
+#   treated a bare CR as a line terminator the same way it treated LF — so
 #   an embedded CR, not only LF, can forge what reads as a second,
 #   attacker-authored annotation line unless every control byte is folded
 #   away. `tr '[:cntrl:]'` alone would map two DIFFERENT control bytes to
@@ -45,17 +45,18 @@ find_semgrepignore_files() {
 #   space in a second pass — colliding with any literal `?` already in the
 #   path (a legal filename character) and silently mangling it the same
 #   way. Folding straight to space in one pass has no such collision.
-# - A PERCENT-ENCODED control byte. GitHub Actions' own workflow-command
-#   escaping scheme represents a literal `%`, CR or LF inside an
-#   annotation MESSAGE as `%25`, `%0D`, `%0A` respectively, and the runner
-#   decodes those sequences back on render — it cannot tell an
-#   already-escaped sequence from literal `%0D` text that happened to be
-#   in the source data. A path literally named `%0D%0A::error::forged`
-#   passes `tr '[:cntrl:]'` untouched (no raw control byte in it) and
-#   would decode to a real CRLF once the runner renders it. Escaping a
-#   literal `%` to `%25` FIRST is what closes this - the identical
-#   defense semgrep-report-check.sh already applies to report-derived
-#   text (`gsub("%"; "%25")` / `${var//%/%25}`), which this mirrors.
+# - A PERCENT-ENCODED control byte. As observed 2026-08-31 against a real
+#   Actions run, GitHub Actions' own workflow-command escaping scheme
+#   represented a literal `%`, CR or LF inside an annotation MESSAGE as
+#   `%25`, `%0D`, `%0A` respectively, and the runner decoded those
+#   sequences back on render — it cannot tell an already-escaped sequence
+#   from literal `%0D` text that happened to be in the source data. A path
+#   literally named `%0D%0A::error::forged` passes `tr '[:cntrl:]'`
+#   untouched (no raw control byte in it) and would decode to a real CRLF
+#   once the runner renders it. Escaping a literal `%` to `%25` FIRST is
+#   what closes this - the identical defense semgrep-report-check.sh
+#   already applies to report-derived text (`gsub("%"; "%25")` /
+#   `${var//%/%25}`), which this mirrors.
 sanitize_for_annotation() {
     printf '%s' "$1" | sed 's/%/%25/g' | tr '[:cntrl:]' ' '
 }
