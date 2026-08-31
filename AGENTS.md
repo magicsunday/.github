@@ -95,7 +95,12 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   it, and a hand-added line carries no hash. The install steps pass
   `--require-hashes` together with `--only-binary=:all:`, so a resolved package
   lacking a wheel for that platform, or a hash mismatch, fails the install rather
-  than resolving to something unverified.
+  than resolving to something unverified. `lint.yml`'s `pip-closures-fresh` job
+  regenerates each `.txt` from its `.in` on every push and pull request and fails
+  on any diff, so a bumped `.in` with a forgotten regeneration no longer stays
+  green — it relies on `pip-compile` treating an already-committed output file as
+  its resolution baseline (no `--upgrade`), which is what keeps the check from
+  also firing on unrelated upstream releases of transitive dependencies.
 - **A scan report is only uploaded once the report itself says it is complete.**
   Code scanning reads what an uploaded report omits as *fixed*, so a scan that
   quietly covered less than the tree retires real alerts, and an exit code does not
