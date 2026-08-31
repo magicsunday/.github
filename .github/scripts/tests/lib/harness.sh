@@ -37,3 +37,28 @@ assert_eq() {
 
     echo "PASS: ${description}"
 }
+
+# Fails with "FAIL: expected file not found: $1" and increments `failures`
+# unless "$1" exists -- the same file-existence guard
+# test-semgrepignore-prune-matches-excludes.sh and test-lib-source-cp-drift.sh
+# each had inline before this was extracted, both checking their own
+# drift-guard inputs exist before comparing them.
+require_file() {
+    if [ ! -f "$1" ]; then
+        echo "FAIL: expected file not found: $1"
+        failures=$((failures + 1))
+    fi
+}
+
+# Fails with "FAIL: $2" and increments `failures` unless "$1" is non-empty --
+# the same drift-guard extraction-sanity check
+# test-semgrepignore-prune-matches-excludes.sh and test-lib-source-cp-drift.sh
+# each had inline before this was extracted: a blind regex/shape change on
+# BOTH sides of a comparison would otherwise leave two empty strings that
+# assert_eq sees as equal, certifying a comparison that never ran.
+assert_nonempty() {
+    if [ -z "$1" ]; then
+        echo "FAIL: $2"
+        failures=$((failures + 1))
+    fi
+}

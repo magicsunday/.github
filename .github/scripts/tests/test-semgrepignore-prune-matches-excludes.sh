@@ -29,12 +29,10 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)" || exit 1
 GUARD_FILE="${REPO_ROOT}/.github/scripts/lib/semgrepignore-guard.sh"
 WORKFLOW_FILE="${REPO_ROOT}/.github/workflows/code-scanning.yml"
 
-for f in "${GUARD_FILE}" "${WORKFLOW_FILE}"; do
-    if [ ! -f "${f}" ]; then
-        echo "FAIL: expected file not found: ${f}"
-        failures=$((failures + 1))
-    fi
-done
+require_file "${GUARD_FILE}"
+require_file "${WORKFLOW_FILE}"
+# failures=0 is set at lib/harness.sh's top level, sourced above.
+# shellcheck disable=SC2154
 if [ "${failures}" -gt 0 ]; then
     report_and_exit "semgrepignore prune/exclude drift-guard test"
 fi
@@ -67,14 +65,10 @@ scan_dirs="$(printf '%s' "${scan_body}" | grep -oE -- "--exclude '[^']*'|--exclu
 # reformatted past what these patterns match), guard_dirs and scan_dirs
 # would both be empty strings, assert_eq would see "" == "" and pass, and
 # the test would certify a comparison it never actually performed.
-if [ -z "${guard_dirs}" ]; then
-    echo "FAIL: extracted no -name entries from find_semgrepignore_files() in ${GUARD_FILE} - regex or function shape changed"
-    failures=$((failures + 1))
-fi
-if [ -z "${scan_dirs}" ]; then
-    echo "FAIL: extracted no --exclude entries from attempt_semgrep_scan() in ${WORKFLOW_FILE} - regex or function shape changed"
-    failures=$((failures + 1))
-fi
+assert_nonempty "${guard_dirs}" \
+    "extracted no -name entries from find_semgrepignore_files() in ${GUARD_FILE} - regex or function shape changed"
+assert_nonempty "${scan_dirs}" \
+    "extracted no --exclude entries from attempt_semgrep_scan() in ${WORKFLOW_FILE} - regex or function shape changed"
 
 assert_eq "guard's prune list matches the Run Semgrep step's --exclude directories" \
     "${scan_dirs}" "${guard_dirs}"
