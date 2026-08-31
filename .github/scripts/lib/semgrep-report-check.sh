@@ -116,8 +116,12 @@ assert_semgrep_report_complete() {
     # is reported as `semgrepignore_patterns_match`, which this list
     # tolerates. So denying them is a decision about the schema, not live
     # coverage — a `.gitignore` DIRECTORY entry covering tracked files does
-    # drop them silently, and that is the accepted risk recorded in issue #48
-    # rather than something denied here. Re-derive, in a git checkout, since
+    # drop them silently, and that stays an accepted risk (issue #48). A
+    # caller's own `.semgrepignore` FILE is a different channel producing the
+    # same tolerated reason and is not tolerated the same way: code-scanning.yml
+    # rejects its presence outright, in a precondition step before the scan
+    # runs, rather than leaving it for this list to distinguish from the
+    # engine's built-in defaults. Re-derive, in a git checkout, since
     # targets come from `git ls-files` when one is present:
     #
     #   mkdir -p dist .hidden
