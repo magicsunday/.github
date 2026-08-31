@@ -42,9 +42,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   `pip` fetcher takes every `*.txt` / `*.in` in the configured directory and keeps
   it if the name contains `requirements` **or** every line parses as a requirement
   — blank lines and lines opening with `#`, `-r `, `-c `, `-e ` or `--` count as
-  parsing. `semgrep.txt`, `yamllint.txt` and `pip-tools.txt` qualify on the
-  second arm, so free prose in one of them would drop it from the updater
-  silently.
+  parsing. Every hash-locked `.txt` here qualifies on the second arm by
+  construction — `pip-compile`'s own output is nothing but comment lines and
+  parseable requirement lines — so free prose added to one would drop it from
+  the updater silently.
   These bumps are excluded from auto-merge — see `auto-merge-deps.yml`. (The rule is
   about what a workflow installs *itself*: a SHA-pinned action that brings its own
   binary, as `zizmor.yml` does, already has its version tracked by the
