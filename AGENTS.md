@@ -42,8 +42,9 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   `pip` fetcher takes every `*.txt` / `*.in` in the configured directory and keeps
   it if the name contains `requirements` **or** every line parses as a requirement
   — blank lines and lines opening with `#`, `-r `, `-c `, `-e ` or `--` count as
-  parsing. `semgrep.txt` and `yamllint.txt` qualify on the second arm, so free
-  prose in one of them would drop it from the updater silently.
+  parsing. `semgrep.txt`, `yamllint.txt` and `pip-tools.txt` qualify on the
+  second arm, so free prose in one of them would drop it from the updater
+  silently.
   These bumps are excluded from auto-merge — see `auto-merge-deps.yml`. (The rule is
   about what a workflow installs *itself*: a SHA-pinned action that brings its own
   binary, as `zizmor.yml` does, already has its version tracked by the
@@ -95,12 +96,23 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   it, and a hand-added line carries no hash. The install steps pass
   `--require-hashes` together with `--only-binary=:all:`, so a resolved package
   lacking a wheel for that platform, or a hash mismatch, fails the install rather
-  than resolving to something unverified. `lint.yml`'s `pip-closures-fresh` job
-  regenerates each `.txt` from its `.in` on every push and pull request and fails
-  on any diff, so a bumped `.in` with a forgotten regeneration no longer stays
-  green — it relies on `pip-compile` treating an already-committed output file as
-  its resolution baseline (no `--upgrade`), which is what keeps the check from
-  also firing on unrelated upstream releases of transitive dependencies.
+  than resolving to something unverified. `pip-tools.txt` is the same kind of
+  hash-locked closure, compiled from `pip-tools.in` the same way — it exists so
+  the `pip-tools` version the CI freshness check below installs itself comes from
+  a pinned, Dependabot-tracked file rather than a bare inline `pip install`,
+  which the "Pin every tool a workflow installs" rule above forbids. `lint.yml`'s
+  `pip-closures-fresh` job installs `pip-tools` from that closure, then for every
+  `.in` file present regenerates the matching `.txt` and diffs it against the
+  committed copy (`git diff --exit-code`), failing on any difference. It runs on
+  every pull request and on every push to `main`/`master` (`lint.yml`'s own
+  triggers), so a bumped `.in` with a forgotten regeneration no longer stays
+  green. This relies on `pip-compile` treating an already-committed output file
+  as its resolution baseline (no `--upgrade`) to avoid also firing on unrelated
+  upstream releases of transitive dependencies — this is the same
+  baseline-reuse behaviour described above, and carries the same caveat: it is
+  not a guarantee of byte-identical output across time, since pip-compile still
+  resolves transitive versions against whatever the live index currently serves
+  when a re-resolution is actually forced (a yanked release, a repinned hash).
 - **A scan report is only uploaded once the report itself says it is complete.**
   Code scanning reads what an uploaded report omits as *fixed*, so a scan that
   quietly covered less than the tree retires real alerts, and an exit code does not
