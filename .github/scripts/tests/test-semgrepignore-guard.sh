@@ -101,27 +101,9 @@ mkdir -p .git vendor node_modules .build packages/vendor
 assert_matches "pruned dirs (incl. nested vendor/) never match"
 cd "${original_dir}" || exit 1
 
-# sanitize_for_annotation() is what stands between a caller-controlled path
-# and the ::error:: annotation code-scanning.yml builds from it - see that
-# function's own comment for why both a raw control byte AND a
-# percent-encoded one (`%0D`, `%0A`) have to be neutralised, and why a
-# literal `?` in the path must survive intact.
-assert_eq "sanitize_for_annotation: plain text is unchanged" \
-    "sub/.semgrepignore" "$(sanitize_for_annotation "sub/.semgrepignore")"
-assert_eq "sanitize_for_annotation: newline-joined paths become space-joined" \
-    "a/.semgrepignore b/.semgrepignore" \
-    "$(sanitize_for_annotation "$(printf 'a/.semgrepignore\nb/.semgrepignore')")"
-assert_eq "sanitize_for_annotation: embedded carriage return is neutralised" \
-    "evil dir/.semgrepignore" \
-    "$(sanitize_for_annotation "$(printf 'evil\rdir/.semgrepignore')")"
-assert_eq "sanitize_for_annotation: embedded tab is neutralised" \
-    "evil dir/.semgrepignore" \
-    "$(sanitize_for_annotation "$(printf 'evil\tdir/.semgrepignore')")"
-assert_eq "sanitize_for_annotation: a literal question mark survives intact" \
-    "sub?dir/.semgrepignore" "$(sanitize_for_annotation "sub?dir/.semgrepignore")"
-assert_eq "sanitize_for_annotation: percent-encoded CRLF is escaped, not decoded by the runner" \
-    "evil%250D%250A::error::forged/.semgrepignore" \
-    "$(sanitize_for_annotation "evil%0D%0A::error::forged/.semgrepignore")"
+# sanitize_for_annotation() itself (annotation-sanitize.sh) is exercised by
+# test-annotation-sanitize.sh, not here - this suite only needs it as the
+# collaborator assert_no_semgrepignore() calls below.
 
 # assert_no_semgrepignore() is the exact wiring code-scanning.yml's guard
 # step calls - see that function's own comment (semgrepignore-guard.sh) for

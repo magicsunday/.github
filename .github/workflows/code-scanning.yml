@@ -95,6 +95,7 @@ jobs:
                   cp .magicsunday-shared/.github/scripts/lib/semgrep-excludes.sh "$SCRIPT_LIB/"
                   cp .magicsunday-shared/.github/scripts/lib/semgrep-report-check.sh "$SCRIPT_LIB/"
                   cp .magicsunday-shared/.github/scripts/lib/semgrepignore-guard.sh "$SCRIPT_LIB/"
+                  cp .magicsunday-shared/.github/scripts/lib/annotation-sanitize.sh "$SCRIPT_LIB/"
                   cp .magicsunday-shared/.github/scripts/lib/retry.sh "$SCRIPT_LIB/"
                   rm -rf .magicsunday-shared
 
