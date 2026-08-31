@@ -5,11 +5,10 @@
 # can drift apart.
 
 # Writes a fixture crossing the pinned engine's own minified-file thresholds
-# (`< 7% whitespace, or ... average of > 1000 bytes per line` - `semgrep scan
-# --help | grep -A2 "Skip minified files"`) to the path given as $1. Shared by
-# the manual re-derive recipe inside assert_semgrep_report_complete() below
-# and lint.yml's semgrep-smoke job, so the fixture the job actually scans and
-# the recipe a reader re-derives by hand cannot drift apart.
+# (see the re-derive recipe inside assert_semgrep_report_complete() below for
+# the exact wording and command) to the path given as $1. Shared by that
+# recipe and lint.yml's semgrep-smoke job, so the fixture the job actually
+# scans and the recipe a reader re-derives by hand cannot drift apart.
 build_minified_fixture() {
     printf 'function f(a,b,c){return a+b+c;}%.0s' {1..80} > "$1"
 }
