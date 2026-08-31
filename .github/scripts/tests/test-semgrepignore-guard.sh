@@ -49,9 +49,7 @@ assert_matches() {
 # and globbing it clean between cases would silently leak a `.semgrepignore`
 # from one case into the next.
 fresh_case_dir() {
-    local dir="${work_dir}/case-$$-${RANDOM}"
-    mkdir -p "${dir}" || exit 1
-    printf '%s' "${dir}"
+    mktemp -d "${work_dir}/case-XXXXXX"
 }
 
 case_dir="$(fresh_case_dir)"
