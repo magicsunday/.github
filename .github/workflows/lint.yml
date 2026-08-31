@@ -18,6 +18,53 @@ jobs:
         permissions:
             contents: read
 
+    pip-closures-fresh:
+        name: Verify hash-locked pip closures are current
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            - name: Set up Python
+              uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+              with:
+                  python-version: '3.12'
+
+            # AGENTS.md documents `.txt` as compiled from its matching `.in` and
+            # forbids hand-editing it - nothing previously proved the committed
+            # file still matches what that command produces today, so a bumped
+            # `.in` with a forgotten regeneration stayed green. `pip-compile`
+            # without `--upgrade` treats an already-present output file as its
+            # resolution baseline and only changes pins the `.in` actually
+            # forces, which is why the committed `.txt` is left in place rather
+            # than deleted before compiling - re-running it against an
+            # unchanged `.in` reproduces the same file byte-for-byte, so a diff
+            # only fires on a genuine drift, not on every run.
+            - name: Regenerate each closure and diff against the committed copy
+              working-directory: .github/requirements
+              run: |
+                  set -euo pipefail
+                  pip install --quiet pip-tools==7.6.1
+
+                  failed=0
+                  for name in semgrep yamllint; do
+                      cp "${name}.txt" "${name}.txt.orig"
+                      pip-compile --allow-unsafe --generate-hashes --output-file="${name}.txt" "${name}.in"
+                      if ! diff -u "${name}.txt.orig" "${name}.txt"; then
+                          echo "::error::${name}.txt is not current with ${name}.in - regenerate it (see AGENTS.md, 'hash-locked closure')."
+                          failed=1
+                      fi
+                      rm -f "${name}.txt.orig"
+                  done
+
+                  exit "${failed}"
+
     shell-tests:
         name: Shell logic tests
         runs-on: ubuntu-latest
