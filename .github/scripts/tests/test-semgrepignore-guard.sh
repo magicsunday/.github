@@ -102,10 +102,10 @@ assert_matches "pruned dirs (incl. nested vendor/) never match"
 cd "${original_dir}" || exit 1
 
 # sanitize_for_annotation() is what stands between a caller-controlled path
-# and the ::error:: annotation code-scanning.yml builds from it - these
-# cases pin the exact control characters that motivated it (a bare CR is
-# a line terminator to the runner's .NET-based log reader just as LF is,
-# so both have to go, not only the one `tr '\n' ' '` alone would catch).
+# and the ::error:: annotation code-scanning.yml builds from it - see that
+# function's own comment for why both a raw control byte AND a
+# percent-encoded one (`%0D`, `%0A`) have to be neutralised, and why a
+# literal `?` in the path must survive intact.
 assert_eq "sanitize_for_annotation: plain text is unchanged" \
     "sub/.semgrepignore" "$(sanitize_for_annotation "sub/.semgrepignore")"
 assert_eq "sanitize_for_annotation: newline-joined paths become space-joined" \
@@ -117,5 +117,10 @@ assert_eq "sanitize_for_annotation: embedded carriage return is neutralised" \
 assert_eq "sanitize_for_annotation: embedded tab is neutralised" \
     "evil dir/.semgrepignore" \
     "$(sanitize_for_annotation "$(printf 'evil\tdir/.semgrepignore')")"
+assert_eq "sanitize_for_annotation: a literal question mark survives intact" \
+    "sub?dir/.semgrepignore" "$(sanitize_for_annotation "sub?dir/.semgrepignore")"
+assert_eq "sanitize_for_annotation: percent-encoded CRLF is escaped, not decoded by the runner" \
+    "evil%250D%250A::error::forged/.semgrepignore" \
+    "$(sanitize_for_annotation "evil%0D%0A::error::forged/.semgrepignore")"
 
 report_and_exit "semgrepignore-guard tests"
