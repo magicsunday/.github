@@ -28,9 +28,10 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)" || exit 1
 LIB_DIR="${REPO_ROOT}/.github/scripts/lib"
 WORKFLOW_FILE="${REPO_ROOT}/.github/workflows/code-scanning.yml"
 
-if [ ! -f "${WORKFLOW_FILE}" ]; then
-    echo "FAIL: expected file not found: ${WORKFLOW_FILE}"
-    failures=$((failures + 1))
+require_file "${WORKFLOW_FILE}"
+# failures=0 is set at lib/harness.sh's top level, sourced above.
+# shellcheck disable=SC2154
+if [ "${failures}" -gt 0 ]; then
     report_and_exit "lib source/cp drift-guard test"
 fi
 
@@ -49,14 +50,10 @@ install_step_body="$(sed -n '/- name: Install Semgrep/,/- name:/p' "${WORKFLOW_F
 copied_files="$(printf '%s' "${install_step_body}" | grep -oE 'cp \.magicsunday-shared/\.github/scripts/lib/[A-Za-z0-9_-]+\.sh' \
     | grep -o '[A-Za-z0-9_-]*\.sh$' | sort -u)"
 
-if [ -z "${sourced_deps}" ]; then
-    echo "FAIL: extracted no lib-to-lib source dependencies from ${LIB_DIR}/*.sh - regex or sourcing shape changed"
-    failures=$((failures + 1))
-fi
-if [ -z "${copied_files}" ]; then
-    echo "FAIL: extracted no cp lines from the Install Semgrep step in ${WORKFLOW_FILE} - regex or step shape changed"
-    failures=$((failures + 1))
-fi
+assert_nonempty "${sourced_deps}" \
+    "extracted no lib-to-lib source dependencies from ${LIB_DIR}/*.sh - regex or sourcing shape changed"
+assert_nonempty "${copied_files}" \
+    "extracted no cp lines from the Install Semgrep step in ${WORKFLOW_FILE} - regex or step shape changed"
 
 missing=""
 dep=""
