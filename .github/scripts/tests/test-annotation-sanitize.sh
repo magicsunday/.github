@@ -78,11 +78,7 @@ assert_eq "sanitize_for_annotation: a raw non-UTF-8 byte in the C1 control range
 # - a real jq failure is the only way it is reached.
 fake_jq_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${fake_jq_dir}"' EXIT
-cat > "${fake_jq_dir}/jq" <<'EOS'
-#!/usr/bin/env bash
-exit 1
-EOS
-chmod +x "${fake_jq_dir}/jq"
+write_failing_jq_stub "${fake_jq_dir}"
 
 assert_eq "sanitize_for_annotation: a jq failure degrades to the default fallback text" \
     "(unavailable)" \
