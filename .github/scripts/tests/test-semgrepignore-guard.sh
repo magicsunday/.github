@@ -128,6 +128,29 @@ assert_eq "assert_no_semgrepignore: existing file emits the found annotation" \
     "${output}"
 cd "${original_dir}" || exit 1
 
+# Simulates sanitize_for_annotation() itself failing (e.g. jq missing or
+# crashing - a real possibility since issue #80 made it jq-backed) to pin
+# the fail-closed fallback around the "local safe_matches" assignment in
+# assert_no_semgrepignore() (semgrepignore-guard.sh): unguarded, this would
+# abort the whole step under set -e before ever
+# printing the found-file annotation below (round-1 correctness finding,
+# GH-80). Restored to the real implementation immediately after via a
+# fresh source, since a case added later in this file must not silently
+# run against the stub.
+case_dir="$(mktemp -d "${work_dir}/case-XXXXXX")" || exit 1
+cd "${case_dir}" || exit 1
+: > .semgrepignore
+sanitize_for_annotation() { return 1; }
+output="$(assert_no_semgrepignore 2>&1)"
+rc=$?
+# shellcheck source=../lib/annotation-sanitize.sh
+source "${SCRIPT_DIR}/../lib/annotation-sanitize.sh"
+assert_eq "assert_no_semgrepignore: a sanitize_for_annotation failure still fails closed" "1" "${rc}"
+assert_eq "assert_no_semgrepignore: a sanitize_for_annotation failure still emits the found annotation, with a placeholder" \
+    "::error::This repository contains a .semgrepignore file ((unavailable)), which replaces Semgrep's built-in ignore list instead of adding to it and cannot be told apart from the engine defaults in the report - declare exclusions via this workflow's 'excludes' input instead, then delete the file." \
+    "${output}"
+cd "${original_dir}" || exit 1
+
 # Simulates find_semgrepignore_files() itself failing (e.g. an unreadable
 # subtree) by overriding it for the rest of this script - safe only because
 # this is the LAST case that needs the real function; a case added after
