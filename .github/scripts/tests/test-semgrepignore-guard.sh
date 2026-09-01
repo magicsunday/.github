@@ -143,11 +143,7 @@ case_dir="$(mktemp -d "${work_dir}/case-XXXXXX")" || exit 1
 cd "${case_dir}" || exit 1
 : > .semgrepignore
 fake_jq_dir="$(mktemp -d "${work_dir}/fake-jq-XXXXXX")" || exit 1
-cat > "${fake_jq_dir}/jq" <<'EOS'
-#!/usr/bin/env bash
-exit 1
-EOS
-chmod +x "${fake_jq_dir}/jq"
+write_failing_jq_stub "${fake_jq_dir}"
 output="$(PATH="${fake_jq_dir}:${PATH}" assert_no_semgrepignore 2>&1)"
 rc=$?
 assert_eq "assert_no_semgrepignore: a jq failure still fails closed" "1" "${rc}"

@@ -75,3 +75,19 @@ extract_block() {
 
     sed -n "/${start}/,/${end}/p" "${file}"
 }
+
+# Writes an always-failing `jq` shim into already-created directory "$1", so
+# a caller can shadow the real jq on PATH to simulate a jq failure -- the
+# same fixture test-annotation-sanitize.sh and test-semgrepignore-guard.sh
+# each need to exercise sanitize_for_annotation()'s internal fallback
+# (issue #83). Does not create or clean up "$1" itself: the two callers
+# mktemp it differently (one bare, one nested under a shared work_dir with
+# its own trap), so only the shim-writing step -- the part that was
+# duplicated verbatim -- is shared here.
+write_failing_jq_stub() {
+    cat > "$1/jq" <<'EOS'
+#!/usr/bin/env bash
+exit 1
+EOS
+    chmod +x "$1/jq"
+}
