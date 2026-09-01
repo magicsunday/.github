@@ -15,6 +15,13 @@ source "${SCRIPT_DIR}/../lib/annotation-sanitize.sh"
 
 assert_eq "sanitize_for_annotation: plain text is unchanged" \
     "sub/.semgrepignore" "$(sanitize_for_annotation "sub/.semgrepignore")"
+# A non-control multi-byte UTF-8 character (not in jq's [[:cntrl:]] class)
+# must survive the jq-based fold unchanged - the rewrite from tr to jq
+# (issue #80) targets control-codepoint handling specifically and must not
+# start mangling ordinary non-ASCII path bytes as a side effect.
+assert_eq "sanitize_for_annotation: a non-control multi-byte UTF-8 character survives unchanged" \
+    "caf$(printf '\xc3\xa9')/pl$(printf '\xc3\xa4')tze.txt" \
+    "$(sanitize_for_annotation "$(printf 'caf\xc3\xa9/pl\xc3\xa4tze.txt')")"
 assert_eq "sanitize_for_annotation: newline-joined paths become space-joined" \
     "a/.semgrepignore b/.semgrepignore" \
     "$(sanitize_for_annotation "$(printf 'a/.semgrepignore\nb/.semgrepignore')")"
@@ -40,5 +47,25 @@ assert_eq "sanitize_for_annotation: percent-encoded CRLF is escaped, not decoded
 assert_eq "sanitize_for_annotation: a literal question mark next to a folded control byte stays distinguishable" \
     "sub? dir/.semgrepignore" \
     "$(sanitize_for_annotation "$(printf 'sub?\x01dir/.semgrepignore')")"
+
+# A C1 control codepoint (here U+0085 NEL, UTF-8-encoded as the two bytes
+# 0xC2 0x85) is invisible to `tr '[:cntrl:]'`, which only recognizes
+# single-byte ASCII control codes - neither byte of the pair falls in that
+# range on its own (issue #80). Re-derive directly:
+#   printf 'a\xc2\x85b' | tr '[:cntrl:]' ' ' | od -An -tx1
+#       # 61 c2 85 62 -- passes through untouched
+assert_eq "sanitize_for_annotation: a UTF-8-encoded C1 control codepoint (NEL) is neutralised" \
+    "sub dir/.semgrepignore" \
+    "$(sanitize_for_annotation "$(printf 'sub\xc2\x85dir/.semgrepignore')")"
+
+# A raw byte in the same numeric range that is NOT valid UTF-8 on its own
+# (no continuation byte) is neutralised too, as a side effect of jq
+# requiring valid UTF-8 input: it substitutes U+FFFD (the UTF-8 bytes
+# 0xEF 0xBF 0xBD) for the invalid byte rather than passing it through
+# unfolded or erroring - not a control codepoint either way, so it cannot
+# be read back as a line break.
+assert_eq "sanitize_for_annotation: a raw non-UTF-8 byte in the C1 control range is neutralised" \
+    "$(printf 'sub\xef\xbf\xbddir/.semgrepignore')" \
+    "$(sanitize_for_annotation "$(printf 'sub\x85dir/.semgrepignore')")"
 
 report_and_exit "annotation-sanitize tests"

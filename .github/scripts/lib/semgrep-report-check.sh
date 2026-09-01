@@ -164,15 +164,12 @@ assert_semgrep_report_complete() {
     # jq's own diagnostic (which value crashed the filter, and why) is kept
     # rather than discarded: it is captured into a temp file instead of
     # `2>/dev/null`, run through sanitize_for_annotation() (annotation-sanitize.sh,
-    # sourced above) - the `.path` gsub pipeline below applies the same
-    # escape-then-fold strategy in jq (a SEPARATE implementation, not
-    # byte-identical across the full input space - issue #80), so a raw
-    # excerpt cannot carry unsanitised report content into the annotation
-    # while staying inside this bash script rather than spinning up a
-    # second jq process - a second jq invocation here would
-    # itself need its own fail-closed handling under this function's caller,
-    # which runs with `set -e` - truncated, and folded into the single
-    # `::error::` line below. `cat`
+    # sourced above, itself jq-backed since issue #80) - a raw excerpt cannot
+    # carry unsanitised report content into the annotation. That second jq
+    # invocation gets its own fail-closed handling right here (the
+    # `2>/dev/null) || jq_error="(diagnostic unavailable)"` below) rather
+    # than relying on this function's caller's `set -e` - truncated, and
+    # folded into the single `::error::` line below. `cat`
     # and `sanitize_for_annotation` are guarded the same way for the same
     # reason: every command between creating the temp file and removing it
     # must degrade to a placeholder rather than abort the script, or the

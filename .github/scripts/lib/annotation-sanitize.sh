@@ -15,27 +15,37 @@
 #   treated a bare CR as a line terminator the same way it treated LF — so
 #   an embedded CR, not only LF, can forge what reads as a second,
 #   attacker-authored annotation line unless every control byte is folded
-#   away. `tr '[:cntrl:]'` alone would map two DIFFERENT control bytes to
-#   the same placeholder character and then collapse that placeholder to a
-#   space in a second pass — colliding with any literal `?` already in the
-#   path (a legal filename character) and silently mangling it the same
-#   way. Folding straight to space in one pass has no such collision.
-#   `tr '[:cntrl:]'` only recognizes single-byte ASCII control codes
-#   (0x00-0x1F, 0x7F) — a control codepoint encoded as multi-byte UTF-8
-#   (e.g. a C1 control such as U+0085 NEL) passes through unfolded, unlike
-#   `semgrep-report-check.sh`'s Unicode-aware jq `gsub("[[:cntrl:]]"; " ")`
-#   pipeline (issue #80, open).
+#   away. This routes through jq's own Unicode-aware `gsub("[[:cntrl:]]"; " ")`
+#   rather than bash `tr '[:cntrl:]'`, which recognizes only single-byte
+#   ASCII control codes (0x00-0x1F, 0x7F) and passed a control codepoint
+#   encoded as multi-byte UTF-8 (e.g. a C1 control such as U+0085 NEL)
+#   through unfolded (issue #80) - jq now folds the exact codepoint set
+#   `semgrep-report-check.sh`'s own `.path` pipeline folds, using the same
+#   jq builtin class `tr` never covered. The filter text is still two
+#   hand-maintained copies, not shared code - test-annotation-sanitize-jq-parity.sh
+#   keeps them in sync by comparing the two literal strings, not by
+#   removing the duplication. A raw, non-UTF-8-encoded byte in that same range
+#   (invalid on its own, with no continuation byte) is neutralized too, as
+#   a side effect of jq requiring valid UTF-8 input: it substitutes U+FFFD
+#   rather than erroring, which is not a control codepoint either.
 # - A PERCENT-ENCODED control byte. As observed 2026-08-31 against a real
 #   Actions run, GitHub Actions' own workflow-command escaping scheme
 #   represented a literal `%`, CR or LF inside an annotation MESSAGE as
 #   `%25`, `%0D`, `%0A` respectively, and the runner decoded those
 #   sequences back on render — it cannot tell an already-escaped sequence
 #   from literal `%0D` text that happened to be in the source data. A path
-#   literally named `%0D%0A::error::forged` passes `tr '[:cntrl:]'`
-#   untouched (no raw control byte in it) and would decode to a real CRLF
-#   once the runner renders it. Escaping a literal `%` to `%25` FIRST is
-#   what closes this - the identical defense semgrep-report-check.sh
-#   applies to report-derived text via its own `gsub("%"; "%25")`.
+#   literally named `%0D%0A::error::forged` would decode to a real CRLF
+#   once the runner renders it unless a literal `%` is escaped to `%25`
+#   FIRST - the identical defense, and the identical ordering,
+#   semgrep-report-check.sh applies to report-derived text via its own
+#   `gsub("%"; "%25")`.
+#
+# Piped rather than handed to jq via a here-string (`<<<`): a here-string
+# appends a trailing newline that the cntrl fold below would turn into a
+# trailing space nothing in the actual input produced. `-s` (slurp) reads
+# the piped bytes as one string, embedded newlines included, so multi-line
+# input (e.g. several matched paths) folds to one space-joined line same as
+# before.
 sanitize_for_annotation() {
-    printf '%s' "$1" | sed 's/%/%25/g' | tr '[:cntrl:]' ' '
+    printf '%s' "$1" | jq -Rsr 'gsub("%"; "%25") | gsub("[[:cntrl:]]"; " ")'
 }
