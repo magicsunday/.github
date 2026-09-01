@@ -39,10 +39,10 @@ fi
 # sanitize_for_annotation() folds a control byte to for the empty string a
 # naive whitespace-strip would leave behind - a real risk here, since the
 # second gsub's own replacement literal IS a single space.
-sanitize_filter="$(sed -n '/^sanitize_for_annotation/,/^}/p' "${ANNOTATION_SANITIZE_FILE}" \
+sanitize_filter="$(extract_block '^sanitize_for_annotation' '^}' "${ANNOTATION_SANITIZE_FILE}" \
     | tr '\n' ' ' | tr -s ' ' \
     | grep -oE 'gsub\([^)]*\)[[:space:]]*\|[[:space:]]*gsub\([^)]*\)')"
-report_check_filter="$(sed -n '/(.path \/\/ "(no path)")/,/as \$path/p' "${REPORT_CHECK_FILE}" \
+report_check_filter="$(extract_block '(.path \/\/ "(no path)")' 'as \$path' "${REPORT_CHECK_FILE}" \
     | tr '\n' ' ' | tr -s ' ' \
     | grep -oE 'gsub\([^)]*\)[[:space:]]*\|[[:space:]]*gsub\([^)]*\)')"
 
