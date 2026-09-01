@@ -87,4 +87,26 @@ assert_eq "sanitize_for_annotation: a jq failure degrades to an explicit, caller
     "(diagnostic unavailable)" \
     "$(PATH="${fake_jq_dir}:${PATH}" sanitize_for_annotation "some diagnostic text" "(diagnostic unavailable)")"
 
+# Both assertions above only check the fallback's stdout TEXT, via a plain
+# command substitution that discards the function's own exit status. Issue
+# #83 dropped both call sites' external `2>/dev/null || safe="(placeholder)"`
+# guard, so it is now load-bearing that sanitize_for_annotation() itself
+# never returns non-zero on this branch - the real callers run under
+# `set -euo pipefail` (code-scanning.yml, lint.yml), and nothing in this
+# suite runs under `-e` (this file included), so a future edit that broke
+# that contract (e.g. an errant `return 1` after the fallback printf) would
+# pass every assertion above while silently aborting the real workflow step
+# before its ::error:: annotation ever printed. Run in a nested `bash -c`
+# under a real `set -e` to pin the contract itself, not just its output.
+set_e_script="set -e
+source \"${SCRIPT_DIR}/../lib/annotation-sanitize.sh\"
+sanitize_for_annotation \"x\"
+echo reached"
+set_e_output="$(PATH="${fake_jq_dir}:${PATH}" bash -c "${set_e_script}")"
+set_e_rc=$?
+assert_eq "sanitize_for_annotation: the jq-failure fallback path exits 0 under a real set -e caller" \
+    "0" "${set_e_rc}"
+assert_eq "sanitize_for_annotation: the jq-failure fallback path does not abort a set -e caller before it continues" \
+    "(unavailable)reached" "${set_e_output}"
+
 report_and_exit "annotation-sanitize tests"
