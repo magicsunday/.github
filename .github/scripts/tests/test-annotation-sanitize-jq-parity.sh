@@ -39,12 +39,13 @@ fi
 # sanitize_for_annotation() folds a control byte to for the empty string a
 # naive whitespace-strip would leave behind - a real risk here, since the
 # second gsub's own replacement literal IS a single space.
-sanitize_filter="$(extract_block '^sanitize_for_annotation' '^}' "${ANNOTATION_SANITIZE_FILE}" \
-    | tr '\n' ' ' | tr -s ' ' \
-    | grep -oE 'gsub\([^)]*\)[[:space:]]*\|[[:space:]]*gsub\([^)]*\)')"
-report_check_filter="$(extract_block '(.path \/\/ "(no path)")' 'as \$path' "${REPORT_CHECK_FILE}" \
-    | tr '\n' ' ' | tr -s ' ' \
-    | grep -oE 'gsub\([^)]*\)[[:space:]]*\|[[:space:]]*gsub\([^)]*\)')"
+extract_gsub_pair() {
+    extract_block "$1" "$2" "$3" | tr '\n' ' ' | tr -s ' ' \
+        | grep -oE 'gsub\([^)]*\)[[:space:]]*\|[[:space:]]*gsub\([^)]*\)'
+}
+
+sanitize_filter="$(extract_gsub_pair '^sanitize_for_annotation' '^}' "${ANNOTATION_SANITIZE_FILE}")"
+report_check_filter="$(extract_gsub_pair '(.path \/\/ "(no path)")' 'as \$path' "${REPORT_CHECK_FILE}")"
 
 assert_nonempty "${sanitize_filter}" \
     "extracted no gsub() calls from sanitize_for_annotation() in ${ANNOTATION_SANITIZE_FILE} - function body or regex shape changed"
