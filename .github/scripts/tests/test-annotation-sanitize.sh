@@ -68,9 +68,9 @@ assert_eq "sanitize_for_annotation: a raw non-UTF-8 byte in the C1 control range
     "$(printf 'sub\xef\xbf\xbddir/.semgrepignore')" \
     "$(sanitize_for_annotation "$(printf 'sub\x85dir/.semgrepignore')")"
 
-# The fail-closed fallback sanitize_for_annotation() now degrades to
-# internally when jq itself fails (issue #83), both the default fallback
-# text and an explicit, caller-supplied one - the callers that used to guard
+# sanitize_for_annotation() now degrades internally when jq itself fails
+# (issue #83), producing both the default fallback text and an explicit,
+# caller-supplied one - the callers that used to guard
 # every call with `2>/dev/null || safe="(placeholder)"` dropped that guard in
 # the same change, so this behaviour has to be pinned here instead. Simulated
 # by shadowing jq on PATH with one that always fails, since
