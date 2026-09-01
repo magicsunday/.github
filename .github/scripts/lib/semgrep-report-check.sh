@@ -166,16 +166,15 @@ assert_semgrep_report_complete() {
     # `2>/dev/null`, run through sanitize_for_annotation() (annotation-sanitize.sh,
     # sourced above, itself jq-backed since issue #80) - a raw excerpt cannot
     # carry unsanitised report content into the annotation. That second jq
-    # invocation gets its own fail-closed handling right here (the
-    # `2>/dev/null) || jq_error="(diagnostic unavailable)"` below) rather
-    # than relying on this function's caller's `set -e` - truncated, and
-    # folded into the single `::error::` line below. `cat`
-    # and `sanitize_for_annotation` are guarded the same way for the same
-    # reason: every command between creating the temp file and removing it
-    # must degrade to a placeholder rather than abort the script, or the
-    # whole point of this branch - printing one attributable annotation - is
-    # lost to a bare `set -e` exit instead. `rm -f` needs the same `|| true`
-    # guard for the identical reason, despite `-f` in its name: `-f`
+    # invocation degrades to its own fallback text internally on failure
+    # (issue #83) rather than relying on this function's caller's `set -e` -
+    # truncated, and folded into the single `::error::` line below. `cat`
+    # is still guarded explicitly with `|| jq_error="(diagnostic unavailable)"`
+    # for the same reason: every command between creating the temp file and
+    # removing it must degrade to a placeholder rather than abort the script,
+    # or the whole point of this branch - printing one attributable
+    # annotation - is lost to a bare `set -e` exit instead. `rm -f` needs the
+    # same `|| true` guard for the identical reason, despite `-f` in its name: `-f`
     # suppresses only the missing-file case, not a genuine permission or
     # filesystem error, which still exits non-zero - reproduced directly
     # (`chmod 555` on the containing directory made `rm -f` on a file inside
@@ -213,7 +212,7 @@ assert_semgrep_report_complete() {
     ' "$json_file" 2>"$jq_stderr_file")" || {
         local jq_error
         jq_error="$(cat "$jq_stderr_file" 2>/dev/null)" || jq_error="(diagnostic unavailable)"
-        jq_error="$(sanitize_for_annotation "${jq_error}" 2>/dev/null)" || jq_error="(diagnostic unavailable)"
+        jq_error="$(sanitize_for_annotation "${jq_error}" "(diagnostic unavailable)")"
         if [ "${#jq_error}" -gt 200 ]; then
             jq_error="${jq_error:0:197}..."
         fi
