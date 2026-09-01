@@ -55,6 +55,12 @@
 # rather than by construction (issue #83) - folding the fallback in here
 # means a future third caller gets fail-closed behaviour for free instead of
 # needing to remember the guard idiom itself.
+#
+# $2 is printed VERBATIM on that path, with none of the sanitisation $1
+# gets - a future caller MUST pass only a fixed, developer-authored string
+# literal, never text derived from $1 or from any other caller-controlled
+# input, or the exact forgery this function exists to close reopens on the
+# jq-failure branch.
 sanitize_for_annotation() {
     local fallback="${2:-(unavailable)}"
     printf '%s' "$1" | jq -Rsr 'gsub("%"; "%25") | gsub("[[:cntrl:]]"; " ")' 2>/dev/null \
