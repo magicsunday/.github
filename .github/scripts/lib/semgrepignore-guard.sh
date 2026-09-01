@@ -68,13 +68,11 @@ assert_no_semgrepignore() {
     }
 
     if [ -n "$matches" ]; then
-        # sanitize_for_annotation() shells out to jq (issue #80) and can now
-        # fail where the sed/tr version it replaced practically never did -
-        # guarded the same way semgrep-report-check.sh guards its own call,
-        # so a jq failure still reaches this actionable annotation instead
-        # of aborting the step under this caller's `set -e` before it prints.
+        # sanitize_for_annotation() degrades to its own fallback text
+        # internally on a jq failure (issue #83) and never returns non-zero,
+        # so this call needs no guard of its own around it any more.
         local safe_matches
-        safe_matches="$(sanitize_for_annotation "$matches" 2>/dev/null)" || safe_matches="(unavailable)"
+        safe_matches="$(sanitize_for_annotation "$matches")"
         echo "::error::This repository contains a .semgrepignore file (${safe_matches}), which replaces Semgrep's built-in ignore list instead of adding to it and cannot be told apart from the engine defaults in the report - declare exclusions via this workflow's 'excludes' input instead, then delete the file."
         return 1
     fi

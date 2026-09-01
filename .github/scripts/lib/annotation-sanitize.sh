@@ -46,6 +46,17 @@
 # the piped bytes as one string, embedded newlines included, so multi-line
 # input (e.g. several matched paths) folds to one space-joined line same as
 # before.
+#
+# Degrades to $2 (default "(unavailable)") if jq itself fails - it shells
+# out (issue #80) and can now fail where the sed/tr version it replaced
+# practically never did. This function therefore never returns non-zero
+# itself; both call sites used to wrap every call in their own identical
+# `2>/dev/null || safe="(placeholder)"` guard, which stayed in sync by luck
+# rather than by construction (issue #83) - folding the fallback in here
+# means a future third caller gets fail-closed behaviour for free instead of
+# needing to remember the guard idiom itself.
 sanitize_for_annotation() {
-    printf '%s' "$1" | jq -Rsr 'gsub("%"; "%25") | gsub("[[:cntrl:]]"; " ")'
+    local fallback="${2:-(unavailable)}"
+    printf '%s' "$1" | jq -Rsr 'gsub("%"; "%25") | gsub("[[:cntrl:]]"; " ")' 2>/dev/null \
+        || printf '%s' "${fallback}"
 }

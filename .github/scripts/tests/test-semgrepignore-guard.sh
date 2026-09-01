@@ -128,25 +128,30 @@ assert_eq "assert_no_semgrepignore: existing file emits the found annotation" \
     "${output}"
 cd "${original_dir}" || exit 1
 
-# Simulates sanitize_for_annotation() itself failing (e.g. jq missing or
-# crashing - a real possibility since issue #80 made it jq-backed) to pin
-# the fail-closed fallback around the "local safe_matches" assignment in
-# assert_no_semgrepignore() (semgrepignore-guard.sh): unguarded, this would
-# abort the whole step under set -e before ever
-# printing the found-file annotation below (round-1 correctness finding,
-# GH-80). Restored to the real implementation immediately after via a
-# fresh source, since a case added later in this file must not silently
-# run against the stub.
+# Simulates jq itself failing (e.g. missing or crashing - a real possibility
+# since issue #80 made sanitize_for_annotation() jq-backed) to pin the
+# fail-closed fallback text. The guard around this used to live in this
+# caller, wrapping sanitize_for_annotation() in `2>/dev/null ||
+# safe_matches="(unavailable)"`; issue #83 moved that guard INTO
+# sanitize_for_annotation() itself, which now degrades to a fallback
+# internally and never returns non-zero, so simulating the failure means
+# breaking jq (the real trigger), not stubbing the function that no longer
+# carries the guard. Shadowing jq via PATH rather than editing the sourced
+# function also means no restore step is needed for a case added later in
+# this file - PATH is set only for this one command.
 case_dir="$(mktemp -d "${work_dir}/case-XXXXXX")" || exit 1
 cd "${case_dir}" || exit 1
 : > .semgrepignore
-sanitize_for_annotation() { return 1; }
-output="$(assert_no_semgrepignore 2>&1)"
+fake_jq_dir="$(mktemp -d "${work_dir}/fake-jq-XXXXXX")" || exit 1
+cat > "${fake_jq_dir}/jq" <<'EOS'
+#!/usr/bin/env bash
+exit 1
+EOS
+chmod +x "${fake_jq_dir}/jq"
+output="$(PATH="${fake_jq_dir}:${PATH}" assert_no_semgrepignore 2>&1)"
 rc=$?
-# shellcheck source=../lib/annotation-sanitize.sh
-source "${SCRIPT_DIR}/../lib/annotation-sanitize.sh"
-assert_eq "assert_no_semgrepignore: a sanitize_for_annotation failure still fails closed" "1" "${rc}"
-assert_eq "assert_no_semgrepignore: a sanitize_for_annotation failure still emits the found annotation, with a placeholder" \
+assert_eq "assert_no_semgrepignore: a jq failure still fails closed" "1" "${rc}"
+assert_eq "assert_no_semgrepignore: a jq failure still emits the found annotation, with a placeholder" \
     "::error::This repository contains a .semgrepignore file ((unavailable)), which replaces Semgrep's built-in ignore list instead of adding to it and cannot be told apart from the engine defaults in the report - declare exclusions via this workflow's 'excludes' input instead, then delete the file." \
     "${output}"
 cd "${original_dir}" || exit 1
