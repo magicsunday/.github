@@ -105,8 +105,7 @@ assert_contains_in_order() {
                 remaining="${remaining#*"${needle}"}"
                 ;;
             *)
-                echo "FAIL: ${description}: got '${haystack}'"
-                failures=$((failures + 1))
+                _harness_fail "${description}" "${haystack}"
                 return
                 ;;
         esac
