@@ -407,11 +407,12 @@ assert_semgrep_report_complete() {
         # the path, `<mode> SP <object> SP <stage> TAB <path>` — how the
         # filter below tells a symlink/gitlink from an ordinary tracked
         # file without re-deriving that from file content. Read from a
-        # temp FILE, never through a `$(...)`-captured bash string: command
-        # substitution silently drops embedded NUL bytes (bash itself warns
-        # "ignored null byte in input"), which is exactly what `-z`
-        # NUL-separates its output WITH — a capture through a string
-        # variable would corrupt every entry after the first. A direct
+        # temp FILE, never through a `$(...)`-captured bash string: as
+        # observed 2026-09-02 (`bash -c 'x=$(printf "a\0b"); echo "${#x}"'`
+        # → warns "ignored null byte in input" and prints 2, not 3), command
+        # substitution silently drops embedded NUL bytes, which is exactly
+        # what `-z` NUL-separates its output WITH — a capture through a
+        # string variable would corrupt every entry after the first. A direct
         # redirect keeps `$?` as git's own exit status, same as the
         # command-substitution form would have, without going through a
         # bash string at all.
