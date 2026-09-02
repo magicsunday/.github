@@ -306,19 +306,26 @@ jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_symlink}"
 assert_fail "repo_root: a git-tracked path absent from both inventories fails, naming it" \
     "${report_symlink}" "link.php" "${git_case_symlink}"
 
-# A tracked file the engine already accounted for via a TOLERATED skip
-# reason must not be re-flagged by this check - it is covered, just not via
-# `.paths.scanned`.
-git_case_tolerated="${work_dir}/git-case-tolerated"
-new_git_case tolerated
+# A tracked SYMLINK the engine already accounted for via `.paths.skipped`
+# (any reason) must not be re-flagged - it is covered, just not via
+# `.paths.scanned`. Neither file in an earlier version of this fixture was
+# mode 120000/160000, so it never reached the repo_root comparison at all
+# and passed for the wrong reason - mutation-confirmed: deleting the
+# `.paths.skipped` half of the `covered` jq pipeline, or widening the mode
+# filter to match every file, both left that version green. `a.php` (a
+# regular file, present as a decoy so the report's `scanned` array is
+# non-empty) stays in this fixture; `link.php` is the actual symlink under
+# test, and only it exercises the skipped-branch of `covered`.
+git_case_skipped_covered="${work_dir}/git-case-skipped-covered"
+new_git_case skipped-covered
 printf 'x' > a.php
-printf 'y' > b.bin
+ln -s a.php link.php
 git add -Af .
 cd "${original_dir}" || exit 1
-report_tolerated="${work_dir}/report-tolerated.json"
-jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "b.bin", reason: "binary"}]}}' > "${report_tolerated}"
-assert_pass "repo_root: a tracked file already accounted for via a tolerated skip is not re-flagged" \
-    "${report_tolerated}" "${git_case_tolerated}"
+report_skipped_covered="${work_dir}/report-skipped-covered.json"
+jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "link.php", reason: "binary"}]}}' > "${report_skipped_covered}"
+assert_pass "repo_root: a symlink the report accounts for via .paths.skipped is not re-flagged" \
+    "${report_skipped_covered}" "${git_case_skipped_covered}"
 
 # `repo_root` pointing at a directory that is not a git repository at all
 # fails closed with its own distinct message, rather than silently reading
@@ -492,12 +499,54 @@ jq -n '{paths: {scanned: ["target.php", "link.php"], skipped: []}}' > "${report_
 assert_pass "repo_root: a symlink the report DOES account for is not flagged" \
     "${report_symlink_covered}" "${git_case_symlink_covered}"
 
-# `_tracked_seen` dedup guard: `git ls-files -s` emits one line per
+# The `select(type == "string")` guard on the covered-set jq filter has
+# nothing to guard against otherwise: a non-string `.path` value alongside
+# a genuinely missing symlink must not crash the filter, and must not be
+# mistaken for covering that symlink either.
+git_case_non_string_covered="${work_dir}/git-case-non-string-covered"
+new_git_case non-string-covered
+printf 'x' > target.php
+ln -s target.php link.php
+git add -Af .
+cd "${original_dir}" || exit 1
+report_non_string_covered="${work_dir}/report-non-string-covered.json"
+jq -n '{paths: {scanned: ["target.php"], skipped: [{path: 123, reason: "binary"}]}}' > "${report_non_string_covered}"
+assert_fail "repo_root: a non-string skipped-path entry does not crash the covered-set filter or mask a genuinely missing symlink" \
+    "${report_non_string_covered}" "link.php" "${git_case_non_string_covered}"
+
+# The missing-path sanitiser's own `|| missing_lines="(sanitisation
+# failed)"` fallback has nothing to trigger it: the jq PROGRAM here is a
+# fixed literal, never built from report content, so no fixture can break
+# it through input alone. `jq` is shadowed to fail only when called with
+# `-Rsr` - the flag combination unique to this one call among the
+# function's several jq invocations (the readability check uses none, the
+# skip-reason check uses `-r`, the covered-set build uses `-j`) - so every
+# OTHER jq call in the same run still succeeds normally.
+git_case_sanitiser_failure="${work_dir}/git-case-sanitiser-failure"
+new_git_case sanitiser-failure
+printf 'x' > target.php
+ln -s target.php link.php
+git add -Af .
+cd "${original_dir}" || exit 1
+report_sanitiser_failure="${work_dir}/report-sanitiser-failure.json"
+jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_sanitiser_failure}"
+jq() {
+    if [ "${1:-}" = "-Rsr" ]; then
+        return 1
+    fi
+    command jq "$@"
+}
+assert_fail "repo_root: the missing-path sanitiser's own jq failure falls back to a fixed message" \
+    "${report_sanitiser_failure}" "(sanitisation failed)" "${git_case_sanitiser_failure}"
+unset -f jq
+
+# Adjacent-duplicate dedup: `git ls-files -s` emits one line per
 # (mode, object, stage) combination, not one line per path, so an
 # unresolved merge conflict on a tracked symlink produces THREE stage
 # 1/2/3 lines for the same path, all still mode 120000. Without the
-# guard, `tracked` (and then `missing`) named the same path three times.
-# `--index-info` stages the conflict directly, without a real merge.
+# check against the last-appended element, `tracked` (and then `missing`)
+# named the same path three times. `--index-info` stages the conflict
+# directly, without a real merge.
 git_case_conflict="${work_dir}/git-case-conflict"
 new_git_case conflict
 printf 'x' > target.php

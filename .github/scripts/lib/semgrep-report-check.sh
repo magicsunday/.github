@@ -20,8 +20,11 @@ build_minified_fixture() {
 # exactly one `::error::` workflow annotation on failure (so a raw newline or
 # a literal `%` in a path can never split it into an unattributed log line —
 # both are sanitised before they are folded into the annotation), or the
-# success line on stdout. Takes the path to the report file; returns non-zero
-# exactly when the report is unreadable or incomplete.
+# success line on stdout. Takes the path to the report file ($1) and,
+# optionally, the checkout root ($2) — when given, this also compares the
+# report against every git-tracked symlink/gitlink under that root (issue
+# #49) and fails closed if the comparison itself cannot be run (a temp file
+# or `git ls-files` failure), not only when the report proves incomplete.
 assert_semgrep_report_complete() {
     local json_file="$1"
     # Optional, appended rather than spliced in: every existing call site
@@ -377,24 +380,27 @@ assert_semgrep_report_complete() {
         # times in the annotation. The sole production caller checks out a
         # single ref with `actions/checkout`, which never leaves the index
         # mid-conflict, so this cannot manifest through that call path
-        # today — the guard costs nothing extra, so there is no reason to
-        # leave the duplication in for a caller that might. Kept as an
-        # indexed array plus a companion "seen" set (rather than folding
-        # `tracked` itself into a set, which was tried first) specifically
-        # to preserve `git ls-files`' own sorted iteration order — the
-        # test pinning two simultaneously-missing paths' exact join order
-        # depends on it, and a bash associative array's key order is
-        # unspecified.
+        # today — the check costs nothing extra, so there is no reason to
+        # leave the duplication in for a caller that might. Kept as a plain
+        # indexed array, deduped by comparing against the LAST element
+        # already appended, not a companion "seen" set (tried first, then
+        # simplified away): `git ls-files -s` sorts primarily by pathname,
+        # so every stage of the same conflicted path is contiguous in read
+        # order — verified live, staging a 3-way conflict returns its
+        # three stage lines back to back — which means an adjacent-only
+        # comparison collapses them exactly as a full set would, at the
+        # cost of one array read instead of a hash lookup, and without a
+        # second data structure. This also keeps `git ls-files`' own
+        # sorted iteration order intact — the test pinning two
+        # simultaneously-missing paths' exact join order depends on it.
         local -a tracked=()
-        local -A _tracked_seen=()
         local _entry _mode _tracked_path
         while IFS= read -r -d '' _entry; do
             _mode="${_entry%% *}"
             case "$_mode" in
                 120000 | 160000)
                     _tracked_path="${_entry#*$'\t'}"
-                    if [ -z "${_tracked_seen[$_tracked_path]+x}" ]; then
-                        _tracked_seen["$_tracked_path"]=1
+                    if [ "${#tracked[@]}" -eq 0 ] || [ "${tracked[-1]}" != "$_tracked_path" ]; then
                         tracked+=("$_tracked_path")
                     fi
                     ;;
