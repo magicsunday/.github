@@ -205,6 +205,19 @@ assert_eq "assert_absent_from_json_array: a jq evaluation crash returns 1, not s
 assert_contains "assert_absent_from_json_array: the crash-message names jq's own exit code, not a generic fallback" \
     "${crash_output}" "::error::" "could not evaluate" "exit 5"
 
+# The crash is attributed to the FIRST tracked path (link.js) per this
+# function's own `shift 3` argument contract ($1-$3 are kind/filter/
+# haystack, "$@" is the tracked-path list starting there) - not to the
+# haystack argument itself. A `shift 3` -> `shift 2` regression leaves
+# `haystack` ($3) as a bogus extra element ahead of "$@", so the crash
+# (and every other outcome) would instead be attributed to it; this
+# fixture's haystack ('42') and its first tracked path ('link.js')
+# independently crash the same filter, so only naming the actual path
+# proves which one was really checked (mutation-confirmed: `shift 2`
+# leaves this suite green otherwise - test-quality-reviewer, round 26).
+assert_contains "assert_absent_from_json_array: the crash-message names the first tracked path, not the haystack argument itself" \
+    "${crash_output}" "link.js"
+
 # The caller's own guarded filter (`.path? // .`, lint.yml's actual
 # "skipped" call) mixes a well-formed object with a bare, non-object string
 # in the same array - proving both halves at once: the object entry's
