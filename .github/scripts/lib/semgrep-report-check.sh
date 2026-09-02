@@ -376,7 +376,7 @@ assert_semgrep_report_complete() {
         # combination, not one line per path — an unresolved merge conflict
         # on a tracked symlink produces three stage-1/2/3 lines for the SAME
         # path, all still mode 120000. Reproduced live: without the
-        # `_tracked_seen` guard below, `tracked` duplicated that path three
+        # adjacency guard below, `tracked` duplicated that path three
         # times in the annotation. The sole production caller checks out a
         # single ref with `actions/checkout`, which never leaves the index
         # mid-conflict, so this cannot manifest through that call path
