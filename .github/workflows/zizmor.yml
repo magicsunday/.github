@@ -26,7 +26,12 @@ jobs:
                   persist-credentials: false
 
             # Same shared-checkout preconditions code-scanning.yml already
-            # applies before checking out its own canonical sources.
+            # applies before checking out its own canonical sources. Inlined
+            # rather than sourced from a lib script like
+            # canonical-file-guard.sh two steps below: this check exists to
+            # validate that checking out .magicsunday-shared is safe, so it
+            # cannot itself depend on a script fetched FROM that same
+            # checkout - there is nothing to source it from yet.
             - name: Check the shared-checkout preconditions
               env:
                   WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
@@ -35,7 +40,7 @@ jobs:
                   set -euo pipefail
                   test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
                   test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
-                  { test ! -e .magicsunday-shared && test ! -L .magicsunday-shared; } || { echo "::error::This repository contains a path named '.magicsunday-shared', which this check reserves for its own checkout and deletes again - rename it, or the check would silently skip it."; exit 1; }
+                  { test ! -e .magicsunday-shared && test ! -L .magicsunday-shared; } || { echo "::error::This repository contains a path named '.magicsunday-shared', which the shared workflows reserve for their own checkout and delete again - rename it, or the check would silently skip it."; exit 1; }
 
             - name: Check out the canonical .github/zizmor.yml
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
