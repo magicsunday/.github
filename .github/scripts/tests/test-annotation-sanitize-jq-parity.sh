@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Guards against the exact recurring drift annotation-sanitize.sh's function
-# comment names: two hand-maintained implementations of the same
-# escape-then-fold strategy going out of sync (issue #78 fixed one instance,
-# issue #80 fixed a second - sanitize_for_annotation() now routes through jq
-# itself, but the filter text is still duplicated as a literal string in two
-# files, so nothing stops a third).
+# comment names: hand-maintained implementations of the same escape-then-fold
+# strategy going out of sync (issue #78 fixed one instance, issue #80 fixed a
+# second - sanitize_for_annotation() now routes through jq itself, but the
+# filter text is still duplicated as a literal string, so nothing stops
+# another - issue #49's batched missing-path sanitiser is the third).
 #
 # Run via run-tests.sh.
 set -uo pipefail
@@ -46,13 +46,27 @@ extract_gsub_pair() {
 
 sanitize_filter="$(extract_gsub_pair '^sanitize_for_annotation' '^}' "${ANNOTATION_SANITIZE_FILE}")"
 report_check_filter="$(extract_gsub_pair '(.path \/\/ "(no path)")' 'as \$path' "${REPORT_CHECK_FILE}")"
+# The batched missing-path sanitiser (issue #49) hand-inlines the same
+# escape-then-fold pair a third time, rather than calling
+# sanitize_for_annotation() per element, specifically to avoid one jq fork
+# per missing path - see that block's own comment for the measured reason.
+# Anchored on real code, not the surrounding prose: both anchors require an
+# end-of-line match ($), which the block's own two comment paragraphs that
+# also mention `$ARGS.positional`/`join("%0A")` do not satisfy (each has
+# trailing prose after the token on its line), so this cannot lock onto a
+# comment instead of the jq filter.
+missing_path_filter="$(extract_gsub_pair 'split("\\u0000")\[0:-1\]$' 'join("%0A")$' "${REPORT_CHECK_FILE}")"
 
 assert_nonempty "${sanitize_filter}" \
     "extracted no gsub() calls from sanitize_for_annotation() in ${ANNOTATION_SANITIZE_FILE} - function body or regex shape changed"
 assert_nonempty "${report_check_filter}" \
     "extracted no gsub() calls from the .path pipeline in ${REPORT_CHECK_FILE} - pipeline or regex shape changed"
+assert_nonempty "${missing_path_filter}" \
+    "extracted no gsub() calls from the batched missing-path pipeline in ${REPORT_CHECK_FILE} - pipeline or regex shape changed"
 
 assert_eq "sanitize_for_annotation()'s jq filter matches semgrep-report-check.sh's .path gsub pipeline" \
     "${report_check_filter}" "${sanitize_filter}"
+assert_eq "sanitize_for_annotation()'s jq filter matches semgrep-report-check.sh's batched missing-path pipeline" \
+    "${missing_path_filter}" "${sanitize_filter}"
 
 report_and_exit "annotation-sanitize jq-filter parity drift-guard test"

@@ -273,12 +273,22 @@ assert_semgrep_report_complete() {
     # is the only way to see it, so this runs only when the caller passes a
     # `repo_root` (issue #49; channel 1 of that issue — a warn-level
     # `.errors[]` entry with no matching skip, and `.errors[]` reaching the
-    # exit code at all outside `--strict` — could not be made to manifest
-    # against this pin even with a deliberately slow 200k-line file and a
-    # 5000-deep nested-expression file under `--timeout 1`/`--timeout 5`.
-    # Issue #49's own channel 2 — a file in neither inventory — is what this
-    # block implements, not a second unreproducible channel; see that issue
-    # for the reproduction attempts and its current status).
+    # exit code at all outside `--strict`). As observed 2026-09-02 against
+    # the pinned engine, this could not be made to manifest even with a
+    # deliberately adversarial fixture:
+    #
+    #   yes 'function f(a,b,c){ if(a>b){return a;} else { return b+c; } }' \
+    #       | head -200000 > huge.js
+    #   semgrep scan --config p/javascript --timeout 1 --json-output=j.json \
+    #       --verbose --metrics off huge.js
+    #   jq '.errors, .paths.skipped, .paths.scanned' j.json
+    #       # [], [], ["huge.js"] — no warn-level error, no skip
+    #
+    # (a 5000-deep nested-parenthesis expression under `--timeout 5` produced
+    # the same empty `.errors`). Issue #49's own channel 2 — a file in
+    # neither inventory — is what this block implements, not a second
+    # unreproducible channel; see that issue for the full reproduction
+    # attempts and its current status.
     #
     # A git-tracked SYMLINK is the confirmed case: the engine neither scans
     # nor lists one. Reproduced against the pinned engine, 2026-09-02, in a
@@ -368,20 +378,39 @@ assert_semgrep_report_complete() {
         done
 
         if [ "${#missing[@]}" -gt 0 ]; then
-            # One `jq` call over every missing path via `--args`/
-            # `$ARGS.positional`, not one `sanitize_for_annotation` fork per
+            # One `jq` call over every missing path, piped through NUL-
+            # delimited stdin - not one `sanitize_for_annotation` fork per
             # path: the per-path form cost one subprocess spawn per entry,
             # which on a systematically-incomplete report (the pack-coverage
             # case above, not just a single stray symlink) is proportional to
-            # the whole tree. `--args` passes each element as its own argv
-            # entry, so no NUL/newline delimiter is needed in the jq program
-            # itself.
+            # the whole tree.
+            #
+            # An earlier version of this block passed `missing` via jq's own
+            # `--args`/`$ARGS.positional` instead of a pipe. Two independent
+            # problems with that form, both found and fixed 2026-09-02:
+            #  - a git-tracked path shaped like a jq flag (`--rawfile`) was
+            #    parsed as one by jq's own getopt-style scanner rather than
+            #    landing in `$ARGS.positional` - fixable with a `--`
+            #    separator, but the deeper problem below made this form worth
+            #    abandoning rather than patching.
+            #  - passing thousands of paths as argv is bounded by the
+            #    kernel's ARG_MAX (2097152 bytes on this host), not by
+            #    available memory - reproduced with 80000 synthetic paths:
+            #    `jq: Argument list too long`, and the `|| missing_lines=...`
+            #    fallback below then silently drops every path from the
+            #    annotation at exactly the scale (a systematically
+            #    incomplete report) this check is most valuable for.
+            # Piping NUL-delimited data into `jq -Rs` (as `tracked`/`covered`
+            # above already do, via a temp file and a process substitution
+            # respectively) has neither limit: no argv, so no ARG_MAX: a
+            # `--`-shaped or flag-shaped element is just bytes on stdin, not
+            # a token jq's own arg parser ever sees.
             local missing_lines
-            missing_lines="$(jq -nr --args '
-                $ARGS.positional
+            missing_lines="$(printf '%s\0' "${missing[@]}" | jq -Rsr '
+                split("\u0000")[0:-1]
                 | map(gsub("%"; "%25") | gsub("[[:cntrl:]]"; " "))
                 | join("%0A")
-            ' "${missing[@]}" 2>/dev/null)" || missing_lines="(sanitisation failed)"
+            ' 2>/dev/null)" || missing_lines="(sanitisation failed)"
             # The `excludes` remedy named below cannot represent a tracked
             # path containing a literal space — `build_semgrep_exclude_args()`
             # (semgrep-excludes.sh) splits on IFS whitespace with no quoting,

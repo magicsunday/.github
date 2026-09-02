@@ -233,10 +233,24 @@ assert_fail "a literal question mark next to a folded control byte stays disting
 tmp_scan_dir="${work_dir}/tmp-scan"
 mkdir -p "${tmp_scan_dir}"
 
-before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
-TMPDIR="${tmp_scan_dir}" assert_semgrep_report_complete "${non_string_path}" > /dev/null 2>&1
-after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
-assert_eq "jq's stderr temp file does not survive a crash-path call" "${before_tmp_count}" "${after_tmp_count}"
+# Runs "$@" with TMPDIR pointed at tmp_scan_dir and asserts no tmp.* file
+# survives the call - shared by every leak assertion below (two here for
+# jq_stderr_file, two more further down for the repo_root block's
+# git_ls_files_file). Extracted per simplicity-reviewer (round 2): the same
+# duplication shape round 1 already fixed once, for the git-case setup, via
+# new_git_case() a few lines below.
+assert_no_tmp_leak() {
+    local description="$1"
+    shift
+    local before after
+    before="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
+    TMPDIR="${tmp_scan_dir}" "$@" > /dev/null 2>&1
+    after="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
+    assert_eq "${description}" "${before}" "${after}"
+}
+
+assert_no_tmp_leak "jq's stderr temp file does not survive a crash-path call" \
+    assert_semgrep_report_complete "${non_string_path}"
 
 # The crash-path assertion above only exercises the `rm -f` inside the
 # `|| { ... }` handler - it proves nothing about the OTHER cleanup site,
@@ -244,10 +258,8 @@ assert_eq "jq's stderr temp file does not survive a crash-path call" "${before_t
 # by every fixture above this one). Deleting that second `rm -f` in a
 # scratch copy left this suite green even with it removed, which is exactly
 # the coverage gap a fixture naming only one branch cannot catch.
-before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
-TMPDIR="${tmp_scan_dir}" assert_semgrep_report_complete "${tolerated_skip}" > /dev/null 2>&1
-after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
-assert_eq "jq's stderr temp file does not survive a successful call" "${before_tmp_count}" "${after_tmp_count}"
+assert_no_tmp_leak "jq's stderr temp file does not survive a successful call" \
+    assert_semgrep_report_complete "${tolerated_skip}"
 
 # `repo_root` cases (issue #49, channel 2): the completeness check is only
 # reachable with a REAL git repository behind it, so these build one per
@@ -340,6 +352,43 @@ jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_percent}"
 assert_fail "repo_root: a missing path with a literal percent sign is sanitised in the annotation" \
     "${report_percent}" "weird%25name.php" "${git_case_percent}"
 
+# A missing path shaped like a jq CLI flag (`--rawfile` takes two
+# parameters) must still be sanitised and named, not silently dropped or
+# collapsed to "(sanitisation failed)" for the whole batch. An earlier,
+# argv-based version of the sanitiser (`jq --args ... "${missing[@]}"`)
+# failed exactly this way - fixable with a `--` separator, but the
+# NUL-delimited-stdin form the library uses now (see its own comment)
+# removes the whole class: a path never reaches jq's own argv/option
+# parser at all, so there is nothing shaped like a flag from jq's point of
+# view. This fixture pins that regardless of which mechanism is in use.
+git_case_flag_shaped="${work_dir}/git-case-flag-shaped"
+new_git_case flag-shaped
+printf 'x' > target.php
+ln -s target.php -- '--rawfile'
+git add -Af .
+cd "${original_dir}" || exit 1
+report_flag_shaped="${work_dir}/report-flag-shaped.json"
+jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_flag_shaped}"
+assert_fail "repo_root: a missing path shaped like a jq flag is still named, not dropped" \
+    "${report_flag_shaped}" "--rawfile" "${git_case_flag_shaped}"
+
+# The reason-based check above (see "path with a raw newline stays one
+# annotation") has a dedicated fixture proving its sanitiser folds a
+# control byte; the repo_root/missing-path sanitiser is a separate jq
+# filter (batched via --args, not the shared sanitize_for_annotation()
+# helper) and had no equivalent case until this one.
+git_case_control_byte="${work_dir}/git-case-control-byte"
+new_git_case control-byte
+printf 'x' > target.php
+control_byte_name="$(printf 'weird\001byte.php')"
+ln -s target.php "${control_byte_name}"
+git add -Af .
+cd "${original_dir}" || exit 1
+report_control_byte="${work_dir}/report-control-byte.json"
+jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_control_byte}"
+assert_fail "repo_root: a missing path with a control byte is folded, staying one annotation" \
+    "${report_control_byte}" "weird byte.php" "${git_case_control_byte}"
+
 # The new `git_ls_files_file` mktemp (semgrep-report-check.sh, the
 # `repo_root` block) is cleaned up on TWO exit paths - the `git ls-files`
 # failure branch and the success continuation - mirroring the jq-stderr
@@ -349,15 +398,11 @@ assert_fail "repo_root: a missing path with a literal percent sign is sanitised 
 # `rm -f` calls would leave this suite green (proven: removing the
 # success-path `rm -f` in a scratch copy left "All report-check tests
 # passed." unchanged).
-before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
-TMPDIR="${tmp_scan_dir}" assert_semgrep_report_complete "${report_not_a_repo}" "${git_case_not_a_repo}" > /dev/null 2>&1
-after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
-assert_eq "repo_root: git_ls_files_file does not survive a git-ls-files failure" "${before_tmp_count}" "${after_tmp_count}"
+assert_no_tmp_leak "repo_root: git_ls_files_file does not survive a git-ls-files failure" \
+    assert_semgrep_report_complete "${report_not_a_repo}" "${git_case_not_a_repo}"
 
-before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
-TMPDIR="${tmp_scan_dir}" assert_semgrep_report_complete "${report_baseline}" "${git_case_baseline}" > /dev/null 2>&1
-after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
-assert_eq "repo_root: git_ls_files_file does not survive a successful call" "${before_tmp_count}" "${after_tmp_count}"
+assert_no_tmp_leak "repo_root: git_ls_files_file does not survive a successful call" \
+    assert_semgrep_report_complete "${report_baseline}" "${git_case_baseline}"
 
 # A `mktemp` failure for `git_ls_files_file` itself must fail closed with
 # its OWN message, not crash or silently skip the check. A globally broken
