@@ -515,8 +515,9 @@ assert_semgrep_report_complete() {
             #    deeper problem below made this form worth abandoning
             #    rather than patching.
             #  - passing thousands of paths as argv is bounded by the
-            #    kernel's ARG_MAX (2097152 bytes on this host), not by
-            #    available memory - reproduced with 80000 synthetic paths:
+            #    kernel's own limit, not by available memory - as observed
+            #    2026-09-02 (`getconf ARG_MAX` -> 2097152 on the host
+            #    tested), reproduced with 80000 synthetic paths:
             #    `jq: Argument list too long`, and the `|| missing_lines=...`
             #    fallback below then silently dropped every path from the
             #    annotation at exactly the scale a systematically incomplete
