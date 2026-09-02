@@ -34,6 +34,67 @@ printf 'function f(a,b,c){return a+b+c;}%.0s' {1..80} > "${expected_file}"
 cmp -s "${expected_file}" "${fixture_file}" && fixture_cmp_result="match" || fixture_cmp_result="differ"
 assert_eq "build_minified_fixture() writes the expected literal fixture" "match" "${fixture_cmp_result}"
 
+# assert_absent_from_json_array() is lint.yml's semgrep-smoke job's own
+# helper (shared the same way build_minified_fixture() is), extracted here
+# after shipping inline, unpinned, three times within rounds 8-9 of issue
+# #49 - a missing positive control, a jq-crash/not-found conflation whose
+# first fix attempt was itself broken by a `set -e` assignment-ordering
+# trap, then a filter (`.path // .`) that LOOKED like it guarded a
+# non-object array element but didn't: `//` only substitutes on a
+# null/false RESULT, not on a raised type error, so `.path` indexing a
+# bare string still crashed - the caller's own filter now reads `.path? //
+# .` instead. Three branches, matching this function's own docblock: found
+# (jq -e exits 0), legitimately absent (jq -e exits 1), and jq itself could
+# not evaluate the filter at all (any other exit code - reproduced by
+# feeding the "scanned" filter a haystack that is valid JSON but not an
+# array, which crashes `index($p)` with exit 5; the "skipped" filter's own
+# former crash shape no longer reproduces one, now that its caller's filter
+# is guarded).
+absent_output="$(assert_absent_from_json_array scanned 'index($p) != null' '["target.js"]' link.js vendored-dir logo.png 2>&1)"
+absent_rc=$?
+assert_eq "assert_absent_from_json_array: all tracked paths legitimately absent returns 0" "0" "${absent_rc}"
+assert_eq "assert_absent_from_json_array: all tracked paths legitimately absent prints nothing" "" "${absent_output}"
+
+found_output="$(assert_absent_from_json_array scanned 'index($p) != null' '["link.js"]' link.js vendored-dir logo.png 2>&1)"
+found_rc=$?
+assert_eq "assert_absent_from_json_array: a tracked path the filter matches returns 1" "1" "${found_rc}"
+case "${found_output}" in
+    *"::error::"*"link.js"*"scanned"*) echo "PASS: assert_absent_from_json_array: the found-message names the path and the kind" ;;
+    *)
+        echo "FAIL: assert_absent_from_json_array: the found-message names the path and the kind: got '${found_output}'"
+        failures=$((failures + 1))
+        ;;
+esac
+
+crash_output="$(assert_absent_from_json_array scanned 'index($p) != null' '42' link.js vendored-dir logo.png 2>&1)"
+crash_rc=$?
+assert_eq "assert_absent_from_json_array: a jq evaluation crash returns 1, not silently treated as absent" "1" "${crash_rc}"
+case "${crash_output}" in
+    *"::error::"*"could not evaluate"*"exit 5"*) echo "PASS: assert_absent_from_json_array: the crash-message names jq's own exit code, not a generic fallback" ;;
+    *)
+        echo "FAIL: assert_absent_from_json_array: the crash-message names jq's own exit code, not a generic fallback: got '${crash_output}'"
+        failures=$((failures + 1))
+        ;;
+esac
+
+# The caller's own guarded filter (`.path? // .`, lint.yml's actual
+# "skipped" call) mixes a well-formed object with a bare, non-object string
+# in the same array - proving both halves at once: the object entry's
+# `.path?` half doesn't crash the non-object entry alongside it (unlike the
+# unguarded `.path // .` this replaced), AND the `// .` fallback actually
+# still matches a bare string against itself, rather than the `?` silently
+# turning every non-object entry into a no-op that never matches.
+guarded_found_output="$(assert_absent_from_json_array skipped 'any(.[]?; (.path? // .) == $p)' '[{"path":"unrelated.php","reason":"binary"},"link.js"]' link.js vendored-dir logo.png 2>&1)"
+guarded_found_rc=$?
+assert_eq "assert_absent_from_json_array: the guarded skipped filter still matches a bare-string entry via its fallback, not just object entries" "1" "${guarded_found_rc}"
+case "${guarded_found_output}" in
+    *"::error::"*"link.js"*"skipped"*) echo "PASS: assert_absent_from_json_array: the guarded skipped filter's found-message names the matched bare-string entry" ;;
+    *)
+        echo "FAIL: assert_absent_from_json_array: the guarded skipped filter's found-message names the matched bare-string entry: got '${guarded_found_output}'"
+        failures=$((failures + 1))
+        ;;
+esac
+
 assert_pass() {
     local description="$1"
     local fixture="$2"

@@ -16,6 +16,47 @@ build_minified_fixture() {
     printf 'function f(a,b,c){return a+b+c;}%.0s' {1..80} > "$1"
 }
 
+# Asserts none of the tracked paths given as $4.. satisfy the jq boolean
+# expression $2 (run as `jq -e --arg p <path> "$2"`) against the JSON value
+# $3 - e.g. a Semgrep report's `.paths.scanned`/`.paths.skipped` array, as
+# lint.yml's semgrep-smoke job uses this for. $1 is a label folded into the
+# failure message only (e.g. "scanned"/"skipped"), not evaluated.
+#
+# Distinguishes jq's three possible outcomes explicitly rather than folding
+# them into one boolean `if`: exit 0 means the filter matched (a tracked path
+# WAS found - fails, naming it); exit 1 means the filter legitimately
+# evaluated to false/null (continues); any OTHER exit code means jq itself
+# could not evaluate the filter at all (a compile error, or - as observed
+# 2026-09-02 - `.path` indexing a non-object array element, which jq exits 5
+# for) and must also fail rather than be silently read as "not found" - the
+# same failure class issue #65 already documents for this file's other jq
+# calls, reintroduced once in an earlier, inline version of this exact
+# helper (round 8 of issue #49) before being extracted here with a test.
+#
+# The assignment is the `if`'s own condition, not a standalone statement
+# before one: under `set -e`, a bare `out="$(cmd)"` line trips errexit
+# immediately on a failing `cmd`, before a following `rc=$?` line is ever
+# reached - as observed 2026-09-02.
+assert_absent_from_json_array() {
+    local kind="$1" filter="$2" haystack="$3"
+    shift 3
+    local tracked_path out rc
+    for tracked_path in "$@"; do
+        if out="$(jq -e --arg p "$tracked_path" "$filter" <<< "$haystack" 2>&1)"; then
+            rc=0
+        else
+            rc=$?
+        fi
+        if [ "$rc" -eq 0 ]; then
+            echo "::error::The pinned engine reported the git-tracked ${tracked_path} as ${kind} - this comparison assumes it never is: ${haystack}"
+            return 1
+        elif [ "$rc" -ne 1 ]; then
+            echo "::error::jq could not evaluate the ${kind} check for ${tracked_path} (exit ${rc}), so this check verified nothing: ${out}"
+            return 1
+        fi
+    done
+}
+
 # Fails unless Semgrep's --json-output report shows a complete scan. Prints
 # exactly one `::error::` workflow annotation on failure (so a raw newline or
 # a literal `%` in a path can never split it into an unattributed log line —
