@@ -201,7 +201,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   that runs it. One relevant control here is the *consumer repository's*
   fork-PR-contributor-approval setting (GitHub also offers separate workflow-execution
   protections beyond it — out of scope for this bullet): re-derive with
-  `gh api repos/<owner>/<repo>/actions/permissions/fork-pr-contributor-approval`.
+  `gh api repos/OWNER/REPO/actions/permissions/fork-pr-contributor-approval` (substitute
+  the real owner/repo — a literal `<owner>`/`<repo>` is shell redirection syntax).
   `all_external_contributors` requires approval from a collaborator with write access for
   every external run; `first_time_contributors` (this account's observed default, across
   its untouched repos) requires it only until the contributor has one commit or PR merged
