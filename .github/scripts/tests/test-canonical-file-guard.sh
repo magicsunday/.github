@@ -84,7 +84,7 @@ printf 'on: {}\n' > "${canonical_dir}/.github/zizmor.yml"
 run_guard
 assert_eq "missing caller file: fails closed" "1" "${rc}"
 assert_eq "missing caller file: emits the missing annotation" \
-    "::error file=.github/zizmor.yml::.github/zizmor.yml is missing. It declares that first-party reusable workflows track @main by policy - without it, the unpinned-uses zizmor audit falls back to its blanket hash-pin rule and reports every reusable-workflow reference as a finding. Copy the canonical file from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml" \
+    "::error file=.github/zizmor.yml::.github/zizmor.yml is missing. Without it, the unpinned-uses zizmor audit falls back to a stricter default that flags every reusable-workflow reference (see this file's own docblock for the anchored claim about what that default is). Copy the canonical file from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml" \
     "${output}"
 
 # A drifted caller file (present, but byte-different) fails with the
