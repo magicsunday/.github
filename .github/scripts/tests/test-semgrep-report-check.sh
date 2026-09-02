@@ -109,6 +109,27 @@ assert_eq "assert_absent_from_json_array: a raw newline in the tracked path stay
 assert_contains "assert_absent_from_json_array: a raw newline in the tracked path is folded, not dropped" \
     "${newline_output}" "::error::" "evil file"
 
+# assert_contains() has the identical gap round 12 closed for its sibling
+# below, just never closed for itself: its three real call sites above all
+# happen to have every needle genuinely present, so a mutation that only
+# checked the FIRST needle (`for needle in "$1"` instead of `"$@"`) is
+# invisible to the whole suite (test-quality-reviewer, mutation-confirmed,
+# round 13). The needle ORDER passed here ("b" then "a") deliberately
+# doesn't match the haystack's own word order ("a" ... "b"), so a genuine
+# pass here also proves this function's order-independence, not just that
+# it can find things.
+contains_ok_output="$(assert_contains "probe" "a needle b needle" "b" "a" 2>&1)"
+assert_eq "assert_contains: needles present in any order pass" "PASS: probe" "${contains_ok_output}"
+
+contains_missing_output="$(assert_contains "probe" "a needle only" "a" "b" 2>&1)"
+case "${contains_missing_output}" in
+    FAIL:*) echo "PASS: assert_contains: a missing needle fails" ;;
+    *)
+        echo "FAIL: assert_contains: a missing needle fails: got '${contains_missing_output}'"
+        failures=$((failures + 1))
+        ;;
+esac
+
 # assert_contains_in_order() itself has no fixture below other than the
 # three real assert_absent_from_json_array() call sites above, all of
 # which only ever receive correctly-ordered production strings - so a
