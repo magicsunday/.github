@@ -369,13 +369,34 @@ assert_semgrep_report_complete() {
         # appear in `ls-files` output at all) is left to the reason-based
         # check above; comparing them here is exactly the false-positive
         # this design deliberately avoids.
+        # `git ls-files -s` emits one line per (mode, object, stage)
+        # combination, not one line per path — an unresolved merge conflict
+        # on a tracked symlink produces three stage-1/2/3 lines for the SAME
+        # path, all still mode 120000. Reproduced live: without the
+        # `_tracked_seen` guard below, `tracked` duplicated that path three
+        # times in the annotation. The sole production caller checks out a
+        # single ref with `actions/checkout`, which never leaves the index
+        # mid-conflict, so this cannot manifest through that call path
+        # today — the guard costs nothing extra, so there is no reason to
+        # leave the duplication in for a caller that might. Kept as an
+        # indexed array plus a companion "seen" set (rather than folding
+        # `tracked` itself into a set, which was tried first) specifically
+        # to preserve `git ls-files`' own sorted iteration order — the
+        # test pinning two simultaneously-missing paths' exact join order
+        # depends on it, and a bash associative array's key order is
+        # unspecified.
         local -a tracked=()
-        local _entry _mode
+        local -A _tracked_seen=()
+        local _entry _mode _tracked_path
         while IFS= read -r -d '' _entry; do
             _mode="${_entry%% *}"
             case "$_mode" in
                 120000 | 160000)
-                    tracked+=("${_entry#*$'\t'}")
+                    _tracked_path="${_entry#*$'\t'}"
+                    if [ -z "${_tracked_seen[$_tracked_path]+x}" ]; then
+                        _tracked_seen["$_tracked_path"]=1
+                        tracked+=("$_tracked_path")
+                    fi
                     ;;
             esac
         done < "$git_ls_files_file"
@@ -405,26 +426,32 @@ assert_semgrep_report_complete() {
         if [ "${#missing[@]}" -gt 0 ]; then
             # One `jq` call over every missing path, piped through NUL-
             # delimited stdin - not one `sanitize_for_annotation` fork per
-            # path: the per-path form cost one subprocess spawn per entry,
-            # which on a systematically-incomplete report (the pack-coverage
-            # case above, not just a single stray symlink) is proportional to
-            # the whole tree.
+            # path. After the mode narrowing above, `missing` is bounded by
+            # the number of tracked symlinks/gitlinks, not by the tree size
+            # - but the form below is still the right one, for a reason
+            # independent of that bound: a git-tracked path shaped like a
+            # jq flag (`--rawfile`) does not reach jq's own argv/option
+            # parser at all through a pipe, so there is nothing to
+            # misinterpret regardless of how few or many paths there are.
             #
             # An earlier version of this block passed `missing` via jq's own
-            # `--args`/`$ARGS.positional` instead of a pipe. Two independent
-            # problems with that form, both found and fixed 2026-09-02:
-            #  - a git-tracked path shaped like a jq flag (`--rawfile`) was
-            #    parsed as one by jq's own getopt-style scanner rather than
-            #    landing in `$ARGS.positional` - fixable with a `--`
-            #    separator, but the deeper problem below made this form worth
-            #    abandoning rather than patching.
+            # `--args`/`$ARGS.positional` instead of a pipe - written before
+            # the mode narrowing, when `missing` really could be
+            # tree-sized. Two independent problems with that form, both
+            # found and fixed 2026-09-02:
+            #  - a flag-shaped path was parsed as an option by jq's own
+            #    getopt-style scanner rather than landing in
+            #    `$ARGS.positional` - fixable with a `--` separator, but the
+            #    deeper problem below made this form worth abandoning
+            #    rather than patching.
             #  - passing thousands of paths as argv is bounded by the
             #    kernel's ARG_MAX (2097152 bytes on this host), not by
             #    available memory - reproduced with 80000 synthetic paths:
             #    `jq: Argument list too long`, and the `|| missing_lines=...`
-            #    fallback below then silently drops every path from the
-            #    annotation at exactly the scale (a systematically
-            #    incomplete report) this check is most valuable for.
+            #    fallback below then silently dropped every path from the
+            #    annotation at exactly the scale a systematically incomplete
+            #    report would have produced, before the narrowing made that
+            #    scale unreachable through this call path.
             # Piping NUL-delimited data into `jq -Rs` (as `tracked`/`covered`
             # above already do, via a temp file and a process substitution
             # respectively) has neither limit: no argv, so no ARG_MAX: a
@@ -448,7 +475,7 @@ assert_semgrep_report_complete() {
             # third-party projects and neither calls this reusable workflow,
             # so no current consumer of it has one; this cannot bite a real
             # caller today. Tracked separately as issue #89.
-            echo "::error::Semgrep's report says nothing about the file(s) below — they are tracked by git but absent from both .paths.scanned and .paths.skipped, so the engine never enumerated them and code scanning would retire any alert they held. A git-tracked symlink is the confirmed producer of this shape; a submodule gitlink or a rule-pack coverage gap (see above) reach it too. Declare the path through this workflow's 'excludes' input if it is not meant to be scanned, otherwise investigate why the engine never enumerated it.%0A${missing_lines}"
+            echo "::error::Semgrep's report says nothing about the file(s) below — they are tracked by git but absent from both .paths.scanned and .paths.skipped, so the engine never enumerated them and code scanning would retire any alert they held. A git-tracked symlink is the confirmed producer of this shape; a submodule gitlink reaches it too. Declare the path through this workflow's 'excludes' input if it is not meant to be scanned, otherwise investigate why the engine never enumerated it.%0A${missing_lines}"
             return 1
         fi
     fi

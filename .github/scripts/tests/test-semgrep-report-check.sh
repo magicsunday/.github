@@ -442,6 +442,78 @@ jq -n '{paths: {scanned: ["a.php"], skipped: []}}' > "${report_ordinary_missing}
 assert_pass "repo_root: an ordinary tracked file absent from both inventories is not flagged (only symlinks/gitlinks are)" \
     "${report_ordinary_missing}" "${git_case_ordinary_missing}"
 
+# A tracked symlink whose name contains a literal SPACE must survive both
+# the mode split (`${_entry%% *}`) and the path split (`${_entry#*$'\t'}`)
+# intact - neither is space-based, but nothing above this point proves it:
+# every existing missing-path fixture uses a tab, a control byte, or a
+# flag-shaped name, never a plain space.
+git_case_space="${work_dir}/git-case-space"
+new_git_case space
+printf 'x' > target.php
+ln -s target.php 'my link.php'
+git add -Af .
+cd "${original_dir}" || exit 1
+report_space="${work_dir}/report-space.json"
+jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_space}"
+assert_fail "repo_root: a missing path with a space survives the mode/path split intact" \
+    "${report_space}" "my link.php" "${git_case_space}"
+
+# Mode 160000 (gitlink/submodule) is the other half of the
+# `case "$_mode" in 120000 | 160000)` filter - mutation-confirmed
+# unreachable by any fixture above: dropping `| 160000` from that case arm
+# left the whole suite green. No real submodule is needed to stage one;
+# `--cacheinfo` with the well-known empty-tree SHA registers a gitlink
+# entry directly in the index.
+git_case_gitlink="${work_dir}/git-case-gitlink"
+new_git_case gitlink
+printf 'x' > target.php
+git add -Af .
+git update-index --add --cacheinfo 160000,4b825dc642cb6eb9a060e54bf8d69288fbee4904,vendored-dir
+cd "${original_dir}" || exit 1
+report_gitlink="${work_dir}/report-gitlink.json"
+jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_gitlink}"
+assert_fail "repo_root: a missing gitlink (mode 160000) is caught, not just symlinks" \
+    "${report_gitlink}" "vendored-dir" "${git_case_gitlink}"
+
+# The POSITIVE half of the `covered[$_p]+x` lookup - a symlink genuinely
+# accounted for in the report - has no fixture above either: every
+# assert_pass case up to this point passes because its files are mode
+# 100644 and never enter `tracked` at all, not because this lookup found a
+# match. A regression that compared against the wrong array, or a typo'd
+# key, would leave every case above green.
+git_case_symlink_covered="${work_dir}/git-case-symlink-covered"
+new_git_case symlink-covered
+printf 'x' > target.php
+ln -s target.php link.php
+git add -Af .
+cd "${original_dir}" || exit 1
+report_symlink_covered="${work_dir}/report-symlink-covered.json"
+jq -n '{paths: {scanned: ["target.php", "link.php"], skipped: []}}' > "${report_symlink_covered}"
+assert_pass "repo_root: a symlink the report DOES account for is not flagged" \
+    "${report_symlink_covered}" "${git_case_symlink_covered}"
+
+# `_tracked_seen` dedup guard: `git ls-files -s` emits one line per
+# (mode, object, stage) combination, not one line per path, so an
+# unresolved merge conflict on a tracked symlink produces THREE stage
+# 1/2/3 lines for the same path, all still mode 120000. Without the
+# guard, `tracked` (and then `missing`) named the same path three times.
+# `--index-info` stages the conflict directly, without a real merge.
+git_case_conflict="${work_dir}/git-case-conflict"
+new_git_case conflict
+printf 'x' > target.php
+git add -Af .
+blob1="$(printf 'a' | git hash-object -w --stdin)"
+blob2="$(printf 'b' | git hash-object -w --stdin)"
+blob3="$(printf 'c' | git hash-object -w --stdin)"
+printf '120000 %s 1\tlink.php\n120000 %s 2\tlink.php\n120000 %s 3\tlink.php\n' \
+    "${blob1}" "${blob2}" "${blob3}" | git update-index --index-info
+cd "${original_dir}" || exit 1
+report_conflict="${work_dir}/report-conflict.json"
+jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_conflict}"
+conflict_output="$(assert_semgrep_report_complete "${report_conflict}" "${git_case_conflict}" 2>&1)"
+conflict_occurrences="$(printf '%s' "${conflict_output}" | grep -o 'link.php' | wc -l)"
+assert_eq "repo_root: a conflicted-stage path is named exactly once, not once per stage" "1" "${conflict_occurrences}"
+
 # The new `git_ls_files_file` mktemp (semgrep-report-check.sh, the
 # `repo_root` block) is cleaned up on TWO exit paths - the `git ls-files`
 # failure branch and the success continuation - mirroring the jq-stderr
