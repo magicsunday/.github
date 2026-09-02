@@ -127,7 +127,15 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   could make, and only against the
   engine's own definition. `minified` was carried as a tolerated exception to both
   grounds until issue #50 verified against the pinned engine that it cannot occur
-  through this workflow's invocation — it is not on the list.
+  through this workflow's invocation — it is not on the list. The same
+  function also compares the caller's `git ls-files` against
+  `.paths.scanned ∪ .paths.skipped` when the caller passes its checkout
+  root — the confirmed gap this closes is a git-tracked symlink, which the
+  pinned engine neither scans nor lists as skipped, so it leaves no trace
+  in the inventory for the reason-based check above to catch (issue #49).
+  A repository that legitimately keeps one declares its path through this
+  workflow's `excludes` input, the same mechanism a `minified` file or
+  any other intentional exclusion already uses.
 - **When a reusable workflow's `run:` block grows real logic (argument
   construction, report assertions — a bare exit-code check is usually too small to
   be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
