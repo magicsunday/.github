@@ -165,7 +165,8 @@ jobs:
                   # shellcheck source=scripts/lib/semgrep-report-check.sh
                   source .github/scripts/lib/semgrep-report-check.sh
 
-                  mkdir smoke-repo && cd smoke-repo
+                  mkdir smoke-repo
+                  cd smoke-repo
                   git init --quiet
                   printf 'function f(a,b,c){return a+b+c;}\n' > target.js
                   ln -s target.js link.js
