@@ -38,6 +38,35 @@ assert_eq() {
     echo "PASS: ${description}"
 }
 
+# Fails with "FAIL: ${description}: got '$2'" and increments `failures`
+# unless "$2" (a haystack) contains EVERY one of "$3.." as a literal
+# substring -- the same `case "${haystack}" in *"${needle}"*) ;; *) FAIL...;
+# esac` shape assert_fail() below and test-semgrep-report-check.sh's
+# assert_absent_from_json_array() assertions each had inline before this was
+# extracted (round 10 of issue #49). Multiple needles, not just one: a
+# caller checking for several independent substrings (e.g. "::error::" AND
+# a path AND a kind) previously repeated the whole case/esac per needle
+# rather than combining them into one glob, which this collapses to one
+# call.
+assert_contains() {
+    local description="$1"
+    local haystack="$2"
+    shift 2
+    local needle
+    for needle in "$@"; do
+        case "${haystack}" in
+            *"${needle}"*) ;;
+            *)
+                echo "FAIL: ${description}: got '${haystack}'"
+                failures=$((failures + 1))
+                return
+                ;;
+        esac
+    done
+
+    echo "PASS: ${description}"
+}
+
 # Fails with "FAIL: expected file not found: $1" and increments `failures`
 # unless "$1" exists -- the same file-existence guard
 # test-semgrep-prune-dirs.sh and test-lib-source-cp-drift.sh

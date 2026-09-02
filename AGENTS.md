@@ -119,7 +119,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   quietly covered less than the tree retires real alerts, and an exit code does not
   carry that. `code-scanning.yml` sources `.github/scripts/lib/semgrep-report-check.sh`
   to check a skip inventory, and `lint.yml`'s `semgrep-smoke` job sources the same
-  file for its `build_minified_fixture()` helper; its comments hold the mechanics
+  file for its `build_minified_fixture()` and `assert_absent_from_json_array()`
+  helpers; its comments hold the mechanics
   and the commands that re-derive them. Two prohibitions before you edit it: do not
   drop the flags it calls load-bearing, and do not turn its allow list of tolerated
   skip reasons into a deny list — widen that list only for a reason meaning the

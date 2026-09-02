@@ -55,27 +55,30 @@ absent_rc=$?
 assert_eq "assert_absent_from_json_array: all tracked paths legitimately absent returns 0" "0" "${absent_rc}"
 assert_eq "assert_absent_from_json_array: all tracked paths legitimately absent prints nothing" "" "${absent_output}"
 
+# Every fixture above and below this line puts the interesting tracked path
+# FIRST in the argument list - link.js, always link.js - so a mutation that
+# collapsed the `for tracked_path in "$@"` loop to checking only "$1" would
+# still pass all of them (mutation-confirmed, test-quality-reviewer round
+# 10). This one deliberately matches on the THIRD (logo.png), not the
+# first, so the loop's own iteration is what a regression would need to
+# break for this test to still pass.
+third_arg_found_output="$(assert_absent_from_json_array scanned 'index($p) != null' '["logo.png"]' link.js vendored-dir logo.png 2>&1)"
+third_arg_found_rc=$?
+assert_eq "assert_absent_from_json_array: a match on the THIRD tracked path, not just the first, still fails" "1" "${third_arg_found_rc}"
+assert_contains "assert_absent_from_json_array: the third-tracked-path found-message names logo.png" \
+    "${third_arg_found_output}" "::error::" "logo.png" "scanned"
+
 found_output="$(assert_absent_from_json_array scanned 'index($p) != null' '["link.js"]' link.js vendored-dir logo.png 2>&1)"
 found_rc=$?
 assert_eq "assert_absent_from_json_array: a tracked path the filter matches returns 1" "1" "${found_rc}"
-case "${found_output}" in
-    *"::error::"*"link.js"*"scanned"*) echo "PASS: assert_absent_from_json_array: the found-message names the path and the kind" ;;
-    *)
-        echo "FAIL: assert_absent_from_json_array: the found-message names the path and the kind: got '${found_output}'"
-        failures=$((failures + 1))
-        ;;
-esac
+assert_contains "assert_absent_from_json_array: the found-message names the path and the kind" \
+    "${found_output}" "::error::" "link.js" "scanned"
 
 crash_output="$(assert_absent_from_json_array scanned 'index($p) != null' '42' link.js vendored-dir logo.png 2>&1)"
 crash_rc=$?
 assert_eq "assert_absent_from_json_array: a jq evaluation crash returns 1, not silently treated as absent" "1" "${crash_rc}"
-case "${crash_output}" in
-    *"::error::"*"could not evaluate"*"exit 5"*) echo "PASS: assert_absent_from_json_array: the crash-message names jq's own exit code, not a generic fallback" ;;
-    *)
-        echo "FAIL: assert_absent_from_json_array: the crash-message names jq's own exit code, not a generic fallback: got '${crash_output}'"
-        failures=$((failures + 1))
-        ;;
-esac
+assert_contains "assert_absent_from_json_array: the crash-message names jq's own exit code, not a generic fallback" \
+    "${crash_output}" "::error::" "could not evaluate" "exit 5"
 
 # The caller's own guarded filter (`.path? // .`, lint.yml's actual
 # "skipped" call) mixes a well-formed object with a bare, non-object string
@@ -87,13 +90,24 @@ esac
 guarded_found_output="$(assert_absent_from_json_array skipped 'any(.[]?; (.path? // .) == $p)' '[{"path":"unrelated.php","reason":"binary"},"link.js"]' link.js vendored-dir logo.png 2>&1)"
 guarded_found_rc=$?
 assert_eq "assert_absent_from_json_array: the guarded skipped filter still matches a bare-string entry via its fallback, not just object entries" "1" "${guarded_found_rc}"
-case "${guarded_found_output}" in
-    *"::error::"*"link.js"*"skipped"*) echo "PASS: assert_absent_from_json_array: the guarded skipped filter's found-message names the matched bare-string entry" ;;
-    *)
-        echo "FAIL: assert_absent_from_json_array: the guarded skipped filter's found-message names the matched bare-string entry: got '${guarded_found_output}'"
-        failures=$((failures + 1))
-        ;;
-esac
+assert_contains "assert_absent_from_json_array: the guarded skipped filter's found-message names the matched bare-string entry" \
+    "${guarded_found_output}" "::error::" "link.js" "skipped"
+
+# A raw newline in the matched tracked path must not split the annotation
+# into a second, unattributed log line - security-reviewer, round 10:
+# neither interpolated value here went through sanitize_for_annotation()
+# before this fix, unlike every other annotation site in this file. Built
+# via `jq -n --arg` so the newline is properly JSON-escaped in the fixture
+# itself, same as the reason-check's own newline fixture above - a raw,
+# un-escaped newline spliced into a JSON string LITERAL is invalid JSON and
+# would exercise the crash branch instead of the found branch under test.
+newline_tracked_path="$(printf 'evil\nfile')"
+newline_haystack="$(jq -nc --arg p "${newline_tracked_path}" '[$p]')"
+newline_output="$(assert_absent_from_json_array scanned 'index($p) != null' "${newline_haystack}" "${newline_tracked_path}" 2>&1)"
+newline_line_count="$(printf '%s\n' "${newline_output}" | wc -l)"
+assert_eq "assert_absent_from_json_array: a raw newline in the tracked path stays one annotation line" "1" "${newline_line_count}"
+assert_contains "assert_absent_from_json_array: a raw newline in the tracked path is folded, not dropped" \
+    "${newline_output}" "::error::" "evil file"
 
 assert_pass() {
     local description="$1"
@@ -615,10 +629,11 @@ assert_fail "repo_root: a non-object skipped-array entry is already caught by th
 # failed)"` fallback has nothing to trigger it: the jq PROGRAM here is a
 # fixed literal, never built from report content, so no fixture can break
 # it through input alone. `jq` is shadowed to fail only when called with
-# `-Rsr` - the flag combination unique to this one call among the
-# function's several jq invocations (the readability check uses none, the
-# skip-reason check uses `-r`, the covered-set build uses `-j`) - so every
-# OTHER jq call in the same run still succeeds normally.
+# `-Rsr` - as observed 2026-09-02 (re-derive with `grep -n "jq -"
+# ../lib/semgrep-report-check.sh`), the flag combination unique to this one
+# call among the function's several jq invocations (the readability check
+# uses none, the skip-reason check uses `-r`, the covered-set build uses
+# `-j`) - so every OTHER jq call in the same run still succeeds normally.
 git_case_sanitiser_failure="$(git_case_dir sanitiser-failure)"
 new_git_case sanitiser-failure
 printf 'x' > target.php
