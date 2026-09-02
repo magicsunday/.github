@@ -31,14 +31,105 @@ trap 'rm -rf "${work_dir}"' EXIT
 # (mutation-confirmed live). So these two checks use bare `[ ]` comparisons
 # and a direct `exit 1`, never assert_eq/failures/report_and_exit, breaking
 # the circularity outright rather than routing through the thing under test.
-_assert_eq_bootstrap_mismatch="$(assert_eq "bootstrap probe" "expected-x" "actual-y" 2>&1)"
-if [ "${_assert_eq_bootstrap_mismatch}" != "FAIL: bootstrap probe: expected 'expected-x', got 'actual-y'" ]; then
-    echo "FATAL: assert_eq()'s own mismatch-detection contract is broken - every later assertion in this file is untrustworthy: got '${_assert_eq_bootstrap_mismatch}'"
+#
+# assert_eq() is called WITHOUT `$(...)` here, redirected to a file instead -
+# shell-script-reviewer, round 16, mutation-confirmed: a `$(...)`-captured
+# call runs in a subshell, so it can only ever prove the PRINTED-MESSAGE
+# half of assert_eq()'s contract; the `failures=$((failures + 1))` mutation
+# it performs as a side effect is subshell-local and silently discarded,
+# exactly the S16 trap this file's own later comments name for
+# require_file()/assert_nonempty(). A first version of this bootstrap check
+# captured via `$(...)` and therefore never actually verified the counter
+# half - the half report_and_exit()'s own contract, checked right below,
+# depends on. Redirecting to a file instead of capturing keeps the call
+# un-subshelled, so `failures` mutates for real and can be checked directly.
+_bootstrap_eq_out="${work_dir}/bootstrap-assert-eq.out"
+assert_eq "bootstrap probe" "expected-x" "actual-y" > "${_bootstrap_eq_out}" 2>&1
+_assert_eq_bootstrap_mismatch="$(cat "${_bootstrap_eq_out}")"
+if [ "${_assert_eq_bootstrap_mismatch}" != "FAIL: bootstrap probe: expected 'expected-x', got 'actual-y'" ] || [ "${failures}" != "1" ]; then
+    echo "FATAL: assert_eq()'s own mismatch-detection contract is broken - every later assertion in this file is untrustworthy: output='${_assert_eq_bootstrap_mismatch}' failures='${failures}'"
     exit 1
 fi
-_assert_eq_bootstrap_match="$(assert_eq "bootstrap probe" "same" "same" 2>&1)"
-if [ "${_assert_eq_bootstrap_match}" != "PASS: bootstrap probe" ]; then
-    echo "FATAL: assert_eq()'s own match-detection contract is broken - every later assertion in this file is untrustworthy: got '${_assert_eq_bootstrap_match}'"
+failures=0
+assert_eq "bootstrap probe" "same" "same" > "${_bootstrap_eq_out}" 2>&1
+_assert_eq_bootstrap_match="$(cat "${_bootstrap_eq_out}")"
+if [ "${_assert_eq_bootstrap_match}" != "PASS: bootstrap probe" ] || [ "${failures}" != "0" ]; then
+    echo "FATAL: assert_eq()'s own match-detection contract is broken - every later assertion in this file is untrustworthy: output='${_assert_eq_bootstrap_match}' failures='${failures}'"
+    exit 1
+fi
+
+# Same S16 blind spot, same fix, for every other function whose FAIL branch
+# increments `failures` as a side effect - test-quality-reviewer, round 16,
+# mutation-confirmed for all three: _harness_fail() (the increment path
+# shared by assert_contains()/assert_contains_in_order()/
+# assert_starts_with_fail() below), require_file(), and assert_nonempty().
+# Silently dropping just the `failures=$((failures + 1))` line from any one
+# of them - message text left completely intact - previously left the
+# WHOLE suite green with zero visible FAIL: output anywhere, since every
+# existing self-test for these captured via `$(...)` and so could only ever
+# see the (unaffected) printed message.
+_bootstrap_harness_fail_out="${work_dir}/bootstrap-harness-fail.out"
+_harness_fail "bootstrap probe" "haystack" > "${_bootstrap_harness_fail_out}" 2>&1
+_harness_fail_bootstrap_output="$(cat "${_bootstrap_harness_fail_out}")"
+if [ "${_harness_fail_bootstrap_output}" != "FAIL: bootstrap probe: got 'haystack'" ] || [ "${failures}" != "1" ]; then
+    echo "FATAL: _harness_fail()'s own contract is broken - assert_contains()/assert_contains_in_order()/assert_starts_with_fail() all rely on it to actually count a failure: output='${_harness_fail_bootstrap_output}' failures='${failures}'"
+    exit 1
+fi
+failures=0
+
+_bootstrap_require_file_out="${work_dir}/bootstrap-require-file.out"
+_bootstrap_existing_file="${work_dir}/bootstrap-existing-file"
+: > "${_bootstrap_existing_file}"
+require_file "${work_dir}/does-not-exist-fixture" > "${_bootstrap_require_file_out}" 2>&1
+_require_file_bootstrap_missing="$(cat "${_bootstrap_require_file_out}")"
+if [ "${_require_file_bootstrap_missing}" != "FAIL: expected file not found: ${work_dir}/does-not-exist-fixture" ] || [ "${failures}" != "1" ]; then
+    echo "FATAL: require_file()'s own missing-file contract is broken: output='${_require_file_bootstrap_missing}' failures='${failures}'"
+    exit 1
+fi
+failures=0
+require_file "${_bootstrap_existing_file}" > "${_bootstrap_require_file_out}" 2>&1
+_require_file_bootstrap_present="$(cat "${_bootstrap_require_file_out}")"
+if [ -n "${_require_file_bootstrap_present}" ] || [ "${failures}" != "0" ]; then
+    echo "FATAL: require_file()'s own existing-file contract is broken: output='${_require_file_bootstrap_present}' failures='${failures}'"
+    exit 1
+fi
+
+_bootstrap_nonempty_out="${work_dir}/bootstrap-assert-nonempty.out"
+assert_nonempty "" "bootstrap probe message" > "${_bootstrap_nonempty_out}" 2>&1
+_nonempty_bootstrap_empty="$(cat "${_bootstrap_nonempty_out}")"
+if [ "${_nonempty_bootstrap_empty}" != "FAIL: bootstrap probe message" ] || [ "${failures}" != "1" ]; then
+    echo "FATAL: assert_nonempty()'s own empty-value contract is broken: output='${_nonempty_bootstrap_empty}' failures='${failures}'"
+    exit 1
+fi
+failures=0
+assert_nonempty "x" "bootstrap probe message" > "${_bootstrap_nonempty_out}" 2>&1
+_nonempty_bootstrap_present="$(cat "${_bootstrap_nonempty_out}")"
+if [ -n "${_nonempty_bootstrap_present}" ] || [ "${failures}" != "0" ]; then
+    echo "FATAL: assert_nonempty()'s own non-empty-value contract is broken: output='${_nonempty_bootstrap_present}' failures='${failures}'"
+    exit 1
+fi
+
+# assert_starts_with_fail() must be bootstrap-verified here too, BEFORE the
+# assert_contains()/assert_contains_in_order() self-tests further down use
+# it to check THEIR OWN failure branches - test-quality-reviewer, round 16:
+# with assert_starts_with_fail()'s own direct test running only later in
+# the file (as an earlier version of this file had it), a simultaneous
+# break in both assert_starts_with_fail() and the loop logic it was
+# checking would go undetected for the whole window between them. Verifies
+# both directions: a non-FAIL output IS flagged (via _harness_fail(),
+# already bootstrap-verified above), and a genuine FAIL output is NOT.
+_bootstrap_starts_with_fail_out="${work_dir}/bootstrap-starts-with-fail.out"
+assert_starts_with_fail "bootstrap probe" "PASS: not a failure" > "${_bootstrap_starts_with_fail_out}" 2>&1
+_starts_with_fail_bootstrap_wrong="$(cat "${_bootstrap_starts_with_fail_out}")"
+if [ "${_starts_with_fail_bootstrap_wrong}" != "FAIL: bootstrap probe: got 'PASS: not a failure'" ] || [ "${failures}" != "1" ]; then
+    echo "FATAL: assert_starts_with_fail()'s own negative-case contract is broken: output='${_starts_with_fail_bootstrap_wrong}' failures='${failures}'"
+    exit 1
+fi
+failures=0
+assert_starts_with_fail "bootstrap probe" "FAIL: genuinely a failure" > "${_bootstrap_starts_with_fail_out}" 2>&1
+_starts_with_fail_bootstrap_right="$(cat "${_bootstrap_starts_with_fail_out}")"
+if [ "${_starts_with_fail_bootstrap_right}" != "PASS: bootstrap probe" ] || [ "${failures}" != "0" ]; then
+    echo "FATAL: assert_starts_with_fail()'s own positive-case contract is broken: output='${_starts_with_fail_bootstrap_right}' failures='${failures}'"
     exit 1
 fi
 
@@ -188,41 +279,15 @@ assert_starts_with_fail "assert_contains_in_order: needles present but out of or
 in_order_missing_output="$(assert_contains_in_order "probe" "a needle only" "a" "b" 2>&1)"
 assert_starts_with_fail "assert_contains_in_order: a missing needle fails" "${in_order_missing_output}"
 
-# assert_starts_with_fail() itself has only ever been driven with an
-# $output that genuinely starts with "FAIL:" above - never with one that
-# doesn't, so its own negative case (recognising a real PASS/other output
-# as NOT a failure) has never executed anywhere - mutation-confirmed
-# (correctness Lane A, round 15) that collapsing its case statement to
-# unconditionally report PASS leaves the whole suite green. Safe to use
-# assert_eq directly here: the bootstrap check above already independently
-# verified assert_eq's own contract without going through this function.
-starts_with_fail_wrong_output="$(assert_starts_with_fail "probe" "PASS: not a failure" 2>&1)"
-assert_eq "assert_starts_with_fail: an output that is NOT a failure is itself flagged as one" \
-    "FAIL: probe: got 'PASS: not a failure'" "${starts_with_fail_wrong_output}"
-
-# require_file() and assert_nonempty() have the same gap
-# assert_contains()/assert_contains_in_order() had before rounds 12-13: every
-# real call site across the whole test suite only ever passes an existing
-# file / a genuinely non-empty extraction in a passing run, so neither
-# function's own FAIL branch has ever actually executed anywhere - mutation-
-# confirmed (test-quality-reviewer, round 14) that disabling either guard
-# entirely leaves the WHOLE suite green. Both are silent on success (no
-# `echo "PASS: ..."` - see their own definitions), so only the failure
-# branch has anything to assert on; captured via `$(...)` so the inner
-# `failures` increment stays subshell-local, same as every assert_contains*
-# probe above.
-require_file_missing_output="$(require_file "${work_dir}/does-not-exist-fixture" 2>&1)"
-assert_eq "require_file: a missing file fails, naming its own path" \
-    "FAIL: expected file not found: ${work_dir}/does-not-exist-fixture" "${require_file_missing_output}"
-
-require_file_present_output="$(require_file "${fixture_file}" 2>&1)"
-assert_eq "require_file: an existing file prints nothing" "" "${require_file_present_output}"
-
-nonempty_empty_output="$(assert_nonempty "" "probe message" 2>&1)"
-assert_eq "assert_nonempty: an empty value fails, naming the caller's own message" "FAIL: probe message" "${nonempty_empty_output}"
-
-nonempty_present_output="$(assert_nonempty "x" "probe message" 2>&1)"
-assert_eq "assert_nonempty: a non-empty value prints nothing" "" "${nonempty_present_output}"
+# assert_starts_with_fail(), require_file() and assert_nonempty() are now
+# covered by the bootstrap self-checks near the top of this file, not here -
+# test-quality-reviewer, round 16: this section's own earlier versions
+# captured each call via `$(...)`, which can only ever prove the printed-
+# message half of the contract (the `failures` increment is subshell-local
+# and silently discarded - the same S16 blind spot round 15's report_and_exit
+# fix exists to close, just manifesting in these three functions instead).
+# The bootstrap versions check both the message AND the real `failures`
+# counter, and run before anything below could be misled by a broken one.
 
 # report_and_exit() is the one function whose own correctness gates whether
 # a real, printed FAIL: line anywhere in this suite actually turns into a
