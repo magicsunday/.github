@@ -740,10 +740,13 @@ assert_fail "repo_root: a missing path with a control byte is folded, staying on
 
 # `printf '%s\0' "${missing[@]}"` emits a trailing NUL after the LAST
 # element too, so `split("\u0000")` alone would leave a trailing empty
-# string in the array - `[0:-1]` drops it. Nothing above pins this: every
-# fixture above has exactly one missing path, so `join("%0A")` never has a
-# second element to separate, and assert_fail's substring check does not
-# see a trailing artifact either way. Proven with two simultaneously
+# string in the array - `[0:-1]` drops it. Nothing above pins this: none of
+# the fixtures above this point pairs two symlinks missing from the SAME
+# report (re-derive by reading each `write_missing_target_report` case
+# above for more than one `ln -s`/tracked-and-missing path), so
+# `join("%0A")` never has a second element to separate, and assert_fail's
+# substring check does not see a trailing artifact either way. Proven with
+# two simultaneously
 # missing paths, against a scratch copy with `[0:-1]` removed: the
 # annotation gained a stray trailing "%0A" and every existing assert_fail
 # call above still matched its substring, unaffected.
