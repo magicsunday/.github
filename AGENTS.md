@@ -128,15 +128,19 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   engine's own definition. `minified` was carried as a tolerated exception to both
   grounds until issue #50 verified against the pinned engine that it cannot occur
   through this workflow's invocation — it is not on the list. The same
-  function also compares the caller's `git ls-files` against
-  `.paths.scanned ∪ .paths.skipped` when the caller passes its checkout
-  root — the confirmed gap this closes is a git-tracked symlink, which the
-  pinned engine neither scans nor lists as skipped, so it leaves no trace
-  in the inventory for the reason-based check above to catch (issue #49).
-  A repository that legitimately keeps one declares its path through this
-  workflow's `excludes` input — a caller-configured exclusion, distinct
-  from the workflow's own hardcoded `--exclude '*.min.js'` flag, though
-  both reach the same tolerated `cli_exclude_flags_match` skip reason.
+  function also compares the caller's git-tracked SYMLINKS and
+  GITLINKS/submodules (never the whole `git ls-files` tree — an earlier
+  version did, and false-positived on an ordinary tracked binary asset that
+  Semgrep itself never enumerates either, see the script's own comment)
+  against `.paths.scanned ∪ .paths.skipped` when the caller passes its
+  checkout root — the confirmed gap this closes is a git-tracked symlink,
+  which the pinned engine neither scans nor lists as skipped, so it leaves
+  no trace in the inventory for the reason-based check above to catch
+  (issue #49). A repository that legitimately keeps one declares its path
+  through this workflow's `excludes` input — a caller-configured exclusion,
+  distinct from the workflow's own hardcoded `--exclude '*.min.js'` flag,
+  though both reach the same tolerated `cli_exclude_flags_match` skip
+  reason.
 - **When a reusable workflow's `run:` block grows real logic (argument
   construction, report assertions — a bare exit-code check is usually too small to
   be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
