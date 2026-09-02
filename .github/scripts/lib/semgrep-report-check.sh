@@ -40,8 +40,10 @@ build_minified_fixture() {
 #
 # Every value folded into the annotation goes through
 # sanitize_for_annotation() first, same as assert_semgrep_report_complete()
-# below - not because either current caller passes untrusted input (both
-# pass fixed literals today), but because this is a shared library function
+# below - not because either current caller passes untrusted input (the
+# test file's tracked-path/haystack arguments are literals; lint.yml's
+# haystack is the pinned engine's own real JSON output, but neither is
+# attacker-influenced), but because this is a shared library function
 # extracted specifically for reuse, and a raw newline reaching a future
 # caller's tracked-path/haystack argument would otherwise split one
 # annotation into an unattributed second log line, exactly the forgery
