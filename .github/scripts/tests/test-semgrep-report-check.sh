@@ -632,10 +632,11 @@ assert_fail "repo_root: a non-git directory fails closed rather than silently pa
 # A raw newline in repo_root itself must not split the "git ls-files
 # failed" annotation into a second, unattributed log line -
 # shell-script-reviewer, round 11: this interpolation site was the only
-# one in the function that skipped sanitize_for_annotation(). Not
-# reachable through the sole production caller (a fixed, runner-controlled
-# $GITHUB_WORKSPACE), but this pins the fix as a regression-proof of the
-# function's own stated single-annotation invariant.
+# one in the function that skipped sanitize_for_annotation(). Not reachable
+# through the current sole production caller (see semgrep-report-check.sh's
+# own re-derive comment for that claim), but this pins the fix as a
+# regression-proof of the function's own stated single-annotation
+# invariant.
 newline_repo_root="${work_dir}/repo-root-$(printf 'evil\nroot')"
 mkdir -p "${newline_repo_root}"
 newline_root_output="$(assert_semgrep_report_complete "${report_not_a_repo}" "${newline_repo_root}" 2>&1)"
