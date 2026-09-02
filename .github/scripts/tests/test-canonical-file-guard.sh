@@ -31,9 +31,16 @@ run_guard() {
     cd "${original_dir}" || exit 1
 }
 
+# Sets fresh caller_dir/canonical_dir for the next case - invoked as a bare
+# statement, never captured via $(...), so its own `|| exit 1` guards reach
+# the script directly the same way run_guard()'s do above.
+new_case_dirs() {
+    caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1
+    canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
+}
+
 # An identical copy passes with no output and exit 0.
-caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1
-canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
+new_case_dirs
 mkdir -p "${caller_dir}/.github" "${canonical_dir}/.github"
 printf 'on: {}\n' > "${caller_dir}/.github/zizmor.yml"
 printf 'on: {}\n' > "${canonical_dir}/.github/zizmor.yml"
@@ -45,8 +52,7 @@ assert_eq "identical copy: no output" "" "${output}"
 # fails with the "is a symlink" annotation, even though it would otherwise
 # compare identical to itself - the guard exists to catch a real copy going
 # stale, not to be satisfied by a link back to the thing it checks against.
-caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1
-canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
+new_case_dirs
 mkdir -p "${caller_dir}/.github" "${canonical_dir}/.github"
 printf 'on: {}\n' > "${canonical_dir}/.github/zizmor.yml"
 ln -s "${canonical_dir}/.github/zizmor.yml" "${caller_dir}/.github/zizmor.yml" || exit 1
@@ -60,8 +66,7 @@ assert_eq "symlinked caller file: emits the symlink annotation" \
 # copy fails the same way, even though .github/zizmor.yml resolves to a
 # real, non-symlink file once .github is followed - [ -L .github/zizmor.yml ]
 # alone would miss this, since lstat only inspects the final path component.
-caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1
-canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
+new_case_dirs
 mkdir -p "${canonical_dir}/.github"
 printf 'on: {}\n' > "${canonical_dir}/.github/zizmor.yml"
 ln -s "${canonical_dir}/.github" "${caller_dir}/.github" || exit 1
@@ -73,8 +78,7 @@ assert_eq "symlinked caller .github directory: emits the symlink annotation" \
 
 # A missing caller file fails with the "missing" annotation, not the
 # "differs" one - the two failure modes need distinct, actionable text.
-caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1
-canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
+new_case_dirs
 mkdir -p "${caller_dir}/.github" "${canonical_dir}/.github"
 printf 'on: {}\n' > "${canonical_dir}/.github/zizmor.yml"
 run_guard
@@ -85,8 +89,7 @@ assert_eq "missing caller file: emits the missing annotation" \
 
 # A drifted caller file (present, but byte-different) fails with the
 # "differs" annotation.
-caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1
-canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
+new_case_dirs
 mkdir -p "${caller_dir}/.github" "${canonical_dir}/.github"
 printf 'on: {}\n' > "${caller_dir}/.github/zizmor.yml"
 printf 'on: {}\nignore: []\n' > "${canonical_dir}/.github/zizmor.yml"
@@ -99,8 +102,7 @@ assert_eq "drifted caller file: emits the differs annotation" \
 # A missing canonical copy (the reusable workflow's own checkout failed to
 # produce it) is a defect in THIS workflow, not the caller - distinct text,
 # so a maintainer reading the log does not go looking in the wrong repo.
-caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1
-canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
+new_case_dirs
 mkdir -p "${caller_dir}/.github"
 printf 'on: {}\n' > "${caller_dir}/.github/zizmor.yml"
 run_guard
