@@ -140,7 +140,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   `semgrep-report-check.sh`, `semgrepignore-guard.sh`, `annotation-sanitize.sh`,
   `retry.sh`, `semgrep-prune-dirs.sh`), as is
   `ai-issue-labeler.yml` (`ai-issue-labeler.sh` — request construction and
-  response parsing); `yamllint.yml` and `i18n.yml` carry comparable inline
+  response parsing) and `zizmor.yml` (`canonical-file-guard.sh` — the
+  caller's `.github/zizmor.yml` against the canonical copy this reusable
+  workflow checks out via `job.workflow_repository`/`job.workflow_sha`);
+  `yamllint.yml` and `i18n.yml` carry comparable inline
   `run:` logic that was deliberately left un-migrated when this convention was
   introduced (GH-47) — extending it to those is a separate decision, not something
   this bullet already claims is done.
