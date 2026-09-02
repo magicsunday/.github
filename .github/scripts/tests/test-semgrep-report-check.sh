@@ -456,6 +456,20 @@ unreadable="${work_dir}/unreadable.json"
 printf 'not json' > "${unreadable}"
 assert_fail "unreadable report fails" "${unreadable}" "could not be read"
 
+# `jq_stderr_file`'s own mktemp (unconditional, near the top of the
+# function) must fail closed with its OWN message, not crash or silently
+# skip the check - the same fail-closed contract round 26 already pinned
+# for its sibling `git_ls_files_file` mktemp, just never given the same
+# treatment here (test-quality-reviewer, mutation-confirmed, round 27:
+# flipping this branch's `return 1` to `return 0` left the whole suite
+# green, since nothing forced this FIRST mktemp call to fail on its own).
+mktemp() {
+    return 1
+}
+assert_fail "jq_stderr_file mktemp failure fails closed with its own message" \
+    "${tolerated_skip}" "jq failed while evaluating the skip inventory"
+unset -f mktemp
+
 # A non-string `.path` crashes the jq filter that builds the unexpected-
 # reasons list, mid-evaluation, after it has already produced no output for
 # the genuinely disallowed entry ahead of it. Without an exit-status check on
