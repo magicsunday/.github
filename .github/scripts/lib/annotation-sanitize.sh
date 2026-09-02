@@ -21,10 +21,12 @@
 #   encoded as multi-byte UTF-8 (e.g. a C1 control such as U+0085 NEL)
 #   through unfolded (issue #80) - jq now folds the exact codepoint set
 #   `semgrep-report-check.sh`'s own `.path` pipeline folds, using the same
-#   jq builtin class `tr` never covered. The filter text is still two
-#   hand-maintained copies, not shared code - test-annotation-sanitize-jq-parity.sh
-#   keeps them in sync by comparing the two literal strings, not by
-#   removing the duplication. A raw, non-UTF-8-encoded byte in that same range
+#   jq builtin class `tr` never covered. The filter text is still several
+#   hand-maintained copies, not shared code (issue #91 proposes hoisting it
+#   into one shared constant) - test-annotation-sanitize-jq-parity.sh keeps
+#   every copy in sync by comparing their literal strings against each
+#   other, not by removing the duplication. A raw, non-UTF-8-encoded byte in
+#   that same range
 #   (invalid on its own, with no continuation byte) is neutralized too, as
 #   a side effect of jq requiring valid UTF-8 input: it substitutes U+FFFD
 #   rather than erroring, which is not a control codepoint either.

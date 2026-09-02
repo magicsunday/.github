@@ -109,6 +109,35 @@ assert_eq "assert_absent_from_json_array: a raw newline in the tracked path stay
 assert_contains "assert_absent_from_json_array: a raw newline in the tracked path is folded, not dropped" \
     "${newline_output}" "::error::" "evil file"
 
+# assert_contains_in_order() itself has no fixture below other than the
+# three real assert_absent_from_json_array() call sites above, all of
+# which only ever receive correctly-ordered production strings - so a
+# regression that silently degraded it back to assert_contains()'s
+# order-independent behaviour (exactly the round-10 bug this function
+# exists to catch) would leave every call site above green anyway
+# (test-quality-reviewer, mutation-confirmed, round 12). These three
+# assertions drive the function directly instead.
+in_order_ok_output="$(assert_contains_in_order "probe" "a needle b needle" "a" "b" 2>&1)"
+assert_eq "assert_contains_in_order: needles present in order pass" "PASS: probe" "${in_order_ok_output}"
+
+in_order_swapped_output="$(assert_contains_in_order "probe" "b needle a needle" "a" "b" 2>&1)"
+case "${in_order_swapped_output}" in
+    FAIL:*) echo "PASS: assert_contains_in_order: needles present but out of order fail" ;;
+    *)
+        echo "FAIL: assert_contains_in_order: needles present but out of order fail: got '${in_order_swapped_output}'"
+        failures=$((failures + 1))
+        ;;
+esac
+
+in_order_missing_output="$(assert_contains_in_order "probe" "a needle only" "a" "b" 2>&1)"
+case "${in_order_missing_output}" in
+    FAIL:*) echo "PASS: assert_contains_in_order: a missing needle fails" ;;
+    *)
+        echo "FAIL: assert_contains_in_order: a missing needle fails: got '${in_order_missing_output}'"
+        failures=$((failures + 1))
+        ;;
+esac
+
 assert_pass() {
     local description="$1"
     local fixture="$2"
