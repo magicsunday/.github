@@ -564,6 +564,17 @@ new_git_case() {
     git init -q
 }
 
+# The report fixture nine of the cases below share byte-for-byte: "target.php
+# scanned, nothing skipped" - a decoy the repo_root comparison already
+# accounts for, present only so `.paths.scanned` isn't empty (which is its
+# OWN, differently-tested failure mode). Extracted per simplicity-reviewer,
+# round 20: unlike each case's own symlink/gitlink name or content (which IS
+# the thing under test and stays inline per-case), this JSON carries no
+# per-case information at all.
+write_missing_target_report() {
+    jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "$1"
+}
+
 git_case_baseline="$(git_case_dir baseline)"
 new_git_case baseline
 printf 'x' > a.php
@@ -583,7 +594,7 @@ ln -s target.php link.php
 git add -Af .
 cd "${original_dir}" || exit 1
 report_symlink="${work_dir}/report-symlink.json"
-jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_symlink}"
+write_missing_target_report "${report_symlink}"
 assert_fail "repo_root: a git-tracked path absent from both inventories fails, naming it" \
     "${report_symlink}" "link.php" "${git_case_symlink}"
 
@@ -651,7 +662,7 @@ ln -s target.php 'weird%name.php'
 git add -Af .
 cd "${original_dir}" || exit 1
 report_percent="${work_dir}/report-percent.json"
-jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_percent}"
+write_missing_target_report "${report_percent}"
 assert_fail "repo_root: a missing path with a literal percent sign is sanitised in the annotation" \
     "${report_percent}" "weird%25name.php" "${git_case_percent}"
 
@@ -671,7 +682,7 @@ ln -s target.php -- '--rawfile'
 git add -Af .
 cd "${original_dir}" || exit 1
 report_flag_shaped="${work_dir}/report-flag-shaped.json"
-jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_flag_shaped}"
+write_missing_target_report "${report_flag_shaped}"
 assert_fail "repo_root: a missing path shaped like a jq flag is still named, not dropped" \
     "${report_flag_shaped}" "--rawfile" "${git_case_flag_shaped}"
 
@@ -689,7 +700,7 @@ ln -s target.php "${control_byte_name}"
 git add -Af .
 cd "${original_dir}" || exit 1
 report_control_byte="${work_dir}/report-control-byte.json"
-jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_control_byte}"
+write_missing_target_report "${report_control_byte}"
 assert_fail "repo_root: a missing path with a control byte is folded, staying one annotation" \
     "${report_control_byte}" "weird byte.php" "${git_case_control_byte}"
 
@@ -710,7 +721,7 @@ ln -s target.php link-b.php
 git add -Af .
 cd "${original_dir}" || exit 1
 report_multi_missing="${work_dir}/report-multi-missing.json"
-jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_multi_missing}"
+write_missing_target_report "${report_multi_missing}"
 assert_fail "repo_root: two simultaneously-missing paths are joined by exactly one %0A" \
     "${report_multi_missing}" "link-a.php%0Alink-b.php" "${git_case_multi_missing}"
 
@@ -752,7 +763,7 @@ ln -s target.php 'my link.php'
 git add -Af .
 cd "${original_dir}" || exit 1
 report_space="${work_dir}/report-space.json"
-jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_space}"
+write_missing_target_report "${report_space}"
 assert_fail "repo_root: a missing path with a space survives the mode/path split intact" \
     "${report_space}" "my link.php" "${git_case_space}"
 
@@ -769,7 +780,7 @@ git add -Af .
 git update-index --add --cacheinfo 160000,4b825dc642cb6eb9a060e54bf8d69288fbee4904,vendored-dir
 cd "${original_dir}" || exit 1
 report_gitlink="${work_dir}/report-gitlink.json"
-jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_gitlink}"
+write_missing_target_report "${report_gitlink}"
 assert_fail "repo_root: a missing gitlink (mode 160000) is caught, not just symlinks" \
     "${report_gitlink}" "vendored-dir" "${git_case_gitlink}"
 
@@ -804,6 +815,22 @@ report_non_string_covered="${work_dir}/report-non-string-covered.json"
 jq -n '{paths: {scanned: ["target.php"], skipped: [{path: 123, reason: "binary"}]}}' > "${report_non_string_covered}"
 assert_fail "repo_root: a non-string skipped-path entry does not crash the covered-set filter or mask a genuinely missing symlink" \
     "${report_non_string_covered}" "link.php" "${git_case_non_string_covered}"
+
+# The case above has only ONE `.paths.skipped` entry, so it cannot tell
+# "the guard is present and working" apart from "the guard is absent, jq
+# crashed, and the truncated stream still correctly reported link.php
+# missing anyway" - both give the same PASS/FAIL result for a symlink with
+# nothing genuinely covering it. This case puts the non-string entry FIRST
+# and a legitimate, genuinely-covering entry for the SAME symlink second -
+# correctness (Lane A), round 20, mutation-confirmed: without
+# `select(type == "string")`, the jq crash on the non-string entry
+# truncates the stream before the covering entry after it is ever read,
+# silently dropping link.php from `covered` and false-flagging it as
+# missing despite the report genuinely accounting for it.
+report_non_string_then_covered="${work_dir}/report-non-string-then-covered.json"
+jq -n '{paths: {scanned: ["target.php"], skipped: [{path: 123, reason: "binary"}, {path: "link.php", reason: "binary"}]}}' > "${report_non_string_then_covered}"
+assert_pass "repo_root: a non-string skipped-path entry does not mask a genuinely covered symlink listed after it" \
+    "${report_non_string_then_covered}" "${git_case_non_string_covered}"
 
 # A `.paths.skipped` element that is not an OBJECT at all (unlike the
 # non-string `.path` FIELD case above, which is a well-formed object) is a
@@ -848,7 +875,7 @@ ln -s target.php link.php
 git add -Af .
 cd "${original_dir}" || exit 1
 report_sanitiser_failure="${work_dir}/report-sanitiser-failure.json"
-jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_sanitiser_failure}"
+write_missing_target_report "${report_sanitiser_failure}"
 jq() {
     if [ "${1:-}" = "-Rsr" ]; then
         return 1
@@ -877,7 +904,7 @@ printf '120000 %s 1\tlink.php\n120000 %s 2\tlink.php\n120000 %s 3\tlink.php\n' \
     "${blob1}" "${blob2}" "${blob3}" | git update-index --index-info
 cd "${original_dir}" || exit 1
 report_conflict="${work_dir}/report-conflict.json"
-jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_conflict}"
+write_missing_target_report "${report_conflict}"
 conflict_output="$(assert_semgrep_report_complete "${report_conflict}" "${git_case_conflict}" 2>&1)"
 conflict_occurrences="$(printf '%s' "${conflict_output}" | grep -o 'link.php' | wc -l)"
 assert_eq "repo_root: a conflicted-stage path is named exactly once, not once per stage" "1" "${conflict_occurrences}"
