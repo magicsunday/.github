@@ -49,7 +49,7 @@ assert_canonical_zizmor_config() {
     fi
 
     if [ ! -f .github/zizmor.yml ]; then
-        echo "::error file=.github/zizmor.yml::.github/zizmor.yml is missing. It declares that first-party reusable workflows track @main by policy - without it, the unpinned-uses zizmor audit falls back to its blanket hash-pin rule and reports every reusable-workflow reference as a finding. Copy the canonical file from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml"
+        echo "::error file=.github/zizmor.yml::.github/zizmor.yml is missing. Without it, the unpinned-uses zizmor audit falls back to a stricter default that flags every reusable-workflow reference (see this file's own docblock for the anchored claim about what that default is). Copy the canonical file from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml"
         return 1
     fi
 
