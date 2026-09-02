@@ -198,8 +198,9 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   package-manager step resolves. Either way, no gate declared inside a reusable workflow
   here can be trusted to bind an unwilling fork PR — package-manager-level hardening (a
   resolver flag, a lockfile content check) is theatre once the PR can just skip the step
-  that runs it. The relevant control over whether such a run executes at all is the
-  *consumer repository's* fork-PR-contributor-approval setting: re-derive with
+  that runs it. One relevant control here is the *consumer repository's*
+  fork-PR-contributor-approval setting (GitHub also offers separate workflow-execution
+  protections beyond it — out of scope for this bullet): re-derive with
   `gh api repos/<owner>/<repo>/actions/permissions/fork-pr-contributor-approval`.
   `all_external_contributors` requires approval from a collaborator with write access for
   every external run; `first_time_contributors` (this account's observed default, across
