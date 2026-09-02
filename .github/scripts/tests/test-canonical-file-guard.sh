@@ -20,16 +20,24 @@ original_dir="$(pwd)" || exit 1
 # established for a similar guard: reusing one directory across cases risks
 # a leftover .github/zizmor.yml from an earlier case masking a later one.
 
+# Runs assert_canonical_zizmor_config() from inside caller_dir and restores
+# original_dir afterwards either way, leaving output/rc set for the
+# following assert_eq calls - the one invoke-capture-restore shape every
+# case below needs, extracted so a future case can't drop the restore.
+run_guard() {
+    cd "${caller_dir}" || exit 1
+    output="$(assert_canonical_zizmor_config "${canonical_dir}" 2>&1)"
+    rc=$?
+    cd "${original_dir}" || exit 1
+}
+
 # An identical copy passes with no output and exit 0.
 caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1
 canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
 mkdir -p "${caller_dir}/.github" "${canonical_dir}/.github"
 printf 'on: {}\n' > "${caller_dir}/.github/zizmor.yml"
 printf 'on: {}\n' > "${canonical_dir}/.github/zizmor.yml"
-cd "${caller_dir}" || exit 1
-output="$(assert_canonical_zizmor_config "${canonical_dir}" 2>&1)"
-rc=$?
-cd "${original_dir}" || exit 1
+run_guard
 assert_eq "identical copy: passes" "0" "${rc}"
 assert_eq "identical copy: no output" "" "${output}"
 
@@ -39,10 +47,7 @@ caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1
 canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
 mkdir -p "${caller_dir}/.github" "${canonical_dir}/.github"
 printf 'on: {}\n' > "${canonical_dir}/.github/zizmor.yml"
-cd "${caller_dir}" || exit 1
-output="$(assert_canonical_zizmor_config "${canonical_dir}" 2>&1)"
-rc=$?
-cd "${original_dir}" || exit 1
+run_guard
 assert_eq "missing caller file: fails closed" "1" "${rc}"
 assert_eq "missing caller file: emits the missing annotation" \
     "::error file=.github/zizmor.yml::.github/zizmor.yml is missing. It declares that first-party reusable workflows track @main by policy - without it, the unpinned-uses zizmor audit falls back to its blanket hash-pin rule and reports every reusable-workflow reference as a finding. Copy the canonical file from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml" \
@@ -55,10 +60,7 @@ canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
 mkdir -p "${caller_dir}/.github" "${canonical_dir}/.github"
 printf 'on: {}\n' > "${caller_dir}/.github/zizmor.yml"
 printf 'on: {}\nignore: []\n' > "${canonical_dir}/.github/zizmor.yml"
-cd "${caller_dir}" || exit 1
-output="$(assert_canonical_zizmor_config "${canonical_dir}" 2>&1)"
-rc=$?
-cd "${original_dir}" || exit 1
+run_guard
 assert_eq "drifted caller file: fails closed" "1" "${rc}"
 assert_eq "drifted caller file: emits the differs annotation" \
     "::error file=.github/zizmor.yml::.github/zizmor.yml differs from the canonical copy in magicsunday/.github. A stale or locally-edited copy can silently change which reusable-workflow references the unpinned-uses zizmor audit flags. Sync it from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml" \
@@ -71,10 +73,7 @@ caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1
 canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
 mkdir -p "${caller_dir}/.github"
 printf 'on: {}\n' > "${caller_dir}/.github/zizmor.yml"
-cd "${caller_dir}" || exit 1
-output="$(assert_canonical_zizmor_config "${canonical_dir}" 2>&1)"
-rc=$?
-cd "${original_dir}" || exit 1
+run_guard
 assert_eq "missing canonical copy: fails closed" "1" "${rc}"
 assert_eq "missing canonical copy: emits the own-checkout-defect annotation" \
     "::error::Could not verify .github/zizmor.yml against the canonical copy - the checked-out canonical source at '${canonical_dir}/.github/zizmor.yml' does not exist. This is a defect in the reusable workflow's own checkout, not in the calling repository." \
