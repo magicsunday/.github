@@ -17,97 +17,93 @@ source "${SCRIPT_DIR}/../lib/semgrep-report-check.sh"
 work_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${work_dir}"' EXIT
 
-# Bootstrap self-check for assert_eq() and report_and_exit() themselves,
-# BEFORE any real test below trusts either one - test-quality-reviewer,
-# round 15: every other assertion in this file (including the direct
-# report_and_exit()/require_file()/assert_nonempty() probes round 14 added)
-# is built on assert_eq(), and this script's own trailing report_and_exit()
-# call is what turns a correctly-printed "FAIL: ..." line into the nonzero
-# exit code run-tests.sh (and lint.yml's shell-tests job) actually gates on.
-# A broken assert_eq() that always reports PASS, or a broken report_and_exit()
-# that always exits 0, would make EVERY later assertion in this file - even
-# one using assert_eq() to test assert_eq()/report_and_exit() itself, as a
-# first attempt at this fix tried - silently vanish rather than fail CI
-# (mutation-confirmed live). So these two checks use bare `[ ]` comparisons
-# and a direct `exit 1`, never assert_eq/failures/report_and_exit, breaking
-# the circularity outright rather than routing through the thing under test.
+# Bootstrap self-check for every harness.sh function whose FAIL branch
+# touches `failures`, BEFORE any real test below trusts one of them -
+# test-quality-reviewer, rounds 15-16: every other assertion in this file
+# is built on assert_eq()/_harness_fail(), and this script's own trailing
+# report_and_exit() call is what turns a correctly-printed "FAIL: ..."
+# line into the nonzero exit code run-tests.sh (and lint.yml's
+# shell-tests job) actually gates on. A broken one of these that always
+# reports PASS, or a broken report_and_exit() that always exits 0, would
+# make EVERY later assertion in this file - even one using assert_eq() to
+# test assert_eq() itself, as a first attempt tried - silently vanish
+# rather than fail CI (mutation-confirmed live, repeatedly).
 #
-# assert_eq() is called WITHOUT `$(...)` here, redirected to a file instead -
-# shell-script-reviewer, round 16, mutation-confirmed: a `$(...)`-captured
-# call runs in a subshell, so it can only ever prove the PRINTED-MESSAGE
-# half of assert_eq()'s contract; the `failures=$((failures + 1))` mutation
-# it performs as a side effect is subshell-local and silently discarded,
-# exactly the S16 trap this file's own later comments name for
-# require_file()/assert_nonempty(). A first version of this bootstrap check
-# captured via `$(...)` and therefore never actually verified the counter
-# half - the half report_and_exit()'s own contract, checked right below,
-# depends on. Redirecting to a file instead of capturing keeps the call
-# un-subshelled, so `failures` mutates for real and can be checked directly.
-_bootstrap_eq_out="${work_dir}/bootstrap-assert-eq.out"
-assert_eq "bootstrap probe" "expected-x" "actual-y" > "${_bootstrap_eq_out}" 2>&1
-_assert_eq_bootstrap_mismatch="$(cat "${_bootstrap_eq_out}")"
-if [ "${_assert_eq_bootstrap_mismatch}" != "FAIL: bootstrap probe: expected 'expected-x', got 'actual-y'" ] || [ "${failures}" != "1" ]; then
-    echo "FATAL: assert_eq()'s own mismatch-detection contract is broken - every later assertion in this file is untrustworthy: output='${_assert_eq_bootstrap_mismatch}' failures='${failures}'"
-    exit 1
-fi
-failures=0
-assert_eq "bootstrap probe" "same" "same" > "${_bootstrap_eq_out}" 2>&1
-_assert_eq_bootstrap_match="$(cat "${_bootstrap_eq_out}")"
-if [ "${_assert_eq_bootstrap_match}" != "PASS: bootstrap probe" ] || [ "${failures}" != "0" ]; then
-    echo "FATAL: assert_eq()'s own match-detection contract is broken - every later assertion in this file is untrustworthy: output='${_assert_eq_bootstrap_match}' failures='${failures}'"
-    exit 1
-fi
+# _bootstrap_check() itself uses only bare `[ ]` comparisons and a direct
+# `exit 1`, never assert_eq/failures/report_and_exit, breaking the
+# circularity outright rather than routing through the thing under test -
+# and it calls the function under test as a PLAIN statement (`"$@" > file`,
+# not `$(...)`), so no subshell is forked and `failures` mutations reach
+# this script's real, global counter. Round 15's reverted first attempt
+# broke because the SUT call itself was `$(...)`-captured; extracting the
+# surrounding boilerplate into a function is a different, safe axis
+# (simplicity-reviewer, round 17, verified live both directions: a correct
+# SUT is confirmed, and a SUT with only its `failures` increment silently
+# dropped - message text left intact - is still caught with a real exit 1).
+_bootstrap_check() {
+    local out_file="$1" expected_output="$2" expected_failures="$3" fatal_msg="$4"
+    shift 4
+    "$@" > "${out_file}" 2>&1
+    local actual
+    actual="$(cat "${out_file}")"
+    if [ "${actual}" != "${expected_output}" ] || [ "${failures}" != "${expected_failures}" ]; then
+        echo "FATAL: ${fatal_msg}: output='${actual}' failures='${failures}'"
+        exit 1
+    fi
+    failures=0
+}
 
-# Same S16 blind spot, same fix, for every other function whose FAIL branch
-# increments `failures` as a side effect - test-quality-reviewer, round 16,
-# mutation-confirmed for all three: _harness_fail() (the increment path
-# shared by assert_contains()/assert_contains_in_order()/
-# assert_starts_with_fail() below), require_file(), and assert_nonempty().
-# Silently dropping just the `failures=$((failures + 1))` line from any one
-# of them - message text left completely intact - previously left the
-# WHOLE suite green with zero visible FAIL: output anywhere, since every
-# existing self-test for these captured via `$(...)` and so could only ever
-# see the (unaffected) printed message.
-_bootstrap_harness_fail_out="${work_dir}/bootstrap-harness-fail.out"
-_harness_fail "bootstrap probe" "haystack" > "${_bootstrap_harness_fail_out}" 2>&1
-_harness_fail_bootstrap_output="$(cat "${_bootstrap_harness_fail_out}")"
-if [ "${_harness_fail_bootstrap_output}" != "FAIL: bootstrap probe: got 'haystack'" ] || [ "${failures}" != "1" ]; then
-    echo "FATAL: _harness_fail()'s own contract is broken - assert_contains()/assert_contains_in_order()/assert_starts_with_fail() all rely on it to actually count a failure: output='${_harness_fail_bootstrap_output}' failures='${failures}'"
-    exit 1
-fi
-failures=0
+_bootstrap_out="${work_dir}/bootstrap.out"
+_bootstrap_check "${_bootstrap_out}" "FAIL: bootstrap probe: expected 'expected-x', got 'actual-y'" 1 \
+    "assert_eq()'s own mismatch-detection contract is broken - every later assertion in this file is untrustworthy" \
+    assert_eq "bootstrap probe" "expected-x" "actual-y"
+_bootstrap_check "${_bootstrap_out}" "PASS: bootstrap probe" 0 \
+    "assert_eq()'s own match-detection contract is broken - every later assertion in this file is untrustworthy" \
+    assert_eq "bootstrap probe" "same" "same"
 
-_bootstrap_require_file_out="${work_dir}/bootstrap-require-file.out"
+# _harness_fail() is the increment path shared by assert_contains()/
+# assert_contains_in_order()/assert_starts_with_fail() below.
+_bootstrap_check "${_bootstrap_out}" "FAIL: bootstrap probe: got 'haystack'" 1 \
+    "_harness_fail()'s own contract is broken - assert_contains()/assert_contains_in_order()/assert_starts_with_fail() all rely on it to actually count a failure" \
+    _harness_fail "bootstrap probe" "haystack"
+
+# _harness_fail() being independently verified above only proves CALLING it
+# increments `failures` correctly - it says nothing about whether
+# assert_contains()/assert_contains_in_order() actually still DELEGATE to
+# it on their fail path, rather than reimplementing the print inline
+# without the increment (code-reviewer, round 17, reproduced live: exactly
+# that mutation left this file's own later, `$(...)`-captured self-tests
+# for these two functions reporting PASS with `failures` unchanged - the
+# closure claim two commits ago was one layer short).
+_bootstrap_check "${_bootstrap_out}" "FAIL: bootstrap probe: got 'haystack'" 1 \
+    "assert_contains()'s own fail-path contract is broken - it may no longer be delegating to the verified _harness_fail()" \
+    assert_contains "bootstrap probe" "haystack" "missing-needle"
+_bootstrap_check "${_bootstrap_out}" "PASS: bootstrap probe" 0 \
+    "assert_contains()'s own pass-path contract is broken" \
+    assert_contains "bootstrap probe" "haystack" "hay"
+
+_bootstrap_check "${_bootstrap_out}" "FAIL: bootstrap probe: got 'b a'" 1 \
+    "assert_contains_in_order()'s own fail-path contract is broken - it may no longer be delegating to the verified _harness_fail()" \
+    assert_contains_in_order "bootstrap probe" "b a" "a" "b"
+_bootstrap_check "${_bootstrap_out}" "PASS: bootstrap probe" 0 \
+    "assert_contains_in_order()'s own pass-path contract is broken" \
+    assert_contains_in_order "bootstrap probe" "a b" "a" "b"
+
 _bootstrap_existing_file="${work_dir}/bootstrap-existing-file"
 : > "${_bootstrap_existing_file}"
-require_file "${work_dir}/does-not-exist-fixture" > "${_bootstrap_require_file_out}" 2>&1
-_require_file_bootstrap_missing="$(cat "${_bootstrap_require_file_out}")"
-if [ "${_require_file_bootstrap_missing}" != "FAIL: expected file not found: ${work_dir}/does-not-exist-fixture" ] || [ "${failures}" != "1" ]; then
-    echo "FATAL: require_file()'s own missing-file contract is broken: output='${_require_file_bootstrap_missing}' failures='${failures}'"
-    exit 1
-fi
-failures=0
-require_file "${_bootstrap_existing_file}" > "${_bootstrap_require_file_out}" 2>&1
-_require_file_bootstrap_present="$(cat "${_bootstrap_require_file_out}")"
-if [ -n "${_require_file_bootstrap_present}" ] || [ "${failures}" != "0" ]; then
-    echo "FATAL: require_file()'s own existing-file contract is broken: output='${_require_file_bootstrap_present}' failures='${failures}'"
-    exit 1
-fi
+_bootstrap_check "${_bootstrap_out}" "FAIL: expected file not found: ${work_dir}/does-not-exist-fixture" 1 \
+    "require_file()'s own missing-file contract is broken" \
+    require_file "${work_dir}/does-not-exist-fixture"
+_bootstrap_check "${_bootstrap_out}" "" 0 \
+    "require_file()'s own existing-file contract is broken" \
+    require_file "${_bootstrap_existing_file}"
 
-_bootstrap_nonempty_out="${work_dir}/bootstrap-assert-nonempty.out"
-assert_nonempty "" "bootstrap probe message" > "${_bootstrap_nonempty_out}" 2>&1
-_nonempty_bootstrap_empty="$(cat "${_bootstrap_nonempty_out}")"
-if [ "${_nonempty_bootstrap_empty}" != "FAIL: bootstrap probe message" ] || [ "${failures}" != "1" ]; then
-    echo "FATAL: assert_nonempty()'s own empty-value contract is broken: output='${_nonempty_bootstrap_empty}' failures='${failures}'"
-    exit 1
-fi
-failures=0
-assert_nonempty "x" "bootstrap probe message" > "${_bootstrap_nonempty_out}" 2>&1
-_nonempty_bootstrap_present="$(cat "${_bootstrap_nonempty_out}")"
-if [ -n "${_nonempty_bootstrap_present}" ] || [ "${failures}" != "0" ]; then
-    echo "FATAL: assert_nonempty()'s own non-empty-value contract is broken: output='${_nonempty_bootstrap_present}' failures='${failures}'"
-    exit 1
-fi
+_bootstrap_check "${_bootstrap_out}" "FAIL: bootstrap probe message" 1 \
+    "assert_nonempty()'s own empty-value contract is broken" \
+    assert_nonempty "" "bootstrap probe message"
+_bootstrap_check "${_bootstrap_out}" "" 0 \
+    "assert_nonempty()'s own non-empty-value contract is broken" \
+    assert_nonempty "x" "bootstrap probe message"
 
 # assert_starts_with_fail() must be bootstrap-verified here too, BEFORE the
 # assert_contains()/assert_contains_in_order() self-tests further down use
@@ -115,44 +111,36 @@ fi
 # with assert_starts_with_fail()'s own direct test running only later in
 # the file (as an earlier version of this file had it), a simultaneous
 # break in both assert_starts_with_fail() and the loop logic it was
-# checking would go undetected for the whole window between them. Verifies
-# both directions: a non-FAIL output IS flagged (via _harness_fail(),
-# already bootstrap-verified above), and a genuine FAIL output is NOT.
-_bootstrap_starts_with_fail_out="${work_dir}/bootstrap-starts-with-fail.out"
-assert_starts_with_fail "bootstrap probe" "PASS: not a failure" > "${_bootstrap_starts_with_fail_out}" 2>&1
-_starts_with_fail_bootstrap_wrong="$(cat "${_bootstrap_starts_with_fail_out}")"
-if [ "${_starts_with_fail_bootstrap_wrong}" != "FAIL: bootstrap probe: got 'PASS: not a failure'" ] || [ "${failures}" != "1" ]; then
-    echo "FATAL: assert_starts_with_fail()'s own negative-case contract is broken: output='${_starts_with_fail_bootstrap_wrong}' failures='${failures}'"
-    exit 1
-fi
-failures=0
-assert_starts_with_fail "bootstrap probe" "FAIL: genuinely a failure" > "${_bootstrap_starts_with_fail_out}" 2>&1
-_starts_with_fail_bootstrap_right="$(cat "${_bootstrap_starts_with_fail_out}")"
-if [ "${_starts_with_fail_bootstrap_right}" != "PASS: bootstrap probe" ] || [ "${failures}" != "0" ]; then
-    echo "FATAL: assert_starts_with_fail()'s own positive-case contract is broken: output='${_starts_with_fail_bootstrap_right}' failures='${failures}'"
-    exit 1
-fi
+# checking would go undetected for the whole window between them.
+_bootstrap_check "${_bootstrap_out}" "FAIL: bootstrap probe: got 'PASS: not a failure'" 1 \
+    "assert_starts_with_fail()'s own negative-case contract is broken" \
+    assert_starts_with_fail "bootstrap probe" "PASS: not a failure"
+_bootstrap_check "${_bootstrap_out}" "PASS: bootstrap probe" 0 \
+    "assert_starts_with_fail()'s own positive-case contract is broken" \
+    assert_starts_with_fail "bootstrap probe" "FAIL: genuinely a failure"
 
-_report_and_exit_bootstrap_failure="$(SCRIPT_DIR="${SCRIPT_DIR}" bash -c '
-    source "${SCRIPT_DIR}/lib/harness.sh"
-    failures=1
-    report_and_exit "bootstrap probe"
-' 2>&1)"
-_report_and_exit_bootstrap_failure_rc=$?
-if [ "${_report_and_exit_bootstrap_failure_rc}" != "1" ] || [ "${_report_and_exit_bootstrap_failure}" != "1 failure(s)." ]; then
-    echo "FATAL: report_and_exit()'s own nonzero-failures contract is broken - this file's own trailing report_and_exit call would exit 0 no matter what fails below: rc='${_report_and_exit_bootstrap_failure_rc}' output='${_report_and_exit_bootstrap_failure}'"
-    exit 1
-fi
-_report_and_exit_bootstrap_success="$(SCRIPT_DIR="${SCRIPT_DIR}" bash -c '
-    source "${SCRIPT_DIR}/lib/harness.sh"
-    failures=0
-    report_and_exit "bootstrap probe"
-' 2>&1)"
-_report_and_exit_bootstrap_success_rc=$?
-if [ "${_report_and_exit_bootstrap_success_rc}" != "0" ] || [ "${_report_and_exit_bootstrap_success}" != "All bootstrap probe passed." ]; then
-    echo "FATAL: report_and_exit()'s own zero-failures contract is broken: rc='${_report_and_exit_bootstrap_success_rc}' output='${_report_and_exit_bootstrap_success}'"
-    exit 1
-fi
+# report_and_exit() calls `exit` itself, so it can only be driven in a real
+# CHILD PROCESS - calling it in-process would exit this test script. Here
+# the `$(...)` captures a genuinely separate `bash -c` process, not the
+# counter under test, so this has no S16 blind spot to begin with.
+_bootstrap_check_report_and_exit() {
+    local failures_input="$1" expected_rc="$2" expected_output="$3" fatal_msg="$4"
+    local out rc
+    out="$(SCRIPT_DIR="${SCRIPT_DIR}" BOOTSTRAP_FAILURES="${failures_input}" bash -c '
+        source "${SCRIPT_DIR}/lib/harness.sh"
+        failures="${BOOTSTRAP_FAILURES}"
+        report_and_exit "bootstrap probe"
+    ' 2>&1)"
+    rc=$?
+    if [ "${rc}" != "${expected_rc}" ] || [ "${out}" != "${expected_output}" ]; then
+        echo "FATAL: ${fatal_msg}: rc='${rc}' output='${out}'"
+        exit 1
+    fi
+}
+_bootstrap_check_report_and_exit 1 1 "1 failure(s)." \
+    "report_and_exit()'s own nonzero-failures contract is broken - this file's own trailing report_and_exit call would exit 0 no matter what fails below"
+_bootstrap_check_report_and_exit 0 0 "All bootstrap probe passed." \
+    "report_and_exit()'s own zero-failures contract is broken"
 
 # Pins the extracted literal itself, not the engine's minified-file
 # thresholds - re-deriving those independently here would be exactly the
