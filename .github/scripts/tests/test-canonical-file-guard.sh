@@ -53,7 +53,22 @@ ln -s "${canonical_dir}/.github/zizmor.yml" "${caller_dir}/.github/zizmor.yml" |
 run_guard
 assert_eq "symlinked caller file: fails closed" "1" "${rc}"
 assert_eq "symlinked caller file: emits the symlink annotation" \
-    "::error file=.github/zizmor.yml::.github/zizmor.yml is a symlink. It must be a real file, not a link to the checked-out canonical copy or anywhere else. Replace it with a real copy from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml" \
+    "::error file=.github/zizmor.yml::.github/zizmor.yml is a symlink, or the .github directory containing it is. It must be a real file inside a real directory, not a link to the checked-out canonical copy or anywhere else. Replace it with a real copy from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml" \
+    "${output}"
+
+# A caller whose .github directory itself is a symlink into the canonical
+# copy fails the same way, even though .github/zizmor.yml resolves to a
+# real, non-symlink file once .github is followed - [ -L .github/zizmor.yml ]
+# alone would miss this, since lstat only inspects the final path component.
+caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1
+canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
+mkdir -p "${canonical_dir}/.github"
+printf 'on: {}\n' > "${canonical_dir}/.github/zizmor.yml"
+ln -s "${canonical_dir}/.github" "${caller_dir}/.github" || exit 1
+run_guard
+assert_eq "symlinked caller .github directory: fails closed" "1" "${rc}"
+assert_eq "symlinked caller .github directory: emits the symlink annotation" \
+    "::error file=.github/zizmor.yml::.github/zizmor.yml is a symlink, or the .github directory containing it is. It must be a real file inside a real directory, not a link to the checked-out canonical copy or anywhere else. Replace it with a real copy from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml" \
     "${output}"
 
 # A missing caller file fails with the "missing" annotation, not the
