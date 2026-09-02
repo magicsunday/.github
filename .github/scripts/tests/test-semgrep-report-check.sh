@@ -37,9 +37,10 @@ assert_eq "build_minified_fixture() writes the expected literal fixture" "match"
 assert_pass() {
     local description="$1"
     local fixture="$2"
+    local repo_root="${3:-}"
     local output rc
 
-    output="$(assert_semgrep_report_complete "${fixture}" 2>&1)"
+    output="$(assert_semgrep_report_complete "${fixture}" "${repo_root}" 2>&1)"
     rc=$?
 
     if [ "${rc}" -ne 0 ]; then
@@ -66,9 +67,10 @@ assert_fail() {
     local description="$1"
     local fixture="$2"
     local expected_substring="$3"
+    local repo_root="${4:-}"
     local output rc
 
-    output="$(assert_semgrep_report_complete "${fixture}" 2>&1)"
+    output="$(assert_semgrep_report_complete "${fixture}" "${repo_root}" 2>&1)"
     rc=$?
 
     if [ "${rc}" -eq 0 ]; then
@@ -246,5 +248,92 @@ before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
 TMPDIR="${tmp_scan_dir}" assert_semgrep_report_complete "${tolerated_skip}" > /dev/null 2>&1
 after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
 assert_eq "jq's stderr temp file does not survive a successful call" "${before_tmp_count}" "${after_tmp_count}"
+
+# `repo_root` cases (issue #49, channel 2): the completeness check is only
+# reachable with a REAL git repository behind it, so these build one per
+# case rather than the pure-JSON fixtures above - matching the isolation
+# test-canonical-file-guard.sh already established (own fresh directory per
+# case, never reused, since a leftover tracked file from an earlier case
+# could mask a later one). `original_dir` is tracked and restored explicitly
+# rather than via a subshell: a subshell's own `failures` increment would
+# never reach this script's top-level counter.
+original_dir="$(pwd)" || exit 1
+
+git_case_baseline="${work_dir}/git-case-baseline"
+mkdir -p "${git_case_baseline}"
+cd "${git_case_baseline}" || exit 1
+git init -q
+printf 'x' > a.php
+git add -Af .
+cd "${original_dir}" || exit 1
+report_baseline="${work_dir}/report-baseline.json"
+jq -n '{paths: {scanned: ["a.php"], skipped: []}}' > "${report_baseline}"
+assert_pass "repo_root: every tracked file accounted for in scanned" "${report_baseline}" "${git_case_baseline}"
+
+# The confirmed gap this channel exists for: a git-tracked symlink is
+# neither scanned nor skipped by the pinned engine (reproduced against it
+# directly, 2026-09-02 - see the library's own docstring for the command).
+git_case_symlink="${work_dir}/git-case-symlink"
+mkdir -p "${git_case_symlink}"
+cd "${git_case_symlink}" || exit 1
+git init -q
+printf 'x' > target.php
+ln -s target.php link.php
+git add -Af .
+cd "${original_dir}" || exit 1
+report_symlink="${work_dir}/report-symlink.json"
+jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_symlink}"
+assert_fail "repo_root: a git-tracked path absent from both inventories fails, naming it" \
+    "${report_symlink}" "link.php" "${git_case_symlink}"
+
+# A tracked file the engine already accounted for via a TOLERATED skip
+# reason must not be re-flagged by this check - it is covered, just not via
+# `.paths.scanned`.
+git_case_tolerated="${work_dir}/git-case-tolerated"
+mkdir -p "${git_case_tolerated}"
+cd "${git_case_tolerated}" || exit 1
+git init -q
+printf 'x' > a.php
+printf 'y' > b.bin
+git add -Af .
+cd "${original_dir}" || exit 1
+report_tolerated="${work_dir}/report-tolerated.json"
+jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "b.bin", reason: "binary"}]}}' > "${report_tolerated}"
+assert_pass "repo_root: a tracked file already accounted for via a tolerated skip is not re-flagged" \
+    "${report_tolerated}" "${git_case_tolerated}"
+
+# `repo_root` pointing at a directory that is not a git repository at all
+# fails closed with its own distinct message, rather than silently reading
+# as "zero tracked files, nothing missing".
+git_case_not_a_repo="${work_dir}/git-case-not-a-repo"
+mkdir -p "${git_case_not_a_repo}"
+report_not_a_repo="${work_dir}/report-not-a-repo.json"
+jq -n '{paths: {scanned: ["a.php"], skipped: []}}' > "${report_not_a_repo}"
+assert_fail "repo_root: a non-git directory fails closed rather than silently passing" \
+    "${report_not_a_repo}" "git ls-files" "${git_case_not_a_repo}"
+
+# Omitting `repo_root` must skip this check entirely, even when run from
+# INSIDE a git tree that has the exact gap the check above catches - proving
+# the check is strictly opt-in via the parameter, never inferred from the
+# caller's own working directory.
+cd "${git_case_symlink}" || exit 1
+assert_pass "repo_root omitted: the completeness check does not run even from inside a git tree with a real gap" \
+    "${report_symlink}"
+cd "${original_dir}" || exit 1
+
+# A missing path carrying a literal percent sign is sanitised the same way
+# every other path-derived annotation value in this library already is.
+git_case_percent="${work_dir}/git-case-percent"
+mkdir -p "${git_case_percent}"
+cd "${git_case_percent}" || exit 1
+git init -q
+printf 'x' > target.php
+ln -s target.php 'weird%name.php'
+git add -Af .
+cd "${original_dir}" || exit 1
+report_percent="${work_dir}/report-percent.json"
+jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_percent}"
+assert_fail "repo_root: a missing path with a literal percent sign is sanitised in the annotation" \
+    "${report_percent}" "weird%25name.php" "${git_case_percent}"
 
 report_and_exit "report-check tests"

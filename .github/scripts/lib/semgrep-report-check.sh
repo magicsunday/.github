@@ -24,6 +24,10 @@ build_minified_fixture() {
 # exactly when the report is unreadable or incomplete.
 assert_semgrep_report_complete() {
     local json_file="$1"
+    # Optional, appended rather than spliced in: every existing call site
+    # (including every fixture-only test that predates this parameter) keeps
+    # working unchanged, since an empty value skips the check below entirely.
+    local repo_root="${2:-}"
 
     # Readability is a property of the file, decided once here rather than at
     # each of the reads below, so a malformed report fails with an
@@ -261,6 +265,102 @@ assert_semgrep_report_complete() {
     #
     # Reprinting it from the JSON gave counts without the paths, so only the
     # gate's own verdict is echoed here.
+
+    # `scanned ∪ skipped` is everything the engine has an OPINION about — a
+    # path absent from both leaves no trace in this report for either check
+    # above to catch, because both read a `reason` Semgrep itself assigned
+    # and a path in neither array carries none. Comparing against the tree
+    # is the only way to see it, so this runs only when the caller passes a
+    # `repo_root` (issue #49; the earlier two channels the same issue
+    # raised — a warn-level `.errors[]` entry with no matching skip, and
+    # `.errors[]` reaching the exit code at all outside `--strict` — could
+    # not be made to manifest against this pin even with a deliberately slow
+    # 200k-line file and a 5000-deep nested-expression file under
+    # `--timeout 1`/`--timeout 5`; documented as wontfix in the issue rather
+    # than guarded here).
+    #
+    # A git-tracked SYMLINK is the confirmed case: the engine neither scans
+    # nor lists one. Reproduced against the pinned engine, 2026-09-02:
+    #
+    #   git init -q repro && cd repro
+    #   printf '<?php eval($_GET["x"]);\n' > target.php
+    #   ln -s target.php link.php && git add -Af .
+    #   semgrep scan --config p/php --json-output=j.json \
+    #       --verbose --metrics off .
+    #   jq -r '.paths.scanned[], (.paths.skipped[]?.path // empty)' j.json
+    #       # target.php — link.php is in neither
+    #
+    # A git-tracked SUBMODULE (a gitlink, mode 160000) is not distinguished
+    # from a regular file here — checked across every non-archived
+    # magicsunday/* repository via the git-trees API, 2026-09-02, and none
+    # currently exists among this workflow's consumers, so this is a named
+    # gap rather than handled speculatively. If one is ever added and
+    # Semgrep does not report it as skipped on its own, exclude its path via
+    # this workflow's `excludes` input — the same mechanism a legitimate
+    # git-tracked symlink needs below, since a `.semgrepignore` cannot be
+    # used here (this workflow rejects one outright, see the precondition
+    # step in code-scanning.yml).
+    if [ -n "$repo_root" ]; then
+        # Read from a temp FILE, never through a `$(...)`-captured bash
+        # string: command substitution silently drops embedded NUL bytes
+        # (bash itself warns "ignored null byte in input"), which is exactly
+        # what `git ls-files -z` NUL-separates its output WITH — a capture
+        # through a string variable would corrupt every path after the
+        # first. A direct redirect keeps `$?` as git's own exit status, same
+        # as the command-substitution form would have, without going
+        # through a bash string at all.
+        local git_ls_files_file
+        git_ls_files_file="$(mktemp)" || {
+            echo "::error::Could not create a temp file to compare the tree against the report — the completeness check cannot run."
+            return 1
+        }
+        if ! git -C "$repo_root" ls-files -z > "$git_ls_files_file" 2>/dev/null; then
+            rm -f "$git_ls_files_file" || true
+            echo "::error::\`git ls-files\` failed in ${repo_root} — the tree cannot be compared against the report, so it cannot be shown complete."
+            return 1
+        fi
+        local -a tracked=()
+        while IFS= read -r -d '' _tracked_path; do
+            tracked+=("$_tracked_path")
+        done < "$git_ls_files_file"
+        rm -f "$git_ls_files_file" || true
+
+        # NUL-separated end to end, same reason `git ls-files -z` is used
+        # above: an ordinary line-based read would misparse the rare path
+        # holding a literal newline, and a git-tracked path is not
+        # guaranteed not to.
+        local -A covered=()
+        local _covered_path
+        while IFS= read -r -d '' _covered_path; do
+            covered["$_covered_path"]=1
+        done < <(jq -j '
+            (.paths.scanned // [])[],
+            ((.paths.skipped // [])[] | .path // empty)
+            | select(type == "string")
+            | (. + "\u0000")
+        ' "$json_file" 2>/dev/null)
+
+        local -a missing=()
+        local _p
+        for _p in "${tracked[@]}"; do
+            [ -n "${covered[$_p]+x}" ] || missing+=("$_p")
+        done
+
+        if [ "${#missing[@]}" -gt 0 ]; then
+            local missing_lines="" _m _sanitized
+            for _m in "${missing[@]}"; do
+                _sanitized="$(sanitize_for_annotation "$_m")"
+                if [ -n "$missing_lines" ]; then
+                    missing_lines="${missing_lines}%0A${_sanitized}"
+                else
+                    missing_lines="${_sanitized}"
+                fi
+            done
+            echo "::error::Semgrep's report says nothing about the file(s) below — they are tracked by git but absent from both .paths.scanned and .paths.skipped, so the engine never enumerated them and code scanning would retire any alert they held. A git-tracked symlink is the confirmed cause; declare it through this workflow's 'excludes' input if it is not meant to be scanned, otherwise investigate why the engine never enumerated it.%0A${missing_lines}"
+            return 1
+        fi
+    fi
+
     echo "Scanned ${scanned} files, no undeclared skips."
     return 0
 }

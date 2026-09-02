@@ -322,9 +322,16 @@ jobs:
                   # check, the allowed-skip-reasons partition (including the
                   # `minified`/issue #50 and `Dotfile`/`Gitignore_patterns_match`/
                   # `Nonexistent_file`/issue #48 rationale and their re-derive
-                  # commands), the scanned-file-count check, and the single-
-                  # annotation sanitisation — see semgrep-report-check.sh.
-                  assert_semgrep_report_complete "$JSON_FILE"
+                  # commands), the scanned-file-count check, the git-tracked-
+                  # completeness check (issue #49 — a git-tracked symlink is
+                  # neither scanned nor skipped by the pinned engine, so
+                  # comparing the report against the tree is the only way to
+                  # catch it), and the single-annotation sanitisation — see
+                  # semgrep-report-check.sh. `GITHUB_WORKSPACE` is this step's
+                  # own checkout root regardless of any `cd` an earlier step
+                  # in this job may have done, which is why it is passed
+                  # explicitly rather than relying on cwd.
+                  assert_semgrep_report_complete "$JSON_FILE" "$GITHUB_WORKSPACE"
 
             - name: Upload SARIF to code scanning
               uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
