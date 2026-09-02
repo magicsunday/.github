@@ -188,6 +188,29 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   needs its own key, and this account has no org-wide secret inheritance to source it
   from — every consuming repository configures its own `ANTHROPIC_API_KEY` and passes
   it through explicitly (see that workflow's own header comment for the exact shape).
+- **A `pull_request` run gives the PR real influence over execution — that is the model,
+  not a leak — though the reach differs by shape.** In the same repo as the PR (this
+  repo's own `lint.yml`, triggered directly), GitHub takes the workflow file itself from
+  the PR's merge commit — the PR *is* the check. Called via `workflow_call` from a sibling
+  repo (`bundle-freshness.yml`, `php-quality.yml`), the PR cannot rewrite that reusable
+  workflow's content — but it fully controls its own repo's *caller* file, including
+  whether to invoke the check at all, and the manifest/lockfile content any invoked
+  package-manager step resolves. Either way, no gate declared inside a reusable workflow
+  here can be trusted to bind an unwilling fork PR — package-manager-level hardening (a
+  resolver flag, a lockfile content check) is theatre once the PR can just skip the step
+  that runs it. One relevant control here is the *consumer repository's*
+  fork-PR-contributor-approval setting (GitHub also offers separate workflow-execution
+  protections beyond it — out of scope for this bullet): re-derive with
+  `gh api repos/OWNER/REPO/actions/permissions/fork-pr-contributor-approval` (substitute
+  the real owner/repo — a literal `<owner>`/`<repo>` is shell redirection syntax).
+  `all_external_contributors` requires approval from a collaborator with write access for
+  every external run; `first_time_contributors` (this account's observed default, across
+  its untouched repos) requires it only until the contributor has one commit or PR merged
+  into the repo — a returning contributor, or their later-compromised account, then runs
+  unapproved; a third, more permissive value, `first_time_contributors_new_to_github`,
+  additionally requires the contributor to be new to GitHub itself. All claims here about
+  GitHub's own platform behaviour verified 2026-09-02 against GitHub's Actions-trigger and
+  Actions-settings docs — re-check before trusting them past that date.
 - **Harden Runner.** `ai-issue-labeler.yml` is the first workflow in this account to
   add a `step-security/harden-runner` step, in `audit` (not `block`) mode — it is also
   the first to call an external service (the Anthropic API) while holding a repository
