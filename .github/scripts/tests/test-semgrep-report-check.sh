@@ -65,13 +65,13 @@ assert_eq "assert_absent_from_json_array: all tracked paths legitimately absent 
 third_arg_found_output="$(assert_absent_from_json_array scanned 'index($p) != null' '["logo.png"]' link.js vendored-dir logo.png 2>&1)"
 third_arg_found_rc=$?
 assert_eq "assert_absent_from_json_array: a match on the THIRD tracked path, not just the first, still fails" "1" "${third_arg_found_rc}"
-assert_contains "assert_absent_from_json_array: the third-tracked-path found-message names logo.png" \
+assert_contains_in_order "assert_absent_from_json_array: the third-tracked-path found-message names logo.png before its kind" \
     "${third_arg_found_output}" "::error::" "logo.png" "scanned"
 
 found_output="$(assert_absent_from_json_array scanned 'index($p) != null' '["link.js"]' link.js vendored-dir logo.png 2>&1)"
 found_rc=$?
 assert_eq "assert_absent_from_json_array: a tracked path the filter matches returns 1" "1" "${found_rc}"
-assert_contains "assert_absent_from_json_array: the found-message names the path and the kind" \
+assert_contains_in_order "assert_absent_from_json_array: the found-message names the path before the kind" \
     "${found_output}" "::error::" "link.js" "scanned"
 
 crash_output="$(assert_absent_from_json_array scanned 'index($p) != null' '42' link.js vendored-dir logo.png 2>&1)"
@@ -90,7 +90,7 @@ assert_contains "assert_absent_from_json_array: the crash-message names jq's own
 guarded_found_output="$(assert_absent_from_json_array skipped 'any(.[]?; (.path? // .) == $p)' '[{"path":"unrelated.php","reason":"binary"},"link.js"]' link.js vendored-dir logo.png 2>&1)"
 guarded_found_rc=$?
 assert_eq "assert_absent_from_json_array: the guarded skipped filter still matches a bare-string entry via its fallback, not just object entries" "1" "${guarded_found_rc}"
-assert_contains "assert_absent_from_json_array: the guarded skipped filter's found-message names the matched bare-string entry" \
+assert_contains_in_order "assert_absent_from_json_array: the guarded skipped filter's found-message names the matched bare-string entry before its kind" \
     "${guarded_found_output}" "::error::" "link.js" "skipped"
 
 # A raw newline in the matched tracked path must not split the annotation
@@ -420,6 +420,21 @@ report_not_a_repo="${work_dir}/report-not-a-repo.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: []}}' > "${report_not_a_repo}"
 assert_fail "repo_root: a non-git directory fails closed rather than silently passing" \
     "${report_not_a_repo}" "git ls-files" "${git_case_not_a_repo}"
+
+# A raw newline in repo_root itself must not split the "git ls-files
+# failed" annotation into a second, unattributed log line -
+# shell-script-reviewer, round 11: this interpolation site was the only
+# one in the function that skipped sanitize_for_annotation(). Not
+# reachable through the sole production caller (a fixed, runner-controlled
+# $GITHUB_WORKSPACE), but this pins the fix as a regression-proof of the
+# function's own stated single-annotation invariant.
+newline_repo_root="${work_dir}/repo-root-$(printf 'evil\nroot')"
+mkdir -p "${newline_repo_root}"
+newline_root_output="$(assert_semgrep_report_complete "${report_not_a_repo}" "${newline_repo_root}" 2>&1)"
+newline_root_line_count="$(printf '%s\n' "${newline_root_output}" | wc -l)"
+assert_eq "repo_root: a raw newline in repo_root itself stays one annotation line" "1" "${newline_root_line_count}"
+assert_contains "repo_root: a raw newline in repo_root itself is folded, not dropped" \
+    "${newline_root_output}" "git ls-files" "evil root"
 
 # Omitting `repo_root` must skip this check entirely, even when run from
 # INSIDE a git tree that has the exact gap the check above catches - proving
