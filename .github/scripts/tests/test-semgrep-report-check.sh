@@ -17,6 +17,52 @@ source "${SCRIPT_DIR}/../lib/semgrep-report-check.sh"
 work_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${work_dir}"' EXIT
 
+# Bootstrap self-check for assert_eq() and report_and_exit() themselves,
+# BEFORE any real test below trusts either one - test-quality-reviewer,
+# round 15: every other assertion in this file (including the direct
+# report_and_exit()/require_file()/assert_nonempty() probes round 14 added)
+# is built on assert_eq(), and this script's own trailing report_and_exit()
+# call is what turns a correctly-printed "FAIL: ..." line into the nonzero
+# exit code run-tests.sh (and lint.yml's shell-tests job) actually gates on.
+# A broken assert_eq() that always reports PASS, or a broken report_and_exit()
+# that always exits 0, would make EVERY later assertion in this file - even
+# one using assert_eq() to test assert_eq()/report_and_exit() itself, as a
+# first attempt at this fix tried - silently vanish rather than fail CI
+# (mutation-confirmed live). So these two checks use bare `[ ]` comparisons
+# and a direct `exit 1`, never assert_eq/failures/report_and_exit, breaking
+# the circularity outright rather than routing through the thing under test.
+_assert_eq_bootstrap_mismatch="$(assert_eq "bootstrap probe" "expected-x" "actual-y" 2>&1)"
+if [ "${_assert_eq_bootstrap_mismatch}" != "FAIL: bootstrap probe: expected 'expected-x', got 'actual-y'" ]; then
+    echo "FATAL: assert_eq()'s own mismatch-detection contract is broken - every later assertion in this file is untrustworthy: got '${_assert_eq_bootstrap_mismatch}'"
+    exit 1
+fi
+_assert_eq_bootstrap_match="$(assert_eq "bootstrap probe" "same" "same" 2>&1)"
+if [ "${_assert_eq_bootstrap_match}" != "PASS: bootstrap probe" ]; then
+    echo "FATAL: assert_eq()'s own match-detection contract is broken - every later assertion in this file is untrustworthy: got '${_assert_eq_bootstrap_match}'"
+    exit 1
+fi
+
+_report_and_exit_bootstrap_failure="$(SCRIPT_DIR="${SCRIPT_DIR}" bash -c '
+    source "${SCRIPT_DIR}/lib/harness.sh"
+    failures=1
+    report_and_exit "bootstrap probe"
+' 2>&1)"
+_report_and_exit_bootstrap_failure_rc=$?
+if [ "${_report_and_exit_bootstrap_failure_rc}" != "1" ] || [ "${_report_and_exit_bootstrap_failure}" != "1 failure(s)." ]; then
+    echo "FATAL: report_and_exit()'s own nonzero-failures contract is broken - this file's own trailing report_and_exit call would exit 0 no matter what fails below: rc='${_report_and_exit_bootstrap_failure_rc}' output='${_report_and_exit_bootstrap_failure}'"
+    exit 1
+fi
+_report_and_exit_bootstrap_success="$(SCRIPT_DIR="${SCRIPT_DIR}" bash -c '
+    source "${SCRIPT_DIR}/lib/harness.sh"
+    failures=0
+    report_and_exit "bootstrap probe"
+' 2>&1)"
+_report_and_exit_bootstrap_success_rc=$?
+if [ "${_report_and_exit_bootstrap_success_rc}" != "0" ] || [ "${_report_and_exit_bootstrap_success}" != "All bootstrap probe passed." ]; then
+    echo "FATAL: report_and_exit()'s own zero-failures contract is broken: rc='${_report_and_exit_bootstrap_success_rc}' output='${_report_and_exit_bootstrap_success}'"
+    exit 1
+fi
+
 # Pins the extracted literal itself, not the engine's minified-file
 # thresholds - re-deriving those independently here would be exactly the
 # "mirror test that misses the machine" this suite's own convention avoids
@@ -141,6 +187,18 @@ assert_starts_with_fail "assert_contains_in_order: needles present but out of or
 
 in_order_missing_output="$(assert_contains_in_order "probe" "a needle only" "a" "b" 2>&1)"
 assert_starts_with_fail "assert_contains_in_order: a missing needle fails" "${in_order_missing_output}"
+
+# assert_starts_with_fail() itself has only ever been driven with an
+# $output that genuinely starts with "FAIL:" above - never with one that
+# doesn't, so its own negative case (recognising a real PASS/other output
+# as NOT a failure) has never executed anywhere - mutation-confirmed
+# (correctness Lane A, round 15) that collapsing its case statement to
+# unconditionally report PASS leaves the whole suite green. Safe to use
+# assert_eq directly here: the bootstrap check above already independently
+# verified assert_eq's own contract without going through this function.
+starts_with_fail_wrong_output="$(assert_starts_with_fail "probe" "PASS: not a failure" 2>&1)"
+assert_eq "assert_starts_with_fail: an output that is NOT a failure is itself flagged as one" \
+    "FAIL: probe: got 'PASS: not a failure'" "${starts_with_fail_wrong_output}"
 
 # require_file() and assert_nonempty() have the same gap
 # assert_contains()/assert_contains_in_order() had before rounds 12-13: every
