@@ -41,6 +41,21 @@ run_guard
 assert_eq "identical copy: passes" "0" "${rc}"
 assert_eq "identical copy: no output" "" "${output}"
 
+# A caller .github/zizmor.yml that is a symlink into the canonical copy
+# fails with the "is a symlink" annotation, even though it would otherwise
+# compare identical to itself - the guard exists to catch a real copy going
+# stale, not to be satisfied by a link back to the thing it checks against.
+caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1
+canonical_dir="$(mktemp -d "${work_dir}/canonical-XXXXXX")" || exit 1
+mkdir -p "${caller_dir}/.github" "${canonical_dir}/.github"
+printf 'on: {}\n' > "${canonical_dir}/.github/zizmor.yml"
+ln -s "${canonical_dir}/.github/zizmor.yml" "${caller_dir}/.github/zizmor.yml" || exit 1
+run_guard
+assert_eq "symlinked caller file: fails closed" "1" "${rc}"
+assert_eq "symlinked caller file: emits the symlink annotation" \
+    "::error file=.github/zizmor.yml::.github/zizmor.yml is a symlink. It must be a real file, not a link to the checked-out canonical copy or anywhere else. Replace it with a real copy from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml" \
+    "${output}"
+
 # A missing caller file fails with the "missing" annotation, not the
 # "differs" one - the two failure modes need distinct, actionable text.
 caller_dir="$(mktemp -d "${work_dir}/caller-XXXXXX")" || exit 1

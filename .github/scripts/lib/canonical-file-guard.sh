@@ -31,6 +31,15 @@ assert_canonical_zizmor_config() {
         return 1
     fi
 
+    # Rejected before the -f/cmp checks below, which both follow symlinks: a
+    # caller could otherwise point .github/zizmor.yml at
+    # "${canonical_dir}/.github/zizmor.yml" itself, making the comparison
+    # trivially pass against its own target.
+    if [ -L .github/zizmor.yml ]; then
+        echo "::error file=.github/zizmor.yml::.github/zizmor.yml is a symlink. It must be a real file, not a link to the checked-out canonical copy or anywhere else. Replace it with a real copy from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml"
+        return 1
+    fi
+
     if [ ! -f .github/zizmor.yml ]; then
         echo "::error file=.github/zizmor.yml::.github/zizmor.yml is missing. It declares that first-party reusable workflows track @main by policy - without it, the unpinned-uses zizmor audit falls back to its blanket hash-pin rule and reports every reusable-workflow reference as a finding. Copy the canonical file from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml"
         return 1
