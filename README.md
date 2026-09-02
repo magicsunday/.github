@@ -47,16 +47,20 @@ and keeps auto-merging.
 
 `code-scanning.yml` and `yamllint.yml` check this repository out a second time,
 at the revision of the workflow being executed, to read the pinned tool
-versions in `.github/requirements/`.
+versions in `.github/requirements/`. `zizmor.yml` does the same second checkout
+for a different reason: to compare the caller's `.github/zizmor.yml` against
+the canonical copy in this repository, rather than to read a pinned tool
+version.
 That works with the caller's own `GITHUB_TOKEN` because this repository is
 public, and it is the reason it has to stay public: making it private would red
 `yamllint`, a required check in several repositories.
 
 That second checkout lands at `.magicsunday-shared` and is deleted again before
-the job scans or lints anything, so **`.magicsunday-shared` is a reserved path
-in a calling repository**. Both workflows stop with a message naming it rather
-than deleting a path of that name, which would leave it out of the scan without
-anything appearing to be missing.
+the job scans, lints, or verifies anything, so **`.magicsunday-shared` is a
+reserved path in a calling repository**. All three workflows stop with a
+message naming it rather than deleting a path of that name, which would leave
+it out of the scan (or make the verification pass vacuously) without anything
+appearing to be missing.
 
 ### Inputs
 
