@@ -197,10 +197,11 @@ jobs:
                   # now that the crash IS surfaced instead of masked, it
                   # would fail this check for every OTHER already-covered
                   # skip in the same array, not just the one under test.
+                  tracked_paths=(link.js vendored-dir logo.png)
                   assert_absent_from_json_array scanned 'index($p) != null' "$scanned" \
-                      link.js vendored-dir logo.png || exit 1
+                      "${tracked_paths[@]}" || exit 1
                   assert_absent_from_json_array skipped 'any(.[]?; (.path? // .) == $p)' "$skipped" \
-                      link.js vendored-dir logo.png || exit 1
+                      "${tracked_paths[@]}" || exit 1
 
                   echo "Pinned engine kept the tracked symlink, gitlink and binary asset out of both paths.scanned and paths.skipped."
 

@@ -110,8 +110,9 @@ assert_contains "assert_absent_from_json_array: a raw newline in the tracked pat
     "${newline_output}" "::error::" "evil file"
 
 # assert_contains() has the identical gap round 12 closed for its sibling
-# below, just never closed for itself: its three real call sites above all
-# happen to have every needle genuinely present, so a mutation that only
+# below, just never closed for itself: its three real call sites (two
+# above, one further down in the repo_root block) all happen to have every
+# needle genuinely present, so a mutation that only
 # checked the FIRST needle (`for needle in "$1"` instead of `"$@"`) is
 # invisible to the whole suite (test-quality-reviewer, mutation-confirmed,
 # round 13). The needle ORDER passed here ("b" then "a") deliberately
@@ -122,13 +123,7 @@ contains_ok_output="$(assert_contains "probe" "a needle b needle" "b" "a" 2>&1)"
 assert_eq "assert_contains: needles present in any order pass" "PASS: probe" "${contains_ok_output}"
 
 contains_missing_output="$(assert_contains "probe" "a needle only" "a" "b" 2>&1)"
-case "${contains_missing_output}" in
-    FAIL:*) echo "PASS: assert_contains: a missing needle fails" ;;
-    *)
-        echo "FAIL: assert_contains: a missing needle fails: got '${contains_missing_output}'"
-        failures=$((failures + 1))
-        ;;
-esac
+assert_starts_with_fail "assert_contains: a missing needle fails" "${contains_missing_output}"
 
 # assert_contains_in_order() itself has no fixture below other than the
 # three real assert_absent_from_json_array() call sites above, all of
@@ -142,22 +137,63 @@ in_order_ok_output="$(assert_contains_in_order "probe" "a needle b needle" "a" "
 assert_eq "assert_contains_in_order: needles present in order pass" "PASS: probe" "${in_order_ok_output}"
 
 in_order_swapped_output="$(assert_contains_in_order "probe" "b needle a needle" "a" "b" 2>&1)"
-case "${in_order_swapped_output}" in
-    FAIL:*) echo "PASS: assert_contains_in_order: needles present but out of order fail" ;;
-    *)
-        echo "FAIL: assert_contains_in_order: needles present but out of order fail: got '${in_order_swapped_output}'"
-        failures=$((failures + 1))
-        ;;
-esac
+assert_starts_with_fail "assert_contains_in_order: needles present but out of order fail" "${in_order_swapped_output}"
 
 in_order_missing_output="$(assert_contains_in_order "probe" "a needle only" "a" "b" 2>&1)"
-case "${in_order_missing_output}" in
-    FAIL:*) echo "PASS: assert_contains_in_order: a missing needle fails" ;;
-    *)
-        echo "FAIL: assert_contains_in_order: a missing needle fails: got '${in_order_missing_output}'"
-        failures=$((failures + 1))
-        ;;
-esac
+assert_starts_with_fail "assert_contains_in_order: a missing needle fails" "${in_order_missing_output}"
+
+# require_file() and assert_nonempty() have the same gap
+# assert_contains()/assert_contains_in_order() had before rounds 12-13: every
+# real call site across the whole test suite only ever passes an existing
+# file / a genuinely non-empty extraction in a passing run, so neither
+# function's own FAIL branch has ever actually executed anywhere - mutation-
+# confirmed (test-quality-reviewer, round 14) that disabling either guard
+# entirely leaves the WHOLE suite green. Both are silent on success (no
+# `echo "PASS: ..."` - see their own definitions), so only the failure
+# branch has anything to assert on; captured via `$(...)` so the inner
+# `failures` increment stays subshell-local, same as every assert_contains*
+# probe above.
+require_file_missing_output="$(require_file "${work_dir}/does-not-exist-fixture" 2>&1)"
+assert_eq "require_file: a missing file fails, naming its own path" \
+    "FAIL: expected file not found: ${work_dir}/does-not-exist-fixture" "${require_file_missing_output}"
+
+require_file_present_output="$(require_file "${fixture_file}" 2>&1)"
+assert_eq "require_file: an existing file prints nothing" "" "${require_file_present_output}"
+
+nonempty_empty_output="$(assert_nonempty "" "probe message" 2>&1)"
+assert_eq "assert_nonempty: an empty value fails, naming the caller's own message" "FAIL: probe message" "${nonempty_empty_output}"
+
+nonempty_present_output="$(assert_nonempty "x" "probe message" 2>&1)"
+assert_eq "assert_nonempty: a non-empty value prints nothing" "" "${nonempty_present_output}"
+
+# report_and_exit() is the one function whose own correctness gates whether
+# a real, printed FAIL: line anywhere in this suite actually turns into a
+# nonzero exit code for run-tests.sh (and therefore for lint.yml's
+# shell-tests job) - mutation-confirmed (test-quality-reviewer, round 14)
+# that changing its `exit 1` to `exit 0` leaves a genuinely failing
+# assertion's FAIL: line on screen while the whole run still reports
+# success and exits 0. It can only be driven in a real CHILD PROCESS, never
+# in-process: calling it directly would itself `exit` THIS test script.
+# SCRIPT_DIR is passed via the environment rather than string-interpolated
+# into the child's single-quoted script text, so the source path can't be
+# mangled by quoting.
+report_and_exit_failure_output="$(SCRIPT_DIR="${SCRIPT_DIR}" bash -c '
+    source "${SCRIPT_DIR}/lib/harness.sh"
+    failures=1
+    report_and_exit "probe suite"
+' 2>&1)"
+report_and_exit_failure_rc=$?
+assert_eq "report_and_exit: a nonzero failures count exits 1" "1" "${report_and_exit_failure_rc}"
+assert_eq "report_and_exit: a nonzero failures count prints the failure count" "1 failure(s)." "${report_and_exit_failure_output}"
+
+report_and_exit_success_output="$(SCRIPT_DIR="${SCRIPT_DIR}" bash -c '
+    source "${SCRIPT_DIR}/lib/harness.sh"
+    failures=0
+    report_and_exit "probe suite"
+' 2>&1)"
+report_and_exit_success_rc=$?
+assert_eq "report_and_exit: a zero failures count exits 0" "0" "${report_and_exit_success_rc}"
+assert_eq "report_and_exit: a zero failures count prints the all-passed line" "All probe suite passed." "${report_and_exit_success_output}"
 
 assert_pass() {
     local description="$1"
