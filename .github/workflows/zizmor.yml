@@ -25,6 +25,51 @@ jobs:
               with:
                   persist-credentials: false
 
+            # Same shared-checkout preconditions code-scanning.yml already
+            # applies before checking out its own canonical sources.
+            - name: Check the shared-checkout preconditions
+              env:
+                  WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+                  WORKFLOW_SHA: ${{ job.workflow_sha }}
+              run: |
+                  set -euo pipefail
+                  test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
+                  test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
+                  { test ! -e .magicsunday-shared && test ! -L .magicsunday-shared; } || { echo "::error::This repository contains a path named '.magicsunday-shared', which this check reserves for its own checkout and deletes again - rename it, or the check would silently skip it."; exit 1; }
+
+            - name: Check out the canonical .github/zizmor.yml
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
+                  path: .magicsunday-shared
+                  persist-credentials: false
+
+            # A repository whose .github/zizmor.yml is missing or has
+            # drifted from the canonical copy silently falls back to zizmor's
+            # blanket unpinned-uses rule, which then flags every first-party
+            # reusable-workflow reference this repository has (issue #38).
+            # assert_canonical_zizmor_config() (canonical-file-guard.sh,
+            # sourced below) carries the complete comparison, so
+            # test-canonical-file-guard.sh exercises the exact check this
+            # step relies on.
+            - name: Verify .github/zizmor.yml matches the canonical copy
+              env:
+                  SCRIPT_LIB: ${{ runner.temp }}/canonical-file-guard-lib
+              run: |
+                  set -euo pipefail
+                  mkdir -p "$SCRIPT_LIB"
+                  cp .magicsunday-shared/.github/scripts/lib/canonical-file-guard.sh "$SCRIPT_LIB/"
+                  # shellcheck source=scripts/lib/canonical-file-guard.sh
+                  source "$SCRIPT_LIB/canonical-file-guard.sh"
+                  # The comparison runs BEFORE the cleanup below - the
+                  # canonical copy this reads lives under .magicsunday-shared
+                  # itself, so removing it first would make every run report
+                  # the "own checkout is missing" failure regardless of
+                  # whether the caller's file actually matches.
+                  assert_canonical_zizmor_config "$(pwd)/.magicsunday-shared"
+                  rm -rf .magicsunday-shared
+
             # The action runs zizmor over the repository's workflows and uploads
             # the SARIF results to the code-scanning dashboard.
             - name: Run zizmor
