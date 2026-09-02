@@ -259,10 +259,20 @@ assert_eq "jq's stderr temp file does not survive a successful call" "${before_t
 # never reach this script's top-level counter.
 original_dir="$(pwd)" || exit 1
 
+# Shared prefix for every git-case setup below: fresh directory, entered, a
+# real repo initialised in it. Extracted per simplicity-reviewer, matching
+# the isolation new_case_dirs() established in test-canonical-file-guard.sh
+# (own fresh directory per case) - each case still creates its own files and
+# calls `git add -Af .` itself, since that content is what varies per case.
+new_git_case() {
+    local dir="${work_dir}/git-case-$1"
+    mkdir -p "${dir}"
+    cd "${dir}" || exit 1
+    git init -q
+}
+
 git_case_baseline="${work_dir}/git-case-baseline"
-mkdir -p "${git_case_baseline}"
-cd "${git_case_baseline}" || exit 1
-git init -q
+new_git_case baseline
 printf 'x' > a.php
 git add -Af .
 cd "${original_dir}" || exit 1
@@ -274,9 +284,7 @@ assert_pass "repo_root: every tracked file accounted for in scanned" "${report_b
 # neither scanned nor skipped by the pinned engine (reproduced against it
 # directly, 2026-09-02 - see the library's own docstring for the command).
 git_case_symlink="${work_dir}/git-case-symlink"
-mkdir -p "${git_case_symlink}"
-cd "${git_case_symlink}" || exit 1
-git init -q
+new_git_case symlink
 printf 'x' > target.php
 ln -s target.php link.php
 git add -Af .
@@ -290,9 +298,7 @@ assert_fail "repo_root: a git-tracked path absent from both inventories fails, n
 # reason must not be re-flagged by this check - it is covered, just not via
 # `.paths.scanned`.
 git_case_tolerated="${work_dir}/git-case-tolerated"
-mkdir -p "${git_case_tolerated}"
-cd "${git_case_tolerated}" || exit 1
-git init -q
+new_git_case tolerated
 printf 'x' > a.php
 printf 'y' > b.bin
 git add -Af .
@@ -324,9 +330,7 @@ cd "${original_dir}" || exit 1
 # A missing path carrying a literal percent sign is sanitised the same way
 # every other path-derived annotation value in this library already is.
 git_case_percent="${work_dir}/git-case-percent"
-mkdir -p "${git_case_percent}"
-cd "${git_case_percent}" || exit 1
-git init -q
+new_git_case percent
 printf 'x' > target.php
 ln -s target.php 'weird%name.php'
 git add -Af .
@@ -335,5 +339,52 @@ report_percent="${work_dir}/report-percent.json"
 jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_percent}"
 assert_fail "repo_root: a missing path with a literal percent sign is sanitised in the annotation" \
     "${report_percent}" "weird%25name.php" "${git_case_percent}"
+
+# The new `git_ls_files_file` mktemp (semgrep-report-check.sh, the
+# `repo_root` block) is cleaned up on TWO exit paths - the `git ls-files`
+# failure branch and the success continuation - mirroring the jq-stderr
+# temp file's own two cleanup sites above. Neither of the two leak
+# assertions above this point passes `repo_root` at all, so neither reaches
+# this mktemp; without a dedicated assertion here, deleting either of its
+# `rm -f` calls would leave this suite green (proven: removing the
+# success-path `rm -f` in a scratch copy left "All report-check tests
+# passed." unchanged).
+before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
+TMPDIR="${tmp_scan_dir}" assert_semgrep_report_complete "${report_not_a_repo}" "${git_case_not_a_repo}" > /dev/null 2>&1
+after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
+assert_eq "repo_root: git_ls_files_file does not survive a git-ls-files failure" "${before_tmp_count}" "${after_tmp_count}"
+
+before_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
+TMPDIR="${tmp_scan_dir}" assert_semgrep_report_complete "${report_baseline}" "${git_case_baseline}" > /dev/null 2>&1
+after_tmp_count="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
+assert_eq "repo_root: git_ls_files_file does not survive a successful call" "${before_tmp_count}" "${after_tmp_count}"
+
+# A `mktemp` failure for `git_ls_files_file` itself must fail closed with
+# its OWN message, not crash or silently skip the check. A globally broken
+# `TMPDIR` does not isolate this: `jq_stderr_file`'s own mktemp (near the
+# top of the function, unconditional) trips FIRST under the same broken
+# TMPDIR and returns ITS message instead - verified, that is a real, weaker
+# but still fail-closed property the two leak assertions above already
+# exercise via TMPDIR, not this specific branch. To reach `git_ls_files_file`
+# specifically, `mktemp` is shadowed as a function that succeeds on its
+# first call (jq_stderr_file) and fails on its second (git_ls_files_file) -
+# a plain counter variable does not survive across `$(mktemp)`'s own
+# subshell, so the count lives in a file instead (verified: a variable-only
+# counter silently reset to 1 on every call).
+mktemp_call_count_file="$(mktemp)" || exit 1
+echo 0 > "${mktemp_call_count_file}"
+mktemp() {
+    local n
+    n=$(($(cat "${mktemp_call_count_file}") + 1))
+    echo "${n}" > "${mktemp_call_count_file}"
+    if [ "${n}" -eq 2 ]; then
+        return 1
+    fi
+    command mktemp "$@"
+}
+assert_fail "repo_root: a git_ls_files_file mktemp failure fails closed with its own message" \
+    "${report_baseline}" "Could not create a temp file" "${git_case_baseline}"
+unset -f mktemp
+rm -f "${mktemp_call_count_file}"
 
 report_and_exit "report-check tests"
