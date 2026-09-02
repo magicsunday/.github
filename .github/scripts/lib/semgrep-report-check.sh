@@ -386,8 +386,8 @@ assert_semgrep_report_complete() {
         # already appended, not a companion "seen" set (tried first, then
         # simplified away): `git ls-files -s` sorts primarily by pathname,
         # so every stage of the same conflicted path is contiguous in read
-        # order — verified live, staging a 3-way conflict returns its
-        # three stage lines back to back — which means an adjacent-only
+        # order — as observed 2026-09-02, staging a 3-way conflict returns
+        # its three stage lines back to back — which means an adjacent-only
         # comparison collapses them exactly as a full set would, at the
         # cost of one array read instead of a hash lookup, and without a
         # second data structure. This also keeps `git ls-files`' own
