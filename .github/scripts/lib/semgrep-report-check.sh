@@ -271,16 +271,20 @@ assert_semgrep_report_complete() {
     # above to catch, because both read a `reason` Semgrep itself assigned
     # and a path in neither array carries none. Comparing against the tree
     # is the only way to see it, so this runs only when the caller passes a
-    # `repo_root` (issue #49; the earlier two channels the same issue
-    # raised — a warn-level `.errors[]` entry with no matching skip, and
-    # `.errors[]` reaching the exit code at all outside `--strict` — could
-    # not be made to manifest against this pin even with a deliberately slow
-    # 200k-line file and a 5000-deep nested-expression file under
-    # `--timeout 1`/`--timeout 5`; documented as wontfix in the issue rather
-    # than guarded here).
+    # `repo_root` (issue #49; channel 1 of that issue — a warn-level
+    # `.errors[]` entry with no matching skip, and `.errors[]` reaching the
+    # exit code at all outside `--strict` — could not be made to manifest
+    # against this pin even with a deliberately slow 200k-line file and a
+    # 5000-deep nested-expression file under `--timeout 1`/`--timeout 5`.
+    # Issue #49's own channel 2 — a file in neither inventory — is what this
+    # block implements, not a second unreproducible channel; see that issue
+    # for the reproduction attempts and its current status).
     #
     # A git-tracked SYMLINK is the confirmed case: the engine neither scans
-    # nor lists one. Reproduced against the pinned engine, 2026-09-02:
+    # nor lists one. Reproduced against the pinned engine, 2026-09-02, in a
+    # single-language repo where `--config p/php` alone already covers every
+    # tracked file (see the pack-coverage note below for why a mixed-language
+    # tree needs all four configured packs, not this one):
     #
     #   git init -q repro && cd repro
     #   printf '<?php eval($_GET["x"]);\n' > target.php
@@ -291,15 +295,31 @@ assert_semgrep_report_complete() {
     #       # target.php — link.php is in neither
     #
     # A git-tracked SUBMODULE (a gitlink, mode 160000) is not distinguished
-    # from a regular file here — checked across every non-archived
-    # magicsunday/* repository via the git-trees API, 2026-09-02, and none
-    # currently exists among this workflow's consumers, so this is a named
-    # gap rather than handled speculatively. If one is ever added and
-    # Semgrep does not report it as skipped on its own, exclude its path via
-    # this workflow's `excludes` input — the same mechanism a legitimate
-    # git-tracked symlink needs below, since a `.semgrepignore` cannot be
-    # used here (this workflow rejects one outright, see the precondition
-    # step in code-scanning.yml).
+    # from a regular file here — as observed 2026-09-02 via the git-trees
+    # API, no non-archived magicsunday/* repository had one among this
+    # workflow's consumers, so this is a named gap rather than handled
+    # speculatively. If one is ever added and Semgrep does not report it as
+    # skipped on its own, exclude its path via this workflow's `excludes`
+    # input — the same mechanism a legitimate git-tracked symlink needs
+    # below — a `.semgrepignore` is not an alternative here, per the
+    # rejection this file already explains above.
+    #
+    # This check's whole false-positive avoidance rests on `.paths.scanned ∪
+    # .paths.skipped` already covering every file type the caller's tracked
+    # tree can contain — a property of the four `p/*` rule packs
+    # code-scanning.yml scans with, not of the engine itself. Measured
+    # against the pinned engine, this repository, with only `--config p/php`
+    # (one of the four): 45 of 57 tracked files land in neither array, all
+    # non-PHP. The other three packs — particularly the two generic ones,
+    # `p/secrets` and `p/security-audit` — are what give the engine an
+    # opinion on non-PHP/JS content and keep the count at 0 missing under the
+    # real four-pack invocation. If the registry ever narrows what those
+    # packs claim to cover, this gate fails closed across every consumer —
+    # correct, but the annotation below would still name a symlink as the
+    # cause. Re-derive: `semgrep scan --config p/php --json-output=j.json
+    # --verbose --metrics off .` against a real checkout, then `jq
+    # '.paths.scanned, .paths.skipped | length' j.json` against `git
+    # ls-files | wc -l`.
     if [ -n "$repo_root" ]; then
         # Read from a temp FILE, never through a `$(...)`-captured bash
         # string: command substitution silently drops embedded NUL bytes
@@ -320,6 +340,7 @@ assert_semgrep_report_complete() {
             return 1
         fi
         local -a tracked=()
+        local _tracked_path
         while IFS= read -r -d '' _tracked_path; do
             tracked+=("$_tracked_path")
         done < "$git_ls_files_file"
@@ -347,16 +368,30 @@ assert_semgrep_report_complete() {
         done
 
         if [ "${#missing[@]}" -gt 0 ]; then
-            local missing_lines="" _m _sanitized
-            for _m in "${missing[@]}"; do
-                _sanitized="$(sanitize_for_annotation "$_m")"
-                if [ -n "$missing_lines" ]; then
-                    missing_lines="${missing_lines}%0A${_sanitized}"
-                else
-                    missing_lines="${_sanitized}"
-                fi
-            done
-            echo "::error::Semgrep's report says nothing about the file(s) below — they are tracked by git but absent from both .paths.scanned and .paths.skipped, so the engine never enumerated them and code scanning would retire any alert they held. A git-tracked symlink is the confirmed cause; declare it through this workflow's 'excludes' input if it is not meant to be scanned, otherwise investigate why the engine never enumerated it.%0A${missing_lines}"
+            # One `jq` call over every missing path via `--args`/
+            # `$ARGS.positional`, not one `sanitize_for_annotation` fork per
+            # path: the per-path form cost one subprocess spawn per entry,
+            # which on a systematically-incomplete report (the pack-coverage
+            # case above, not just a single stray symlink) is proportional to
+            # the whole tree. `--args` passes each element as its own argv
+            # entry, so no NUL/newline delimiter is needed in the jq program
+            # itself.
+            local missing_lines
+            missing_lines="$(jq -nr --args '
+                $ARGS.positional
+                | map(gsub("%"; "%25") | gsub("[[:cntrl:]]"; " "))
+                | join("%0A")
+            ' "${missing[@]}" 2>/dev/null)" || missing_lines="(sanitisation failed)"
+            # The `excludes` remedy named below cannot represent a tracked
+            # path containing a literal space — `build_semgrep_exclude_args()`
+            # (semgrep-excludes.sh) splits on IFS whitespace with no quoting,
+            # matching the input's own documented "whitespace-separated"
+            # contract. Verified against the real helper, 2026-09-02:
+            # `build_semgrep_exclude_args 'my link.php'` produces two broken
+            # patterns, not one. No current consumer has a git-tracked
+            # symlink at all (this file's own comment above), so this cannot
+            # bite a real caller today; tracked separately as issue #89.
+            echo "::error::Semgrep's report says nothing about the file(s) below — they are tracked by git but absent from both .paths.scanned and .paths.skipped, so the engine never enumerated them and code scanning would retire any alert they held. A git-tracked symlink is the confirmed producer of this shape; a submodule gitlink or a rule-pack coverage gap (see above) reach it too. Declare the path through this workflow's 'excludes' input if it is not meant to be scanned, otherwise investigate why the engine never enumerated it.%0A${missing_lines}"
             return 1
         fi
     fi

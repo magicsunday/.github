@@ -327,10 +327,12 @@ jobs:
                   # neither scanned nor skipped by the pinned engine, so
                   # comparing the report against the tree is the only way to
                   # catch it), and the single-annotation sanitisation — see
-                  # semgrep-report-check.sh. `GITHUB_WORKSPACE` is this step's
-                  # own checkout root regardless of any `cd` an earlier step
-                  # in this job may have done, which is why it is passed
-                  # explicitly rather than relying on cwd.
+                  # semgrep-report-check.sh. `GITHUB_WORKSPACE` is passed
+                  # explicitly rather than relying on this step's cwd matching
+                  # it implicitly — the two happen to coincide here (no
+                  # `working-directory:` override, no `cd` in this step), but
+                  # naming the env var directly is self-documenting and
+                  # survives a future edit to this step that no longer holds.
                   assert_semgrep_report_complete "$JSON_FILE" "$GITHUB_WORKSPACE"
 
             - name: Upload SARIF to code scanning

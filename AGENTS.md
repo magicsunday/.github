@@ -134,8 +134,9 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   pinned engine neither scans nor lists as skipped, so it leaves no trace
   in the inventory for the reason-based check above to catch (issue #49).
   A repository that legitimately keeps one declares its path through this
-  workflow's `excludes` input, the same mechanism a `minified` file or
-  any other intentional exclusion already uses.
+  workflow's `excludes` input — a caller-configured exclusion, distinct
+  from the workflow's own hardcoded `--exclude '*.min.js'` flag, though
+  both reach the same tolerated `cli_exclude_flags_match` skip reason.
 - **When a reusable workflow's `run:` block grows real logic (argument
   construction, report assertions — a bare exit-code check is usually too small to
   be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
