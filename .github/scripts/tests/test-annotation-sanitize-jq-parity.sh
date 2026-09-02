@@ -53,8 +53,8 @@ report_check_filter="$(extract_gsub_pair '(.path \/\/ "(no path)")' 'as \$path' 
 # Anchored on real code, not the surrounding prose: the start anchor
 # (`split("\u0000")[0:-1]`) is unique in the file, so sed's range begins
 # there - the earlier, unrelated `join("%0A")` a different jq pipeline
-# emits a few dozen lines above is never reachable as an end match, since
-# sed only looks for it from the start match onward (re-derive:
+# emits well above it is never reachable as an end match, since sed only
+# looks for it from the start match onward (re-derive:
 # `grep -n 'split(\|join(' <REPORT_CHECK_FILE>` before trusting this
 # comment - it names what is true of the CURRENT file, not a fixed fact).
 missing_path_filter="$(extract_gsub_pair 'split("\\u0000")\[0:-1\]$' 'join("%0A")$' "${REPORT_CHECK_FILE}")"
