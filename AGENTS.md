@@ -198,15 +198,17 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   package-manager step resolves. Either way, no gate declared inside a reusable workflow
   here can be trusted to bind an unwilling fork PR — package-manager-level hardening (a
   resolver flag, a lockfile content check) is theatre once the PR can just skip the step
-  that runs it. The one control that isn't PR-editable is the *consumer repository's*
-  fork-PR-contributor-approval setting: re-derive with
+  that runs it. The relevant control over whether such a run executes at all is the
+  *consumer repository's* fork-PR-contributor-approval setting: re-derive with
   `gh api repos/<owner>/<repo>/actions/permissions/fork-pr-contributor-approval`.
   `all_external_contributors` requires approval from a collaborator with write access for
-  every external run; `first_time_contributors` (this account's observed default as of
-  2026-09-02, across its untouched repos — re-check via GitHub's own Actions-settings
-  docs, which also define a stricter `first_time_contributors_new_to_github` value) only
-  gates the first one — a returning contributor, or their later-compromised account, then
-  runs unapproved.
+  every external run; `first_time_contributors` (this account's observed default, across
+  its untouched repos) requires it only until the contributor has one commit or PR merged
+  into the repo — a returning contributor, or their later-compromised account, then runs
+  unapproved; a third, more permissive value, `first_time_contributors_new_to_github`,
+  additionally requires the contributor to be new to GitHub itself. All claims here about
+  GitHub's own platform behaviour verified 2026-09-02 against GitHub's Actions-trigger and
+  Actions-settings docs — re-check before trusting them past that date.
 - **Harden Runner.** `ai-issue-labeler.yml` is the first workflow in this account to
   add a `step-security/harden-runner` step, in `audit` (not `block`) mode — it is also
   the first to call an external service (the Anthropic API) while holding a repository
