@@ -154,9 +154,10 @@ jobs:
             # instead of silently widening the completeness gate's blind
             # spot. Asserts `target.js` itself IS scanned first - same as
             # the bundle-like-fixture step above - so a rule/language
-            # mismatch that scans nothing (verified live: `.paths.scanned`
-            # and `.paths.skipped` both empty, `semgrep` still exits 0) can't
-            # make every absence check below pass having verified nothing.
+            # mismatch that scans nothing (as observed 2026-09-02:
+            # `.paths.scanned` and `.paths.skipped` both empty, `semgrep`
+            # still exits 0) can't make every absence check below pass
+            # having verified nothing.
             - name: Scan a git-tracked symlink, gitlink and binary asset
               run: |
                   set -euo pipefail
@@ -178,11 +179,34 @@ jobs:
                       exit 1
                   fi
 
+                  # jq's own exit status is checked explicitly rather than
+                  # folded into the `if`: `jq -e` exits 1 for "the filter
+                  # legitimately evaluated to false/null" but ALSO for any
+                  # OTHER nonzero code (a filter compile error, or - as
+                  # observed 2026-09-02 - .path indexing a non-object
+                  # .paths.skipped element, which jq exits 5 for) - a plain
+                  # boolean `if` cannot tell "not found" from "could not be
+                  # evaluated" apart, and would silently treat a broken
+                  # check as a passing one exactly as issue #65 already
+                  # documents for semgrep-report-check.sh's own jq calls. The
+                  # assignment itself is the `if`'s own condition, not a
+                  # standalone statement before one: under `set -e`, a bare
+                  # `out="$(cmd)"` line trips errexit immediately on a
+                  # failing `cmd`, before a following `rc=$?` line is ever
+                  # reached - verified live.
                   check_absent() {
-                      local kind="$1" filter="$2" haystack="$3" tracked_path
+                      local kind="$1" filter="$2" haystack="$3" tracked_path out rc
                       for tracked_path in link.js vendored-dir logo.png; do
-                          if jq -e --arg p "$tracked_path" "$filter" <<< "$haystack" > /dev/null; then
+                          if out="$(jq -e --arg p "$tracked_path" "$filter" <<< "$haystack" 2>&1)"; then
+                              rc=0
+                          else
+                              rc=$?
+                          fi
+                          if [ "$rc" -eq 0 ]; then
                               echo "::error::The pinned engine reported the git-tracked ${tracked_path} as ${kind} - assert_semgrep_report_complete()'s repo_root comparison assumes this object type never is: ${haystack}"
+                              exit 1
+                          elif [ "$rc" -ne 1 ]; then
+                              echo "::error::jq could not evaluate the ${kind} check for ${tracked_path} (exit ${rc}), so this smoke check verified nothing: ${out}"
                               exit 1
                           fi
                       done
