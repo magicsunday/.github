@@ -14,7 +14,11 @@
 # .github/zizmor.yml declares that first-party reusable workflows track
 # @main by policy - without it (or with a stale copy) the unpinned-uses
 # zizmor audit falls back to its blanket hash-pin rule and reports every
-# reusable-workflow reference as a finding. This happened once (issue #38):
+# reusable-workflow reference as a finding (verified 2026-09-02 against
+# https://docs.zizmor.sh/audits/#unpinned-uses - that default has changed
+# once already, in zizmor v1.20.0, so re-check the docs rather than
+# trusting this comment if it ever looks stale). This happened once
+# (issue #38):
 # a newly created repository was the only one of 22 without the file, and
 # it surfaced only through manual alert triage.
 #

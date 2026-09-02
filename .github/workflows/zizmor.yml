@@ -53,7 +53,9 @@ jobs:
             # A repository whose .github/zizmor.yml is missing or has
             # drifted from the canonical copy silently falls back to zizmor's
             # blanket unpinned-uses rule, which then flags every first-party
-            # reusable-workflow reference this repository has (issue #38).
+            # reusable-workflow reference this repository has (issue #38;
+            # verified 2026-09-02 against
+            # https://docs.zizmor.sh/audits/#unpinned-uses).
             # assert_canonical_zizmor_config() (canonical-file-guard.sh,
             # sourced below) carries the complete comparison, so
             # test-canonical-file-guard.sh exercises the exact check this
