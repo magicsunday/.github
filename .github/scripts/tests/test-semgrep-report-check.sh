@@ -458,11 +458,11 @@ assert_fail "unreadable report fails" "${unreadable}" "could not be read"
 
 # `jq_stderr_file`'s own mktemp (unconditional, near the top of the
 # function) must fail closed with its OWN message, not crash or silently
-# skip the check - the same fail-closed contract round 26 already pinned
-# for its sibling `git_ls_files_file` mktemp, just never given the same
-# treatment here (test-quality-reviewer, mutation-confirmed, round 27:
-# flipping this branch's `return 1` to `return 0` left the whole suite
-# green, since nothing forced this FIRST mktemp call to fail on its own).
+# skip the check - the same fail-closed contract already pinned below for
+# its sibling `git_ls_files_file` mktemp, just never given the same
+# treatment here (test-quality-reviewer, mutation-confirmed: flipping this
+# branch's `return 1` to `return 0` left the whole suite green, since
+# nothing forced this FIRST mktemp call to fail on its own).
 mktemp() {
     return 1
 }
@@ -482,6 +482,39 @@ non_string_path="${work_dir}/non-string-path.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "x.php", reason: "some_bad_reason"}, {path: 123, reason: "some_reason"}]}}' > "${non_string_path}"
 assert_fail "non-string skipped-path entry fails closed rather than masking a crash" "${non_string_path}" "jq failed while evaluating the skip inventory, so the report cannot be shown complete: jq: error (at ${non_string_path}:"
 assert_fail "non-string skipped-path entry: annotation carries jq's actual diagnostic body, not a hardcoded stand-in" "${non_string_path}" "number (123) cannot be matched, as it is not a string"
+
+# `cat "$jq_stderr_file" || jq_error="(diagnostic unavailable)"` was deferred
+# in round 27/28 as needing "fragile instrumentation" to test - that premise
+# was wrong (test-quality-reviewer, round 28): a plain `cat` shadow, the same
+# technique already used for `mktemp`/`jq` elsewhere in this file, triggers
+# it deterministically, no chmod/race needed.
+cat() {
+    return 1
+}
+assert_fail "jq_stderr_file cat failure falls back to (diagnostic unavailable)" \
+    "${non_string_path}" "(diagnostic unavailable)"
+unset -f cat
+
+# The `rm -f "$jq_stderr_file" || true` guard (see the comment above this
+# function's own cleanup) is itself untested by every assertion above: none
+# of them run under a real `set -e`, and the real production caller
+# (code-scanning.yml) invokes this function as a bare statement under
+# `set -euo pipefail`, not via `$(...)` capture - command substitution does
+# NOT propagate errexit into itself by default, so a capture-based probe
+# would give a false negative here (test-quality-reviewer, mutation-
+# confirmed, round 28: removing `|| true` and driving the crash branch
+# through a real `set -e` caller silently aborts before the ::error:: line
+# ever prints - reproduced with `rm` shadowed to fail). Mirrors the
+# `bash -c`-under-`set -e` technique already used in
+# test-annotation-sanitize.sh for the identical class of gap.
+rm_guard_script="set -euo pipefail
+source \"${SCRIPT_DIR}/../lib/semgrep-report-check.sh\"
+rm() { command false; }
+assert_semgrep_report_complete \"${non_string_path}\"
+echo REACHED_AFTER"
+rm_guard_output="$(bash -c "${rm_guard_script}" 2>&1)"
+assert_contains "jq_stderr_file rm -f failure still prints the annotation under a real set -e caller" \
+    "${rm_guard_output}" "jq failed while evaluating the skip inventory"
 
 # jq's own crash diagnostic previews the offending value verbatim (truncated,
 # but not sanitised by jq itself), so a `%` inside it reaches the annotation
@@ -643,6 +676,15 @@ cd "${original_dir}" || exit 1
 report_baseline="${work_dir}/report-baseline.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: []}}' > "${report_baseline}"
 assert_pass "repo_root: every tracked file accounted for in scanned" "${report_baseline}" "${git_case_baseline}"
+
+# assert_pass() (below in this file) only ever checks the function's exit
+# code on the success path, never its stdout - so the success message
+# itself (unlike every failure annotation above) has never been pinned by
+# any fixture (test-quality-reviewer, mutation-confirmed, round 28:
+# rewriting the message text entirely still leaves the whole suite green).
+baseline_output="$(assert_semgrep_report_complete "${report_baseline}" "${git_case_baseline}" 2>&1)"
+assert_eq "repo_root baseline: success message names the scanned count" \
+    "Scanned 1 files, no undeclared skips." "${baseline_output}"
 
 # The confirmed gap this channel exists for: a git-tracked symlink is
 # neither scanned nor skipped by the pinned engine (reproduced against it
