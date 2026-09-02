@@ -36,11 +36,14 @@ assert_canonical_zizmor_config() {
     fi
 
     # Rejected before the -f/cmp checks below, which both follow symlinks: a
-    # caller could otherwise point .github/zizmor.yml at
-    # "${canonical_dir}/.github/zizmor.yml" itself, making the comparison
-    # trivially pass against its own target.
-    if [ -L .github/zizmor.yml ]; then
-        echo "::error file=.github/zizmor.yml::.github/zizmor.yml is a symlink. It must be a real file, not a link to the checked-out canonical copy or anywhere else. Replace it with a real copy from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml"
+    # caller could otherwise point .github/zizmor.yml - or the .github
+    # directory itself - at "${canonical_dir}/.github" (or a file inside
+    # it), making the comparison trivially pass against its own target.
+    # [ -L .github/zizmor.yml ] alone would miss the directory-symlink case:
+    # lstat only inspects the final path component, so a symlinked .github
+    # with a real zizmor.yml file inside it is not itself detected.
+    if [ -L .github ] || [ -L .github/zizmor.yml ]; then
+        echo "::error file=.github/zizmor.yml::.github/zizmor.yml is a symlink, or the .github directory containing it is. It must be a real file inside a real directory, not a link to the checked-out canonical copy or anywhere else. Replace it with a real copy from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml"
         return 1
     fi
 
