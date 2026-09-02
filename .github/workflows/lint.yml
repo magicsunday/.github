@@ -137,6 +137,45 @@ jobs:
 
                   echo "Pinned engine scanned the bundle-like fixture with no skips."
 
+            # semgrep-report-check.sh's assert_semgrep_report_complete()
+            # repo_root branch (issue #49) rests on one further pinned-engine
+            # claim: a git-tracked symlink or gitlink is reported in NEITHER
+            # .paths.scanned NOR .paths.skipped. Like the minified-fixture
+            # claim above, that fact is otherwise pinned only by hand-written
+            # JSON fixtures in test-semgrep-report-check.sh, never by a real
+            # scan - this step re-derives it against the pinned engine
+            # itself, mirroring semgrep-report-check.sh's own dated repro
+            # comments for this claim, so a future engine bump that starts
+            # listing either object type fails here instead of silently
+            # widening the completeness gate's blind spot.
+            - name: Scan a git-tracked symlink and gitlink
+              run: |
+                  set -euo pipefail
+                  mkdir smoke-repo && cd smoke-repo
+                  git init --quiet
+                  printf 'function f(a,b,c){return a+b+c;}\n' > target.js
+                  ln -s target.js link.js
+                  git update-index --add --cacheinfo 160000,4b825dc642cb6eb9a060e54bf8d69288fbee4904,vendored-dir
+                  git add -- target.js link.js
+
+                  semgrep scan --config ../smoke-rule.yml --json-output=symlink-smoke.json --verbose --metrics off .
+
+                  scanned="$(jq -c '.paths.scanned' symlink-smoke.json)"
+                  skipped="$(jq -c '.paths.skipped' symlink-smoke.json)"
+
+                  for tracked_path in link.js vendored-dir; do
+                      if jq -e --arg p "$tracked_path" 'index($p) != null' <<< "$scanned" > /dev/null; then
+                          echo "::error::The pinned engine reported the git-tracked ${tracked_path} as scanned - assert_semgrep_report_complete()'s repo_root comparison assumes this object type never is: ${scanned}"
+                          exit 1
+                      fi
+                      if jq -e --arg p "$tracked_path" 'any(.[]?; (.path // .) == $p)' <<< "$skipped" > /dev/null; then
+                          echo "::error::The pinned engine reported the git-tracked ${tracked_path} as skipped - assert_semgrep_report_complete()'s repo_root comparison assumes this object type never is: ${skipped}"
+                          exit 1
+                      fi
+                  done
+
+                  echo "Pinned engine kept the tracked symlink and gitlink out of both paths.scanned and paths.skipped."
+
     shell-tests:
         name: Shell logic tests
         runs-on: ubuntu-latest
