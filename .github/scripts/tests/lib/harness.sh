@@ -38,6 +38,16 @@ assert_eq() {
     echo "PASS: ${description}"
 }
 
+# Prints "FAIL: ${1}: got '${2}'" and increments `failures` - the shared
+# failure shape assert_contains() and assert_contains_in_order() below both
+# need on their first unmatched needle. Not `return`-ing itself: each
+# caller's own `return` right after is what ends ITS loop, not this
+# helper's.
+_harness_fail() {
+    echo "FAIL: ${1}: got '${2}'"
+    failures=$((failures + 1))
+}
+
 # Fails with "FAIL: ${description}: got '$2'" and increments `failures`
 # unless "$2" (a haystack) contains EVERY one of "$3.." as a literal
 # substring, IN ANY ORDER -- the single-needle case is the same shape
@@ -62,8 +72,7 @@ assert_contains() {
         case "${haystack}" in
             *"${needle}"*) ;;
             *)
-                echo "FAIL: ${description}: got '${haystack}'"
-                failures=$((failures + 1))
+                _harness_fail "${description}" "${haystack}"
                 return
                 ;;
         esac
@@ -104,6 +113,27 @@ assert_contains_in_order() {
     done
 
     echo "PASS: ${description}"
+}
+
+# Asserts that "$2" - the CAPTURED OUTPUT of some other assert_*() call -
+# itself starts with "FAIL:", i.e. that the inner assertion correctly
+# failed. Prints PASS/FAIL under description "$1" and increments
+# `failures` on a mismatch, same as every other assert here. For probing
+# an assert_*() helper's own failure branch directly (round 12/13/14 of
+# issue #49 each needed this shape once, testing assert_contains_in_order()
+# and assert_contains() themselves rather than a real caller) - the inner
+# call's own `failures` increment happens inside the `$(...)` command
+# substitution that captured it, so it is a subshell-local copy that never
+# reaches this script's real counter; this function's own increment, on
+# the real (non-subshell) counter, is what actually gets counted.
+assert_starts_with_fail() {
+    local description="$1"
+    local output="$2"
+
+    case "${output}" in
+        FAIL:*) echo "PASS: ${description}" ;;
+        *) _harness_fail "${description}" "${output}" ;;
+    esac
 }
 
 # Fails with "FAIL: expected file not found: $1" and increments `failures`
