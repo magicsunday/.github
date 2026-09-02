@@ -37,10 +37,19 @@ build_minified_fixture() {
 # before one: under `set -e`, a bare `out="$(cmd)"` line trips errexit
 # immediately on a failing `cmd`, before a following `rc=$?` line is ever
 # reached - as observed 2026-09-02.
+#
+# Every value folded into the annotation goes through
+# sanitize_for_annotation() first, same as assert_semgrep_report_complete()
+# below - not because either current caller passes untrusted input (both
+# pass fixed literals today), but because this is a shared library function
+# extracted specifically for reuse, and a raw newline reaching a future
+# caller's tracked-path/haystack argument would otherwise split one
+# annotation into an unattributed second log line, exactly the forgery
+# class this file's own sibling function takes care to prevent.
 assert_absent_from_json_array() {
     local kind="$1" filter="$2" haystack="$3"
     shift 3
-    local tracked_path out rc
+    local tracked_path out rc safe_path safe_value
     for tracked_path in "$@"; do
         if out="$(jq -e --arg p "$tracked_path" "$filter" <<< "$haystack" 2>&1)"; then
             rc=0
@@ -48,10 +57,14 @@ assert_absent_from_json_array() {
             rc=$?
         fi
         if [ "$rc" -eq 0 ]; then
-            echo "::error::The pinned engine reported the git-tracked ${tracked_path} as ${kind} - this comparison assumes it never is: ${haystack}"
+            safe_path="$(sanitize_for_annotation "${tracked_path}")"
+            safe_value="$(sanitize_for_annotation "${haystack}")"
+            echo "::error::The pinned engine reported the git-tracked ${safe_path} as ${kind} - this comparison assumes it never is: ${safe_value}"
             return 1
         elif [ "$rc" -ne 1 ]; then
-            echo "::error::jq could not evaluate the ${kind} check for ${tracked_path} (exit ${rc}), so this check verified nothing: ${out}"
+            safe_path="$(sanitize_for_annotation "${tracked_path}")"
+            safe_value="$(sanitize_for_annotation "${out}")"
+            echo "::error::jq could not evaluate the ${kind} check for ${safe_path} (exit ${rc}), so this check verified nothing: ${safe_value}"
             return 1
         fi
     done
@@ -418,8 +431,10 @@ assert_semgrep_report_complete() {
         # on a tracked symlink produces three stage-1/2/3 lines for the SAME
         # path, all still mode 120000. Reproduced live: without the
         # adjacency guard below, `tracked` duplicated that path three
-        # times in the annotation. The sole production caller checks out a
-        # single ref with `actions/checkout`, which never leaves the index
+        # times in the annotation. As observed 2026-09-02 (re-derive with
+        # `grep -rn "assert_semgrep_report_complete\b" .github --include=*.yml
+        # --include=*.sh`), the sole production caller checks out a single
+        # ref with `actions/checkout`, which never leaves the index
         # mid-conflict, so this cannot manifest through that call path
         # today — the check costs nothing extra, so there is no reason to
         # leave the duplication in for a caller that might. Kept as a plain
