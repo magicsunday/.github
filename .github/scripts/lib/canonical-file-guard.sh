@@ -30,6 +30,7 @@
 # workflow already performs.
 assert_canonical_zizmor_config() {
     local canonical_dir="$1"
+    local canonical_url="https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml"
 
     if [ ! -f "${canonical_dir}/.github/zizmor.yml" ]; then
         echo "::error::Could not verify .github/zizmor.yml against the canonical copy - the checked-out canonical source at '${canonical_dir}/.github/zizmor.yml' does not exist. This is a defect in the reusable workflow's own checkout, not in the calling repository."
@@ -44,17 +45,17 @@ assert_canonical_zizmor_config() {
     # lstat only inspects the final path component, so a symlinked .github
     # with a real zizmor.yml file inside it is not itself detected.
     if [ -L .github ] || [ -L .github/zizmor.yml ]; then
-        echo "::error file=.github/zizmor.yml::.github/zizmor.yml is a symlink, or the .github directory containing it is. It must be a real file inside a real directory, not a link to the checked-out canonical copy or anywhere else. Replace it with a real copy from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml"
+        echo "::error file=.github/zizmor.yml::.github/zizmor.yml is a symlink, or the .github directory containing it is. It must be a real file inside a real directory, not a link to the checked-out canonical copy or anywhere else. Replace it with a real copy from ${canonical_url}"
         return 1
     fi
 
     if [ ! -f .github/zizmor.yml ]; then
-        echo "::error file=.github/zizmor.yml::.github/zizmor.yml is missing. Without it, the unpinned-uses zizmor audit falls back to a stricter default that flags every reusable-workflow reference (see this file's own docblock for the anchored claim about what that default is). Copy the canonical file from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml"
+        echo "::error file=.github/zizmor.yml::.github/zizmor.yml is missing. Without it, the unpinned-uses zizmor audit falls back to a stricter default that flags every reusable-workflow reference (see this file's own docblock for the anchored claim about what that default is). Copy the canonical file from ${canonical_url}"
         return 1
     fi
 
     if ! cmp -s .github/zizmor.yml "${canonical_dir}/.github/zizmor.yml"; then
-        echo "::error file=.github/zizmor.yml::.github/zizmor.yml differs from the canonical copy in magicsunday/.github. A stale or locally-edited copy can silently change which reusable-workflow references the unpinned-uses zizmor audit flags. Sync it from https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml"
+        echo "::error file=.github/zizmor.yml::.github/zizmor.yml differs from the canonical copy in magicsunday/.github. A stale or locally-edited copy can silently change which reusable-workflow references the unpinned-uses zizmor audit flags. Sync it from ${canonical_url}"
         return 1
     fi
 
