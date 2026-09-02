@@ -716,13 +716,8 @@ assert_fail "repo_root: two simultaneously-missing paths are joined by exactly o
 
 multi_missing_output="$(assert_semgrep_report_complete "${report_multi_missing}" "${git_case_multi_missing}" 2>&1)"
 case "${multi_missing_output}" in
-    *%0A)
-        echo "FAIL: repo_root: no trailing %0A after the last missing path: ${multi_missing_output}"
-        failures=$((failures + 1))
-        ;;
-    *)
-        echo "PASS: repo_root: no trailing %0A after the last missing path"
-        ;;
+    *%0A) _harness_fail "repo_root: no trailing %0A after the last missing path" "${multi_missing_output}" ;;
+    *) echo "PASS: repo_root: no trailing %0A after the last missing path" ;;
 esac
 
 # Regression guard (round 3): an ORDINARY tracked file absent from both
