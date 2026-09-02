@@ -284,44 +284,19 @@ assert_starts_with_fail "assert_contains_in_order: needles present but out of or
 in_order_missing_output="$(assert_contains_in_order "probe" "a needle only" "a" "b" 2>&1)"
 assert_starts_with_fail "assert_contains_in_order: a missing needle fails" "${in_order_missing_output}"
 
-# assert_starts_with_fail(), require_file() and assert_nonempty() are now
-# covered by the bootstrap self-checks near the top of this file, not here -
-# test-quality-reviewer, round 16: this section's own earlier versions
-# captured each call via `$(...)`, which can only ever prove the printed-
-# message half of the contract (the `failures` increment is subshell-local
-# and silently discarded - the same S16 blind spot round 15's report_and_exit
-# fix exists to close, just manifesting in these three functions instead).
-# The bootstrap versions check both the message AND the real `failures`
-# counter, and run before anything below could be misled by a broken one.
-
-# report_and_exit() is the one function whose own correctness gates whether
-# a real, printed FAIL: line anywhere in this suite actually turns into a
-# nonzero exit code for run-tests.sh (and therefore for lint.yml's
-# shell-tests job) - mutation-confirmed (test-quality-reviewer, round 14)
-# that changing its `exit 1` to `exit 0` leaves a genuinely failing
-# assertion's FAIL: line on screen while the whole run still reports
-# success and exits 0. It can only be driven in a real CHILD PROCESS, never
-# in-process: calling it directly would itself `exit` THIS test script.
-# SCRIPT_DIR is passed via the environment rather than string-interpolated
-# into the child's single-quoted script text, so the source path can't be
-# mangled by quoting.
-report_and_exit_failure_output="$(SCRIPT_DIR="${SCRIPT_DIR}" bash -c '
-    source "${SCRIPT_DIR}/lib/harness.sh"
-    failures=1
-    report_and_exit "probe suite"
-' 2>&1)"
-report_and_exit_failure_rc=$?
-assert_eq "report_and_exit: a nonzero failures count exits 1" "1" "${report_and_exit_failure_rc}"
-assert_eq "report_and_exit: a nonzero failures count prints the failure count" "1 failure(s)." "${report_and_exit_failure_output}"
-
-report_and_exit_success_output="$(SCRIPT_DIR="${SCRIPT_DIR}" bash -c '
-    source "${SCRIPT_DIR}/lib/harness.sh"
-    failures=0
-    report_and_exit "probe suite"
-' 2>&1)"
-report_and_exit_success_rc=$?
-assert_eq "report_and_exit: a zero failures count exits 0" "0" "${report_and_exit_success_rc}"
-assert_eq "report_and_exit: a zero failures count prints the all-passed line" "All probe suite passed." "${report_and_exit_success_output}"
+# assert_starts_with_fail(), require_file(), assert_nonempty() and
+# report_and_exit() are now covered by the bootstrap self-checks near the
+# top of this file, not here - test-quality-reviewer, round 16: this
+# section's own earlier versions captured each call via `$(...)`, which can
+# only ever prove the printed-message half of the contract (the `failures`
+# increment is subshell-local and silently discarded - the same S16 blind
+# spot round 15's report_and_exit fix exists to close, just manifesting in
+# these functions instead). The bootstrap versions check both the message
+# AND the real `failures` counter, and run before anything below could be
+# misled by a broken one. report_and_exit()'s own standalone duplicate of
+# this same contract survived that consolidation until now (simplicity-
+# reviewer, round 29) - removed, since `_bootstrap_check_report_and_exit()`
+# above already exercises it with the same rigor.
 
 assert_pass() {
     local description="$1"
@@ -506,15 +481,46 @@ unset -f cat
 # through a real `set -e` caller silently aborts before the ::error:: line
 # ever prints - reproduced with `rm` shadowed to fail). Mirrors the
 # `bash -c`-under-`set -e` technique already used in
-# test-annotation-sanitize.sh for the identical class of gap.
+# test-annotation-sanitize.sh for the identical class of gap - except this
+# fixture's underlying call is designed to `return 1` (non_string_path
+# always crashes), so there is no continuation line to echo and prove: the
+# first version of this fixture asserted only the printed message, which
+# left it blind to a `return 1` -> `return 0` regression on the same
+# fail-closed contract (shell-script-reviewer, mutation-confirmed, round
+# 29 - the annotation still printed, but the caller would silently treat
+# the crash as success). Asserting the real child process's own exit code
+# is what actually pins fail-closed, not just fail-loud.
 rm_guard_script="set -euo pipefail
 source \"${SCRIPT_DIR}/../lib/semgrep-report-check.sh\"
 rm() { command false; }
-assert_semgrep_report_complete \"${non_string_path}\"
-echo REACHED_AFTER"
+assert_semgrep_report_complete \"${non_string_path}\""
 rm_guard_output="$(bash -c "${rm_guard_script}" 2>&1)"
+rm_guard_rc=$?
+assert_eq "jq_stderr_file rm -f failure still fails closed under a real set -e caller" \
+    "1" "${rm_guard_rc}"
 assert_contains "jq_stderr_file rm -f failure still prints the annotation under a real set -e caller" \
     "${rm_guard_output}" "jq failed while evaluating the skip inventory"
+
+# `assert_semgrep_report_complete()` has FOUR `rm -f ... || true` guards, not
+# one - the case above only covers jq_stderr_file's crash branch. The
+# SUCCESS continuation right after it (`rm -f "$jq_stderr_file"` with no
+# crash to report) shares the identical unguarded-`rm`-under-a-real-`set -e`
+# caller risk and was left untested (test-quality-reviewer, mutation-
+# confirmed, round 29: removing `|| true` here breaks even a genuinely
+# PASSING report - the script aborts silently before "Scanned N files..."
+# ever prints, turning a real production success into a mysterious no-
+# output failure). `tolerated_skip` (defined above) reaches this exact
+# continuation without crashing.
+rm_guard_pass_script="set -euo pipefail
+source \"${SCRIPT_DIR}/../lib/semgrep-report-check.sh\"
+rm() { command false; }
+assert_semgrep_report_complete \"${tolerated_skip}\""
+rm_guard_pass_output="$(bash -c "${rm_guard_pass_script}" 2>&1)"
+rm_guard_pass_rc=$?
+assert_eq "jq_stderr_file rm -f failure on the SUCCESS continuation still exits 0 under a real set -e caller" \
+    "0" "${rm_guard_pass_rc}"
+assert_eq "jq_stderr_file rm -f failure on the SUCCESS continuation still prints the success message" \
+    "Scanned 1 files, no undeclared skips." "${rm_guard_pass_output}"
 
 # jq's own crash diagnostic previews the offending value verbatim (truncated,
 # but not sanitised by jq itself), so a `%` inside it reaches the annotation
@@ -700,6 +706,20 @@ write_missing_target_report "${report_symlink}"
 assert_fail "repo_root: a git-tracked path absent from both inventories fails, naming it" \
     "${report_symlink}" "link.php" "${git_case_symlink}"
 
+# `git_ls_files_file`'s `rm -f ... || true` guard on the SUCCESS
+# continuation (after `tracked` is built, still on the missing-symlink
+# path) shares the same untested-under-a-real-`set -e`-caller risk
+# (test-quality-reviewer, mutation-confirmed, round 29): without `|| true`,
+# an `rm` failure here aborts the script silently before the missing-path
+# annotation ever prints.
+git_ls_success_guard_script="set -euo pipefail
+source \"${SCRIPT_DIR}/../lib/semgrep-report-check.sh\"
+rm() { command false; }
+assert_semgrep_report_complete \"${report_symlink}\" \"${git_case_symlink}\""
+git_ls_success_guard_output="$(bash -c "${git_ls_success_guard_script}" 2>&1)"
+assert_contains "git_ls_files_file rm -f failure on the missing-symlink success continuation still prints the annotation under a real set -e caller" \
+    "${git_ls_success_guard_output}" "link.php"
+
 # A tracked SYMLINK the engine already accounted for via `.paths.skipped`
 # (any reason) must not be re-flagged - it is covered, just not via
 # `.paths.scanned`. Neither file in an earlier version of this fixture was
@@ -730,6 +750,21 @@ report_not_a_repo="${work_dir}/report-not-a-repo.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: []}}' > "${report_not_a_repo}"
 assert_fail "repo_root: a non-git directory fails closed rather than silently passing" \
     "${report_not_a_repo}" "git ls-files" "${git_case_not_a_repo}"
+
+# `git_ls_files_file`'s own `rm -f ... || true` guard on the `git ls-files`
+# FAILURE branch shares the same untested-under-a-real-`set -e`-caller risk
+# as jq_stderr_file's guards above (test-quality-reviewer, mutation-
+# confirmed, round 29): without `|| true`, an `rm` failure here aborts the
+# script silently before the "\`git ls-files\` failed in ..." annotation
+# ever prints, even though this branch always returns 1 either way - the
+# only observable difference is whether the annotation reaches the log.
+git_ls_guard_script="set -euo pipefail
+source \"${SCRIPT_DIR}/../lib/semgrep-report-check.sh\"
+rm() { command false; }
+assert_semgrep_report_complete \"${report_not_a_repo}\" \"${git_case_not_a_repo}\""
+git_ls_guard_output="$(bash -c "${git_ls_guard_script}" 2>&1)"
+assert_contains "git_ls_files_file rm -f failure on the git-ls-files-failed branch still prints the annotation under a real set -e caller" \
+    "${git_ls_guard_output}" "git ls-files"
 
 # A raw newline in repo_root itself must not split the "git ls-files
 # failed" annotation into a second, unattributed log line -
