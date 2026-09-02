@@ -490,19 +490,34 @@ unset -f cat
 # 29 - the annotation still printed, but the caller would silently treat
 # the crash as success). Asserting the real child process's own exit code
 # is what actually pins fail-closed, not just fail-loud.
-rm_guard_script="set -euo pipefail
+# Shared by every "rm fails under this function's real production caller
+# shape" probe below - four call sites, one per `rm -f ... || true` guard
+# in assert_semgrep_report_complete() (extracted per simplicity-reviewer,
+# round 30 - the four sites had accumulated the identical scaffolding,
+# inconsistent with this file's own convention of extracting a shape that
+# repeats, e.g. new_git_case()/git_case_dir()/write_missing_target_report()
+# just below).
+run_under_shadowed_rm() {
+    local fixture="$1" repo_root="${2:-}"
+    local script
+    script="set -euo pipefail
 source \"${SCRIPT_DIR}/../lib/semgrep-report-check.sh\"
 rm() { command false; }
-assert_semgrep_report_complete \"${non_string_path}\""
-rm_guard_output="$(bash -c "${rm_guard_script}" 2>&1)"
+assert_semgrep_report_complete \"${fixture}\" \"${repo_root}\""
+    bash -c "${script}" 2>&1
+}
+
+rm_guard_output="$(run_under_shadowed_rm "${non_string_path}")"
 rm_guard_rc=$?
 assert_eq "jq_stderr_file rm -f failure still fails closed under a real set -e caller" \
     "1" "${rm_guard_rc}"
 assert_contains "jq_stderr_file rm -f failure still prints the annotation under a real set -e caller" \
     "${rm_guard_output}" "jq failed while evaluating the skip inventory"
 
-# `assert_semgrep_report_complete()` has FOUR `rm -f ... || true` guards, not
-# one - the case above only covers jq_stderr_file's crash branch. The
+# `assert_semgrep_report_complete()` has FOUR `rm -f ... || true` guards
+# (re-derive with `grep -c 'rm -f .* || true'
+# ../lib/semgrep-report-check.sh`), not one - the case above only covers
+# jq_stderr_file's crash branch. The
 # SUCCESS continuation right after it (`rm -f "$jq_stderr_file"` with no
 # crash to report) shares the identical unguarded-`rm`-under-a-real-`set -e`
 # caller risk and was left untested (test-quality-reviewer, mutation-
@@ -511,11 +526,7 @@ assert_contains "jq_stderr_file rm -f failure still prints the annotation under 
 # ever prints, turning a real production success into a mysterious no-
 # output failure). `tolerated_skip` (defined above) reaches this exact
 # continuation without crashing.
-rm_guard_pass_script="set -euo pipefail
-source \"${SCRIPT_DIR}/../lib/semgrep-report-check.sh\"
-rm() { command false; }
-assert_semgrep_report_complete \"${tolerated_skip}\""
-rm_guard_pass_output="$(bash -c "${rm_guard_pass_script}" 2>&1)"
+rm_guard_pass_output="$(run_under_shadowed_rm "${tolerated_skip}")"
 rm_guard_pass_rc=$?
 assert_eq "jq_stderr_file rm -f failure on the SUCCESS continuation still exits 0 under a real set -e caller" \
     "0" "${rm_guard_pass_rc}"
@@ -711,12 +722,16 @@ assert_fail "repo_root: a git-tracked path absent from both inventories fails, n
 # path) shares the same untested-under-a-real-`set -e`-caller risk
 # (test-quality-reviewer, mutation-confirmed, round 29): without `|| true`,
 # an `rm` failure here aborts the script silently before the missing-path
-# annotation ever prints.
-git_ls_success_guard_script="set -euo pipefail
-source \"${SCRIPT_DIR}/../lib/semgrep-report-check.sh\"
-rm() { command false; }
-assert_semgrep_report_complete \"${report_symlink}\" \"${git_case_symlink}\""
-git_ls_success_guard_output="$(bash -c "${git_ls_success_guard_script}" 2>&1)"
+# annotation ever prints. Asserts rc too, not just the message
+# (shell-script-reviewer, mutation-confirmed, round 30: the message-only
+# form here missed an independent regression - this branch's own `return 1`
+# flipped to `return 0` still prints the identical annotation, so only the
+# real child process's own exit code catches a caller silently treating a
+# missing tracked symlink as success).
+git_ls_success_guard_output="$(run_under_shadowed_rm "${report_symlink}" "${git_case_symlink}")"
+git_ls_success_guard_rc=$?
+assert_eq "git_ls_files_file rm -f failure on the missing-symlink success continuation still fails closed under a real set -e caller" \
+    "1" "${git_ls_success_guard_rc}"
 assert_contains "git_ls_files_file rm -f failure on the missing-symlink success continuation still prints the annotation under a real set -e caller" \
     "${git_ls_success_guard_output}" "link.php"
 
@@ -756,13 +771,18 @@ assert_fail "repo_root: a non-git directory fails closed rather than silently pa
 # as jq_stderr_file's guards above (test-quality-reviewer, mutation-
 # confirmed, round 29): without `|| true`, an `rm` failure here aborts the
 # script silently before the "\`git ls-files\` failed in ..." annotation
-# ever prints, even though this branch always returns 1 either way - the
-# only observable difference is whether the annotation reaches the log.
-git_ls_guard_script="set -euo pipefail
-source \"${SCRIPT_DIR}/../lib/semgrep-report-check.sh\"
-rm() { command false; }
-assert_semgrep_report_complete \"${report_not_a_repo}\" \"${git_case_not_a_repo}\""
-git_ls_guard_output="$(bash -c "${git_ls_guard_script}" 2>&1)"
+# ever prints. Removing just the guard leaves rc at 1 either way (this
+# branch's own `return 1` is untouched by that mutation), so the message
+# assertion alone was a genuine discriminator for THAT specific mutation -
+# but not for the independent, adjacent one (shell-script-reviewer,
+# mutation-confirmed, round 30): flipping this branch's own `return 1` to
+# `return 0` prints the identical annotation and would pass the message
+# check alone, silently turning a real `git ls-files` failure into a
+# reported success. The rc assertion below is what actually catches that.
+git_ls_guard_output="$(run_under_shadowed_rm "${report_not_a_repo}" "${git_case_not_a_repo}")"
+git_ls_guard_rc=$?
+assert_eq "git_ls_files_file rm -f failure on the git-ls-files-failed branch still fails closed under a real set -e caller" \
+    "1" "${git_ls_guard_rc}"
 assert_contains "git_ls_files_file rm -f failure on the git-ls-files-failed branch still prints the annotation under a real set -e caller" \
     "${git_ls_guard_output}" "git ls-files"
 
