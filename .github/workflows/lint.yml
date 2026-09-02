@@ -146,12 +146,17 @@ jobs:
             # - the reason the check is narrowed to modes 120000/160000
             # instead of comparing the whole tree. Like the minified-fixture
             # claim above, both facts are otherwise pinned only by
-            # hand-written JSON fixtures in test-semgrep-report-check.sh
-            # (plus, for the binary case, a dated comment) - never by a real
-            # scan. This step re-derives both against the pinned engine
-            # itself, so a future engine bump that starts listing any of the
-            # three object types fails here instead of silently widening the
-            # completeness gate's blind spot.
+            # hand-written JSON fixtures in test-semgrep-report-check.sh, or
+            # (for the binary case) a one-off dated repro comment - neither
+            # is re-verified by an automated real scan. This step re-derives
+            # both against the pinned engine itself, so a future engine bump
+            # that starts listing any of the three object types fails here
+            # instead of silently widening the completeness gate's blind
+            # spot. Asserts `target.js` itself IS scanned first - same as
+            # the bundle-like-fixture step above - so a rule/language
+            # mismatch that scans nothing (verified live: `.paths.scanned`
+            # and `.paths.skipped` both empty, `semgrep` still exits 0) can't
+            # make every absence check below pass having verified nothing.
             - name: Scan a git-tracked symlink, gitlink and binary asset
               run: |
                   set -euo pipefail
@@ -168,16 +173,22 @@ jobs:
                   scanned="$(jq -c '.paths.scanned' symlink-smoke.json)"
                   skipped="$(jq -c '.paths.skipped' symlink-smoke.json)"
 
-                  for tracked_path in link.js vendored-dir logo.png; do
-                      if jq -e --arg p "$tracked_path" 'index($p) != null' <<< "$scanned" > /dev/null; then
-                          echo "::error::The pinned engine reported the git-tracked ${tracked_path} as scanned - assert_semgrep_report_complete()'s repo_root comparison assumes this object type never is: ${scanned}"
-                          exit 1
-                      fi
-                      if jq -e --arg p "$tracked_path" 'any(.[]?; (.path // .) == $p)' <<< "$skipped" > /dev/null; then
-                          echo "::error::The pinned engine reported the git-tracked ${tracked_path} as skipped - assert_semgrep_report_complete()'s repo_root comparison assumes this object type never is: ${skipped}"
-                          exit 1
-                      fi
-                  done
+                  if ! jq -e '.[0] == "target.js"' <<< "$scanned" > /dev/null; then
+                      echo "::error::The pinned engine did not report target.js as scanned - this smoke check verified nothing: ${scanned}"
+                      exit 1
+                  fi
+
+                  check_absent() {
+                      local kind="$1" filter="$2" haystack="$3" tracked_path
+                      for tracked_path in link.js vendored-dir logo.png; do
+                          if jq -e --arg p "$tracked_path" "$filter" <<< "$haystack" > /dev/null; then
+                              echo "::error::The pinned engine reported the git-tracked ${tracked_path} as ${kind} - assert_semgrep_report_complete()'s repo_root comparison assumes this object type never is: ${haystack}"
+                              exit 1
+                          fi
+                      done
+                  }
+                  check_absent scanned 'index($p) != null' "$scanned"
+                  check_absent skipped 'any(.[]?; (.path // .) == $p)' "$skipped"
 
                   echo "Pinned engine kept the tracked symlink, gitlink and binary asset out of both paths.scanned and paths.skipped."
 

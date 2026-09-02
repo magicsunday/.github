@@ -271,19 +271,28 @@ assert_no_tmp_leak "jq's stderr temp file does not survive a successful call" \
 # never reach this script's top-level counter.
 original_dir="$(pwd)" || exit 1
 
+# The one place that defines the git-case naming scheme; every
+# `git_case_<name>="$(git_case_dir <slug>)"` assignment below and
+# new_git_case() itself call through it, per simplicity-reviewer, so a future
+# rename of the scheme cannot drift between the two.
+git_case_dir() {
+    printf '%s' "${work_dir}/git-case-$1"
+}
+
 # Shared prefix for every git-case setup below: fresh directory, entered, a
 # real repo initialised in it. Extracted per simplicity-reviewer, matching
 # the isolation new_case_dirs() established in test-canonical-file-guard.sh
 # (own fresh directory per case) - each case still creates its own files and
 # calls `git add -Af .` itself, since that content is what varies per case.
 new_git_case() {
-    local dir="${work_dir}/git-case-$1"
+    local dir
+    dir="$(git_case_dir "$1")"
     mkdir -p "${dir}"
     cd "${dir}" || exit 1
     git init -q
 }
 
-git_case_baseline="${work_dir}/git-case-baseline"
+git_case_baseline="$(git_case_dir baseline)"
 new_git_case baseline
 printf 'x' > a.php
 git add -Af .
@@ -295,7 +304,7 @@ assert_pass "repo_root: every tracked file accounted for in scanned" "${report_b
 # The confirmed gap this channel exists for: a git-tracked symlink is
 # neither scanned nor skipped by the pinned engine (reproduced against it
 # directly, 2026-09-02 - see the library's own docstring for the command).
-git_case_symlink="${work_dir}/git-case-symlink"
+git_case_symlink="$(git_case_dir symlink)"
 new_git_case symlink
 printf 'x' > target.php
 ln -s target.php link.php
@@ -316,7 +325,7 @@ assert_fail "repo_root: a git-tracked path absent from both inventories fails, n
 # regular file, present as a decoy so the report's `scanned` array is
 # non-empty) stays in this fixture; `link.php` is the actual symlink under
 # test, and only it exercises the skipped-branch of `covered`.
-git_case_skipped_covered="${work_dir}/git-case-skipped-covered"
+git_case_skipped_covered="$(git_case_dir skipped-covered)"
 new_git_case skipped-covered
 printf 'x' > a.php
 ln -s a.php link.php
@@ -330,7 +339,7 @@ assert_pass "repo_root: a symlink the report accounts for via .paths.skipped is 
 # `repo_root` pointing at a directory that is not a git repository at all
 # fails closed with its own distinct message, rather than silently reading
 # as "zero tracked files, nothing missing".
-git_case_not_a_repo="${work_dir}/git-case-not-a-repo"
+git_case_not_a_repo="$(git_case_dir not-a-repo)"
 mkdir -p "${git_case_not_a_repo}"
 report_not_a_repo="${work_dir}/report-not-a-repo.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: []}}' > "${report_not_a_repo}"
@@ -348,7 +357,7 @@ cd "${original_dir}" || exit 1
 
 # A missing path carrying a literal percent sign is sanitised the same way
 # every other path-derived annotation value in this library already is.
-git_case_percent="${work_dir}/git-case-percent"
+git_case_percent="$(git_case_dir percent)"
 new_git_case percent
 printf 'x' > target.php
 ln -s target.php 'weird%name.php'
@@ -368,7 +377,7 @@ assert_fail "repo_root: a missing path with a literal percent sign is sanitised 
 # removes the whole class: a path never reaches jq's own argv/option
 # parser at all, so there is nothing shaped like a flag from jq's point of
 # view. This fixture pins that regardless of which mechanism is in use.
-git_case_flag_shaped="${work_dir}/git-case-flag-shaped"
+git_case_flag_shaped="$(git_case_dir flag-shaped)"
 new_git_case flag-shaped
 printf 'x' > target.php
 ln -s target.php -- '--rawfile'
@@ -385,7 +394,7 @@ assert_fail "repo_root: a missing path shaped like a jq flag is still named, not
 # filter (batched via a NUL-delimited pipe, not the shared
 # sanitize_for_annotation() helper) and had no equivalent case until
 # this one.
-git_case_control_byte="${work_dir}/git-case-control-byte"
+git_case_control_byte="$(git_case_dir control-byte)"
 new_git_case control-byte
 printf 'x' > target.php
 control_byte_name="$(printf 'weird\001byte.php')"
@@ -406,7 +415,7 @@ assert_fail "repo_root: a missing path with a control byte is folded, staying on
 # missing paths, against a scratch copy with `[0:-1]` removed: the
 # annotation gained a stray trailing "%0A" and every existing assert_fail
 # call above still matched its substring, unaffected.
-git_case_multi_missing="${work_dir}/git-case-multi-missing"
+git_case_multi_missing="$(git_case_dir multi-missing)"
 new_git_case multi-missing
 printf 'x' > target.php
 ln -s target.php link-a.php
@@ -438,7 +447,7 @@ esac
 # earlier version of this block did, false-positived on exactly that -
 # reddening code-scanning on merge for any consumer carrying a tracked
 # image, font, or archive without already declaring it via `excludes`.
-git_case_ordinary_missing="${work_dir}/git-case-ordinary-missing"
+git_case_ordinary_missing="$(git_case_dir ordinary-missing)"
 new_git_case ordinary-missing
 printf 'x' > a.php
 printf 'not really a png, just needs to be a plain tracked file' > logo.png
@@ -454,7 +463,7 @@ assert_pass "repo_root: an ordinary tracked file absent from both inventories is
 # intact - neither is space-based, but nothing above this point proves it:
 # every existing missing-path fixture uses a tab, a control byte, or a
 # flag-shaped name, never a plain space.
-git_case_space="${work_dir}/git-case-space"
+git_case_space="$(git_case_dir space)"
 new_git_case space
 printf 'x' > target.php
 ln -s target.php 'my link.php'
@@ -471,7 +480,7 @@ assert_fail "repo_root: a missing path with a space survives the mode/path split
 # left the whole suite green. No real submodule is needed to stage one;
 # `--cacheinfo` with the well-known empty-tree SHA registers a gitlink
 # entry directly in the index.
-git_case_gitlink="${work_dir}/git-case-gitlink"
+git_case_gitlink="$(git_case_dir gitlink)"
 new_git_case gitlink
 printf 'x' > target.php
 git add -Af .
@@ -488,7 +497,7 @@ assert_fail "repo_root: a missing gitlink (mode 160000) is caught, not just syml
 # 100644 and never enter `tracked` at all, not because this lookup found a
 # match. A regression that compared against the wrong array, or a typo'd
 # key, would leave every case above green.
-git_case_symlink_covered="${work_dir}/git-case-symlink-covered"
+git_case_symlink_covered="$(git_case_dir symlink-covered)"
 new_git_case symlink-covered
 printf 'x' > target.php
 ln -s target.php link.php
@@ -503,7 +512,7 @@ assert_pass "repo_root: a symlink the report DOES account for is not flagged" \
 # nothing to guard against otherwise: a non-string `.path` value alongside
 # a genuinely missing symlink must not crash the filter, and must not be
 # mistaken for covering that symlink either.
-git_case_non_string_covered="${work_dir}/git-case-non-string-covered"
+git_case_non_string_covered="$(git_case_dir non-string-covered)"
 new_git_case non-string-covered
 printf 'x' > target.php
 ln -s target.php link.php
@@ -514,6 +523,33 @@ jq -n '{paths: {scanned: ["target.php"], skipped: [{path: 123, reason: "binary"}
 assert_fail "repo_root: a non-string skipped-path entry does not crash the covered-set filter or mask a genuinely missing symlink" \
     "${report_non_string_covered}" "link.php" "${git_case_non_string_covered}"
 
+# A `.paths.skipped` element that is not an OBJECT at all (unlike the
+# non-string `.path` FIELD case above, which is a well-formed object) is a
+# genuinely different fixture shape no existing case covers - and it looks,
+# on paper, like it should crash the covered-set filter this repo_root
+# comparison runs (`.path` cannot index a bare string). A fix attempting to
+# harden exactly that filter was written, tested here, and then reverted:
+# this shape provably never reaches it. The unexpected-reasons check earlier
+# in this same function (the one `non_string_path` above exercises) already
+# iterates the identical `.paths.skipped` array and accesses `.reason` on
+# every element FIRST - a strictly earlier pass over the same input, and
+# `.reason`/`.path` fail on exactly the same set of non-object values, so
+# whatever would crash the covered-set filter always crashes there first and
+# returns before repo_root's own block is ever reached. Kept as a
+# regression-proof of that control-flow fact (not the covered-set filter's
+# hardening, which doesn't exist), so a future reordering of the two checks
+# is caught by this exact case rather than reasoned about from scratch again.
+git_case_skipped_not_object="$(git_case_dir skipped-not-object)"
+new_git_case skipped-not-object
+printf 'x' > target.php
+ln -s target.php link.php
+git add -Af .
+cd "${original_dir}" || exit 1
+report_skipped_not_object="${work_dir}/report-skipped-not-object.json"
+jq -n '{paths: {scanned: ["target.php"], skipped: ["not-an-object"]}}' > "${report_skipped_not_object}"
+assert_fail "repo_root: a non-object skipped-array entry is already caught by the earlier reason check, never reaching the covered-set filter" \
+    "${report_skipped_not_object}" "jq failed while evaluating the skip inventory, so the report cannot be shown complete: jq: error (at ${report_skipped_not_object}:" "${git_case_skipped_not_object}"
+
 # The missing-path sanitiser's own `|| missing_lines="(sanitisation
 # failed)"` fallback has nothing to trigger it: the jq PROGRAM here is a
 # fixed literal, never built from report content, so no fixture can break
@@ -522,7 +558,7 @@ assert_fail "repo_root: a non-string skipped-path entry does not crash the cover
 # function's several jq invocations (the readability check uses none, the
 # skip-reason check uses `-r`, the covered-set build uses `-j`) - so every
 # OTHER jq call in the same run still succeeds normally.
-git_case_sanitiser_failure="${work_dir}/git-case-sanitiser-failure"
+git_case_sanitiser_failure="$(git_case_dir sanitiser-failure)"
 new_git_case sanitiser-failure
 printf 'x' > target.php
 ln -s target.php link.php
@@ -547,7 +583,7 @@ unset -f jq
 # check against the last-appended element, `tracked` (and then `missing`)
 # named the same path three times. `--index-info` stages the conflict
 # directly, without a real merge.
-git_case_conflict="${work_dir}/git-case-conflict"
+git_case_conflict="$(git_case_dir conflict)"
 new_git_case conflict
 printf 'x' > target.php
 git add -Af .
