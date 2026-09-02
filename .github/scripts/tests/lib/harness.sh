@@ -40,14 +40,19 @@ assert_eq() {
 
 # Fails with "FAIL: ${description}: got '$2'" and increments `failures`
 # unless "$2" (a haystack) contains EVERY one of "$3.." as a literal
-# substring -- the same `case "${haystack}" in *"${needle}"*) ;; *) FAIL...;
-# esac` shape assert_fail() below and test-semgrep-report-check.sh's
-# assert_absent_from_json_array() assertions each had inline before this was
-# extracted (round 10 of issue #49). Multiple needles, not just one: a
-# caller checking for several independent substrings (e.g. "::error::" AND
-# a path AND a kind) previously repeated the whole case/esac per needle
-# rather than combining them into one glob, which this collapses to one
-# call.
+# substring, IN ANY ORDER -- the single-needle case is the same shape
+# assert_fail() below already had inline. Round 10 of issue #49 also used
+# this shape at three multi-needle call sites in
+# test-semgrep-report-check.sh's assert_absent_from_json_array() assertions,
+# but those sites previously used one ORDERED glob per needle set
+# (`*"::error::"*"link.js"*"scanned"*`), not independent per-needle checks -
+# collapsing them to this order-independent form silently dropped that
+# ordering guarantee (code-reviewer and test-quality-reviewer,
+# mutation-confirmed, round 11: a message with two interpolated values
+# swapped still passed). Use this function only when the needles are
+# genuinely independent (no two interpolated values in the message could
+# plausibly swap position and still read as a match) -- otherwise use
+# assert_contains_in_order() below.
 assert_contains() {
     local description="$1"
     local haystack="$2"
@@ -56,6 +61,40 @@ assert_contains() {
     for needle in "$@"; do
         case "${haystack}" in
             *"${needle}"*) ;;
+            *)
+                echo "FAIL: ${description}: got '${haystack}'"
+                failures=$((failures + 1))
+                return
+                ;;
+        esac
+    done
+
+    echo "PASS: ${description}"
+}
+
+# Like assert_contains() above, but requires "$3.." to appear IN ORDER, each
+# strictly after the previous match, not merely all be present somewhere.
+# For a message built from several interpolated values whose ARRANGEMENT is
+# itself part of the contract (e.g. "...as ${path} ${kind}..." vs
+# "...as ${kind} ${path}..." both contain the same substrings if $path and
+# $kind get swapped) - mutation-confirmed (round 11 of issue #49) that
+# assert_contains() cannot catch such a swap, since presence alone doesn't
+# depend on position. Narrows the remaining haystack after each match
+# (`${remaining#*"${needle}"}`) rather than building one dynamic glob
+# pattern, so every needle stays a literal substring match, same as
+# assert_contains() itself - no needle can accidentally act as a glob
+# wildcard.
+assert_contains_in_order() {
+    local description="$1"
+    local haystack="$2"
+    shift 2
+    local remaining="${haystack}"
+    local needle
+    for needle in "$@"; do
+        case "${remaining}" in
+            *"${needle}"*)
+                remaining="${remaining#*"${needle}"}"
+                ;;
             *)
                 echo "FAIL: ${description}: got '${haystack}'"
                 failures=$((failures + 1))

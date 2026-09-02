@@ -56,15 +56,20 @@ assert_absent_from_json_array() {
         else
             rc=$?
         fi
-        if [ "$rc" -eq 0 ]; then
+        if [ "$rc" -ne 1 ]; then
+            # rc==0 (found) and rc not in {0,1} (crash) are the only two
+            # ways to reach here (a legitimate absence, rc==1, loops on
+            # without entering this block at all) - both terminate the same
+            # way, so the one thing they share (sanitising tracked_path) is
+            # computed once instead of once per branch.
             safe_path="$(sanitize_for_annotation "${tracked_path}")"
-            safe_value="$(sanitize_for_annotation "${haystack}")"
-            echo "::error::The pinned engine reported the git-tracked ${safe_path} as ${kind} - this comparison assumes it never is: ${safe_value}"
-            return 1
-        elif [ "$rc" -ne 1 ]; then
-            safe_path="$(sanitize_for_annotation "${tracked_path}")"
-            safe_value="$(sanitize_for_annotation "${out}")"
-            echo "::error::jq could not evaluate the ${kind} check for ${safe_path} (exit ${rc}), so this check verified nothing: ${safe_value}"
+            if [ "$rc" -eq 0 ]; then
+                safe_value="$(sanitize_for_annotation "${haystack}")"
+                echo "::error::The pinned engine reported the git-tracked ${safe_path} as ${kind} - this comparison assumes it never is: ${safe_value}"
+            else
+                safe_value="$(sanitize_for_annotation "${out}")"
+                echo "::error::jq could not evaluate the ${kind} check for ${safe_path} (exit ${rc}), so this check verified nothing: ${safe_value}"
+            fi
             return 1
         fi
     done
@@ -417,7 +422,9 @@ assert_semgrep_report_complete() {
         }
         if ! git -C "$repo_root" ls-files -s -z > "$git_ls_files_file" 2>/dev/null; then
             rm -f "$git_ls_files_file" || true
-            echo "::error::\`git ls-files\` failed in ${repo_root} — the tree cannot be compared against the report, so it cannot be shown complete."
+            local safe_repo_root
+            safe_repo_root="$(sanitize_for_annotation "${repo_root}")"
+            echo "::error::\`git ls-files\` failed in ${safe_repo_root} — the tree cannot be compared against the report, so it cannot be shown complete."
             return 1
         fi
         # 120000 = symlink, 160000 = gitlink (submodule) — the two modes
