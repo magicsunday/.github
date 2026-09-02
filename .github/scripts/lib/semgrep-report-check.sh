@@ -269,13 +269,12 @@ assert_semgrep_report_complete() {
     # `scanned ∪ skipped` is everything the engine has an OPINION about — a
     # path absent from both leaves no trace in this report for either check
     # above to catch, because both read a `reason` Semgrep itself assigned
-    # and a path in neither array carries none. Comparing against the tree
-    # is the only way to see it, so this runs only when the caller passes a
-    # `repo_root` (issue #49; channel 1 of that issue — a warn-level
-    # `.errors[]` entry with no matching skip, and `.errors[]` reaching the
-    # exit code at all outside `--strict`). As observed 2026-09-02 against
-    # the pinned engine, this could not be made to manifest even with a
-    # deliberately adversarial fixture:
+    # and a path in neither array carries none. This runs only when the
+    # caller passes a `repo_root` (issue #49; channel 1 of that issue — a
+    # warn-level `.errors[]` entry with no matching skip, and `.errors[]`
+    # reaching the exit code at all outside `--strict`). As observed
+    # 2026-09-02 against the pinned engine, this could not be made to
+    # manifest even with a deliberately adversarial fixture:
     #
     #   yes 'function f(a,b,c){ if(a>b){return a;} else { return b+c; } }' \
     #       | head -200000 > huge.js
@@ -290,11 +289,38 @@ assert_semgrep_report_complete() {
     # unreproducible channel; see that issue for the full reproduction
     # attempts and its current status.
     #
-    # A git-tracked SYMLINK is the confirmed case: the engine neither scans
-    # nor lists one. Reproduced against the pinned engine, 2026-09-02, in a
-    # single-language repo where `--config p/php` alone already covers every
-    # tracked file (see the pack-coverage note below for why a mixed-language
-    # tree needs all four configured packs, not this one):
+    # This does NOT compare the whole `git ls-files` tree against the
+    # report — only git-tracked SYMLINKS (mode 120000) and SUBMODULES
+    # (gitlinks, mode 160000), the two git object types the engine cannot
+    # represent as ordinary file content at all. An earlier version of this
+    # block compared every tracked path and was wrong to: Semgrep's own
+    # binary-content handling leaves an ORDINARY tracked binary asset (a
+    # `.png`, a `.zip`) in neither `.paths.scanned` nor `.paths.skipped`
+    # too, under the exact four-pack invocation this workflow runs —
+    # reproduced 2026-09-02 against the pinned engine:
+    #
+    #   git init -q repro && cd repro
+    #   printf '<?php eval($_GET["x"]);\n' > target.php
+    #   printf '\x89PNG\r\n\x1a\n' > logo.png && git add -Af .
+    #   semgrep scan --config p/security-audit --config p/secrets \
+    #       --config p/php --config p/javascript --exclude '*.min.js' \
+    #       --json-output=j.json --verbose --metrics off .
+    #   jq '.paths.scanned, .paths.skipped' j.json
+    #       # ["target.php"], [] — logo.png is in neither
+    #
+    # A blanket "every tracked path needs a verdict" check would have failed
+    # closed on that ordinary asset — reddening code-scanning on merge for
+    # every consumer carrying a tracked image, font, or archive without
+    # already declaring it via `excludes`, which is most of them. Narrowing
+    # to symlinks and gitlinks avoids depending on Semgrep's own
+    # binary/content-type handling at all: neither object type is ever
+    # "read" as file content by any engine invocation, pack selection, or
+    # future engine version, so this check's soundness does not rest on
+    # what the configured rule packs currently claim to cover.
+    #
+    # A git-tracked SYMLINK is the confirmed case this issue was filed for
+    # — the engine neither scans nor lists one. Reproduced against the
+    # pinned engine, 2026-09-02:
     #
     #   git init -q repro && cd repro
     #   printf '<?php eval($_GET["x"]);\n' > target.php
@@ -304,55 +330,54 @@ assert_semgrep_report_complete() {
     #   jq -r '.paths.scanned[], (.paths.skipped[]?.path // empty)' j.json
     #       # target.php — link.php is in neither
     #
-    # A git-tracked SUBMODULE (a gitlink, mode 160000) is not distinguished
-    # from a regular file here — as observed 2026-09-02 via the git-trees
+    # A git-tracked SUBMODULE (a gitlink, mode 160000) is the second,
+    # named-but-unobserved case — as observed 2026-09-02 via the git-trees
     # API, no non-archived magicsunday/* repository had one among this
-    # workflow's consumers, so this is a named gap rather than handled
-    # speculatively. If one is ever added and Semgrep does not report it as
-    # skipped on its own, exclude its path via this workflow's `excludes`
-    # input — the same mechanism a legitimate git-tracked symlink needs
-    # below — a `.semgrepignore` is not an alternative here, per the
-    # rejection this file already explains above.
-    #
-    # This check's whole false-positive avoidance rests on `.paths.scanned ∪
-    # .paths.skipped` already covering every file type the caller's tracked
-    # tree can contain — a property of the four `p/*` rule packs
-    # code-scanning.yml scans with, not of the engine itself. Measured
-    # against the pinned engine, this repository, with only `--config p/php`
-    # (one of the four): 45 of 57 tracked files land in neither array, all
-    # non-PHP. The other three packs — particularly the two generic ones,
-    # `p/secrets` and `p/security-audit` — are what give the engine an
-    # opinion on non-PHP/JS content and keep the count at 0 missing under the
-    # real four-pack invocation. If the registry ever narrows what those
-    # packs claim to cover, this gate fails closed across every consumer —
-    # correct, but the annotation below would still name a symlink as the
-    # cause. Re-derive: `semgrep scan --config p/php --json-output=j.json
-    # --verbose --metrics off .` against a real checkout, then `jq
-    # '.paths.scanned, .paths.skipped | length' j.json` against `git
-    # ls-files | wc -l`.
+    # workflow's consumers. Either way, if Semgrep ever DOES report a
+    # symlink or gitlink as skipped on its own (a future engine version),
+    # the allow-list check above already tolerates that reason and this
+    # block simply never sees the path as missing. When one legitimately
+    # needs to stay unscanned, exclude its path via this workflow's
+    # `excludes` input — a `.semgrepignore` is not an alternative here, per
+    # the rejection this file already explains above.
     if [ -n "$repo_root" ]; then
-        # Read from a temp FILE, never through a `$(...)`-captured bash
-        # string: command substitution silently drops embedded NUL bytes
-        # (bash itself warns "ignored null byte in input"), which is exactly
-        # what `git ls-files -z` NUL-separates its output WITH — a capture
-        # through a string variable would corrupt every path after the
-        # first. A direct redirect keeps `$?` as git's own exit status, same
-        # as the command-substitution form would have, without going
-        # through a bash string at all.
+        # `-s` adds the object mode git itself assigns each entry ahead of
+        # the path, `<mode> SP <object> SP <stage> TAB <path>` — how the
+        # filter below tells a symlink/gitlink from an ordinary tracked
+        # file without re-deriving that from file content. Read from a
+        # temp FILE, never through a `$(...)`-captured bash string: command
+        # substitution silently drops embedded NUL bytes (bash itself warns
+        # "ignored null byte in input"), which is exactly what `-z`
+        # NUL-separates its output WITH — a capture through a string
+        # variable would corrupt every entry after the first. A direct
+        # redirect keeps `$?` as git's own exit status, same as the
+        # command-substitution form would have, without going through a
+        # bash string at all.
         local git_ls_files_file
         git_ls_files_file="$(mktemp)" || {
             echo "::error::Could not create a temp file to compare the tree against the report — the completeness check cannot run."
             return 1
         }
-        if ! git -C "$repo_root" ls-files -z > "$git_ls_files_file" 2>/dev/null; then
+        if ! git -C "$repo_root" ls-files -s -z > "$git_ls_files_file" 2>/dev/null; then
             rm -f "$git_ls_files_file" || true
             echo "::error::\`git ls-files\` failed in ${repo_root} — the tree cannot be compared against the report, so it cannot be shown complete."
             return 1
         fi
+        # 120000 = symlink, 160000 = gitlink (submodule) — the two modes
+        # this whole block exists to catch (see the comment above). Every
+        # other mode (100644/100755 regular files, 040000 trees do not
+        # appear in `ls-files` output at all) is left to the reason-based
+        # check above; comparing them here is exactly the false-positive
+        # this design deliberately avoids.
         local -a tracked=()
-        local _tracked_path
-        while IFS= read -r -d '' _tracked_path; do
-            tracked+=("$_tracked_path")
+        local _entry _mode
+        while IFS= read -r -d '' _entry; do
+            _mode="${_entry%% *}"
+            case "$_mode" in
+                120000 | 160000)
+                    tracked+=("${_entry#*$'\t'}")
+                    ;;
+            esac
         done < "$git_ls_files_file"
         rm -f "$git_ls_files_file" || true
 
@@ -417,9 +442,12 @@ assert_semgrep_report_complete() {
             # matching the input's own documented "whitespace-separated"
             # contract. Verified against the real helper, 2026-09-02:
             # `build_semgrep_exclude_args 'my link.php'` produces two broken
-            # patterns, not one. No current consumer has a git-tracked
-            # symlink at all (this file's own comment above), so this cannot
-            # bite a real caller today; tracked separately as issue #89.
+            # patterns, not one. As observed 2026-09-02 via the git-trees
+            # API, the two non-archived magicsunday/* repositories that DO
+            # carry a git-tracked symlink (mode 120000) are both forks of
+            # third-party projects and neither calls this reusable workflow,
+            # so no current consumer of it has one; this cannot bite a real
+            # caller today. Tracked separately as issue #89.
             echo "::error::Semgrep's report says nothing about the file(s) below — they are tracked by git but absent from both .paths.scanned and .paths.skipped, so the engine never enumerated them and code scanning would retire any alert they held. A git-tracked symlink is the confirmed producer of this shape; a submodule gitlink or a rule-pack coverage gap (see above) reach it too. Declare the path through this workflow's 'excludes' input if it is not meant to be scanned, otherwise investigate why the engine never enumerated it.%0A${missing_lines}"
             return 1
         fi

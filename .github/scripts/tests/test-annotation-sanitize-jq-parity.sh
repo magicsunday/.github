@@ -50,11 +50,16 @@ report_check_filter="$(extract_gsub_pair '(.path \/\/ "(no path)")' 'as \$path' 
 # escape-then-fold pair a third time, rather than calling
 # sanitize_for_annotation() per element, specifically to avoid one jq fork
 # per missing path - see that block's own comment for the measured reason.
-# Anchored on real code, not the surrounding prose: both anchors require an
-# end-of-line match ($), which the block's own two comment paragraphs that
-# also mention `$ARGS.positional`/`join("%0A")` do not satisfy (each has
-# trailing prose after the token on its line), so this cannot lock onto a
-# comment instead of the jq filter.
+# Anchored on real code, not the surrounding prose: the start anchor
+# (`split("\u0000")[0:-1]`) is unique in the file, so sed's range begins
+# there - the earlier, unrelated `join("%0A")` a different jq pipeline
+# emits a few dozen lines above is never reachable as an end match, since
+# sed only looks for it from the start match onward. The end-of-line ($)
+# requirement on the start anchor additionally keeps it from locking onto
+# this block's own `$ARGS.positional` mention in prose above, which has
+# trailing text after the token on its line (re-derive:
+# `grep -n 'split(\|join(' <REPORT_CHECK_FILE>` before trusting this
+# comment - it names what is true of the CURRENT file, not a fixed fact).
 missing_path_filter="$(extract_gsub_pair 'split("\\u0000")\[0:-1\]$' 'join("%0A")$' "${REPORT_CHECK_FILE}")"
 
 assert_nonempty "${sanitize_filter}" \

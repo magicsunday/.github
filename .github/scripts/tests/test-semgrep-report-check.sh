@@ -375,8 +375,9 @@ assert_fail "repo_root: a missing path shaped like a jq flag is still named, not
 # The reason-based check above (see "path with a raw newline stays one
 # annotation") has a dedicated fixture proving its sanitiser folds a
 # control byte; the repo_root/missing-path sanitiser is a separate jq
-# filter (batched via --args, not the shared sanitize_for_annotation()
-# helper) and had no equivalent case until this one.
+# filter (batched via a NUL-delimited pipe, not the shared
+# sanitize_for_annotation() helper) and had no equivalent case until
+# this one.
 git_case_control_byte="${work_dir}/git-case-control-byte"
 new_git_case control-byte
 printf 'x' > target.php
@@ -388,6 +389,58 @@ report_control_byte="${work_dir}/report-control-byte.json"
 jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_control_byte}"
 assert_fail "repo_root: a missing path with a control byte is folded, staying one annotation" \
     "${report_control_byte}" "weird byte.php" "${git_case_control_byte}"
+
+# `printf '%s\0' "${missing[@]}"` emits a trailing NUL after the LAST
+# element too, so `split("\u0000")` alone would leave a trailing empty
+# string in the array - `[0:-1]` drops it. Nothing above pins this: every
+# fixture above has exactly one missing path, so `join("%0A")` never has a
+# second element to separate, and assert_fail's substring check does not
+# see a trailing artifact either way. Proven with two simultaneously
+# missing paths, against a scratch copy with `[0:-1]` removed: the
+# annotation gained a stray trailing "%0A" and every existing assert_fail
+# call above still matched its substring, unaffected.
+git_case_multi_missing="${work_dir}/git-case-multi-missing"
+new_git_case multi-missing
+printf 'x' > target.php
+ln -s target.php link-a.php
+ln -s target.php link-b.php
+git add -Af .
+cd "${original_dir}" || exit 1
+report_multi_missing="${work_dir}/report-multi-missing.json"
+jq -n '{paths: {scanned: ["target.php"], skipped: []}}' > "${report_multi_missing}"
+assert_fail "repo_root: two simultaneously-missing paths are joined by exactly one %0A" \
+    "${report_multi_missing}" "link-a.php%0Alink-b.php" "${git_case_multi_missing}"
+
+multi_missing_output="$(assert_semgrep_report_complete "${report_multi_missing}" "${git_case_multi_missing}" 2>&1)"
+case "${multi_missing_output}" in
+    *%0A)
+        echo "FAIL: repo_root: no trailing %0A after the last missing path: ${multi_missing_output}"
+        failures=$((failures + 1))
+        ;;
+    *)
+        echo "PASS: repo_root: no trailing %0A after the last missing path"
+        ;;
+esac
+
+# Regression guard (round 3): an ORDINARY tracked file absent from both
+# inventories must NOT be flagged - only a symlink or gitlink (mode
+# 120000/160000) is. Semgrep's own binary-content handling can leave a
+# tracked binary asset in neither .paths.scanned nor .paths.skipped under
+# the real four-pack invocation (see the library's own comment for the
+# reproduction); comparing every tracked path against the report, as an
+# earlier version of this block did, false-positived on exactly that -
+# reddening code-scanning on merge for any consumer carrying a tracked
+# image, font, or archive without already declaring it via `excludes`.
+git_case_ordinary_missing="${work_dir}/git-case-ordinary-missing"
+new_git_case ordinary-missing
+printf 'x' > a.php
+printf 'not really a png, just needs to be a plain tracked file' > logo.png
+git add -Af .
+cd "${original_dir}" || exit 1
+report_ordinary_missing="${work_dir}/report-ordinary-missing.json"
+jq -n '{paths: {scanned: ["a.php"], skipped: []}}' > "${report_ordinary_missing}"
+assert_pass "repo_root: an ordinary tracked file absent from both inventories is not flagged (only symlinks/gitlinks are)" \
+    "${report_ordinary_missing}" "${git_case_ordinary_missing}"
 
 # The new `git_ls_files_file` mktemp (semgrep-report-check.sh, the
 # `repo_root` block) is cleaned up on TWO exit paths - the `git ls-files`
