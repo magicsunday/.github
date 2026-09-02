@@ -235,10 +235,11 @@ assert_contains "assert_absent_from_json_array: a raw newline in the tracked pat
     "${newline_output}" "::error::" "evil file"
 
 # assert_contains() has the identical gap round 12 closed for its sibling
-# below, just never closed for itself: every real call site in this file
-# (re-derive with `grep -c 'assert_contains "' test-semgrep-report-check.sh`,
-# excluding the bootstrap self-checks) happens to have every needle
-# genuinely present, so a mutation that only
+# below, just never closed for itself: every genuine call site in this file
+# - grep for `assert_contains "`, skip the two lines marked "bootstrap
+# probe" and the self-test of assert_contains()'s own ordering further
+# down - happens to have every needle genuinely present, so a mutation
+# that only
 # checked the FIRST needle (`for needle in "$1"` instead of `"$@"`) is
 # invisible to the whole suite (test-quality-reviewer, mutation-confirmed,
 # round 13). The needle ORDER passed here ("b" then "a") deliberately
@@ -252,8 +253,10 @@ contains_missing_output="$(assert_contains "probe" "a needle only" "a" "b" 2>&1)
 assert_starts_with_fail "assert_contains: a missing needle fails" "${contains_missing_output}"
 
 # assert_contains_in_order() itself has no fixture below other than the
-# three real assert_absent_from_json_array() call sites above, all of
-# which only ever receive correctly-ordered production strings - so a
+# real assert_absent_from_json_array() call sites above (re-derive with
+# `grep -c '^assert_contains_in_order "assert_absent_from_json_array'
+# test-semgrep-report-check.sh`), all of which only ever receive
+# correctly-ordered production strings - so a
 # regression that silently degraded it back to assert_contains()'s
 # order-independent behaviour (exactly the round-10 bug this function
 # exists to catch) would leave every call site above green anyway
@@ -383,6 +386,21 @@ assert_fail() {
 tolerated_skip="${work_dir}/tolerated-skip.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "b.bin", reason: "binary"}]}}' > "${tolerated_skip}"
 assert_pass "tolerated skip reason passes" "${tolerated_skip}"
+
+# Only "binary" above had a positive fixture proving it is actually on the
+# allow list - a typo in, or accidental removal of, any of the other seven
+# literals would silently narrow the accepted-reasons contract with nothing
+# to notice (test-quality-reviewer, mutation-confirmed, round 24). One
+# fixture per remaining literal, same shape as the case above.
+for reason in "always_skipped" "cli_exclude_flags_match" \
+    "cli_include_flags_do_not_match" "excluded_by_config" \
+    "irrelevant_rule" "semgrepignore_patterns_match" "wrong_language"; do
+    reason_report="${work_dir}/tolerated-skip-${reason}.json"
+    jq -n --arg reason "${reason}" \
+        '{paths: {scanned: ["a.php"], skipped: [{path: "b.txt", reason: $reason}]}}' \
+        > "${reason_report}"
+    assert_pass "tolerated skip reason passes: ${reason}" "${reason_report}"
+done
 
 # `minified` is deliberately NOT tolerated (issue #50): the pinned engine
 # cannot produce it through this workflow's invocation, so a report that
@@ -578,8 +596,9 @@ new_git_case() {
 }
 
 # The report fixture several of the cases below share byte-for-byte
-# (re-derive with `grep -c 'write_missing_target_report "'
-# test-semgrep-report-check.sh`): "target.php scanned, nothing skipped" - a
+# (re-derive with `grep -c '^write_missing_target_report "'
+# test-semgrep-report-check.sh`, anchored so it doesn't also match this
+# comment's own quoted example): "target.php scanned, nothing skipped" - a
 # decoy the repo_root comparison already accounts for, present only so
 # `.paths.scanned` isn't empty (which is its OWN, differently-tested failure
 # mode). Extracted per simplicity-reviewer, round 20: unlike each case's own
@@ -944,8 +963,8 @@ assert_no_tmp_leak "repo_root: git_ls_files_file does not survive a successful c
 # `TMPDIR` does not isolate this: `jq_stderr_file`'s own mktemp (near the
 # top of the function, unconditional) trips FIRST under the same broken
 # TMPDIR and returns ITS message instead - verified, that is a real, weaker
-# but still fail-closed property the two leak assertions above already
-# exercise via TMPDIR, not this specific branch. To reach `git_ls_files_file`
+# but still fail-closed property the leak assertions immediately above
+# already exercise via TMPDIR, not this specific branch. To reach `git_ls_files_file`
 # specifically, `mktemp` is shadowed as a function that succeeds on its
 # first call (jq_stderr_file) and fails on its second (git_ls_files_file) -
 # a plain counter variable does not survive across `$(mktemp)`'s own
