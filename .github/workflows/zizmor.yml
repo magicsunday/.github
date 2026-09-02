@@ -61,14 +61,16 @@ jobs:
             # test-canonical-file-guard.sh exercises the exact check this
             # step relies on.
             - name: Verify .github/zizmor.yml matches the canonical copy
-              env:
-                  SCRIPT_LIB: ${{ runner.temp }}/canonical-file-guard-lib
               run: |
                   set -euo pipefail
-                  mkdir -p "$SCRIPT_LIB"
-                  cp .magicsunday-shared/.github/scripts/lib/canonical-file-guard.sh "$SCRIPT_LIB/"
                   # shellcheck source=scripts/lib/canonical-file-guard.sh
-                  source "$SCRIPT_LIB/canonical-file-guard.sh"
+                  source .magicsunday-shared/.github/scripts/lib/canonical-file-guard.sh
+                  # Sourced directly from .magicsunday-shared rather than
+                  # staged out to runner.temp first (unlike Install Semgrep
+                  # in code-scanning.yml): nothing here runs after the
+                  # rm -rf below, so there is no later step this checkout
+                  # needs to survive past.
+                  #
                   # The comparison runs BEFORE the cleanup below - the
                   # canonical copy this reads lives under .magicsunday-shared
                   # itself, so removing it first would make every run report
