@@ -562,6 +562,24 @@ long_path_diagnostic="${long_path_dir}/non-string-path.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: [{path: 123, reason: "some_reason"}]}}' > "${long_path_diagnostic}"
 assert_fail "a diagnostic past the 200-character budget is truncated, still one annotation" "${long_path_diagnostic}" "aaa..."
 
+# The case above only proves truncation HAPPENED (via the "aaa..." substring),
+# not that it happened at the right length - the visible shape is governed by
+# the `:0:197` slice constant, not by the `-gt 200` trigger this comment
+# names, so a regression that shortens the slice (e.g. `:0:197` -> `:0:150`)
+# passed the check above unnoticed (test-quality-reviewer, mutation-
+# confirmed, round 31). Pinning the trigger value itself would need an exact
+# byte-boundary fixture, reintroducing the jq-format/tmpdir-length fragility
+# the fixture above was deliberately built to avoid - round 30's call to
+# leave that specific gap alone stands. The slice LENGTH, unlike the trigger,
+# is a fixed 200 once truncation fires regardless of the raw diagnostic's
+# length, so it is both cheap and portable to pin directly.
+long_path_output="$(assert_semgrep_report_complete "${long_path_diagnostic}" 2>&1)"
+long_path_rc=$?
+assert_eq "a diagnostic past the 200-character budget fails closed" "1" "${long_path_rc}"
+truncated_diagnostic="${long_path_output#*complete: }"
+assert_eq "a diagnostic past the 200-character budget truncates to exactly 200 characters (197 + '...'), not merely somewhere short of the raw length" \
+    "200" "${#truncated_diagnostic}"
+
 # A path holding a literal percent sign and a control character must still
 # collapse into exactly one annotation, sanitised rather than passed through
 # raw. The control character is injected via jq --arg (an ANSI-C \x01
