@@ -161,6 +161,10 @@ jobs:
             - name: Scan a git-tracked symlink, gitlink and binary asset
               run: |
                   set -euo pipefail
+
+                  # shellcheck source=scripts/lib/semgrep-report-check.sh
+                  source .github/scripts/lib/semgrep-report-check.sh
+
                   mkdir smoke-repo && cd smoke-repo
                   git init --quiet
                   printf 'function f(a,b,c){return a+b+c;}\n' > target.js
@@ -179,40 +183,24 @@ jobs:
                       exit 1
                   fi
 
-                  # jq's own exit status is checked explicitly rather than
-                  # folded into the `if`: `jq -e` exits 1 for "the filter
-                  # legitimately evaluated to false/null" but ALSO for any
-                  # OTHER nonzero code (a filter compile error, or - as
-                  # observed 2026-09-02 - .path indexing a non-object
-                  # .paths.skipped element, which jq exits 5 for) - a plain
-                  # boolean `if` cannot tell "not found" from "could not be
-                  # evaluated" apart, and would silently treat a broken
-                  # check as a passing one exactly as issue #65 already
-                  # documents for semgrep-report-check.sh's own jq calls. The
-                  # assignment itself is the `if`'s own condition, not a
-                  # standalone statement before one: under `set -e`, a bare
-                  # `out="$(cmd)"` line trips errexit immediately on a
-                  # failing `cmd`, before a following `rc=$?` line is ever
-                  # reached - verified live.
-                  check_absent() {
-                      local kind="$1" filter="$2" haystack="$3" tracked_path out rc
-                      for tracked_path in link.js vendored-dir logo.png; do
-                          if out="$(jq -e --arg p "$tracked_path" "$filter" <<< "$haystack" 2>&1)"; then
-                              rc=0
-                          else
-                              rc=$?
-                          fi
-                          if [ "$rc" -eq 0 ]; then
-                              echo "::error::The pinned engine reported the git-tracked ${tracked_path} as ${kind} - assert_semgrep_report_complete()'s repo_root comparison assumes this object type never is: ${haystack}"
-                              exit 1
-                          elif [ "$rc" -ne 1 ]; then
-                              echo "::error::jq could not evaluate the ${kind} check for ${tracked_path} (exit ${rc}), so this smoke check verified nothing: ${out}"
-                              exit 1
-                          fi
-                      done
-                  }
-                  check_absent scanned 'index($p) != null' "$scanned"
-                  check_absent skipped 'any(.[]?; (.path // .) == $p)' "$skipped"
+                  # assert_absent_from_json_array() (semgrep-report-check.sh)
+                  # discriminates jq's exit status explicitly rather than
+                  # folding it into one boolean check - a crash while
+                  # evaluating the filter must fail loud, not be silently
+                  # read as "not found". See its own docblock for why, and
+                  # test-semgrep-report-check.sh for the regression coverage
+                  # this exact helper needed after shipping inline, unpinned,
+                  # twice in round 8 of issue #49. `.path?`, not `.path //
+                  # .`: `//` only substitutes on a null/false RESULT, not on
+                  # a raised type error, so an unguarded `.path` indexing a
+                  # non-object .paths.skipped element would still crash - and
+                  # now that the crash IS surfaced instead of masked, it
+                  # would fail this check for every OTHER already-covered
+                  # skip in the same array, not just the one under test.
+                  assert_absent_from_json_array scanned 'index($p) != null' "$scanned" \
+                      link.js vendored-dir logo.png || exit 1
+                  assert_absent_from_json_array skipped 'any(.[]?; (.path? // .) == $p)' "$skipped" \
+                      link.js vendored-dir logo.png || exit 1
 
                   echo "Pinned engine kept the tracked symlink, gitlink and binary asset out of both paths.scanned and paths.skipped."
 
