@@ -9,7 +9,8 @@
 # "$1/.github/zizmor.yml" - a directory the reusable workflow already checks
 # out via job.workflow_repository/job.workflow_sha for every consumer, on
 # every run. Returns non-zero, with an actionable ::error:: annotation, when
-# the caller's copy is missing or differs byte-for-byte.
+# the caller's .github/zizmor.yml (or its containing .github directory) is
+# a symlink, is missing, or differs byte-for-byte.
 #
 # .github/zizmor.yml declares that first-party reusable workflows track
 # @main by policy - without it (or with a stale copy) the unpinned-uses

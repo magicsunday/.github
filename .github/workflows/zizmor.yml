@@ -54,8 +54,9 @@ jobs:
             # drifted from the canonical copy silently falls back to zizmor's
             # blanket unpinned-uses rule, which then flags every first-party
             # reusable-workflow reference this repository has (issue #38;
-            # verified 2026-09-02 against
-            # https://docs.zizmor.sh/audits/#unpinned-uses).
+            # see canonical-file-guard.sh's own docblock for the anchored
+            # claim about zizmor's default policy, rather than repeating it
+            # here as a second copy that can go stale independently).
             # assert_canonical_zizmor_config() (canonical-file-guard.sh,
             # sourced below) carries the complete comparison, so
             # test-canonical-file-guard.sh exercises the exact check this
