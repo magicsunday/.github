@@ -596,12 +596,14 @@ assert_semgrep_report_complete() {
 # container (`.zip`, `.jar`, `.whl`), a tar-based container (`.tar.gz`,
 # `.tgz`), a single-file compressor (`.gz`), and a `.7z` archive - full
 # repro in issue #90's own reproduction section. `.war`/`.ear`/`.apk`
-# (zip-based), `.tbz2`/`.txz` (tar-based), and `.bz2`/`.xz`/`.rar`
-# (compressor/archive) are each the same structural shape as an
-# already-confirmed sibling and are not independently reproduced beyond
-# that. Turning this into a hard failure would resurrect exactly the
-# false-positive class issue #49's fix removed - a tracked archive is not
-# inherently a problem (a vendored dependency, a build artifact), so this
+# (zip-based), `.tar`/`.tbz2`/`.txz` (tar-based - a bare, uncompressed
+# `.tar` was never reproduced either, only its gzipped form), and
+# `.bz2`/`.xz`/`.rar` (compressor/archive) are each the same structural
+# shape as an already-confirmed sibling and are not independently
+# reproduced beyond that. Turning this into a hard failure would resurrect
+# exactly the false-positive class issue #49's fix removed - a tracked
+# archive is not inherently a problem (a vendored dependency, a build
+# artifact), so this
 # only surfaces the fact for a reviewer to judge, via a non-blocking
 # annotation.
 #
