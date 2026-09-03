@@ -45,8 +45,12 @@ name: AI issue labeler (reusable)
 # suggestion a human can still see and correct, not an authoritative
 # decision. Re-derive that this is still the only such workflow before
 # assuming the "first"/"only" claims below still hold:
-# `grep -rl "harden-runner" .github/workflows/`,
-# `grep -rl "^\s*secrets:" .github/workflows/`.
+# `grep -rl "harden-runner" .github/workflows/` for the Harden Runner claim;
+# for the "only workflow declaring a workflow_call secrets input" claim, see
+# AGENTS.md's "No secrets passing" bullet - a plain
+# `grep -rl "^\s*secrets:" .github/workflows/` is NOT sufficient (it also
+# matches a caller's passthrough `secrets:` block); that bullet has the
+# per-file command and the full reasoning.
 on:
     workflow_call:
         secrets:

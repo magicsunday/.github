@@ -1,0 +1,32 @@
+name: Issue labels
+
+# Thin caller for the reusable AI issue labeler (ai-issue-labeler.yml),
+# mirroring the labels.yml -> label-sync.yml pattern below it. Pilot repo
+# for issue #60 - see that issue for why this repo and the rollout plan.
+#
+# `uses: ./...` (a relative path), not the fully-qualified
+# `magicsunday/.github/.github/workflows/ai-issue-labeler.yml@main` form
+# ai-issue-labeler.yml's own header comment gives external callers — that
+# form is for a DIFFERENT repository calling this one; a caller inside this
+# same repository resolves the reusable workflow locally, exactly like
+# labels.yml calling ./.github/workflows/label-sync.yml above it.
+#
+# REQUIRES the `ANTHROPIC_API_KEY` repository secret to be set on THIS repo
+# before this workflow's first real run — this account has no org-wide
+# secret inheritance (see ai-issue-labeler.yml's own header comment for what
+# happens, and its own fail-loudly contract, when the secret is missing or
+# invalid). That failure is harmless here: it never blocks issue creation
+# itself, since `issues: write` is the only permission this caller grants.
+on:
+    issues:
+        types: [opened]
+
+permissions: {}
+
+jobs:
+    label:
+        uses: ./.github/workflows/ai-issue-labeler.yml
+        permissions:
+            issues: write
+        secrets:
+            anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
