@@ -536,18 +536,13 @@ assert_semgrep_report_complete() {
                 | map(gsub("%"; "%25") | gsub("[[:cntrl:]]"; " "))
                 | join("%0A")
             ' 2>/dev/null)" || missing_lines="(sanitisation failed)"
-            # The `excludes` remedy named below cannot represent a tracked
-            # path containing a literal space — `build_semgrep_exclude_args()`
-            # (semgrep-excludes.sh) splits on IFS whitespace with no quoting,
-            # matching the input's own documented "whitespace-separated"
-            # contract. Verified against the real helper, 2026-09-02:
-            # `build_semgrep_exclude_args 'my link.php'` produces two broken
-            # patterns, not one. As observed 2026-09-02 via the git-trees
-            # API, the two non-archived magicsunday/* repositories that DO
-            # carry a git-tracked symlink (mode 120000) are both forks of
-            # third-party projects and neither calls this reusable workflow,
-            # so no current consumer of it has one; this cannot bite a real
-            # caller today. Tracked separately as issue #89.
+            # The `excludes` remedy named below can represent a tracked path
+            # containing a literal space (issue #89, fixed): the caller lists
+            # one pattern per line rather than whitespace-separating them, and
+            # `build_semgrep_exclude_args()` (semgrep-excludes.sh) splits on
+            # newline only. Verified against the real helper:
+            # `build_semgrep_exclude_args 'my link.php'` now produces exactly
+            # one pattern, not two.
             echo "::error::Semgrep's report says nothing about the file(s) below — they are tracked by git but absent from both .paths.scanned and .paths.skipped, so the engine never enumerated them and code scanning would retire any alert they held. A git-tracked symlink is the confirmed producer of this shape; a submodule gitlink reaches it too. Declare the path through this workflow's 'excludes' input if it is not meant to be scanned, otherwise investigate why the engine never enumerated it.%0A${missing_lines}"
             return 1
         fi

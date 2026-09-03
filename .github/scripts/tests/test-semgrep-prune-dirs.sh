@@ -126,9 +126,9 @@ assert_eq "find_semgrepignore_files() builds prune_names from no literal beyond 
 # vendor)` added there would read as clean if only the function body were
 # scanned. A hardcoded literal ARGUMENT passed directly to
 # build_semgrep_exclude_args() (e.g. `build_semgrep_exclude_args "vendor"`
-# in place of `"${SEMGREP_PRUNE_DIRS[*]}"`) contains no literal `--exclude`
-# text and so is not caught here - same out-of-scope reasoning as the
-# guard-side bareword/multiline evasion above.
+# in place of `"$(printf '%s\n' "${SEMGREP_PRUNE_DIRS[@]}")"`) contains no
+# literal `--exclude` text and so is not caught here - same out-of-scope
+# reasoning as the guard-side bareword/multiline evasion above.
 scan_literal_excludes="$(grep -oE -- "--exclude '[^']*'|--exclude \"[^\"\$]*\"|--exclude [A-Za-z0-9_./*-]+" <<<"${run_semgrep_code}" \
     | sed -E 's/--exclude //; s/["'"'"']//g' | grep -vx '\*\.min\.js' | sort -u)"
 assert_eq "the Run Semgrep step hardcodes no --exclude literal beyond '*.min.js'" \

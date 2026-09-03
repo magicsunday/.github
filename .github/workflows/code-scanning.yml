@@ -21,7 +21,7 @@ on:
                 # `.semgrepignore` holding a single directory was added.
                 # Re-derive by diffing `jq '.paths.scanned | length'` across the
                 # two runs.
-                description: 'Whitespace-separated extra paths to exclude from the scan.'
+                description: 'Newline-separated extra paths to exclude from the scan (one pattern per line - a pattern may itself contain a space).'
                 required: false
                 type: string
                 default: ''
@@ -226,9 +226,14 @@ jobs:
                   # measured divergence this guards against. SEMGREP_PRUNE_DIRS
                   # (semgrep-prune-dirs.sh) is fed through the same helper so
                   # attempt_semgrep_scan() below needs no --exclude flags of
-                  # its own for the directories that array names.
+                  # its own for the directories that array names. The helper
+                  # now splits on newline only (issue #89), so the array is
+                  # joined with `printf '%s\n'` rather than `"${arr[*]}"`,
+                  # which would join with a single space and — now that space
+                  # is no longer a delimiter — collapse the whole array into
+                  # one broken pattern.
                   extra=()
-                  build_semgrep_exclude_args "${SEMGREP_PRUNE_DIRS[*]}"
+                  build_semgrep_exclude_args "$(printf '%s\n' "${SEMGREP_PRUNE_DIRS[@]}")"
                   build_semgrep_exclude_args "${EXTRA_EXCLUDES:-}"
 
                   # Discarding stdout is not tidiness. Asking for the report by

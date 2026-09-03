@@ -4,9 +4,12 @@
 # test drive the same file rather than two copies that can drift apart.
 
 # Appends `--exclude <pattern>` pairs to the caller's `extra` array (declared
-# and empty before this is sourced) from a whitespace-separated pattern list.
-# The caller's list is consumed as a plain argument rather than inlined into
-# a command, so a value cannot inject shell. It is split on whitespace
+# and empty before this is sourced) from a NEWLINE-separated pattern list -
+# one pattern per line, so a pattern MAY itself contain a space or a tab
+# (issue #89: a git-tracked path with a literal space could not previously
+# be expressed as a single --exclude pattern at all, since space was also a
+# split point). The caller's list is consumed as a plain argument rather
+# than inlined into a command, so a value cannot inject shell. It is split
 # WITHOUT pathname expansion: an unquoted expansion would also glob, and
 # glob is the wrong matcher here, because it resolves the pattern against
 # the runner's checkout instead of handing it to Semgrep. The divergence is
@@ -28,23 +31,39 @@
 #       | .path' j.json   # the nested PDF is listed too
 #
 # Globbing is switched off around the loop rather than the split being
-# hand-rolled: a function-local default `IFS` already splits on space, tab
-# and newline, which is what a caller writing the YAML block form sends —
-# `local IFS` rather than trusting whatever the CALLER's IFS happens to be,
-# since this is sourced rather than run in a subshell: a caller with
-# `IFS=$'\n'` would otherwise turn a space-separated pattern list into one
-# literal pattern. The pre-call noglob state is restored rather than
-# unconditionally cleared, since a caller that itself runs under `set -f`
-# would otherwise have pathname expansion silently re-enabled on return.
+# hand-rolled: a function-local `IFS=$'\n'` splits ONLY on newline, which is
+# what a caller writing the YAML block scalar form (one pattern per line)
+# sends — `local IFS` rather than trusting whatever the CALLER's IFS happens
+# to be, since this is sourced rather than run in a subshell: a caller with
+# `IFS=' '` would otherwise turn a single space-containing pattern into two.
+# Newline is still one of bash's IFS-whitespace characters even alone, so a
+# blank line (two consecutive newlines) collapses rather than producing a
+# spurious empty pattern - verified live (`build_semgrep_exclude_args
+# "$(printf 'a\n\nb')"` yields exactly two patterns, `a` and `b`, not three).
+# A line holding ONLY spaces/tabs is a different case the old whitespace-IFS
+# split absorbed for free but this one does not, since space/tab are no
+# longer delimiters: skip a pattern that is empty once its own leading and
+# trailing whitespace is stripped, rather than passing a bare `--exclude '
+# '`-shaped argument through to Semgrep whose behaviour on it is unverified
+# in this environment - shell-script-reviewer, GH-89. A pattern that is
+# non-empty ONLY because of internal whitespace (the actual issue #89 case,
+# e.g. `'my link.php'`) is untouched by this check, since trimming only its
+# ends leaves it non-empty.
+# The pre-call noglob state is restored rather than unconditionally cleared,
+# since a caller that itself runs under `set -f` would otherwise have
+# pathname expansion silently re-enabled on return.
 build_semgrep_exclude_args() {
     local patterns="${1:-}"
-    local IFS=$' \t\n'
+    local IFS=$'\n'
     local had_noglob=0
     case $- in *f*) had_noglob=1 ;; esac
 
     set -f
     # shellcheck disable=SC2086
     for pattern in ${patterns}; do
+        local trimmed="${pattern#"${pattern%%[![:space:]]*}"}"
+        trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+        [ -n "$trimmed" ] || continue
         extra+=(--exclude "$pattern")
     done
     [ "$had_noglob" -eq 1 ] || set +f
