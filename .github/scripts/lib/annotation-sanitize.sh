@@ -20,10 +20,10 @@
 #   ASCII control codes (0x00-0x1F, 0x7F) and passed a control codepoint
 #   encoded as multi-byte UTF-8 (e.g. a C1 control such as U+0085 NEL)
 #   through unfolded (issue #80) - jq now folds the exact codepoint set
-#   `semgrep-report-check.sh`'s own `.path` pipeline folds, sharing the
-#   filter text itself via ${ANNOTATION_SANITIZE_JQ_FILTER} below rather
-#   than retyping it (issue #91), using the same jq builtin class `tr`
-#   never covered. A raw, non-UTF-8-encoded byte in that same range
+#   `semgrep-report-check.sh`'s own `.path` pipeline folds, via the shared
+#   ${ANNOTATION_SANITIZE_JQ_FILTER} constant below (issue #91), using the
+#   same jq builtin class `tr` never covered. A raw, non-UTF-8-encoded byte
+#   in that same range
 #   (invalid on its own, with no continuation byte) is neutralized too, as
 #   a side effect of jq requiring valid UTF-8 input: it substitutes U+FFFD
 #   rather than erroring, which is not a control codepoint either.

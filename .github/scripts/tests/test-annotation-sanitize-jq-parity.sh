@@ -49,23 +49,36 @@ assert_eq "ANNOTATION_SANITIZE_JQ_FILTER is the exact escape-then-fold filter" \
 assert_eq "ANNOTATION_SANITIZE_JQ_FILTER is declared readonly exactly once" \
     "1" "$(grep -cE '^readonly ANNOTATION_SANITIZE_JQ_FILTER=' "${ANNOTATION_SANITIZE_FILE}")"
 
-# Each of the three real call sites, anchored on its own surrounding code
-# (not merely on the constant's name appearing somewhere in the file) -
-# a reversion to a hand-typed literal at any ONE of them fails exactly that
-# site's assertion, regardless of what the other two sites or a stray
-# comment elsewhere in the file say.
-sanitize_use_pattern='jq -Rsr "${ANNOTATION_SANITIZE_JQ_FILTER}"'
-path_pipeline_pattern='| '"'"'"${ANNOTATION_SANITIZE_JQ_FILTER}"'"'"') as $path'
-missing_path_pattern='map('"'"'"${ANNOTATION_SANITIZE_JQ_FILTER}"'"'"')'
-
+# sanitize_for_annotation() passes the WHOLE jq program as one argument, so
+# its interpolation (`jq -Rsr "${ANNOTATION_SANITIZE_JQ_FILTER}"`) is
+# self-contained on one line - anchoring on it directly is safe (confirmed,
+# test-quality-reviewer, GH-91: a line-continuation reformat of the
+# surrounding printf | jq pipe does not break it).
 assert_nonempty \
-    "$(grep -F -- "${sanitize_use_pattern}" "${ANNOTATION_SANITIZE_FILE}")" \
+    "$(grep -F -- 'jq -Rsr "${ANNOTATION_SANITIZE_JQ_FILTER}"' "${ANNOTATION_SANITIZE_FILE}")" \
     "sanitize_for_annotation() in ${ANNOTATION_SANITIZE_FILE} does not interpolate ANNOTATION_SANITIZE_JQ_FILTER into its jq -Rsr call"
-assert_nonempty \
-    "$(grep -F -- "${path_pipeline_pattern}" "${REPORT_CHECK_FILE}")" \
-    "the .path pipeline in ${REPORT_CHECK_FILE} does not interpolate ANNOTATION_SANITIZE_JQ_FILTER"
-assert_nonempty \
-    "$(grep -F -- "${missing_path_pattern}" "${REPORT_CHECK_FILE}")" \
-    "the batched missing-path pipeline in ${REPORT_CHECK_FILE} does not interpolate ANNOTATION_SANITIZE_JQ_FILTER"
+
+# semgrep-report-check.sh's two call sites sit inside a larger, multi-line
+# single-quoted jq program, so the interpolation is a bash quote-SPLICE
+# (close the single-quote, double-quoted `${VAR}`, reopen the single-quote)
+# rather than a whole-argument interpolation. An anchor keyed on the jq
+# text AROUND that splice (the .path pipeline's closing `) as $path`, the
+# batched pipeline's closing `)`) is fragile: moving that jq punctuation
+# onto its own line changes no jq/bash behaviour at all, yet broke a
+# line-anchored match in an earlier version of this test
+# (mutation-confirmed, test-quality-reviewer, GH-91). The splice text
+# itself - the sq single quote and the sq double-quoted variable
+# reference between them - is a fixed three-token bash unit that a jq-level
+# reformat has no reason to ever split, so counting its occurrences is the
+# stable anchor: exactly two real call sites exist, and a hand-typed
+# literal reversion at either one drops the count below two regardless of
+# how the jq around it is laid out. A stray prose comment cannot inflate
+# this count by accident - unlike a bare mention of the constant's name,
+# reproducing this exact bash quoting inside a comment would be a strange
+# thing to write.
+sq="'"
+splice_pattern="${sq}"'"${ANNOTATION_SANITIZE_JQ_FILTER}"'"${sq}"
+assert_eq "semgrep-report-check.sh's two call sites both interpolate ANNOTATION_SANITIZE_JQ_FILTER (neither reverted to a hand-typed literal)" \
+    "2" "$(grep -cF -- "${splice_pattern}" "${REPORT_CHECK_FILE}")"
 
 report_and_exit "annotation-sanitize jq-filter parity drift-guard test"
