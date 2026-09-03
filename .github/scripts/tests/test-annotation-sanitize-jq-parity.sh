@@ -6,9 +6,14 @@
 # #91 removed the duplication itself rather than testing that it stayed in
 # sync: the filter text now lives in ONE readonly bash constant
 # (ANNOTATION_SANITIZE_JQ_FILTER, annotation-sanitize.sh), and every call
-# site interpolates it instead of retyping it - so the three sites are
-# identical by construction, and this test's job shrinks to proving no site
-# quietly reverted to a hand-typed literal.
+# site interpolates it instead of retyping it - so the three sites THIS TEST
+# TRACKS are identical by construction, and this test's job shrinks to
+# proving none of them quietly reverted to a hand-typed literal. That
+# guarantee is scoped to these three named sites, not to the repo as a
+# whole (CC3, code-reviewer, GH-91) - a future caller elsewhere that hand-
+# retypes the filter again needs its own assertion added here, the same
+# way this file's own history added one per new site (issues #78, #80,
+# #49, #91).
 #
 # Two different anchoring strategies, one per site shape:
 # sanitize_for_annotation() interpolates the constant as its WHOLE jq
