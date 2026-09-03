@@ -64,9 +64,13 @@
 # The filter text itself is a shared constant (issue #91) rather than a
 # string this function alone owns: semgrep-report-check.sh's own two
 # gsub() call sites interpolate ${ANNOTATION_SANITIZE_JQ_FILTER} into
-# their own jq program instead of retyping the filter, so all three sites
-# are identical by construction - one bash variable, not three
-# hand-maintained copies compared for drift after the fact.
+# their own jq program instead of retyping the filter, so these three
+# known sites are identical by construction - one bash variable, not
+# three hand-maintained copies compared for drift after the fact. A
+# fourth site elsewhere would need to be added to this scheme by hand,
+# the same way each of the three got here (issues #78, #80, #49);
+# test-annotation-sanitize-jq-parity.sh tracks exactly these three, not
+# the whole repository.
 readonly ANNOTATION_SANITIZE_JQ_FILTER='gsub("%"; "%25") | gsub("[[:cntrl:]]"; " ")'
 
 sanitize_for_annotation() {
