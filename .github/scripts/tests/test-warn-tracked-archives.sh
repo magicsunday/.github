@@ -97,6 +97,25 @@ symlink_rc=$?
 assert_eq "tracked symlink named like an archive: exits 0" "0" "${symlink_rc}"
 assert_eq "tracked symlink named like an archive: prints nothing" "" "${symlink_output}"
 
+# The `120000 | 160000` mode filter has two branches - the symlink case
+# above only proves the first. A git-tracked GITLINK (a submodule, mode
+# 160000) named like an archive must not be flagged either, proven
+# directly rather than assumed from the symlink case (test-quality-reviewer,
+# GH-90 push-scope round 1). `--cacheinfo` with the well-known empty-tree
+# SHA registers a gitlink entry directly in the index, mirroring
+# test-semgrep-report-check.sh's own gitlink fixture - no real submodule is
+# needed to stage one.
+git_case_gitlink="$(git_case_dir gitlink)"
+new_git_case gitlink
+printf 'x' > a.php
+git add -Af .
+git update-index --add --cacheinfo 160000,4b825dc642cb6eb9a060e54bf8d69288fbee4904,vendored.zip
+cd "${original_dir}" || exit 1
+gitlink_output="$(warn_tracked_archives "${git_case_gitlink}" 2>&1)"
+gitlink_rc=$?
+assert_eq "tracked gitlink named like an archive: exits 0" "0" "${gitlink_rc}"
+assert_eq "tracked gitlink named like an archive: prints nothing" "" "${gitlink_output}"
+
 # A filename merely ENDING in the letters of an extension, without the
 # leading dot, must not false-positive (e.g. "quizzip" ends in "zip" but
 # names no archive) - proves the match is anchored on the dotted suffix, not
