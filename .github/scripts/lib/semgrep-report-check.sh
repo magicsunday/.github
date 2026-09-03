@@ -272,8 +272,7 @@ assert_semgrep_report_complete() {
                 | (.reason // "unknown") as $reason
                 | select(($allowed | index($reason)) == null)
                 | ((.path // "(no path)")
-                    | gsub("%"; "%25")
-                    | gsub("[[:cntrl:]]"; " ")) as $path
+                    | '"${ANNOTATION_SANITIZE_JQ_FILTER}"') as $path
                 | "\($path): \($reason)"]
         end
         | join("%0A")
@@ -533,7 +532,7 @@ assert_semgrep_report_complete() {
             local missing_lines
             missing_lines="$(printf '%s\0' "${missing[@]}" | jq -Rsr '
                 split("\u0000")[0:-1]
-                | map(gsub("%"; "%25") | gsub("[[:cntrl:]]"; " "))
+                | map('"${ANNOTATION_SANITIZE_JQ_FILTER}"')
                 | join("%0A")
             ' 2>/dev/null)" || missing_lines="(sanitisation failed)"
             # The `excludes` remedy named below can represent a tracked path
