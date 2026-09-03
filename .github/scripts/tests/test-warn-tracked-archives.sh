@@ -67,6 +67,23 @@ assert_contains "single tracked archive: notice names the archive" \
 single_error_count="$(printf '%s\n' "${single_output}" | grep -c '^::error::')"
 assert_eq "single tracked archive: no ::error:: annotation" "0" "${single_error_count}"
 
+# The case above only has its non-matching entry (a.php) BEFORE the archive
+# in git ls-files order - it cannot tell a per-entry `matched` reset from a
+# `matched` that, once set, stays set for every later entry. A match
+# sorting FIRST (a.zip), followed by an ordinary tracked file that sorts
+# AFTER it (z.php), is the case that actually distinguishes the two
+# (test-quality-reviewer, GH-90 push-scope round 3).
+git_case_match_then_plain="$(git_case_dir match-then-plain)"
+new_git_case match-then-plain
+printf 'PK' > a.zip
+printf 'x' > z.php
+finish_git_case "${original_dir}"
+match_then_plain_output="$(warn_tracked_archives "${git_case_match_then_plain}" 2>&1)"
+assert_contains "an archive sorting before a later non-archive: the archive is still named" \
+    "${match_then_plain_output}" "::notice::" "a.zip"
+match_then_plain_zphp_count="$(printf '%s' "${match_then_plain_output}" | grep -c 'z.php')"
+assert_eq "an archive sorting before a later non-archive: the non-archive is never named" "0" "${match_then_plain_zphp_count}"
+
 # An ordinary tracked binary asset that is NOT an archive (a .png) must not
 # be flagged - this notice is scoped to formats that can bundle or compress
 # arbitrary content, not to every git-tracked binary, matching
