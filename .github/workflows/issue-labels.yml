@@ -1,16 +1,15 @@
 name: Issue labels
 
 # Thin caller for the reusable AI issue labeler (ai-issue-labeler.yml),
-# mirroring the labels.yml -> label-sync.yml pattern below it. Issue #60
-# left the pilot-repo choice to the account owner; this repo was picked
-# as the pilot - see that issue for the rollout plan.
+# mirroring the labels.yml -> label-sync.yml pattern in this same directory.
 #
 # `uses: ./...` (a relative path), not the fully-qualified
 # `magicsunday/.github/.github/workflows/ai-issue-labeler.yml@main` form
 # ai-issue-labeler.yml's own header comment gives external callers — that
 # form is for a DIFFERENT repository calling this one; a caller inside this
 # same repository resolves the reusable workflow locally, exactly like
-# labels.yml calling ./.github/workflows/label-sync.yml above it.
+# labels.yml calling ./.github/workflows/label-sync.yml, its own
+# reusable-workflow counterpart in this same directory.
 #
 # REQUIRES the `ANTHROPIC_API_KEY` repository secret to be set on THIS repo
 # before this workflow's first real run — this account has no org-wide
