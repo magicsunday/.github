@@ -141,7 +141,14 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   through this workflow's `excludes` input — a caller-configured exclusion,
   distinct from the workflow's own hardcoded `--exclude '*.min.js'` flag,
   though both reach the same tolerated `cli_exclude_flags_match` skip
-  reason.
+  reason. The same file's `warn_tracked_archives()` is a separate, purely
+  informational check called right after: it names every git-tracked path
+  whose extension marks it as an archive/container format (`.zip`, `.jar`,
+  `.tar`, ...) — content the pinned engine is opaque to the same way it is to
+  an ordinary tracked binary asset — as a `::notice::`, and it never fails
+  the job (issue #90). Unlike the completeness check above, it has no
+  `excludes`-based way to quiet a specific path; the notice recurs on every
+  run for as long as the archive stays tracked.
 - **When a reusable workflow's `run:` block grows real logic (argument
   construction, report assertions — a bare exit-code check is usually too small to
   be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
