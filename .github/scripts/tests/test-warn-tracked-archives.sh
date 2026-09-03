@@ -151,6 +151,26 @@ tgz_output="$(warn_tracked_archives "${git_case_tgz}" 2>&1)"
 assert_contains "compound suffix .tgz is matched on its own, not via a shorter suffix" \
     "${tgz_output}" "::notice::" "bundle.tgz"
 
+# `git ls-files -s` emits one line per (mode, object, stage), not one per
+# path - an unresolved merge conflict on a tracked archive produces THREE
+# stage-1/2/3 lines for the same path, which must be named exactly once in
+# the notice, not three times. Mirrors test-semgrep-report-check.sh's own
+# conflicted-stage fixture for the analogous case in
+# assert_semgrep_report_complete() (shell-script-reviewer, GH-90 push-scope
+# round 1). `--index-info` stages the conflict directly, without a real
+# merge.
+git_case_conflict="$(git_case_dir conflict)"
+new_git_case conflict
+blob1="$(printf 'a' | git hash-object -w --stdin)"
+blob2="$(printf 'b' | git hash-object -w --stdin)"
+blob3="$(printf 'c' | git hash-object -w --stdin)"
+printf '100644 %s 1\tbundle.zip\n100644 %s 2\tbundle.zip\n100644 %s 3\tbundle.zip\n' \
+    "${blob1}" "${blob2}" "${blob3}" | git update-index --index-info
+cd "${original_dir}" || exit 1
+conflict_output="$(warn_tracked_archives "${git_case_conflict}" 2>&1)"
+conflict_occurrences="$(printf '%s' "${conflict_output}" | grep -o 'bundle.zip' | wc -l)"
+assert_eq "a conflicted-stage archive is named exactly once, not once per stage" "1" "${conflict_occurrences}"
+
 # Two simultaneously tracked archives are both named, joined by exactly one
 # %0A - proving the loop visits every hit, not just the first.
 git_case_multi="$(git_case_dir multi)"

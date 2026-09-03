@@ -674,7 +674,18 @@ warn_tracked_archives() {
             esac
         done
         if [ "$matched" -eq 1 ]; then
-            hits+=("$tracked_path")
+            # `git ls-files -s` emits one line per (mode, object, stage), not
+            # one per path - an unresolved merge conflict on a tracked
+            # archive produces three stage-1/2/3 lines for the same path,
+            # which would otherwise name it three times in one notice. Same
+            # adjacent-only dedup as assert_semgrep_report_complete()'s own
+            # repo_root block above (see its comment for the full
+            # reachability/ordering rationale - not reachable through the
+            # real production caller today, kept because it costs nothing
+            # extra and the sibling block already pays for it).
+            if [ "${#hits[@]}" -eq 0 ] || [ "${hits[-1]}" != "$tracked_path" ]; then
+                hits+=("$tracked_path")
+            fi
         fi
     done < "$git_ls_files_file"
     rm -f "$git_ls_files_file" || true
