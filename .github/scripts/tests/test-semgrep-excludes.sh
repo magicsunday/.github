@@ -58,16 +58,52 @@ cd "${work_dir}" || exit 1
 assert_args "glob pattern kept literal in a tree that would glob it" 'docs/*.pdf' --exclude 'docs/*.pdf'
 cd "${original_dir}" || exit 1
 
-assert_args "space-separated" 'a b c' --exclude a --exclude b --exclude c
 assert_args "newline-separated" "$(printf 'a\nb\nc')" --exclude a --exclude b --exclude c
-assert_args "tab-separated" "$(printf 'a\tb\tc')" --exclude a --exclude b --exclude c
 assert_args "empty input"  ''
 
+# A git-tracked path containing a literal space could not previously be
+# expressed as a single --exclude pattern, since the space itself was a
+# split point (issue #89) - a space no longer splits, so the whole line
+# survives as one pattern.
+assert_args "a pattern with a literal space stays one pattern, not two" 'my link.php' --exclude 'my link.php'
+assert_args "a pattern with a literal tab stays one pattern, not two" "$(printf 'my\tlink.php')" --exclude "$(printf 'my\tlink.php')"
+assert_args "space-separated input is NOT split (only newline is a delimiter now)" 'a b c' --exclude 'a b c'
+assert_args "tab-separated input is NOT split (only newline is a delimiter now)" "$(printf 'a\tb\tc')" --exclude "$(printf 'a\tb\tc')"
+
+# The old whitespace-IFS split absorbed a line holding ONLY spaces/tabs for
+# free (it was itself all-delimiter). The newline-only split does not, so a
+# stray blank-looking line in a hand-typed YAML block scalar - unlike a
+# genuinely empty line, which still collapses via newline-adjacency - would
+# otherwise survive as a literal `--exclude '   '` argument whose effect on
+# Semgrep is unverified here (shell-script-reviewer, GH-89).
+assert_args "a whitespace-only line is skipped, not passed through as a pattern" "$(printf 'a\n   \nb')" --exclude a --exclude b
+assert_args "a pattern that is non-empty only because of trailing whitespace still passes trimmed-but-original" 'a  ' --exclude 'a  '
+
 # The function is sourced rather than run in a subshell, so it must not
-# trust the CALLER's shell state: a caller with IFS set to newline-only
-# (e.g. a line-reading loop) must still get this library's own
-# whitespace split, not one silently narrowed to the caller's IFS.
-IFS=$'\n' assert_args "space-separated input unaffected by a caller's newline-only IFS" 'a b c' --exclude a --exclude b --exclude c
+# trust the CALLER's shell state: a caller with IFS set to space (e.g. a
+# word-splitting context) must still get this library's own newline-only
+# split, not one silently widened to the caller's IFS.
+IFS=' ' assert_args "newline-separated input unaffected by a caller's space IFS" "$(printf 'a\nb\nc')" --exclude a --exclude b --exclude c
+
+# The mirror of the noglob-restoration check below: this file is SOURCED
+# (per its own header comment), not run in a subshell, so a dropped `local`
+# on `IFS=$'\n'` would leak the function's own IFS into the caller's shell
+# after it returns - every existing assertion above still passes even with
+# `local` removed, since the function unconditionally re-sets IFS on ENTRY
+# regardless of the caller's own value, masking the leak during the call
+# itself (test-quality-reviewer, mutation-confirmed, GH-89). Only checking
+# the caller's IFS AFTER the call, once the function has returned, catches
+# it.
+IFS=' '
+extra=()
+build_semgrep_exclude_args "$(printf 'a\nb')"
+if [ "$IFS" = ' ' ]; then
+    echo "PASS: caller's IFS is restored after the call, not left at the function's own value"
+else
+    echo "FAIL: caller's IFS leaked to '${IFS}' after the call"
+    failures=$((failures + 1))
+fi
+IFS=$' \t\n'
 
 # A caller that already runs under `set -f` (noglob enabled) must find
 # noglob still enabled on return - the pre-call state is restored rather
