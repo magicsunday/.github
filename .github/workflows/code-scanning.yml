@@ -356,6 +356,14 @@ jobs:
                   # never be visited by the implicit scan target at all.
                   assert_semgrep_report_complete "$JSON_FILE" "$GITHUB_WORKSPACE"
 
+                  # warn_tracked_archives() (issue #90) is a scoped notice,
+                  # not a gate: a git-tracked archive is opaque to the pinned
+                  # engine the same way an ordinary tracked binary asset is
+                  # (see semgrep-report-check.sh's own comment on why that
+                  # is not treated as a completeness failure), so this only
+                  # surfaces the fact and never fails the job.
+                  warn_tracked_archives "$GITHUB_WORKSPACE"
+
             - name: Upload SARIF to code scanning
               uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
               with:

@@ -77,6 +77,47 @@ assert_absent_from_json_array() {
     done
 }
 
+# Writes `git -C repo_root ls-files -s -z` output to a fresh temp file and
+# prints its path on stdout. Shared by assert_semgrep_report_complete() and
+# warn_tracked_archives() below, whose failure-handling for this exact
+# mktemp-then-git-ls-files sequence was identical apart from message wording
+# and severity (extracted per simplicity-reviewer, GH-90 round 3, after two
+# earlier rounds rejected it as too risky to touch
+# assert_semgrep_report_complete()'s existing control flow - both rounds
+# then independently showed the `if !`-guarded call form below avoids the
+# trap this file documents elsewhere: "under `set -e`, a bare
+# `out=\"\$(cmd)\"` line trips errexit immediately on a failing `cmd`,
+# before a following `rc=\$?` line is ever reached" - which is why every
+# caller below invokes this as an `if` condition, never a bare assignment).
+#
+# Distinguishes a mktemp failure from a `git ls-files` failure via its own
+# return code (1 vs 2) rather than a single generic failure, so each caller
+# keeps its own distinct message and severity: assert_semgrep_report_complete()
+# fails closed with `::error::`/`return 1` on either, warn_tracked_archives()
+# degrades open with `::warning::`/`return 0` on either. On a `git ls-files`
+# failure the temp file is already removed before this returns - the caller
+# needs no cleanup for that branch, only for its own success path.
+_git_tracked_entries_tempfile() {
+    local repo_root="$1"
+    local f
+    f="$(mktemp)" || return 1
+    # `-s` adds the object mode git itself assigns each entry ahead of the
+    # path, `<mode> SP <object> SP <stage> TAB <path>` - how a caller tells a
+    # symlink/gitlink from an ordinary tracked file without re-deriving that
+    # from file content. Read from a temp FILE, never through a
+    # `$(...)`-captured bash string: as observed 2026-09-02 (`bash -c
+    # 'x=$(printf "a\0b"); echo "${#x}"'` → warns "ignored null byte in
+    # input" and prints 2, not 3), command substitution silently drops
+    # embedded NUL bytes, which is exactly what `-z` NUL-separates its
+    # output WITH - a capture through a string variable would corrupt every
+    # entry after the first.
+    if ! git -C "$repo_root" ls-files -s -z > "$f" 2>/dev/null; then
+        rm -f "$f" || true
+        return 2
+    fi
+    printf '%s' "$f"
+}
+
 # Fails unless Semgrep's --json-output report shows a complete scan. Prints
 # exactly one `::error::` workflow annotation on failure (so a raw newline or
 # a literal `%` in a path can never split it into an unattributed log line —
@@ -404,26 +445,16 @@ assert_semgrep_report_complete() {
     # `excludes` input — a `.semgrepignore` is not an alternative here, per
     # the rejection this file already explains above.
     if [ -n "$repo_root" ]; then
-        # `-s` adds the object mode git itself assigns each entry ahead of
-        # the path, `<mode> SP <object> SP <stage> TAB <path>` — how the
-        # filter below tells a symlink/gitlink from an ordinary tracked
-        # file without re-deriving that from file content. Read from a
-        # temp FILE, never through a `$(...)`-captured bash string: as
-        # observed 2026-09-02 (`bash -c 'x=$(printf "a\0b"); echo "${#x}"'`
-        # → warns "ignored null byte in input" and prints 2, not 3), command
-        # substitution silently drops embedded NUL bytes, which is exactly
-        # what `-z` NUL-separates its output WITH — a capture through a
-        # string variable would corrupt every entry after the first. A direct
-        # redirect keeps `$?` as git's own exit status, same as the
-        # command-substitution form would have, without going through a
-        # bash string at all.
-        local git_ls_files_file
-        git_ls_files_file="$(mktemp)" || {
+        local git_ls_files_file tpf_rc
+        if git_ls_files_file="$(_git_tracked_entries_tempfile "$repo_root")"; then
+            tpf_rc=0
+        else
+            tpf_rc=$?
+        fi
+        if [ "$tpf_rc" -eq 1 ]; then
             echo "::error::Could not create a temp file to compare the tree against the report — the completeness check cannot run."
             return 1
-        }
-        if ! git -C "$repo_root" ls-files -s -z > "$git_ls_files_file" 2>/dev/null; then
-            rm -f "$git_ls_files_file" || true
+        elif [ "$tpf_rc" -eq 2 ]; then
             local safe_repo_root
             safe_repo_root="$(sanitize_for_annotation "${repo_root}")"
             echo "::error::\`git ls-files\` failed in ${safe_repo_root} — the tree cannot be compared against the report, so it cannot be shown complete."
@@ -548,5 +579,125 @@ assert_semgrep_report_complete() {
     fi
 
     echo "Scanned ${scanned} files, no undeclared skips."
+    return 0
+}
+
+# Prints one `::notice::` naming every git-tracked path whose extension marks
+# it as an archive/container format (issue #90) - deliberately NEVER fails
+# the job, unlike assert_semgrep_report_complete() above. A git-tracked
+# archive is an ordinary regular file the pinned engine's own file-type
+# detection never opens, so its contents land in neither `.paths.scanned`
+# nor `.paths.skipped` - the same blind spot that function's own repo_root
+# block documents for ordinary tracked binary assets (a `.png`, a font), just
+# for a format that CAN carry scannable source where those cannot. Confirmed
+# directly (not just inferred from the binary-asset case), as observed
+# 2026-09-03 against the pinned engine, for a tracked zip and a tracked
+# tar.gz each containing a nested PHP payload - full repro in issue #90's own
+# reproduction section. The remaining formats on the list below share the
+# same container/compressor shape and are assumed, not independently
+# reproduced, to behave the same way. Turning this into a hard failure would
+# resurrect exactly the false-positive class issue #49's fix removed - a
+# tracked archive is not inherently a problem (a vendored dependency, a
+# build artifact), so this only surfaces the fact for a reviewer to judge,
+# via a non-blocking annotation.
+#
+# Every failure mode here (a mktemp or `git ls-files` failure) degrades to a
+# `::warning::` and `return 0` rather than propagating, for the same reason -
+# this check exists to add signal, never to gate a build the completeness
+# check above didn't already gate.
+#
+# The extension list is scoped to formats that bundle or compress arbitrary
+# file content (so a renamed/nested source file survives inside), not to
+# every compressed format in general use - an opaque media format (a `.png`,
+# a `.woff`) is excluded on the same ground assert_semgrep_report_complete()
+# already documents: it structurally cannot carry a rule-detectable finding,
+# archive or not. A single-file compressor (`.gz`/`.bz2`/`.xz`) is included
+# alongside the multi-file container formats (`.zip`/`.tar`/...) because it
+# hides exactly the same way a multi-file archive does - only the entry
+# count differs. Compound suffixes each get their own entry (`.tgz`, not
+# just `.gz`) only where the short form does not already end with a listed
+# suffix; `.tar.gz` is deliberately absent because every path ending in it
+# already ends in `.gz`, which is on the list - a spelled-out synonym here
+# would be dead weight, never reached before the shorter suffix wins.
+#
+# `-s` (same flag assert_semgrep_report_complete()'s own repo_root block
+# uses) is load-bearing, not decoration: a git-tracked SYMLINK or GITLINK
+# whose name happens to end in a listed extension carries no archive content
+# at all - the target is what would need scanning, if anything - so mode
+# 120000/160000 entries are skipped before the extension match runs. Without
+# this, a symlink a caller already quieted via this workflow's `excludes`
+# input for the completeness check above (moving it into the tolerated
+# `cli_exclude_flags_match` skip reason) would still trip this notice,
+# falsely claiming it carries packed content invisible to scanning.
+warn_tracked_archives() {
+    local repo_root="$1"
+    local -a archive_exts=(
+        ".zip" ".jar" ".war" ".ear" ".apk" ".whl"
+        ".tar" ".tgz" ".tbz2" ".txz"
+        ".7z" ".rar" ".gz" ".bz2" ".xz"
+    )
+
+    local git_ls_files_file tpf_rc
+    if git_ls_files_file="$(_git_tracked_entries_tempfile "$repo_root")"; then
+        tpf_rc=0
+    else
+        tpf_rc=$?
+    fi
+    if [ "$tpf_rc" -eq 1 ]; then
+        echo "::warning::Could not create a temp file to list tracked archives - the archive-visibility notice did not run."
+        return 0
+    elif [ "$tpf_rc" -eq 2 ]; then
+        local safe_repo_root
+        safe_repo_root="$(sanitize_for_annotation "${repo_root}")"
+        echo "::warning::\`git ls-files\` failed in ${safe_repo_root} - the archive-visibility notice did not run."
+        return 0
+    fi
+
+    local -a hits=()
+    local entry mode tracked_path lower_path ext matched
+    while IFS= read -r -d '' entry; do
+        mode="${entry%% *}"
+        case "$mode" in
+            120000 | 160000)
+                continue
+                ;;
+        esac
+        tracked_path="${entry#*$'\t'}"
+        lower_path="${tracked_path,,}"
+        matched=0
+        for ext in "${archive_exts[@]}"; do
+            case "$lower_path" in
+                *"$ext")
+                    matched=1
+                    break
+                    ;;
+            esac
+        done
+        if [ "$matched" -eq 1 ]; then
+            hits+=("$tracked_path")
+        fi
+    done < "$git_ls_files_file"
+    rm -f "$git_ls_files_file" || true
+
+    if [ "${#hits[@]}" -eq 0 ]; then
+        return 0
+    fi
+
+    # One sanitize_for_annotation() call per hit rather than the batched
+    # NUL-piped jq form assert_semgrep_report_complete() uses for its own
+    # missing-path list: that form exists to survive an ARG_MAX-scale list
+    # passed through jq's argv, which cannot happen here - `hits` is bounded
+    # by how many archives a repository tracks, not by tree size.
+    local safe_hits="" hit safe_hit
+    for hit in "${hits[@]}"; do
+        safe_hit="$(sanitize_for_annotation "${hit}")"
+        if [ -z "$safe_hits" ]; then
+            safe_hits="$safe_hit"
+        else
+            safe_hits="${safe_hits}%0A${safe_hit}"
+        fi
+    done
+
+    echo "::notice::The tracked archive(s) below are opaque to the pinned engine - it neither scans their contents nor lists them as skipped, so any source code packed inside is invisible to code scanning. This is informational only and does not affect the job's outcome; review each individually.%0A${safe_hits}"
     return 0
 }

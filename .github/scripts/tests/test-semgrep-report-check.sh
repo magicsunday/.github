@@ -490,40 +490,34 @@ unset -f cat
 # 29 - the annotation still printed, but the caller would silently treat
 # the crash as success). Asserting the real child process's own exit code
 # is what actually pins fail-closed, not just fail-loud.
-# Shared by every "rm fails under this function's real production caller
-# shape" probe below - four call sites, one per `rm -f ... || true` guard
-# in assert_semgrep_report_complete() (extracted per simplicity-reviewer,
-# round 30 - the four sites had accumulated the identical scaffolding,
-# inconsistent with this file's own convention of extracting a shape that
-# repeats, e.g. new_git_case()/git_case_dir()/write_missing_target_report()
-# just below).
-run_under_shadowed_rm() {
-    local fixture="$1" repo_root="${2:-}"
-    # Fixture/repo_root are always internally-generated mktemp paths here (no
-    # attacker/external input reaches this test-only helper), but passing
-    # them as bash -c's OWN positional arguments ($1/$2) rather than
-    # interpolating them into the source string costs nothing and closes the
-    # injection SHAPE outright, rather than relying on the current callers
-    # never needing it (CodeRabbit, round-93-review).
-    bash -c '
-set -euo pipefail
-source "'"${SCRIPT_DIR}"'/../lib/semgrep-report-check.sh"
-rm() { command false; }
-assert_semgrep_report_complete "$1" "$2"
-' _ "${fixture}" "${repo_root}" 2>&1
-}
+# Every "rm fails under this function's real production caller shape" probe
+# below drives the shared run_under_shadowed_rm() from lib/harness.sh
+# (extracted per simplicity-reviewer, round 30, then generalised across
+# files per simplicity-reviewer, GH-90, once test-warn-tracked-archives.sh
+# needed an identically-shaped copy for a different function in the same
+# library). Three of the four call sites below cover a guard that lives
+# directly inside assert_semgrep_report_complete() itself; the fourth (the
+# git-ls-files-failure branch) now covers the shared
+# _git_tracked_entries_tempfile() helper's own guard instead, reached only
+# indirectly through this function's call to it (GH-90 round 4 - that guard
+# used to live inline here, before the mktemp+git-ls-files+failure-handling
+# duplication with warn_tracked_archives() was extracted into the helper).
+LIB_FILE="${SCRIPT_DIR}/../lib/semgrep-report-check.sh"
 
-rm_guard_output="$(run_under_shadowed_rm "${non_string_path}")"
+rm_guard_output="$(run_under_shadowed_rm "${LIB_FILE}" assert_semgrep_report_complete "${non_string_path}")"
 rm_guard_rc=$?
 assert_eq "jq_stderr_file rm -f failure still fails closed under a real set -e caller" \
     "1" "${rm_guard_rc}"
 assert_contains "jq_stderr_file rm -f failure still prints the annotation under a real set -e caller" \
     "${rm_guard_output}" "jq failed while evaluating the skip inventory"
 
-# `assert_semgrep_report_complete()` has FOUR `rm -f ... || true` guards
-# (re-derive with `grep -c 'rm -f .* || true'
-# ../lib/semgrep-report-check.sh`), not one - the case above only covers
-# jq_stderr_file's crash branch. The
+# `assert_semgrep_report_complete()` itself carries THREE `rm -f ... || true`
+# guards (re-derive with `awk '/^assert_semgrep_report_complete\(\)/,/^}/'
+# ../lib/semgrep-report-check.sh | grep -c 'rm -f .* || true'` -> 3; a
+# file-wide, unscoped count now also picks up the shared
+# _git_tracked_entries_tempfile() helper's own guard and
+# warn_tracked_archives()'s, so it no longer answers this question on its
+# own), not one - the case above only covers jq_stderr_file's crash branch. The
 # SUCCESS continuation right after it (`rm -f "$jq_stderr_file"` with no
 # crash to report) shares the identical unguarded-`rm`-under-a-real-`set -e`
 # caller risk and was left untested (test-quality-reviewer, mutation-
@@ -532,7 +526,7 @@ assert_contains "jq_stderr_file rm -f failure still prints the annotation under 
 # ever prints, turning a real production success into a mysterious no-
 # output failure). `tolerated_skip` (defined above) reaches this exact
 # continuation without crashing.
-rm_guard_pass_output="$(run_under_shadowed_rm "${tolerated_skip}")"
+rm_guard_pass_output="$(run_under_shadowed_rm "${LIB_FILE}" assert_semgrep_report_complete "${tolerated_skip}")"
 rm_guard_pass_rc=$?
 assert_eq "jq_stderr_file rm -f failure on the SUCCESS continuation still exits 0 under a real set -e caller" \
     "0" "${rm_guard_pass_rc}"
@@ -637,23 +631,16 @@ assert_fail "a literal question mark next to a folded control byte stays disting
 tmp_scan_dir="${work_dir}/tmp-scan"
 mkdir -p "${tmp_scan_dir}"
 
-# Runs "$@" with TMPDIR pointed at tmp_scan_dir and asserts no tmp.* file
-# survives the call - shared by every leak assertion below (two here for
+# assert_no_tmp_leak() (shared by every leak assertion below - two here for
 # jq_stderr_file, two more further down for the repo_root block's
-# git_ls_files_file). Extracted per simplicity-reviewer (round 2): the same
-# duplication shape round 1 already fixed once, for the git-case setup, via
-# new_git_case() a few lines below.
-assert_no_tmp_leak() {
-    local description="$1"
-    shift
-    local before after
-    before="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
-    TMPDIR="${tmp_scan_dir}" "$@" > /dev/null 2>&1
-    after="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
-    assert_eq "${description}" "${before}" "${after}"
-}
+# git_ls_files_file, plus test-warn-tracked-archives.sh's own copy of the
+# git_ls_files_file shape) now lives in lib/harness.sh (generalised across
+# files per simplicity-reviewer/test-quality-reviewer, GH-90 round 4; first
+# extracted here per simplicity-reviewer round 2, from the same duplication
+# shape round 1 already fixed once for the git-case setup, via
+# new_git_case() a few lines below).
 
-assert_no_tmp_leak "jq's stderr temp file does not survive a crash-path call" \
+assert_no_tmp_leak "${tmp_scan_dir}" "jq's stderr temp file does not survive a crash-path call" \
     assert_semgrep_report_complete "${non_string_path}"
 
 # The crash-path assertion above only exercises the `rm -f` inside the
@@ -662,7 +649,7 @@ assert_no_tmp_leak "jq's stderr temp file does not survive a crash-path call" \
 # by every fixture above this one). Deleting that second `rm -f` in a
 # scratch copy left this suite green even with it removed, which is exactly
 # the coverage gap a fixture naming only one branch cannot catch.
-assert_no_tmp_leak "jq's stderr temp file does not survive a successful call" \
+assert_no_tmp_leak "${tmp_scan_dir}" "jq's stderr temp file does not survive a successful call" \
     assert_semgrep_report_complete "${tolerated_skip}"
 
 # `repo_root` cases (issue #49, channel 2): the completeness check is only
@@ -712,8 +699,7 @@ write_missing_target_report() {
 git_case_baseline="$(git_case_dir baseline)"
 new_git_case baseline
 printf 'x' > a.php
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_baseline="${work_dir}/report-baseline.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: []}}' > "${report_baseline}"
 assert_pass "repo_root: every tracked file accounted for in scanned" "${report_baseline}" "${git_case_baseline}"
@@ -734,8 +720,7 @@ git_case_symlink="$(git_case_dir symlink)"
 new_git_case symlink
 printf 'x' > target.php
 ln -s target.php link.php
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_symlink="${work_dir}/report-symlink.json"
 write_missing_target_report "${report_symlink}"
 assert_fail "repo_root: a git-tracked path absent from both inventories fails, naming it" \
@@ -752,7 +737,7 @@ assert_fail "repo_root: a git-tracked path absent from both inventories fails, n
 # flipped to `return 0` still prints the identical annotation, so only the
 # real child process's own exit code catches a caller silently treating a
 # missing tracked symlink as success).
-git_ls_success_guard_output="$(run_under_shadowed_rm "${report_symlink}" "${git_case_symlink}")"
+git_ls_success_guard_output="$(run_under_shadowed_rm "${LIB_FILE}" assert_semgrep_report_complete "${report_symlink}" "${git_case_symlink}")"
 git_ls_success_guard_rc=$?
 assert_eq "git_ls_files_file rm -f failure on the missing-symlink success continuation still fails closed under a real set -e caller" \
     "1" "${git_ls_success_guard_rc}"
@@ -773,8 +758,7 @@ git_case_skipped_covered="$(git_case_dir skipped-covered)"
 new_git_case skipped-covered
 printf 'x' > a.php
 ln -s a.php link.php
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_skipped_covered="${work_dir}/report-skipped-covered.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: [{path: "link.php", reason: "binary"}]}}' > "${report_skipped_covered}"
 assert_pass "repo_root: a symlink the report accounts for via .paths.skipped is not re-flagged" \
@@ -790,10 +774,12 @@ jq -n '{paths: {scanned: ["a.php"], skipped: []}}' > "${report_not_a_repo}"
 assert_fail "repo_root: a non-git directory fails closed rather than silently passing" \
     "${report_not_a_repo}" "git ls-files" "${git_case_not_a_repo}"
 
-# `git_ls_files_file`'s own `rm -f ... || true` guard on the `git ls-files`
-# FAILURE branch shares the same untested-under-a-real-`set -e`-caller risk
-# as jq_stderr_file's guards above (test-quality-reviewer, mutation-
-# confirmed, round 29): without `|| true`, an `rm` failure here aborts the
+# The `rm -f ... || true` guard on the `git ls-files` FAILURE branch - now
+# inside the shared `_git_tracked_entries_tempfile()` helper this block
+# calls (GH-90 round 4), not inline as `git_ls_files_file`'s own guard -
+# shares the same untested-under-a-real-`set -e`-caller risk as
+# jq_stderr_file's guards above (test-quality-reviewer, mutation-confirmed,
+# round 29): without `|| true`, an `rm` failure here aborts the
 # script silently before the "\`git ls-files\` failed in ..." annotation
 # ever prints. Removing just the guard leaves rc at 1 either way (this
 # branch's own `return 1` is untouched by that mutation), so the message
@@ -803,7 +789,7 @@ assert_fail "repo_root: a non-git directory fails closed rather than silently pa
 # `return 0` prints the identical annotation and would pass the message
 # check alone, silently turning a real `git ls-files` failure into a
 # reported success. The rc assertion below is what actually catches that.
-git_ls_guard_output="$(run_under_shadowed_rm "${report_not_a_repo}" "${git_case_not_a_repo}")"
+git_ls_guard_output="$(run_under_shadowed_rm "${LIB_FILE}" assert_semgrep_report_complete "${report_not_a_repo}" "${git_case_not_a_repo}")"
 git_ls_guard_rc=$?
 assert_eq "git_ls_files_file rm -f failure on the git-ls-files-failed branch still fails closed under a real set -e caller" \
     "1" "${git_ls_guard_rc}"
@@ -841,8 +827,7 @@ git_case_percent="$(git_case_dir percent)"
 new_git_case percent
 printf 'x' > target.php
 ln -s target.php 'weird%name.php'
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_percent="${work_dir}/report-percent.json"
 write_missing_target_report "${report_percent}"
 assert_fail "repo_root: a missing path with a literal percent sign is sanitised in the annotation" \
@@ -861,8 +846,7 @@ git_case_flag_shaped="$(git_case_dir flag-shaped)"
 new_git_case flag-shaped
 printf 'x' > target.php
 ln -s target.php -- '--rawfile'
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_flag_shaped="${work_dir}/report-flag-shaped.json"
 write_missing_target_report "${report_flag_shaped}"
 assert_fail "repo_root: a missing path shaped like a jq flag is still named, not dropped" \
@@ -879,8 +863,7 @@ new_git_case control-byte
 printf 'x' > target.php
 control_byte_name="$(printf 'weird\001byte.php')"
 ln -s target.php "${control_byte_name}"
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_control_byte="${work_dir}/report-control-byte.json"
 write_missing_target_report "${report_control_byte}"
 assert_fail "repo_root: a missing path with a control byte is folded, staying one annotation" \
@@ -903,8 +886,7 @@ new_git_case multi-missing
 printf 'x' > target.php
 ln -s target.php link-a.php
 ln -s target.php link-b.php
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_multi_missing="${work_dir}/report-multi-missing.json"
 write_missing_target_report "${report_multi_missing}"
 assert_fail "repo_root: two simultaneously-missing paths are joined by exactly one %0A" \
@@ -929,8 +911,7 @@ git_case_ordinary_missing="$(git_case_dir ordinary-missing)"
 new_git_case ordinary-missing
 printf 'x' > a.php
 printf 'not really a png, just needs to be a plain tracked file' > logo.png
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_ordinary_missing="${work_dir}/report-ordinary-missing.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: []}}' > "${report_ordinary_missing}"
 assert_pass "repo_root: an ordinary tracked file absent from both inventories is not flagged (only symlinks/gitlinks are)" \
@@ -945,8 +926,7 @@ git_case_space="$(git_case_dir space)"
 new_git_case space
 printf 'x' > target.php
 ln -s target.php 'my link.php'
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_space="${work_dir}/report-space.json"
 write_missing_target_report "${report_space}"
 assert_fail "repo_root: a missing path with a space survives the mode/path split intact" \
@@ -979,8 +959,7 @@ git_case_symlink_covered="$(git_case_dir symlink-covered)"
 new_git_case symlink-covered
 printf 'x' > target.php
 ln -s target.php link.php
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_symlink_covered="${work_dir}/report-symlink-covered.json"
 jq -n '{paths: {scanned: ["target.php", "link.php"], skipped: []}}' > "${report_symlink_covered}"
 assert_pass "repo_root: a symlink the report DOES account for is not flagged" \
@@ -994,8 +973,7 @@ git_case_non_string_covered="$(git_case_dir non-string-covered)"
 new_git_case non-string-covered
 printf 'x' > target.php
 ln -s target.php link.php
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_non_string_covered="${work_dir}/report-non-string-covered.json"
 jq -n '{paths: {scanned: ["target.php"], skipped: [{path: 123, reason: "binary"}]}}' > "${report_non_string_covered}"
 assert_fail "repo_root: a non-string skipped-path entry does not crash the covered-set filter or mask a genuinely missing symlink" \
@@ -1037,8 +1015,7 @@ git_case_skipped_not_object="$(git_case_dir skipped-not-object)"
 new_git_case skipped-not-object
 printf 'x' > target.php
 ln -s target.php link.php
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_skipped_not_object="${work_dir}/report-skipped-not-object.json"
 jq -n '{paths: {scanned: ["target.php"], skipped: ["not-an-object"]}}' > "${report_skipped_not_object}"
 assert_fail "repo_root: a non-object skipped-array entry is already caught by the earlier reason check, never reaching the covered-set filter" \
@@ -1057,8 +1034,7 @@ git_case_sanitiser_failure="$(git_case_dir sanitiser-failure)"
 new_git_case sanitiser-failure
 printf 'x' > target.php
 ln -s target.php link.php
-git add -Af .
-cd "${original_dir}" || exit 1
+finish_git_case "${original_dir}"
 report_sanitiser_failure="${work_dir}/report-sanitiser-failure.json"
 write_missing_target_report "${report_sanitiser_failure}"
 jq() {
@@ -1094,19 +1070,25 @@ conflict_output="$(assert_semgrep_report_complete "${report_conflict}" "${git_ca
 conflict_occurrences="$(printf '%s' "${conflict_output}" | grep -o 'link.php' | wc -l)"
 assert_eq "repo_root: a conflicted-stage path is named exactly once, not once per stage" "1" "${conflict_occurrences}"
 
-# The new `git_ls_files_file` mktemp (semgrep-report-check.sh, the
-# `repo_root` block) is cleaned up on TWO exit paths - the `git ls-files`
-# failure branch and the success continuation - mirroring the jq-stderr
-# temp file's own two cleanup sites above. Neither of the two leak
-# assertions above this point passes `repo_root` at all, so neither reaches
-# this mktemp; without a dedicated assertion here, deleting either of its
-# `rm -f` calls would leave this suite green (proven: removing the
-# success-path `rm -f` in a scratch copy left "All report-check tests
-# passed." unchanged).
-assert_no_tmp_leak "repo_root: git_ls_files_file does not survive a git-ls-files failure" \
+# The `repo_root` block's own `git_ls_files_file` (semgrep-report-check.sh)
+# now has only ONE `rm -f ... || true` directly in it - the success
+# continuation - mirroring one of the jq-stderr temp file's own two cleanup
+# sites above. The OTHER cleanup, on the `git ls-files` failure branch,
+# moved into the shared `_git_tracked_entries_tempfile()` helper this block
+# now calls (GH-90 round 4) and is reached only indirectly through it.
+# Neither of the two leak assertions above this point passes `repo_root` at
+# all, so neither reaches either cleanup site; without a dedicated
+# assertion here, deleting the success-path `rm -f` would leave this suite
+# green (proven: removing it in a scratch copy left "All report-check tests
+# passed." unchanged). The failure-branch guard, now inside the helper, is
+# exercised by the very next assertion below - unchanged by the extraction,
+# since that assertion still calls assert_semgrep_report_complete() against
+# a non-git repo_root, which still reaches the helper's guard, just one
+# call frame deeper than before.
+assert_no_tmp_leak "${tmp_scan_dir}" "repo_root: git_ls_files_file does not survive a git-ls-files failure" \
     assert_semgrep_report_complete "${report_not_a_repo}" "${git_case_not_a_repo}"
 
-assert_no_tmp_leak "repo_root: git_ls_files_file does not survive a successful call" \
+assert_no_tmp_leak "${tmp_scan_dir}" "repo_root: git_ls_files_file does not survive a successful call" \
     assert_semgrep_report_complete "${report_baseline}" "${git_case_baseline}"
 
 # A `mktemp` failure for `git_ls_files_file` itself must fail closed with

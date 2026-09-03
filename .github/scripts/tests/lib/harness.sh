@@ -188,3 +188,65 @@ exit 1
 EOS
     chmod +x "$1/jq"
 }
+
+# Runs `source "$1"; rm() { command false; }; "$2" "${@:3}"` in a genuinely
+# separate `bash -c` process under a real `set -euo pipefail` caller, to prove
+# an `rm -f ... || true` guard inside function "$2" survives an `rm` failure
+# under its REAL production caller's shell options -- command substitution
+# alone does not propagate errexit into itself, so driving the guard only via
+# `$(...)` in a script that never sets `-e` (as most assertions in the
+# sourcing test file do) cannot exercise it at all. `$1` is the library file
+# to source, `$2` the function name to call, `"${@:3}"` its arguments.
+# test-semgrep-report-check.sh and test-warn-tracked-archives.sh each had an
+# identically-shaped copy of this (differing only in the function name and
+# argument list) before extraction here (simplicity-reviewer, GH-90).
+run_under_shadowed_rm() {
+    bash -c '
+set -euo pipefail
+lib_path="$1"; fn_name="$2"; shift 2
+source "$lib_path"
+rm() { command false; }
+"$fn_name" "$@"
+' _ "$@" 2>&1
+}
+
+# Stages every file a git-case-per-test fixture created and returns to `$1`
+# (the caller's own `original_dir`) - the same two-line tail
+# test-semgrep-report-check.sh and test-warn-tracked-archives.sh each need
+# after building a case's tracked files, before invoking the function under
+# test against that case's own directory. `original_dir` is an explicit
+# parameter, not a global, matching run_under_shadowed_rm()'s own convention
+# above (simplicity-reviewer, GH-90 round 3 - the round-2 fix moved this
+# duplication into a file-local helper in the newer test file only, leaving
+# the identical shape still repeated raw in the sibling).
+finish_git_case() {
+    local original_dir="$1"
+    git add -Af .
+    cd "${original_dir}" || exit 1
+}
+
+# Runs "${@:2}" with TMPDIR pointed at "$1" and asserts no tmp.* file left
+# there survives the call - shared by every leak assertion in
+# test-semgrep-report-check.sh (jq_stderr_file, git_ls_files_file) and
+# test-warn-tracked-archives.sh (git_ls_files_file's own copy of the same
+# cleanup shape in warn_tracked_archives()). "$1" is the caller's own
+# TMPDIR-scoped scan directory (a subdirectory of its own work_dir, never
+# the shared host /tmp - scanning that would flake under a busy host, since
+# another process creating or removing an unrelated `tmp.*` file between the
+# two counts changes the count for a reason unrelated to this library).
+# `tmp_scan_dir` is an explicit parameter, not a global, matching this
+# file's other two shared helpers above (simplicity-reviewer, GH-90 round 4
+# - test-quality-reviewer's own round-4 finding was that
+# test-warn-tracked-archives.sh had no leak assertion at all for
+# warn_tracked_archives()'s success-path cleanup, the same gap this
+# function's callers in the sibling file already closed for the analogous
+# line in assert_semgrep_report_complete()).
+assert_no_tmp_leak() {
+    local tmp_scan_dir="$1" description="$2"
+    shift 2
+    local before after
+    before="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
+    TMPDIR="${tmp_scan_dir}" "$@" > /dev/null 2>&1
+    after="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
+    assert_eq "${description}" "${before}" "${after}"
+}
