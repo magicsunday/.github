@@ -1,8 +1,9 @@
 name: Issue labels
 
 # Thin caller for the reusable AI issue labeler (ai-issue-labeler.yml),
-# mirroring the labels.yml -> label-sync.yml pattern below it. Pilot repo
-# for issue #60 - see that issue for why this repo and the rollout plan.
+# mirroring the labels.yml -> label-sync.yml pattern below it. Issue #60
+# left the pilot-repo choice to the account owner; this repo was picked
+# as the pilot - see that issue for the rollout plan.
 #
 # `uses: ./...` (a relative path), not the fully-qualified
 # `magicsunday/.github/.github/workflows/ai-issue-labeler.yml@main` form
