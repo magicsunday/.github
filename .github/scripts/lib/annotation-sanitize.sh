@@ -20,13 +20,10 @@
 #   ASCII control codes (0x00-0x1F, 0x7F) and passed a control codepoint
 #   encoded as multi-byte UTF-8 (e.g. a C1 control such as U+0085 NEL)
 #   through unfolded (issue #80) - jq now folds the exact codepoint set
-#   `semgrep-report-check.sh`'s own `.path` pipeline folds, using the same
-#   jq builtin class `tr` never covered. The filter text is still several
-#   hand-maintained copies, not shared code (issue #91 proposes hoisting it
-#   into one shared constant) - test-annotation-sanitize-jq-parity.sh keeps
-#   every copy in sync by comparing their literal strings against each
-#   other, not by removing the duplication. A raw, non-UTF-8-encoded byte in
-#   that same range
+#   `semgrep-report-check.sh`'s own `.path` pipeline folds, sharing the
+#   filter text itself via ${ANNOTATION_SANITIZE_JQ_FILTER} below rather
+#   than retyping it (issue #91), using the same jq builtin class `tr`
+#   never covered. A raw, non-UTF-8-encoded byte in that same range
 #   (invalid on its own, with no continuation byte) is neutralized too, as
 #   a side effect of jq requiring valid UTF-8 input: it substitutes U+FFFD
 #   rather than erroring, which is not a control codepoint either.
@@ -63,8 +60,17 @@
 # literal, never text derived from $1 or from any other caller-controlled
 # input, or the exact forgery this function exists to close reopens on the
 # jq-failure branch.
+#
+# The filter text itself is a shared constant (issue #91) rather than a
+# string this function alone owns: semgrep-report-check.sh's own two
+# gsub() call sites interpolate ${ANNOTATION_SANITIZE_JQ_FILTER} into
+# their own jq program instead of retyping the filter, so all three sites
+# are identical by construction - one bash variable, not three
+# hand-maintained copies compared for drift after the fact.
+readonly ANNOTATION_SANITIZE_JQ_FILTER='gsub("%"; "%25") | gsub("[[:cntrl:]]"; " ")'
+
 sanitize_for_annotation() {
     local fallback="${2:-(unavailable)}"
-    printf '%s' "$1" | jq -Rsr 'gsub("%"; "%25") | gsub("[[:cntrl:]]"; " ")' 2>/dev/null \
+    printf '%s' "$1" | jq -Rsr "${ANNOTATION_SANITIZE_JQ_FILTER}" 2>/dev/null \
         || printf '%s' "${fallback}"
 }
