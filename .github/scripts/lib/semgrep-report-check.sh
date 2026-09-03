@@ -591,16 +591,19 @@ assert_semgrep_report_complete() {
 # block documents for ordinary tracked binary assets (a `.png`, a font), just
 # for a format that CAN carry scannable source where those cannot. Confirmed
 # directly (not just inferred from the binary-asset case), as observed
-# 2026-09-03 against Semgrep 1.175.0 (the workflow pins 1.174.0; not
-# independently confirmed on that exact version), for a tracked zip and a
-# tracked tar.gz each containing a nested PHP payload - full repro in issue
-# #90's own reproduction section. The remaining formats on the list below
-# share the same container/compressor shape and are assumed, not
-# independently reproduced, to behave the same way. Turning this into a
-# hard failure would resurrect exactly the false-positive class issue #49's
-# fix removed - a tracked archive is not inherently a problem (a vendored
-# dependency, a build artifact), so this only surfaces the fact for a
-# reviewer to judge, via a non-blocking annotation.
+# 2026-09-03 against the pinned engine (1.174.0), for one tracked archive
+# per structural family the extension list below covers - a zip-based
+# container (`.zip`, `.jar`, `.whl`), a tar-based container (`.tar.gz`,
+# `.tgz`), a single-file compressor (`.gz`), and a `.7z` archive - full
+# repro in issue #90's own reproduction section. `.war`/`.ear`/`.apk`
+# (zip-based), `.tbz2`/`.txz` (tar-based), and `.bz2`/`.xz`/`.rar`
+# (compressor/archive) are each the same structural shape as an
+# already-confirmed sibling and are not independently reproduced beyond
+# that. Turning this into a hard failure would resurrect exactly the
+# false-positive class issue #49's fix removed - a tracked archive is not
+# inherently a problem (a vendored dependency, a build artifact), so this
+# only surfaces the fact for a reviewer to judge, via a non-blocking
+# annotation.
 #
 # Every failure mode here (a mktemp or `git ls-files` failure) degrades to a
 # `::warning::` and `return 0` rather than propagating, for the same reason -
