@@ -56,10 +56,14 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   run — the direct pin
   stops an upstream release from changing the tool version, but not from changing
   what it depends on. Bump the version in the `.in` file, then regenerate matching
-  the runner these tools actually install on
-  (`grep -h "python-version:\|runs-on:" .github/workflows/code-scanning.yml
-  .github/workflows/yamllint.yml`; both currently `'3.12'` on `ubuntu-latest`, i.e.
-  linux/amd64) — pin the container platform explicitly, or a Docker host on a
+  the runner these tools actually install on. Re-derive which Python version and
+  runner that is (both currently `'3.12'` on `ubuntu-latest`, i.e. linux/amd64):
+
+  ```bash
+  grep -h "python-version:\|runs-on:" .github/workflows/code-scanning.yml .github/workflows/yamllint.yml
+  ```
+
+  Pin the container platform explicitly, or a Docker host on a
   different architecture (e.g. Apple Silicon) resolves different wheels/hashes
   than the runner installs and `--only-binary=:all:` then fails the install rather
   than silently degrading:
@@ -205,13 +209,35 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   `@<branch>`, let its real CI run, confirm green, then flip back to `@main`.
 - **Least privilege.** Every workflow declares the narrowest `permissions:` it needs.
   Do not widen a scope without a concrete reason.
-- **No secrets passing.** The workflows run on the caller's `GITHUB_TOKEN`. Do not add
-  `secrets:` inputs unless a workflow genuinely needs a non-default token.
-  `ai-issue-labeler.yml` is the one exception (re-derive: `grep -rl "^\s*secrets:"
-  .github/workflows/` should return only that file): it calls the Anthropic API, which
-  needs its own key, and this account has no org-wide secret inheritance to source it
-  from — every consuming repository configures its own `ANTHROPIC_API_KEY` and passes
-  it through explicitly (see that workflow's own header comment for the exact shape).
+- **No secrets passing.** The workflows run on the caller's `GITHUB_TOKEN`. Do not
+  declare a NEW `on: workflow_call: secrets:` input on a reusable workflow unless it
+  genuinely needs a non-default token. `ai-issue-labeler.yml` is the one exception:
+  it calls the Anthropic API, which needs its own key, and this account has no
+  org-wide secret inheritance to source it from — every consuming repository
+  configures its own `ANTHROPIC_API_KEY` and passes it through explicitly (see that
+  workflow's own header comment for the exact shape). Re-derive per-file, since a
+  plain `grep -rl "^\s*secrets:"` also matches a caller job's `secrets:` block that
+  PASSES a value into such a workflow — a different YAML shape for a different
+  purpose, e.g. `issue-labels.yml`'s own caller job — rather than a reusable
+  workflow DECLARING one. This command MUST stay in a fenced code block, not an
+  inline span: an agent reads this file's raw text, where markdown's soft-wrap
+  reflow never happens, and a multi-line shell command split across bare
+  prose lines without line-continuations silently becomes several disconnected
+  statements instead of one — reproduced live, it hangs waiting on stdin rather
+  than failing loudly.
+
+  ```bash
+  for f in .github/workflows/*.yml; do
+      awk -v f="$f" '
+          /^on:/ {inon=1}
+          inon && /workflow_call:/ {wc=1}
+          inon && wc && /^[[:space:]]*secrets:/ {print f; exit}
+          /^jobs:/ {exit}
+      ' "$f"
+  done
+  ```
+
+  Should print only `.github/workflows/ai-issue-labeler.yml`.
 - **A `pull_request` run gives the PR real influence over execution — that is the model,
   not a leak — though the reach differs by shape.** In the same repo as the PR (this
   repo's own `lint.yml`, triggered directly), GitHub takes the workflow file itself from
