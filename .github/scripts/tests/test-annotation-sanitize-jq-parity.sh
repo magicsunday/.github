@@ -10,6 +10,15 @@
 # identical by construction, and this test's job shrinks to proving no site
 # quietly reverted to a hand-typed literal.
 #
+# Anchored on each REAL call site's own surrounding, unrelated code rather
+# than counted by occurrence of the constant's name anywhere in the file:
+# a plain `grep -c NAME >= 2` threshold passes on two unrelated prose
+# comments alone, with the one real call site reverted to a hand-typed
+# literal right beside them - mutation-confirmed, test-quality-reviewer,
+# GH-91. Anchoring on the call site's own neighbouring text (which a
+# reversion does not touch) closes that gap without trying to pattern-match
+# every whitespace/quoting variant a hand-typed reversion could take.
+#
 # Run via run-tests.sh.
 set -uo pipefail
 
@@ -34,26 +43,29 @@ source "${ANNOTATION_SANITIZE_FILE}"
 assert_eq "ANNOTATION_SANITIZE_JQ_FILTER is the exact escape-then-fold filter" \
     'gsub("%"; "%25") | gsub("[[:cntrl:]]"; " ")' "${ANNOTATION_SANITIZE_JQ_FILTER:-}"
 
-# Exactly one call site (sanitize_for_annotation() itself) interpolates the
-# constant without quoting it inside the jq program string, and both
-# semgrep-report-check.sh sites interpolate it quoted (they sit inside a
-# larger single-quoted jq program, so bash string concatenation needs the
-# surrounding quotes). Both forms are legitimate uses, so this counts
-# occurrences of the variable NAME rather than requiring one exact spelling.
-sanitize_uses="$(grep -c 'ANNOTATION_SANITIZE_JQ_FILTER' "${ANNOTATION_SANITIZE_FILE}")"
-report_check_uses="$(grep -c 'ANNOTATION_SANITIZE_JQ_FILTER' "${REPORT_CHECK_FILE}")"
-assert_eq "annotation-sanitize.sh references ANNOTATION_SANITIZE_JQ_FILTER at least twice (definition + use)" \
-    "true" "$([ "${sanitize_uses}" -ge 2 ] && echo true || echo false)"
-assert_eq "semgrep-report-check.sh references ANNOTATION_SANITIZE_JQ_FILTER at both call sites" \
-    "true" "$([ "${report_check_uses}" -ge 2 ] && echo true || echo false)"
+# Exactly one definition, and it is readonly - a second, non-readonly
+# definition anywhere would let a later reassignment silently diverge from
+# the assertion above without any of the per-site checks below noticing.
+assert_eq "ANNOTATION_SANITIZE_JQ_FILTER is declared readonly exactly once" \
+    "1" "$(grep -cE '^readonly ANNOTATION_SANITIZE_JQ_FILTER=' "${ANNOTATION_SANITIZE_FILE}")"
 
-# The regression this guards against: a call site quietly reverting to its
-# own hand-typed literal instead of the shared constant. A literal
-# `gsub("%"; "%25")` may appear ONLY inside annotation-sanitize.sh's own
-# constant definition and its prose comments (which name the filter for a
-# human reader) - never as executable jq text in semgrep-report-check.sh.
-literal_in_report_check="$(grep -c 'gsub("%"; "%25")' "${REPORT_CHECK_FILE}")"
-assert_eq "semgrep-report-check.sh contains no hand-typed literal copy of the sanitiser filter" \
-    "0" "${literal_in_report_check}"
+# Each of the three real call sites, anchored on its own surrounding code
+# (not merely on the constant's name appearing somewhere in the file) -
+# a reversion to a hand-typed literal at any ONE of them fails exactly that
+# site's assertion, regardless of what the other two sites or a stray
+# comment elsewhere in the file say.
+sanitize_use_pattern='jq -Rsr "${ANNOTATION_SANITIZE_JQ_FILTER}"'
+path_pipeline_pattern='| '"'"'"${ANNOTATION_SANITIZE_JQ_FILTER}"'"'"') as $path'
+missing_path_pattern='map('"'"'"${ANNOTATION_SANITIZE_JQ_FILTER}"'"'"')'
+
+assert_nonempty \
+    "$(grep -F -- "${sanitize_use_pattern}" "${ANNOTATION_SANITIZE_FILE}")" \
+    "sanitize_for_annotation() in ${ANNOTATION_SANITIZE_FILE} does not interpolate ANNOTATION_SANITIZE_JQ_FILTER into its jq -Rsr call"
+assert_nonempty \
+    "$(grep -F -- "${path_pipeline_pattern}" "${REPORT_CHECK_FILE}")" \
+    "the .path pipeline in ${REPORT_CHECK_FILE} does not interpolate ANNOTATION_SANITIZE_JQ_FILTER"
+assert_nonempty \
+    "$(grep -F -- "${missing_path_pattern}" "${REPORT_CHECK_FILE}")" \
+    "the batched missing-path pipeline in ${REPORT_CHECK_FILE} does not interpolate ANNOTATION_SANITIZE_JQ_FILTER"
 
 report_and_exit "annotation-sanitize jq-filter parity drift-guard test"
