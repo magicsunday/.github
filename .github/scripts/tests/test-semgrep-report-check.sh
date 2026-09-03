@@ -499,12 +499,18 @@ unset -f cat
 # just below).
 run_under_shadowed_rm() {
     local fixture="$1" repo_root="${2:-}"
-    local script
-    script="set -euo pipefail
-source \"${SCRIPT_DIR}/../lib/semgrep-report-check.sh\"
+    # Fixture/repo_root are always internally-generated mktemp paths here (no
+    # attacker/external input reaches this test-only helper), but passing
+    # them as bash -c's OWN positional arguments ($1/$2) rather than
+    # interpolating them into the source string costs nothing and closes the
+    # injection SHAPE outright, rather than relying on the current callers
+    # never needing it (CodeRabbit, round-93-review).
+    bash -c '
+set -euo pipefail
+source "'"${SCRIPT_DIR}"'/../lib/semgrep-report-check.sh"
 rm() { command false; }
-assert_semgrep_report_complete \"${fixture}\" \"${repo_root}\""
-    bash -c "${script}" 2>&1
+assert_semgrep_report_complete "$1" "$2"
+' _ "${fixture}" "${repo_root}" 2>&1
 }
 
 rm_guard_output="$(run_under_shadowed_rm "${non_string_path}")"
