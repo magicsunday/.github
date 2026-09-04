@@ -102,13 +102,7 @@ assert_eq "assert_readme_catalog_complete: a fully-documented catalog prints not
 # final-newline shape) must not lose the catalog's last row: this pins
 # `sed`'s own handling of an unterminated final line during table
 # extraction. `printf` (no `EOF\n` heredoc terminator) constructs this
-# exact shape. Note: this does NOT exercise assert_readme_catalog_complete's
-# own inner `read` EOF guard (the `|| [ -n "${line}" ]` on the loop over
-# `catalog_table`) - that loop reads via a here-string, which always
-# supplies its own trailing newline regardless of this fixture, so the
-# guard there is defense-in-depth against a future change to that read
-# source, not something a black-box test of this function can currently
-# discriminate.
+# exact shape.
 printf '| Workflow | Purpose | Permissions |\n| --- | --- | --- |\n| `real.yml` | Does the real thing | `contents: read` |' \
     > "${readme_file}"
 

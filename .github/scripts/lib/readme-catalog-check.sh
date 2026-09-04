@@ -71,20 +71,7 @@ assert_readme_catalog_complete() {
     while IFS= read -r name; do
         [ -n "${name}" ] || continue
         found=0
-        # `|| [ -n "${line}" ]` is defense-in-depth, not a fix for a live
-        # bug at this call site: `<<<` always appends its own trailing
-        # newline to whatever `catalog_table` holds, so `read` can never
-        # actually hit "captured content but returned non-zero at EOF"
-        # here. It guards against a FUTURE change to how catalog_table is
-        # fed into this loop (e.g. switching to `< "${readme_file}"`
-        # directly, where a file genuinely lacking a trailing newline
-        # would otherwise silently drop its last line before ever being
-        # compared) - kept because it costs nothing and the failure mode
-        # it guards against is a real, previously-hit trap
-        # (verified 2026-09-05: reproducible with a `printf`-built, no-
-        # trailing-newline file read via `< file`, not via this loop's
-        # actual here-string input).
-        while IFS= read -r line || [ -n "${line}" ]; do
+        while IFS= read -r line; do
             case "${line}" in
                 "| \`${name}\` |"*)
                     found=1
