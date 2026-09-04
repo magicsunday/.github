@@ -13,17 +13,12 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # indentation rather than a bare substring match, since a file could
 # mention the trigger name inside a comment without that line being the
 # trigger itself. Routed through sanitize_for_annotation()
-# (annotation-sanitize.sh) before printing: a git-tracked filename may
-# legally carry a raw control byte OR a percent-encoded one (`%0D%0A`,
-# which the Actions runner decodes back to a real CRLF at render time),
-# and this value is later interpolated into a `::error::` workflow-command
-# annotation by the caller - either channel, left open, would let an
-# attacker-chosen filename inject a second, attacker-controlled workflow
-# command into that job's own log stream. Folding here (rather than only
-# at the point of annotation) also keeps this function's one-name-per-line
-# output contract intact for its own caller below, which reads it back
-# with `read` - a raw embedded newline would otherwise split one name
-# across two lines.
+# (annotation-sanitize.sh) before printing - a git-tracked filename could
+# otherwise carry either forgery channel that function's own header dates
+# and explains - which also keeps this function's one-name-per-line output
+# contract intact for its own caller below, which reads it back with
+# `read`: a raw embedded newline would otherwise split one name across two
+# lines.
 find_workflow_call_targets() {
     local workflows_dir="$1"
     local workflow_file name
@@ -52,6 +47,19 @@ find_workflow_call_targets() {
 # `.yml`), which `grep -E` would treat as "any character" instead of a
 # literal dot - `case` compares it as a literal string with no such
 # widening.
+#
+# Accepted, documented residual risk: the table's end boundary is the next
+# BLANK line, not a heading or the row syntax itself. If a future edit
+# ever removes the blank line separating the main catalog from an
+# immediately-following, identically-row-shaped table (e.g. Inputs), the
+# extraction silently widens to include that table's rows too - the same
+# false-pass this scoping exists to prevent, just re-opened a different
+# way. Not engineered around: doing so needs a real markdown-table parser
+# for what is a documentation-consistency check, not a security boundary,
+# and every README section in this repository is otherwise blank-line
+# separated by convention. A header-line wording change fails closed
+# instead (an empty catalog_table reports every target as missing, a loud
+# CI failure) rather than silently.
 assert_readme_catalog_complete() {
     local workflows_dir="$1"
     local readme_file="$2"
@@ -63,12 +71,19 @@ assert_readme_catalog_complete() {
     while IFS= read -r name; do
         [ -n "${name}" ] || continue
         found=0
-        # `|| [ -n "${line}" ]` keeps the loop body running for a FINAL
-        # line with no trailing newline: `read` returns non-zero at EOF
-        # even when it captured real content there, so without this a
-        # catalog row that happened to be the extracted block's last line
-        # would be silently dropped before ever being compared - a false
-        # "not listed" failure on a row that IS present.
+        # `|| [ -n "${line}" ]` is defense-in-depth, not a fix for a live
+        # bug at this call site: `<<<` always appends its own trailing
+        # newline to whatever `catalog_table` holds, so `read` can never
+        # actually hit "captured content but returned non-zero at EOF"
+        # here. It guards against a FUTURE change to how catalog_table is
+        # fed into this loop (e.g. switching to `< "${readme_file}"`
+        # directly, where a file genuinely lacking a trailing newline
+        # would otherwise silently drop its last line before ever being
+        # compared) - kept because it costs nothing and the failure mode
+        # it guards against is a real, previously-hit trap
+        # (verified 2026-09-05: reproducible with a `printf`-built, no-
+        # trailing-newline file read via `< file`, not via this loop's
+        # actual here-string input).
         while IFS= read -r line || [ -n "${line}" ]; do
             case "${line}" in
                 "| \`${name}\` |"*)
