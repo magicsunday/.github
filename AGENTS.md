@@ -122,10 +122,12 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   Code scanning reads what an uploaded report omits as *fixed*, so a scan that
   quietly covered less than the tree retires real alerts, and an exit code does not
   carry that. `code-scanning.yml` sources `.github/scripts/lib/semgrep-report-check.sh`
-  to check a skip inventory, and `lint.yml`'s `semgrep-smoke` job sources the same
-  file for its `build_minified_fixture()` and `assert_absent_from_json_array()`
-  helpers; its comments hold the mechanics
-  and the commands that re-derive them. Two prohibitions before you edit it: do not
+  to check a skip inventory; its comments hold the mechanics
+  and the commands that re-derive them. `lint.yml`'s `semgrep-smoke` job sources the
+  separate `.github/scripts/lib/semgrep-smoke-helpers.sh` for its own
+  `build_minified_fixture()` and `assert_absent_from_json_array()` helpers — split out
+  because neither is a dependency of the production completeness gate (issue #99).
+  Two prohibitions before you edit `semgrep-report-check.sh`: do not
   drop the flags it calls load-bearing, and do not turn its allow list of tolerated
   skip reasons into a deny list — widen that list only for a reason meaning the
   file was never a scan target or its content cannot carry a finding any rule
@@ -162,8 +164,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   request, so a regression in that logic fails CI before it reaches a caller — a
   workflow-only copy could drift silently, since nothing else re-checks a `run:`
   block. `code-scanning.yml` is migrated this way (`semgrep-excludes.sh`,
-  `semgrep-report-check.sh`, `semgrepignore-guard.sh`, `annotation-sanitize.sh`,
-  `retry.sh`, `semgrep-prune-dirs.sh`), as is
+  `semgrep-report-check.sh`, `semgrep-smoke-helpers.sh`, `semgrepignore-guard.sh`,
+  `annotation-sanitize.sh`, `retry.sh`, `semgrep-prune-dirs.sh`), as is
   `ai-issue-labeler.yml` (`ai-issue-labeler.sh` — request construction and
   response parsing) and `zizmor.yml` (`canonical-file-guard.sh` — the
   caller's `.github/zizmor.yml` against the canonical copy this reusable
