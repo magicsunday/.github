@@ -36,33 +36,47 @@ find_workflow_call_targets() {
 }
 
 # Fails closed (returns 1, one ::error:: per miss) unless every name from
-# find_workflow_call_targets() is documented as its own catalog-table row
-# in readme_file ($2) - a line BEGINNING with the backtick-wrapped name,
-# never a bare substring match anywhere in the file. A substring match
-# would also be satisfied by a free-standing prose mention (this
-# repository's own README already has several, e.g. the pip-exclusion
-# paragraph's `auto-merge-deps.yml` reference) with no Purpose/Permissions
-# ever documented for that workflow - exactly the drift this check exists
-# to catch. Matched via a `case` glob rather than grep -E: the interpolated
-# name can contain a literal `.` (every caller here ends in `.yml`), which
-# `grep -E` would treat as "any character" instead of a literal dot -
-# `case` compares it as a literal string with no such widening.
+# find_workflow_call_targets() is documented as its own row in readme_file
+# ($2)'s MAIN workflow catalog table specifically - not merely somewhere in
+# the file. Scoped to the block from that table's own header line through
+# the next blank line, because README.md's separate "Inputs" sub-table uses
+# the identical `| \`name\` | ... |` row shape: without this scoping, a
+# workflow documented ONLY in the Inputs table (no Purpose/Permissions row
+# in the actual catalog) would satisfy the check - exactly the drift this
+# function exists to catch, just relocated to a different table instead of
+# to free-standing prose. A free-standing prose mention of the filename
+# elsewhere in the document (this repository's README has several) would
+# fail this check the same way, even when that workflow has no catalog-table
+# row of its own. Matched via a `case` glob rather than grep -E: the
+# interpolated name can contain a literal `.` (every caller here ends in
+# `.yml`), which `grep -E` would treat as "any character" instead of a
+# literal dot - `case` compares it as a literal string with no such
+# widening.
 assert_readme_catalog_complete() {
     local workflows_dir="$1"
     local readme_file="$2"
     local name line found failed=0
+    local catalog_table
+
+    catalog_table="$(sed -n '/^| Workflow | Purpose | Permissions/,/^$/p' "${readme_file}")"
 
     while IFS= read -r name; do
         [ -n "${name}" ] || continue
         found=0
-        while IFS= read -r line; do
+        # `|| [ -n "${line}" ]` keeps the loop body running for a FINAL
+        # line with no trailing newline: `read` returns non-zero at EOF
+        # even when it captured real content there, so without this a
+        # catalog row that happened to be the extracted block's last line
+        # would be silently dropped before ever being compared - a false
+        # "not listed" failure on a row that IS present.
+        while IFS= read -r line || [ -n "${line}" ]; do
             case "${line}" in
                 "| \`${name}\` |"*)
                     found=1
                     break
                     ;;
             esac
-        done < "${readme_file}"
+        done <<< "${catalog_table}"
 
         if [ "${found}" -eq 0 ]; then
             echo "::error::${name} declares workflow_call: but is not listed in README.md's workflow catalog - add it (see issue #101)."

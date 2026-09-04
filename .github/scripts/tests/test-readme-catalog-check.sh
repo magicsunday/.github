@@ -101,6 +101,19 @@ rc=$?
 assert_eq "assert_readme_catalog_complete: a fully-documented catalog returns 0" "0" "${rc}"
 assert_eq "assert_readme_catalog_complete: a fully-documented catalog prints nothing" "" "${output}"
 
+# `read` returns non-zero at EOF even when it captured real content on a
+# final line with no trailing newline - a naive `while read; do …; done`
+# would silently drop that line before ever comparing it, false-failing on
+# a catalog row that IS present. `printf` (no `EOF\n` heredoc terminator)
+# constructs this exact shape.
+printf '| Workflow | Purpose | Permissions |\n| --- | --- | --- |\n| `real.yml` | Does the real thing | `contents: read` |' \
+    > "${readme_file}"
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a catalog row on the file's last line, with no trailing newline, is still found" \
+    "0" "${rc}"
+
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |
@@ -126,5 +139,30 @@ EOF
 output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
 rc=$?
 assert_eq "assert_readme_catalog_complete: a bare prose mention (not a table row) still fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a bare prose mention names the workflow in its ::error::" \
+    "${output}" "::error::" "real.yml" "not listed in README.md"
+
+# A row shaped exactly like a catalog entry, but living in a DIFFERENT
+# table (README's real "Inputs" sub-table uses the identical
+# `| \`name\` | ... |` row shape) must NOT satisfy the check - only a row
+# inside the MAIN catalog table (the block from its own header through the
+# next blank line) counts as "documented".
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `other.yml` | Some other workflow | `contents: read` |
+
+### Inputs
+
+| Workflow | Input | Default |
+| --- | --- | --- |
+| `real.yml` | `some-input` — not a catalog row | `false` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a row in a DIFFERENT table (e.g. Inputs) still fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: an Inputs-only row names the workflow in its ::error::" \
+    "${output}" "::error::" "real.yml" "not listed in README.md"
 
 report_and_exit "readme-catalog-check tests"
