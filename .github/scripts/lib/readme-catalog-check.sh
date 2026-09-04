@@ -33,16 +33,22 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # never flags it missing either), the OPPOSITE of that function's normal
 # fail-closed behaviour. Every workflow in this repository currently uses
 # the block form (re-derive: `grep -n "^on:" .github/workflows/*.yml
-# .github/workflows/*.yaml` and check none has trailing content on the
-# `on:` line itself), so this has not manifested; widen the pattern if
-# that ever changes. The same silent-miss applies to any `on:` line the
+# .github/workflows/*.yaml 2>/dev/null` and check none has trailing content
+# on the `on:` line itself), so this has not manifested; widen the pattern
+# if that ever changes. The same silent-miss applies to any `on:` line the
 # sed range's own opening pattern doesn't match byte-for-byte (a CRLF line
 # ending, a quoted `'on':` key, or trailing content/whitespace) - re-derive
 # both the absence of CRLF (`grep -lP '\r' .github/workflows/*.yml
-# .github/workflows/*.yaml`, expect no output) and the exact-`on:` claim
-# above together, since either drifting reopens this gap. A column-0
-# COMMENT line inside the `on:` block does NOT end the range early: the sed
-# end pattern only matches a column-0 line that is not itself a comment.
+# .github/workflows/*.yaml 2>/dev/null`, expect no output) and the
+# exact-`on:` claim above together, since either drifting reopens this gap.
+# (The `2>/dev/null` on both commands is load-bearing, not decoration: with
+# no *.yaml file under .github/workflows/ yet, bash passes that glob
+# through literally, and grep reports it as a missing file on stderr with a
+# non-zero exit - shell-script-reviewer, GH-101 round 8.)
+#
+# Verified, NOT a gap: a column-0 COMMENT line inside the `on:` block does
+# NOT end the range early - the sed end pattern only matches a column-0
+# line that is not itself a comment.
 find_workflow_call_targets() {
     local workflows_dir="$1"
     local workflow_file name
