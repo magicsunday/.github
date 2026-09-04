@@ -221,3 +221,38 @@ jobs:
 
             - name: Run shell-logic tests
               run: bash .github/scripts/tests/run-tests.sh
+
+    readme-catalog-fresh:
+        name: Verify README's workflow catalog lists every workflow_call target
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            # Anchored to the `on:` block's own trigger-key indentation
+            # (4 spaces, this repository's house style) rather than a bare
+            # `grep -l "workflow_call:"` - a file may mention the string in
+            # a comment (ai-issue-labeler.yml's header does, discussing its
+            # own `secrets:` input) without that line being the trigger
+            # itself. README.md is checked for the bare filename in
+            # backticks so either table (the main catalog or the Inputs
+            # sub-table) satisfies the check (issue #101).
+            - name: Compare workflow_call targets against README.md
+              run: |
+                  set -euo pipefail
+                  failed=0
+                  for workflow_file in .github/workflows/*.yml; do
+                      name="$(basename "$workflow_file")"
+                      if grep -qE '^ {4}workflow_call:' "$workflow_file" \
+                          && ! grep -qF "\`${name}\`" README.md; then
+                          echo "::error::${name} declares workflow_call: but is not listed in README.md's workflow catalog - add it (see issue #101)."
+                          failed=1
+                      fi
+                  done
+                  exit "${failed}"
