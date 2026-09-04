@@ -55,9 +55,9 @@ find_workflow_call_targets() {
 # without ever having a Purpose/Permissions row of its own - exactly the
 # drift this function exists to catch, just relocated instead of fixed.
 # Matched via a `case` glob rather than grep -E: the interpolated name can
-# contain a literal `.` (every caller here ends in `.yml`), which `grep -E`
-# would treat as "any character" instead of a literal dot - `case` compares
-# it as a literal string with no such widening.
+# contain a literal `.` (a workflow filename's extension separator), which
+# `grep -E` would treat as "any character" instead of a literal dot -
+# `case` compares it as a literal string with no such widening.
 #
 # Known limitation (issue #101): the table's end boundary is the next BLANK
 # line, not a heading. Removing the blank line before an identically-shaped
