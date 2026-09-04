@@ -52,8 +52,9 @@ _harness_fail() {
 # unless "$2" (a haystack) contains EVERY one of "$3.." as a literal
 # substring, IN ANY ORDER -- the single-needle case is the same shape
 # assert_fail() below already had inline. Round 10 of issue #49 also used
-# this shape at three multi-needle call sites in
-# test-semgrep-report-check.sh's assert_absent_from_json_array() assertions,
+# this shape at three multi-needle call sites in what is now
+# test-semgrep-smoke-helpers.sh's assert_absent_from_json_array() assertions
+# (test-semgrep-report-check.sh at the time; moved out by issue #99),
 # but those sites previously used one ORDERED glob per needle set
 # (`*"::error::"*"link.js"*"scanned"*`), not independent per-needle checks -
 # collapsing them to this order-independent form silently dropped that

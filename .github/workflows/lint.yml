@@ -108,8 +108,8 @@ jobs:
                   set -euo pipefail
                   pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/semgrep.txt
 
-                  # shellcheck source=scripts/lib/semgrep-report-check.sh
-                  source .github/scripts/lib/semgrep-report-check.sh
+                  # shellcheck source=scripts/lib/semgrep-smoke-helpers.sh
+                  source .github/scripts/lib/semgrep-smoke-helpers.sh
                   build_minified_fixture bundle.js
 
                   cat > smoke-rule.yml <<'RULE'
@@ -162,8 +162,8 @@ jobs:
               run: |
                   set -euo pipefail
 
-                  # shellcheck source=scripts/lib/semgrep-report-check.sh
-                  source .github/scripts/lib/semgrep-report-check.sh
+                  # shellcheck source=scripts/lib/semgrep-smoke-helpers.sh
+                  source .github/scripts/lib/semgrep-smoke-helpers.sh
 
                   mkdir smoke-repo
                   cd smoke-repo
@@ -184,12 +184,12 @@ jobs:
                       exit 1
                   fi
 
-                  # assert_absent_from_json_array() (semgrep-report-check.sh)
+                  # assert_absent_from_json_array() (semgrep-smoke-helpers.sh)
                   # discriminates jq's exit status explicitly rather than
                   # folding it into one boolean check - a crash while
                   # evaluating the filter must fail loud, not be silently
                   # read as "not found". See its own docblock for why, and
-                  # test-semgrep-report-check.sh for the regression coverage
+                  # test-semgrep-smoke-helpers.sh for the regression coverage
                   # this exact helper needed after shipping inline, unpinned,
                   # twice in round 8 of issue #49. `.path?`, not `.path //
                   # .`: `//` only substitutes on a null/false RESULT, not on
