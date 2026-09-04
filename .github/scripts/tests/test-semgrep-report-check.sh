@@ -163,11 +163,11 @@ assert_starts_with_fail "assert_contains: a missing needle fails" "${contains_mi
 # assert_contains_in_order() has no other call site in this file - the
 # assert_absent_from_json_array() fixtures that used to justify these
 # self-tests moved to test-semgrep-smoke-helpers.sh (issue #99). Re-derive
-# with `grep -c '^assert_contains_in_order "' test-semgrep-report-check.sh`
-# (3, all three below): these three assertions are this file's only direct
-# coverage of the function's order-sensitivity (the round-10 bug this
-# function exists to catch, test-quality-reviewer, mutation-confirmed,
-# round 12).
+# with `grep -c '^[a-z_]*_output="\$(assert_contains_in_order "probe"'
+# test-semgrep-report-check.sh` (3, all three below): these three assertions
+# are this file's only direct coverage of the function's order-sensitivity
+# (the round-10 bug this function exists to catch, test-quality-reviewer,
+# mutation-confirmed, round 12).
 in_order_ok_output="$(assert_contains_in_order "probe" "a needle b needle" "a" "b" 2>&1)"
 assert_eq "assert_contains_in_order: needles present in order pass" "PASS: probe" "${in_order_ok_output}"
 
