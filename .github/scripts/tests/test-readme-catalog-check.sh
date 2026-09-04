@@ -119,6 +119,39 @@ rc=$?
 assert_eq "assert_readme_catalog_complete: a fully-documented catalog returns 0" "0" "${rc}"
 assert_eq "assert_readme_catalog_complete: a fully-documented catalog prints nothing" "" "${output}"
 
+# End-to-end: a .yaml-extension target flows through the full completeness
+# assertion, not just find_workflow_call_targets() in isolation
+# (adversarial-reviewer, GH-101 round 3).
+cat > "${workflows_dir}/e2e.yaml" <<'EOF'
+on:
+    workflow_call:
+EOF
+
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `e2e.yaml` | End-to-end .yaml coverage | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a documented .yaml-extension target passes end-to-end" "0" "${rc}"
+
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: an undocumented .yaml-extension target fails end-to-end" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: an undocumented .yaml-extension target names itself in its ::error::" \
+    "${output}" "::error::" "e2e.yaml" "not listed in README.md"
+
+rm -f "${workflows_dir}/e2e.yaml"
+
 # A README.md missing its final newline (a common editor/save-without-
 # final-newline shape) must not lose the catalog's last row: this pins
 # `sed`'s own handling of an unterminated final line during table

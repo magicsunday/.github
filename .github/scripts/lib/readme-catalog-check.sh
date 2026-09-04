@@ -23,12 +23,13 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # Known limitation (issue #101): only the block form (`on:` followed by an
 # indented `workflow_call:` key) is detected. GitHub Actions also accepts a
 # scalar or flow-sequence trigger shorthand (`on: workflow_call` / `on:
-# [push, workflow_call]`) - a file using either would fail closed the same
-# way an undocumented target does today (nothing prints, so nothing is
-# flagged missing either), silently rather than loudly. Every workflow in
-# this repository currently uses the block form (re-derive: `grep -n
-# "^on:" .github/workflows/*.yml` and check none has trailing content on
-# the `on:` line itself), so this has not manifested; widen the pattern if
+# [push, workflow_call]`) - a file using either is silently invisible to
+# this function (nothing prints, so assert_readme_catalog_complete() below
+# never flags it missing either), the OPPOSITE of that function's normal
+# fail-closed behaviour. Every workflow in this repository currently uses
+# the block form (re-derive: `grep -n "^on:" .github/workflows/*.yml
+# .github/workflows/*.yaml` and check none has trailing content on the
+# `on:` line itself), so this has not manifested; widen the pattern if
 # that ever changes.
 find_workflow_call_targets() {
     local workflows_dir="$1"
@@ -47,8 +48,8 @@ find_workflow_call_targets() {
 # ($2)'s MAIN workflow catalog table specifically - not merely somewhere in
 # the file. Scoped to the block from that table's own header line through
 # the next blank line: README.md has other sections using the identical
-# `| \`name\` | ... |` row shape (re-derive: `grep -n '| \`.*\.yml\` |'
-# README.md` and check which headings the hits fall under) - without this
+# `| \`name\` | ... |` row shape (re-derive: `grep -n -E '\| \`.*\.ya?ml\`
+# \|' README.md` and check which headings the hits fall under) - without this
 # scoping, a workflow documented in one of THOSE (e.g. the "Inputs"
 # sub-table) or mentioned in free-standing prose would satisfy the check
 # without ever having a Purpose/Permissions row of its own - exactly the
