@@ -1,9 +1,10 @@
 name: Security
 
 # Dogfood the reusable security scanners against this repository's own workflow
-# YAML so a template regression is caught here before it ships to consumers. The
-# scanners are invoked through a local `./` ref rather than the published
-# `magicsunday/.github/...@main` ref that downstream repositories use.
+# YAML, dependency manifests and supply-chain posture so a template regression
+# is caught here before it ships to consumers. The scanners are invoked through
+# a local `./` ref rather than the published `magicsunday/.github/...@main` ref
+# that downstream repositories use.
 on:
     push:
         branches: [main]
@@ -35,3 +36,11 @@ jobs:
         permissions:
             contents: read
             security-events: write
+
+    dependency-review:
+        # The action only operates on a pull request's diff.
+        if: github.event_name == 'pull_request'
+        uses: ./.github/workflows/dependency-review.yml
+        permissions:
+            contents: read
+            pull-requests: write
