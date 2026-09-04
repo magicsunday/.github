@@ -2,7 +2,8 @@
 # Exercises find_workflow_call_targets() and assert_readme_catalog_complete()
 # (.github/scripts/lib/readme-catalog-check.sh), the functions lint.yml's
 # "readme-catalog-fresh" job sources to keep README.md's workflow catalog
-# honest against the real *.yml files (issue #101). Run via run-tests.sh.
+# honest against the real *.yml/*.yaml files (issue #101). Run via
+# run-tests.sh.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,6 +47,23 @@ assert_eq "find_workflow_call_targets: only the file with a real, correctly-inde
     "real.yml" \
     "$(find_workflow_call_targets "${workflows_dir}")"
 
+# GitHub Actions accepts a .yaml extension exactly as it accepts .yml -
+# adversarial-reviewer, GH-101 round 2: the original glob only matched
+# *.yml, so a workflow_call target saved as .yaml was silently invisible
+# to the whole check rather than being flagged as undocumented.
+cat > "${workflows_dir}/real-yaml-ext.yaml" <<'EOF'
+name: Real, .yaml extension
+on:
+    workflow_call:
+jobs:
+    x:
+        runs-on: ubuntu-latest
+EOF
+
+assert_contains "find_workflow_call_targets: a .yaml-extension file with a real trigger is not skipped" \
+    "$(find_workflow_call_targets "${workflows_dir}")" "real-yaml-ext.yaml"
+rm -f "${workflows_dir}/real-yaml-ext.yaml"
+
 # A percent-encoded CRLF (`%0D%0A`) in a filename is a forgery channel
 # SEPARATE from a raw control byte - see annotation-sanitize.sh's own
 # header for why both need neutralising and why a plain `tr -d '\r\n'`
@@ -56,9 +74,12 @@ cat > "${workflows_dir}/%0D%0A::add-mask::pwned.yml" <<'EOF'
 on:
     workflow_call:
 EOF
-assert_eq "find_workflow_call_targets: a percent-encoded CRLF in the filename is escaped, not left decodable" \
-    "%250D%250A::add-mask::pwned.yml" \
-    "$(find_workflow_call_targets "${workflows_dir}" | grep '0D')"
+# Structural wiring check, not a re-pin of sanitize_for_annotation()'s exact
+# escape format - that byte-exact guarantee already lives at its one source,
+# test-annotation-sanitize.sh (simplicity-reviewer: two exact-value pins of
+# the same fact drift independently).
+assert_contains "find_workflow_call_targets: a percent-encoded CRLF in the filename is escaped, not left decodable" \
+    "$(find_workflow_call_targets "${workflows_dir}" | grep '0D')" "%25"
 rm -f "${workflows_dir}/%0D%0A::add-mask::pwned.yml"
 
 # A git-tracked filename may legally contain an embedded newline - see
@@ -140,10 +161,11 @@ assert_contains "assert_readme_catalog_complete: a bare prose mention names the 
     "${output}" "::error::" "real.yml" "not listed in README.md"
 
 # A row shaped exactly like a catalog entry, but living in a DIFFERENT
-# table using the same `| \`name\` | ... |` row shape (mirroring README's
-# real "Inputs" sub-table), must NOT satisfy the check - only a row inside
-# the MAIN catalog table (the block from its own header through the next
-# blank line) counts as "documented".
+# table using the same `| \`name\` | ... |` row shape, must NOT satisfy
+# the check - only a row inside the MAIN catalog table (the block from
+# its own header through the next blank line) counts as "documented".
+# (readme-catalog-check.sh's own docstring carries the one re-derivable
+# claim that README.md has a real table matching this fixture's shape.)
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |

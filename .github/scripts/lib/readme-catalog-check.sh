@@ -7,7 +7,7 @@
 # shellcheck source=annotation-sanitize.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 
-# Prints, one per line, the basename of every *.yml file under
+# Prints, one per line, the basename of every *.yml/*.yaml file under
 # workflows_dir ($1) whose `on:` block declares a real workflow_call
 # trigger - anchored to this house style's own 4-space trigger-key
 # indentation rather than a bare substring match, since a file could
@@ -19,10 +19,22 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # contract intact for its own caller below, which reads it back with
 # `read`: a raw embedded newline would otherwise split one name across two
 # lines.
+#
+# Known limitation (issue #101): only the block form (`on:` followed by an
+# indented `workflow_call:` key) is detected. GitHub Actions also accepts a
+# scalar or flow-sequence trigger shorthand (`on: workflow_call` / `on:
+# [push, workflow_call]`) - a file using either would fail closed the same
+# way an undocumented target does today (nothing prints, so nothing is
+# flagged missing either), silently rather than loudly. Every workflow in
+# this repository currently uses the block form (re-derive: `grep -n
+# "^on:" .github/workflows/*.yml` and check none has trailing content on
+# the `on:` line itself), so this has not manifested; widen the pattern if
+# that ever changes.
 find_workflow_call_targets() {
     local workflows_dir="$1"
     local workflow_file name
-    for workflow_file in "${workflows_dir}"/*.yml; do
+    for workflow_file in "${workflows_dir}"/*.yml "${workflows_dir}"/*.yaml; do
+        [ -e "${workflow_file}" ] || continue
         if grep -qE '^ {4}workflow_call:' "${workflow_file}"; then
             name="$(sanitize_for_annotation "$(basename "${workflow_file}")")"
             printf '%s\n' "${name}"
