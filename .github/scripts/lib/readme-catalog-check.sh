@@ -34,32 +34,23 @@ find_workflow_call_targets() {
 # find_workflow_call_targets() is documented as its own row in readme_file
 # ($2)'s MAIN workflow catalog table specifically - not merely somewhere in
 # the file. Scoped to the block from that table's own header line through
-# the next blank line, because README.md's separate "Inputs" sub-table uses
-# the identical `| \`name\` | ... |` row shape: without this scoping, a
-# workflow documented ONLY in the Inputs table (no Purpose/Permissions row
-# in the actual catalog) would satisfy the check - exactly the drift this
-# function exists to catch, just relocated to a different table instead of
-# to free-standing prose. A free-standing prose mention of the filename
-# elsewhere in the document (this repository's README has several) would
-# fail this check the same way, even when that workflow has no catalog-table
-# row of its own. Matched via a `case` glob rather than grep -E: the
-# interpolated name can contain a literal `.` (every caller here ends in
-# `.yml`), which `grep -E` would treat as "any character" instead of a
-# literal dot - `case` compares it as a literal string with no such
-# widening.
+# the next blank line: README.md has other sections using the identical
+# `| \`name\` | ... |` row shape (re-derive: `grep -n '| \`.*\.yml\` |'
+# README.md` and check which headings the hits fall under) - without this
+# scoping, a workflow documented in one of THOSE (e.g. the "Inputs"
+# sub-table) or mentioned in free-standing prose would satisfy the check
+# without ever having a Purpose/Permissions row of its own - exactly the
+# drift this function exists to catch, just relocated instead of fixed.
+# Matched via a `case` glob rather than grep -E: the interpolated name can
+# contain a literal `.` (every caller here ends in `.yml`), which `grep -E`
+# would treat as "any character" instead of a literal dot - `case` compares
+# it as a literal string with no such widening.
 #
-# Accepted, documented residual risk: the table's end boundary is the next
-# BLANK line, not a heading or the row syntax itself. If a future edit
-# ever removes the blank line separating the main catalog from an
-# immediately-following, identically-row-shaped table (e.g. Inputs), the
-# extraction silently widens to include that table's rows too - the same
-# false-pass this scoping exists to prevent, just re-opened a different
-# way. Not engineered around: doing so needs a real markdown-table parser
-# for what is a documentation-consistency check, not a security boundary,
-# and every README section in this repository is otherwise blank-line
-# separated by convention. A header-line wording change fails closed
-# instead (an empty catalog_table reports every target as missing, a loud
-# CI failure) rather than silently.
+# Known limitation (issue #101): the table's end boundary is the next BLANK
+# line, not a heading. Removing the blank line before an identically-shaped
+# table would silently widen extraction into it. A header-line wording
+# change instead fails closed (an empty catalog_table reports every target
+# as missing, a loud CI failure) rather than silently.
 assert_readme_catalog_complete() {
     local workflows_dir="$1"
     local readme_file="$2"

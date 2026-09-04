@@ -140,10 +140,10 @@ assert_contains "assert_readme_catalog_complete: a bare prose mention names the 
     "${output}" "::error::" "real.yml" "not listed in README.md"
 
 # A row shaped exactly like a catalog entry, but living in a DIFFERENT
-# table (README's real "Inputs" sub-table uses the identical
-# `| \`name\` | ... |` row shape) must NOT satisfy the check - only a row
-# inside the MAIN catalog table (the block from its own header through the
-# next blank line) counts as "documented".
+# table using the same `| \`name\` | ... |` row shape (mirroring README's
+# real "Inputs" sub-table), must NOT satisfy the check - only a row inside
+# the MAIN catalog table (the block from its own header through the next
+# blank line) counts as "documented".
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |
