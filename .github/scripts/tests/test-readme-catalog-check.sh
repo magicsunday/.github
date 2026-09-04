@@ -46,6 +46,24 @@ assert_eq "find_workflow_call_targets: only the file with a real, correctly-inde
     "real.yml" \
     "$(find_workflow_call_targets "${workflows_dir}")"
 
+# A percent-encoded CRLF (`%0D%0A`) in a filename is a SEPARATE forgery
+# channel from a raw control byte: the Actions runner decodes an
+# already-escaped `%0D`/`%0A` sequence back to a real CRLF at render time,
+# indistinguishable from literal `%0D%0A` text in the source data unless a
+# bare `%` is escaped to `%25` first (annotation-sanitize.sh's own
+# rationale). A plain `tr -d '\r\n'` does not see this channel at all,
+# since no raw CR/LF byte is present until the runner decodes it - only
+# routing through sanitize_for_annotation() closes it.
+touch "${workflows_dir}/%0D%0A::add-mask::pwned.yml"
+cat > "${workflows_dir}/%0D%0A::add-mask::pwned.yml" <<'EOF'
+on:
+    workflow_call:
+EOF
+assert_eq "find_workflow_call_targets: a percent-encoded CRLF in the filename is escaped, not left decodable" \
+    "%250D%250A::add-mask::pwned.yml" \
+    "$(find_workflow_call_targets "${workflows_dir}" | grep '0D')"
+rm -f "${workflows_dir}/%0D%0A::add-mask::pwned.yml"
+
 # A git-tracked filename may legally contain an embedded newline; this
 # value later becomes part of a ::error:: workflow-command annotation, so
 # an unstripped newline would let the annotation's own text forge a second,

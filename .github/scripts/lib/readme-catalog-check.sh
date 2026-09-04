@@ -4,23 +4,32 @@
 # test drive the same file rather than two copies that can drift apart
 # (issue #101).
 
+# shellcheck source=annotation-sanitize.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
+
 # Prints, one per line, the basename of every *.yml file under
 # workflows_dir ($1) whose `on:` block declares a real workflow_call
 # trigger - anchored to this house style's own 4-space trigger-key
 # indentation rather than a bare substring match, since a file could
 # mention the trigger name inside a comment without that line being the
-# trigger itself. Strips any embedded CR/LF from the name before printing it:
-# a git-tracked filename may legally contain either, and this value is
-# later interpolated into a `::error::` workflow-command annotation by the
-# caller - an unstripped newline there would let an attacker-chosen
-# filename inject a second, attacker-controlled workflow command into that
-# job's own log stream.
+# trigger itself. Routed through sanitize_for_annotation()
+# (annotation-sanitize.sh) before printing: a git-tracked filename may
+# legally carry a raw control byte OR a percent-encoded one (`%0D%0A`,
+# which the Actions runner decodes back to a real CRLF at render time),
+# and this value is later interpolated into a `::error::` workflow-command
+# annotation by the caller - either channel, left open, would let an
+# attacker-chosen filename inject a second, attacker-controlled workflow
+# command into that job's own log stream. Folding here (rather than only
+# at the point of annotation) also keeps this function's one-name-per-line
+# output contract intact for its own caller below, which reads it back
+# with `read` - a raw embedded newline would otherwise split one name
+# across two lines.
 find_workflow_call_targets() {
     local workflows_dir="$1"
     local workflow_file name
     for workflow_file in "${workflows_dir}"/*.yml; do
         if grep -qE '^ {4}workflow_call:' "${workflow_file}"; then
-            name="$(basename "${workflow_file}" | tr -d '\r\n')"
+            name="$(sanitize_for_annotation "$(basename "${workflow_file}")")"
             printf '%s\n' "${name}"
         fi
     done
