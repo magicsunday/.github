@@ -3,8 +3,9 @@
 # (.github/scripts/lib/semgrep-smoke-helpers.sh) - lint.yml's semgrep-smoke
 # job's own helpers, sourced only there and here (issue #99). Isolated in its
 # own file rather than folded into test-semgrep-report-check.sh: neither
-# helper is a dependency of assert_semgrep_report_complete() or
-# warn_tracked_archives(), the two functions that test file actually pins.
+# helper is a dependency of assert_semgrep_report_complete() - the one
+# function that test file pins (warn_tracked_archives() has its own
+# test-warn-tracked-archives.sh).
 #
 # No `set -e`: assert_eq/assert_contains capture failures via the shared
 # `failures` counter, and a failing assertion must be counted, not abort the

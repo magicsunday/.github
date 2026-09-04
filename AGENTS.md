@@ -171,10 +171,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   caller's `.github/zizmor.yml` against the canonical copy this reusable
   workflow checks out via `job.workflow_repository`/`job.workflow_sha`).
   `lint.yml`'s own `semgrep-smoke` job follows the same pattern
-  (`semgrep-smoke-helpers.sh` — `build_minified_fixture()` and
-  `assert_absent_from_json_array()`, split out of `semgrep-report-check.sh`
-  because neither is a dependency of `code-scanning.yml`'s completeness gate,
-  issue #99).
+  (`semgrep-smoke-helpers.sh`, split out of `semgrep-report-check.sh` per the
+  scan-report-completeness bullet above).
   `yamllint.yml` and `i18n.yml` carry comparable inline
   `run:` logic that was deliberately left un-migrated when this convention was
   introduced (GH-47) — extending it to those is a separate decision, not something
