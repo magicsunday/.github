@@ -8,17 +8,20 @@
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 
 # Prints, one per line, the basename of every *.yml/*.yaml file under
-# workflows_dir ($1) whose `on:` block declares a real workflow_call
-# trigger - anchored to this house style's own 4-space trigger-key
-# indentation rather than a bare substring match, since a file could
-# mention the trigger name inside a comment without that line being the
-# trigger itself. Routed through sanitize_for_annotation()
-# (annotation-sanitize.sh) before printing - a git-tracked filename could
-# otherwise carry either forgery channel that function's own header dates
-# and explains - which also keeps this function's one-name-per-line output
-# contract intact for its own caller below, which reads it back with
-# `read`: a raw embedded newline would otherwise split one name across two
-# lines.
+# workflows_dir ($1) whose top-level `on:` block declares a real
+# workflow_call trigger - anchored to this house style's own 4-space
+# trigger-key indentation AND scoped to sit inside the `on:` mapping itself
+# (tracked line-by-line: a bare `on:` line opens the block, any indented
+# line stays inside it, the next non-blank column-0 line closes it), since
+# `workflow_call` is also a legal JOB id - a job section named
+# `workflow_call:` at the same 4-space depth as a real trigger key would
+# otherwise false-positive (CodeRabbit, GH-101 PR #117). Routed through
+# sanitize_for_annotation() (annotation-sanitize.sh) before printing - a
+# git-tracked filename could otherwise carry either forgery channel that
+# function's own header dates and explains - which also keeps this
+# function's one-name-per-line output contract intact for its own caller
+# below, which reads it back with `read`: a raw embedded newline would
+# otherwise split one name across two lines.
 #
 # Known limitation (issue #101): only the block form (`on:` followed by an
 # indented `workflow_call:` key) is detected. GitHub Actions also accepts a
@@ -33,10 +36,25 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # that ever changes.
 find_workflow_call_targets() {
     local workflows_dir="$1"
-    local workflow_file name
+    local workflow_file name line in_on found
     for workflow_file in "${workflows_dir}"/*.yml "${workflows_dir}"/*.yaml; do
         [ -e "${workflow_file}" ] || continue
-        if grep -qE '^ {4}workflow_call:' "${workflow_file}"; then
+        in_on=0
+        found=0
+        while IFS= read -r line; do
+            [ -n "${line}" ] || continue
+            case "${line}" in
+                " "*) ;;
+                on:) in_on=1; continue ;;
+                *) in_on=0 ;;
+            esac
+            if [ "${in_on}" -eq 1 ]; then
+                case "${line}" in
+                    "    workflow_call:"*) found=1 ;;
+                esac
+            fi
+        done < "${workflow_file}"
+        if [ "${found}" -eq 1 ]; then
             name="$(sanitize_for_annotation "$(basename "${workflow_file}")")"
             printf '%s\n' "${name}"
         fi

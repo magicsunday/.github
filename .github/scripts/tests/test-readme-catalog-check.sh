@@ -47,6 +47,23 @@ assert_eq "find_workflow_call_targets: only the file with a real, correctly-inde
     "real.yml" \
     "$(find_workflow_call_targets "${workflows_dir}")"
 
+# A job literally named `workflow_call` sits at the same 4-space indent a
+# real trigger key does - CodeRabbit, GH-101 PR #117: the original regex
+# matched any 4-space-indented `workflow_call:` line regardless of whether
+# it was inside the `on:` mapping at all.
+cat > "${workflows_dir}/job-name-collision.yml" <<'EOF'
+name: Job named workflow_call
+on:
+    push:
+jobs:
+    workflow_call:
+        runs-on: ubuntu-latest
+EOF
+
+assert_eq "find_workflow_call_targets: a job literally named workflow_call is not misdetected as a trigger" \
+    "0" "$(find_workflow_call_targets "${workflows_dir}" | grep -c 'job-name-collision.yml')"
+rm -f "${workflows_dir}/job-name-collision.yml"
+
 # GitHub Actions accepts a .yaml extension exactly as it accepts .yml -
 # adversarial-reviewer, GH-101 round 2: the original glob only matched
 # *.yml, so a workflow_call target saved as .yaml was silently invisible
