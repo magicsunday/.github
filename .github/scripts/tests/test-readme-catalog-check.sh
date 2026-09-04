@@ -64,6 +64,38 @@ assert_eq "find_workflow_call_targets: a job literally named workflow_call is no
     "0" "$(find_workflow_call_targets "${workflows_dir}" | grep -c 'job-name-collision.yml')"
 rm -f "${workflows_dir}/job-name-collision.yml"
 
+# A workflow file whose final line is the trigger itself, with no trailing
+# newline - security-reviewer, GH-101 round 7: an earlier bash `while read`
+# implementation of this function would have silently dropped this line at
+# EOF; the sed-based extraction reads to true EOF regardless.
+printf 'name: No trailing newline\non:\n    workflow_call:' \
+    > "${workflows_dir}/no-trailing-newline.yml"
+
+assert_eq "find_workflow_call_targets: a trigger on the file's last line, with no trailing newline, is still found" \
+    "no-trailing-newline.yml" \
+    "$(find_workflow_call_targets "${workflows_dir}" | grep 'no-trailing-newline.yml')"
+rm -f "${workflows_dir}/no-trailing-newline.yml"
+
+# A column-0 comment line INSIDE the on: mapping - valid YAML (comments
+# ignore surrounding indentation) - must not prematurely close the sed
+# range before the real trigger key beneath it (adversarial-reviewer,
+# GH-101 round 7).
+cat > "${workflows_dir}/mid-block-comment.yml" <<'EOF'
+name: Comment inside on:
+on:
+    push:
+# a top-level comment mid-block
+    workflow_call:
+jobs:
+    x:
+        runs-on: ubuntu-latest
+EOF
+
+assert_eq "find_workflow_call_targets: a column-0 comment inside the on: block does not hide a later trigger" \
+    "mid-block-comment.yml" \
+    "$(find_workflow_call_targets "${workflows_dir}" | grep 'mid-block-comment.yml')"
+rm -f "${workflows_dir}/mid-block-comment.yml"
+
 # GitHub Actions accepts a .yaml extension exactly as it accepts .yml -
 # adversarial-reviewer, GH-101 round 2: the original glob only matched
 # *.yml, so a workflow_call target saved as .yaml was silently invisible

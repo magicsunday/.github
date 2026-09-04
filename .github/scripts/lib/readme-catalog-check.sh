@@ -9,13 +9,15 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 
 # Prints, one per line, the basename of every *.yml/*.yaml file under
 # workflows_dir ($1) whose top-level `on:` block declares a real
-# workflow_call trigger - anchored to this house style's own 4-space
-# trigger-key indentation AND scoped to sit inside the `on:` mapping itself
-# (tracked line-by-line: a bare `on:` line opens the block, any indented
-# line stays inside it, the next non-blank column-0 line closes it), since
-# `workflow_call` is also a legal JOB id - a job section named
-# `workflow_call:` at the same 4-space depth as a real trigger key would
-# otherwise false-positive (CodeRabbit, GH-101 PR #117). Routed through
+# workflow_call trigger - scoped to the block from the bare `on:` line
+# through the next column-0 line (the same sed-range-then-grep technique
+# assert_readme_catalog_complete() below uses to scope its own table
+# extraction), since `workflow_call` is also a legal JOB id: a job section
+# named `workflow_call:` at the same 4-space depth as a real trigger key
+# previously false-positived under a plain whole-file grep (CodeRabbit,
+# GH-101 PR #117) - scoping the search to the `on:` block excludes a
+# `jobs:` section entirely, since the range ends at (and does not extend
+# past) the first line that starts back at column 0. Routed through
 # sanitize_for_annotation() (annotation-sanitize.sh) before printing - a
 # git-tracked filename could otherwise carry either forgery channel that
 # function's own header dates and explains - which also keeps this
@@ -33,28 +35,20 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # the block form (re-derive: `grep -n "^on:" .github/workflows/*.yml
 # .github/workflows/*.yaml` and check none has trailing content on the
 # `on:` line itself), so this has not manifested; widen the pattern if
-# that ever changes.
+# that ever changes. The same silent-miss applies to any `on:` line the
+# sed range's own opening pattern doesn't match byte-for-byte (a CRLF line
+# ending, a quoted `'on':` key, or trailing content/whitespace) - re-derive
+# both the absence of CRLF (`grep -lP '\r' .github/workflows/*.yml
+# .github/workflows/*.yaml`, expect no output) and the exact-`on:` claim
+# above together, since either drifting reopens this gap. A column-0
+# COMMENT line inside the `on:` block does NOT end the range early: the sed
+# end pattern only matches a column-0 line that is not itself a comment.
 find_workflow_call_targets() {
     local workflows_dir="$1"
-    local workflow_file name line in_on found
+    local workflow_file name
     for workflow_file in "${workflows_dir}"/*.yml "${workflows_dir}"/*.yaml; do
         [ -e "${workflow_file}" ] || continue
-        in_on=0
-        found=0
-        while IFS= read -r line; do
-            [ -n "${line}" ] || continue
-            case "${line}" in
-                " "*) ;;
-                on:) in_on=1; continue ;;
-                *) in_on=0 ;;
-            esac
-            if [ "${in_on}" -eq 1 ]; then
-                case "${line}" in
-                    "    workflow_call:"*) found=1 ;;
-                esac
-            fi
-        done < "${workflow_file}"
-        if [ "${found}" -eq 1 ]; then
+        if sed -n '/^on:$/,/^[^ #]/p' "${workflow_file}" | grep -qE '^ {4}workflow_call:'; then
             name="$(sanitize_for_annotation "$(basename "${workflow_file}")")"
             printf '%s\n' "${name}"
         fi
