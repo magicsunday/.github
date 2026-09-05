@@ -392,13 +392,15 @@ unset -f cat
 # (extracted per simplicity-reviewer, round 30, then generalised across
 # files per simplicity-reviewer, GH-90, once test-warn-tracked-archives.sh
 # needed an identically-shaped copy for a different function in the same
-# library). Three of the four call sites below cover a guard that lives
-# directly inside assert_semgrep_report_complete() itself; the fourth (the
-# git-ls-files-failure branch) now covers the shared
-# _git_tracked_entries_tempfile() helper's own guard instead, reached only
-# indirectly through this function's call to it (GH-90 round 4 - that guard
-# used to live inline here, before the mktemp+git-ls-files+failure-handling
-# duplication with warn_tracked_archives() was extracted into the helper).
+# library). Two of the four call sites below cover a guard that lives
+# directly inside assert_semgrep_report_complete() itself (both for
+# jq_stderr_file); the other two now live one or two call frames deeper,
+# inside the shared _git_ls_files_filtered_deduped() helper (the
+# repo_root block's own success-continuation guard, moved here by issue
+# #104's extraction) and, further inside that,
+# _git_tracked_entries_tempfile() (the git-ls-files-failure branch, moved
+# out by an earlier GH-90 extraction) - both reached only indirectly
+# through this function's calls into them.
 LIB_FILE="${SCRIPT_DIR}/../lib/semgrep-report-check.sh"
 
 rm_guard_output="$(run_under_shadowed_rm "${LIB_FILE}" assert_semgrep_report_complete "${non_string_path}")"
