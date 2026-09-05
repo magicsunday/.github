@@ -45,8 +45,8 @@
 # longer delimiters: skip a pattern that is empty once its own leading and
 # trailing whitespace is stripped, rather than passing a bare `--exclude '
 # '`-shaped argument through to Semgrep whose behaviour on it is unverified
-# in this environment - shell-script-reviewer, GH-89. A pattern that is
-# non-empty ONLY because of internal whitespace (the actual issue #89 case,
+# in this environment. A pattern that is non-empty ONLY because of internal
+# whitespace (the actual issue #89 case,
 # e.g. `'my link.php'`) is untouched by this check, since trimming only its
 # ends leaves it non-empty.
 # The pre-call noglob state is restored rather than unconditionally cleared,

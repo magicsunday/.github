@@ -51,16 +51,15 @@ _harness_fail() {
 # Fails with "FAIL: ${description}: got '$2'" and increments `failures`
 # unless "$2" (a haystack) contains EVERY one of "$3.." as a literal
 # substring, IN ANY ORDER -- the single-needle case is the same shape
-# assert_fail() below already had inline. Round 10 of issue #49 also used
-# this shape at three multi-needle call sites in what is now
+# assert_fail() below already had inline. This shape was also used at
+# three multi-needle call sites in what is now
 # test-semgrep-smoke-helpers.sh's assert_absent_from_json_array() assertions
 # (test-semgrep-report-check.sh at the time; moved out by issue #99),
 # but those sites previously used one ORDERED glob per needle set
 # (`*"::error::"*"link.js"*"scanned"*`), not independent per-needle checks -
 # collapsing them to this order-independent form silently dropped that
-# ordering guarantee (code-reviewer and test-quality-reviewer,
-# mutation-confirmed, round 11: a message with two interpolated values
-# swapped still passed). Use this function only when the needles are
+# ordering guarantee (mutation-confirmed: a message with two interpolated
+# values swapped still passed). Use this function only when the needles are
 # genuinely independent (no two interpolated values in the message could
 # plausibly swap position and still read as a match) -- otherwise use
 # assert_contains_in_order() below.
@@ -87,7 +86,7 @@ assert_contains() {
 # For a message built from several interpolated values whose ARRANGEMENT is
 # itself part of the contract (e.g. "...as ${path} ${kind}..." vs
 # "...as ${kind} ${path}..." both contain the same substrings if $path and
-# $kind get swapped) - mutation-confirmed (round 11 of issue #49) that
+# $kind get swapped) - mutation-confirmed that
 # assert_contains() cannot catch such a swap, since presence alone doesn't
 # depend on position. Narrows the remaining haystack after each match
 # (`${remaining#*"${needle}"}`) rather than building one dynamic glob
@@ -119,9 +118,9 @@ assert_contains_in_order() {
 # itself starts with "FAIL:", i.e. that the inner assertion correctly
 # failed. Prints PASS/FAIL under description "$1" and increments
 # `failures` on a mismatch, same as every other assert here. For probing
-# an assert_*() helper's own failure branch directly (round 12/13/14 of
-# issue #49 each needed this shape once, testing assert_contains_in_order()
-# and assert_contains() themselves rather than a real caller) - the inner
+# an assert_*() helper's own failure branch directly (needed this shape once
+# each, testing assert_contains_in_order() and assert_contains() themselves
+# rather than a real caller) - the inner
 # call's own `failures` increment happens inside the `$(...)` command
 # substitution that captured it, so it is a subshell-local copy that never
 # reaches this script's real counter; this function's own increment, on
@@ -200,7 +199,7 @@ EOS
 # to source, `$2` the function name to call, `"${@:3}"` its arguments.
 # test-semgrep-report-check.sh and test-warn-tracked-archives.sh each had an
 # identically-shaped copy of this (differing only in the function name and
-# argument list) before extraction here (simplicity-reviewer, GH-90).
+# argument list) before extraction here.
 run_under_shadowed_rm() {
     bash -c '
 set -euo pipefail
@@ -217,9 +216,9 @@ rm() { command false; }
 # after building a case's tracked files, before invoking the function under
 # test against that case's own directory. `original_dir` is an explicit
 # parameter, not a global, matching run_under_shadowed_rm()'s own convention
-# above (simplicity-reviewer, GH-90 round 3 - the round-2 fix moved this
-# duplication into a file-local helper in the newer test file only, leaving
-# the identical shape still repeated raw in the sibling).
+# above - an earlier fix moved this duplication into a file-local helper in
+# the newer test file only, leaving the identical shape still repeated raw
+# in the sibling.
 finish_git_case() {
     local original_dir="$1"
     git add -Af .
@@ -238,12 +237,10 @@ finish_git_case() {
 # another process creating or removing an unrelated `tmp.*` file between the
 # two counts changes the count for a reason unrelated to this library).
 # `tmp_scan_dir` is an explicit parameter, not a global, matching this
-# file's other two shared helpers above (simplicity-reviewer, GH-90 round 4
-# - test-quality-reviewer's own round-4 finding was that
-# test-warn-tracked-archives.sh had no leak assertion at all for
-# warn_tracked_archives()'s success-path cleanup, the same gap this
-# function's callers in the sibling file already closed for the analogous
-# line in assert_semgrep_report_complete()).
+# file's other two shared helpers above - test-warn-tracked-archives.sh had
+# no leak assertion at all for warn_tracked_archives()'s success-path
+# cleanup, the same gap this function's callers in the sibling file already
+# closed for the analogous line in assert_semgrep_report_complete().
 assert_no_tmp_leak() {
     local tmp_scan_dir="$1" description="$2"
     shift 2

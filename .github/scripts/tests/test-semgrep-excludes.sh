@@ -75,7 +75,7 @@ assert_args "tab-separated input is NOT split (only newline is a delimiter now)"
 # stray blank-looking line in a hand-typed YAML block scalar - unlike a
 # genuinely empty line, which still collapses via newline-adjacency - would
 # otherwise survive as a literal `--exclude '   '` argument whose effect on
-# Semgrep is unverified here (shell-script-reviewer, GH-89).
+# Semgrep is unverified here.
 assert_args "a whitespace-only line is skipped, not passed through as a pattern" "$(printf 'a\n   \nb')" --exclude a --exclude b
 assert_args "a pattern that is non-empty only because of trailing whitespace still passes trimmed-but-original" 'a  ' --exclude 'a  '
 
@@ -91,9 +91,8 @@ IFS=' ' assert_args "newline-separated input unaffected by a caller's space IFS"
 # after it returns - every existing assertion above still passes even with
 # `local` removed, since the function unconditionally re-sets IFS on ENTRY
 # regardless of the caller's own value, masking the leak during the call
-# itself (test-quality-reviewer, mutation-confirmed, GH-89). Only checking
-# the caller's IFS AFTER the call, once the function has returned, catches
-# it.
+# itself. Only checking the caller's IFS AFTER the call, once the function
+# has returned, catches it.
 IFS=' '
 extra=()
 build_semgrep_exclude_args "$(printf 'a\nb')"

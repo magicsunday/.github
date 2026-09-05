@@ -18,9 +18,9 @@ work_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${work_dir}"' EXIT
 
 # Bootstrap self-check for every harness.sh function whose FAIL branch
-# touches `failures`, BEFORE any real test below trusts one of them -
-# test-quality-reviewer, rounds 15-16: every other assertion in this file
-# is built on assert_eq()/_harness_fail(), and this script's own trailing
+# touches `failures`, BEFORE any real test below trusts one of them: every
+# other assertion in this file is built on assert_eq()/_harness_fail(), and
+# this script's own trailing
 # report_and_exit() call is what turns a correctly-printed "FAIL: ..."
 # line into the nonzero exit code run-tests.sh (and lint.yml's
 # shell-tests job) actually gates on. A broken one of these that always
@@ -34,12 +34,12 @@ trap 'rm -rf "${work_dir}"' EXIT
 # circularity outright rather than routing through the thing under test -
 # and it calls the function under test as a PLAIN statement (`"$@" > file`,
 # not `$(...)`), so no subshell is forked and `failures` mutations reach
-# this script's real, global counter. Round 15's reverted first attempt
-# broke because the SUT call itself was `$(...)`-captured; extracting the
+# this script's real, global counter. The reverted first attempt broke
+# because the SUT call itself was `$(...)`-captured; extracting the
 # surrounding boilerplate into a function is a different, safe axis
-# (simplicity-reviewer, round 17, verified live both directions: a correct
-# SUT is confirmed, and a SUT with only its `failures` increment silently
-# dropped - message text left intact - is still caught with a real exit 1).
+# (verified live both directions: a correct SUT is confirmed, and a SUT
+# with only its `failures` increment silently dropped - message text left
+# intact - is still caught with a real exit 1).
 _bootstrap_check() {
     local out_file="$1" expected_output="$2" expected_failures="$3" fatal_msg="$4"
     shift 4
@@ -71,7 +71,7 @@ _bootstrap_check "${_bootstrap_out}" "FAIL: bootstrap probe: got 'haystack'" 1 \
 # increments `failures` correctly - it says nothing about whether
 # assert_contains()/assert_contains_in_order() actually still DELEGATE to
 # it on their fail path, rather than reimplementing the print inline
-# without the increment (code-reviewer, round 17, reproduced live: exactly
+# without the increment (reproduced live: exactly
 # that mutation left this file's own later, `$(...)`-captured self-tests
 # for these two functions reporting PASS with `failures` unchanged - the
 # closure claim two commits ago was one layer short).
@@ -107,8 +107,8 @@ _bootstrap_check "${_bootstrap_out}" "" 0 \
 
 # assert_starts_with_fail() must be bootstrap-verified here too, BEFORE the
 # assert_contains()/assert_contains_in_order() self-tests further down use
-# it to check THEIR OWN failure branches - test-quality-reviewer, round 16:
-# with assert_starts_with_fail()'s own direct test running only later in
+# it to check THEIR OWN failure branches: with assert_starts_with_fail()'s
+# own direct test running only later in
 # the file (as an earlier version of this file had it), a simultaneous
 # break in both assert_starts_with_fail() and the loop logic it was
 # checking would go undetected for the whole window between them.
@@ -142,15 +142,15 @@ _bootstrap_check_report_and_exit 1 1 "1 failure(s)." \
 _bootstrap_check_report_and_exit 0 0 "All bootstrap probe passed." \
     "report_and_exit()'s own zero-failures contract is broken"
 
-# assert_contains() has the identical gap round 12 closed for its sibling
+# assert_contains() has the identical gap already closed for its sibling
 # below, just never closed for itself: every genuine call site in this file
 # - grep for `assert_contains "`, skip the two lines marked "bootstrap
 # probe" and the self-test of assert_contains()'s own ordering further
 # down - happens to have every needle genuinely present, so a mutation
 # that only
 # checked the FIRST needle (`for needle in "$1"` instead of `"$@"`) is
-# invisible to the whole suite (test-quality-reviewer, mutation-confirmed,
-# round 13). The needle ORDER passed here ("b" then "a") deliberately
+# invisible to the whole suite (mutation-confirmed). The needle ORDER
+# passed here ("b" then "a") deliberately
 # doesn't match the haystack's own word order ("a" ... "b"), so a genuine
 # pass here also proves this function's order-independence, not just that
 # it can find things.
@@ -170,8 +170,7 @@ assert_starts_with_fail "assert_contains: a missing needle fails" "${contains_mi
 # `grep -c '^[a-z_]*_output="\$(assert_contains_in_order "probe"'
 # test-semgrep-report-check.sh` (3, all three below): these three assertions
 # are this file's only DEDICATED coverage of the function's order-sensitivity
-# (the round-10 bug this function exists to catch, test-quality-reviewer,
-# mutation-confirmed, round 12).
+# (the bug this function exists to catch, mutation-confirmed).
 in_order_ok_output="$(assert_contains_in_order "probe" "a needle b needle" "a" "b" 2>&1)"
 assert_eq "assert_contains_in_order: needles present in order pass" "PASS: probe" "${in_order_ok_output}"
 
@@ -183,17 +182,17 @@ assert_starts_with_fail "assert_contains_in_order: a missing needle fails" "${in
 
 # assert_starts_with_fail(), require_file(), assert_nonempty() and
 # report_and_exit() are now covered by the bootstrap self-checks near the
-# top of this file, not here - test-quality-reviewer, round 16: this
-# section's own earlier versions captured each call via `$(...)`, which can
-# only ever prove the printed-message half of the contract (the `failures`
-# increment is subshell-local and silently discarded - the same S16 blind
-# spot round 15's report_and_exit fix exists to close, just manifesting in
-# these functions instead). The bootstrap versions check both the message
-# AND the real `failures` counter, and run before anything below could be
-# misled by a broken one. report_and_exit()'s own standalone duplicate of
-# this same contract survived that consolidation until now (simplicity-
-# reviewer, round 29) - removed, since `_bootstrap_check_report_and_exit()`
-# above already exercises it with the same rigor.
+# top of this file, not here: this section's own earlier versions captured
+# each call via `$(...)`, which can only ever prove the printed-message
+# half of the contract (the `failures` increment is subshell-local and
+# silently discarded - the same S16 blind spot the report_and_exit fix
+# exists to close, just manifesting in these functions instead). The
+# bootstrap versions check both the message AND the real `failures`
+# counter, and run before anything below could be misled by a broken one.
+# report_and_exit()'s own standalone duplicate of this same contract
+# survived that consolidation until now - removed, since
+# `_bootstrap_check_report_and_exit()` above already exercises it with the
+# same rigor.
 
 assert_pass() {
     local description="$1"
@@ -275,8 +274,8 @@ assert_pass "tolerated skip reason passes" "${tolerated_skip}"
 # Only "binary" above had a positive fixture proving it is actually on the
 # allow list - a typo in, or accidental removal of, any of the other seven
 # literals would silently narrow the accepted-reasons contract with nothing
-# to notice (test-quality-reviewer, mutation-confirmed, round 24). One
-# fixture per remaining literal, same shape as the case above.
+# to notice (mutation-confirmed). One fixture per remaining literal, same
+# shape as the case above.
 for reason in "always_skipped" "cli_exclude_flags_match" \
     "cli_include_flags_do_not_match" "excluded_by_config" \
     "irrelevant_rule" "semgrepignore_patterns_match" "wrong_language"; do
@@ -303,7 +302,7 @@ assert_fail "disallowed skip reason fails" "${disallowed_skip}" "c.php: some_new
 # The two `// "unknown"` / `// "(no path)"` fallback defaults below them have
 # no fixture that ever exercises them - every other skip-reason case above
 # supplies both `path` and `reason`, so the fallbacks were reachable but
-# untested (test-quality-reviewer, mutation-confirmed, round 23).
+# untested (mutation-confirmed).
 skip_no_path="${work_dir}/skip-no-path.json"
 jq -n '{paths: {scanned: ["a.php"], skipped: [{reason: "some_new_reason"}]}}' > "${skip_no_path}"
 assert_fail "a skipped entry with no path falls back to (no path)" "${skip_no_path}" "(no path): some_new_reason"
@@ -332,7 +331,7 @@ assert_fail "unreadable report fails" "${unreadable}" "could not be read"
 # function) must fail closed with its OWN message, not crash or silently
 # skip the check - the same fail-closed contract already pinned below for
 # its sibling `git_ls_files_file` mktemp, just never given the same
-# treatment here (test-quality-reviewer, mutation-confirmed: flipping this
+# treatment here (mutation-confirmed: flipping this
 # branch's `return 1` to `return 0` left the whole suite green, since
 # nothing forced this FIRST mktemp call to fail on its own).
 mktemp() {
@@ -356,8 +355,8 @@ assert_fail "non-string skipped-path entry fails closed rather than masking a cr
 assert_fail "non-string skipped-path entry: annotation carries jq's actual diagnostic body, not a hardcoded stand-in" "${non_string_path}" "number (123) cannot be matched, as it is not a string"
 
 # `cat "$jq_stderr_file" || jq_error="(diagnostic unavailable)"` was deferred
-# in round 27/28 as needing "fragile instrumentation" to test - that premise
-# was wrong (test-quality-reviewer, round 28): a plain `cat` shadow, the same
+# earlier as needing "fragile instrumentation" to test - that premise
+# was wrong: a plain `cat` shadow, the same
 # technique already used for `mktemp`/`jq` elsewhere in this file, triggers
 # it deterministically, no chmod/race needed.
 cat() {
@@ -373,8 +372,8 @@ unset -f cat
 # (code-scanning.yml) invokes this function as a bare statement under
 # `set -euo pipefail`, not via `$(...)` capture - command substitution does
 # NOT propagate errexit into itself by default, so a capture-based probe
-# would give a false negative here (test-quality-reviewer, mutation-
-# confirmed, round 28: removing `|| true` and driving the crash branch
+# would give a false negative here (mutation-confirmed: removing `|| true`
+# and driving the crash branch
 # through a real `set -e` caller silently aborts before the ::error:: line
 # ever prints - reproduced with `rm` shadowed to fail). Mirrors the
 # `bash -c`-under-`set -e` technique already used in
@@ -383,9 +382,9 @@ unset -f cat
 # always crashes), so there is no continuation line to echo and prove: the
 # first version of this fixture asserted only the printed message, which
 # left it blind to a `return 1` -> `return 0` regression on the same
-# fail-closed contract (shell-script-reviewer, mutation-confirmed, round
-# 29 - the annotation still printed, but the caller would silently treat
-# the crash as success). Asserting the real child process's own exit code
+# fail-closed contract (mutation-confirmed: the annotation still printed,
+# but the caller would silently treat the crash as success). Asserting the
+# real child process's own exit code
 # is what actually pins fail-closed, not just fail-loud.
 # Every "rm fails under this function's real production caller shape" probe
 # below drives the shared run_under_shadowed_rm() from lib/harness.sh.
@@ -420,9 +419,9 @@ assert_contains "jq_stderr_file rm -f failure still prints the annotation under 
 # on its own), not one - the case above only covers jq_stderr_file's crash branch. The
 # SUCCESS continuation right after it (`rm -f "$jq_stderr_file"` with no
 # crash to report) shares the identical unguarded-`rm`-under-a-real-`set -e`
-# caller risk and was left untested (test-quality-reviewer, mutation-
-# confirmed, round 29: removing `|| true` here breaks even a genuinely
-# PASSING report - the script aborts silently before "Scanned N files..."
+# caller risk and was left untested (mutation-confirmed: removing `|| true`
+# here breaks even a genuinely PASSING report - the script aborts silently
+# before "Scanned N files..."
 # ever prints, turning a real production success into a mysterious no-
 # output failure). `tolerated_skip` (defined above) reaches this exact
 # continuation without crashing.
@@ -466,11 +465,11 @@ assert_fail "a diagnostic past the 200-character budget is truncated, still one 
 # not that it happened at the right length - the visible shape is governed by
 # the `:0:197` slice constant, not by the `-gt 200` trigger this comment
 # names, so a regression that shortens the slice (e.g. `:0:197` -> `:0:150`)
-# passed the check above unnoticed (test-quality-reviewer, mutation-
-# confirmed, round 31). Pinning the trigger value itself would need an exact
-# byte-boundary fixture, reintroducing the jq-format/tmpdir-length fragility
-# the fixture above was deliberately built to avoid - round 30's call to
-# leave that specific gap alone stands. The slice LENGTH, unlike the trigger,
+# passed the check above unnoticed (mutation-confirmed). Pinning the
+# trigger value itself would need an exact byte-boundary fixture,
+# reintroducing the jq-format/tmpdir-length fragility the fixture above was
+# deliberately built to avoid - the decision to leave that specific gap
+# alone stands. The slice LENGTH, unlike the trigger,
 # is a fixed 200 once truncation fires regardless of the raw diagnostic's
 # length, so it is both cheap and portable to pin directly.
 long_path_output="$(assert_semgrep_report_complete "${long_path_diagnostic}" 2>&1)"
@@ -562,14 +561,14 @@ original_dir="$(pwd)" || exit 1
 
 # The one place that defines the git-case naming scheme; every
 # `git_case_<name>="$(git_case_dir <slug>)"` assignment below and
-# new_git_case() itself call through it, per simplicity-reviewer, so a future
-# rename of the scheme cannot drift between the two.
+# new_git_case() itself call through it, so a future rename of the scheme
+# cannot drift between the two.
 git_case_dir() {
     printf '%s' "${work_dir}/git-case-$1"
 }
 
 # Shared prefix for every git-case setup below: fresh directory, entered, a
-# real repo initialised in it. Extracted per simplicity-reviewer, matching
+# real repo initialised in it. Extracted, matching
 # the isolation new_case_dirs() established in test-canonical-file-guard.sh
 # (own fresh directory per case) - each case still creates its own files and
 # calls `git add -Af .` itself, since that content is what varies per case.
@@ -587,7 +586,7 @@ new_git_case() {
 # comment's own quoted example): "target.php scanned, nothing skipped" - a
 # decoy the repo_root comparison already accounts for, present only so
 # `.paths.scanned` isn't empty (which is its OWN, differently-tested failure
-# mode). Extracted per simplicity-reviewer, round 20: unlike each case's own
+# mode). Extracted: unlike each case's own
 # symlink/gitlink name or content (which IS the thing under test and stays
 # inline per-case), this JSON carries no per-case information at all.
 write_missing_target_report() {
@@ -605,8 +604,8 @@ assert_pass "repo_root: every tracked file accounted for in scanned" "${report_b
 # assert_pass() (below in this file) only ever checks the function's exit
 # code on the success path, never its stdout - so the success message
 # itself (unlike every failure annotation above) has never been pinned by
-# any fixture (test-quality-reviewer, mutation-confirmed, round 28:
-# rewriting the message text entirely still leaves the whole suite green).
+# any fixture (mutation-confirmed: rewriting the message text entirely
+# still leaves the whole suite green).
 baseline_output="$(assert_semgrep_report_complete "${report_baseline}" "${git_case_baseline}" 2>&1)"
 assert_eq "repo_root baseline: success message names the scanned count" \
     "Scanned 1 files, no undeclared skips." "${baseline_output}"
@@ -678,17 +677,16 @@ assert_fail "repo_root: a non-git directory fails closed rather than silently pa
 
 # The `rm -f ... || true` guard on the `git ls-files` FAILURE branch - now
 # inside the shared `_git_tracked_entries_tempfile()` helper this block
-# calls (GH-90 round 4), not inline as `git_ls_files_file`'s own guard -
-# shares the same untested-under-a-real-`set -e`-caller risk as
-# jq_stderr_file's guards above (test-quality-reviewer, mutation-confirmed,
-# round 29): without `|| true`, an `rm` failure here aborts the
-# script silently before the "\`git ls-files\` failed in ..." annotation
-# ever prints. Removing just the guard leaves rc at 1 either way (this
-# branch's own `return 1` is untouched by that mutation), so the message
-# assertion alone was a genuine discriminator for THAT specific mutation -
-# but not for the independent, adjacent one (shell-script-reviewer,
-# mutation-confirmed, round 30): flipping this branch's own `return 1` to
-# `return 0` prints the identical annotation and would pass the message
+# calls, not inline as `git_ls_files_file`'s own guard - shares the same
+# untested-under-a-real-`set -e`-caller risk as jq_stderr_file's guards
+# above (mutation-confirmed): without `|| true`, an `rm` failure here
+# aborts the script silently before the "\`git ls-files\` failed in ..."
+# annotation ever prints. Removing just the guard leaves rc at 1 either way
+# (this branch's own `return 1` is untouched by that mutation), so the
+# message assertion alone was a genuine discriminator for THAT specific
+# mutation - but not for the independent, adjacent one (mutation-confirmed):
+# flipping this branch's own `return 1` to `return 0` prints the identical
+# annotation and would pass the message
 # check alone, silently turning a real `git ls-files` failure into a
 # reported success. The rc assertion below is what actually catches that.
 git_ls_guard_output="$(run_under_shadowed_rm "${LIB_FILE}" assert_semgrep_report_complete "${report_not_a_repo}" "${git_case_not_a_repo}")"
@@ -699,9 +697,9 @@ assert_contains "git_ls_files_file rm -f failure on the git-ls-files-failed bran
     "${git_ls_guard_output}" "git ls-files"
 
 # A raw newline in repo_root itself must not split the "git ls-files
-# failed" annotation into a second, unattributed log line -
-# shell-script-reviewer, round 11: this interpolation site was the only
-# one in the function that skipped sanitize_for_annotation(). Not reachable
+# failed" annotation into a second, unattributed log line - this
+# interpolation site was the only one in the function that skipped
+# sanitize_for_annotation(). Not reachable
 # through the current sole production caller (see semgrep-report-check.sh's
 # own re-derive comment for that claim), but this pins the fix as a
 # regression-proof of the function's own stated single-annotation
@@ -800,7 +798,7 @@ case "${multi_missing_output}" in
     *) echo "PASS: repo_root: no trailing %0A after the last missing path" ;;
 esac
 
-# Regression guard (round 3): an ORDINARY tracked file absent from both
+# Regression guard: an ORDINARY tracked file absent from both
 # inventories must NOT be flagged - only a symlink or gitlink (mode
 # 120000/160000) is. Semgrep's own binary-content handling can leave a
 # tracked binary asset in neither .paths.scanned nor .paths.skipped under
@@ -887,7 +885,7 @@ assert_fail "repo_root: a non-string skipped-path entry does not crash the cover
 # missing anyway" - both give the same PASS/FAIL result for a symlink with
 # nothing genuinely covering it. This case puts the non-string entry FIRST
 # and a legitimate, genuinely-covering entry for the SAME symlink second -
-# correctness (Lane A), round 20, mutation-confirmed: without
+# mutation-confirmed: without
 # `select(type == "string")`, the jq crash on the non-string entry
 # truncates the stream before the covering entry after it is ever read,
 # silently dropping link.php from `covered` and false-flagging it as

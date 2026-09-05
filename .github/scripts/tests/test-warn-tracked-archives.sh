@@ -71,8 +71,7 @@ assert_eq "single tracked archive: no ::error:: annotation" "0" "${single_error_
 # in git ls-files order - it cannot tell a per-entry `matched` reset from a
 # `matched` that, once set, stays set for every later entry. A match
 # sorting FIRST (a.zip), followed by an ordinary tracked file that sorts
-# AFTER it (z.php), is the case that actually distinguishes the two
-# (test-quality-reviewer, GH-90 push-scope round 3).
+# AFTER it (z.php), is the case that actually distinguishes the two.
 git_case_match_then_plain="$(git_case_dir match-then-plain)"
 new_git_case match-then-plain
 printf 'PK' > a.zip
@@ -103,7 +102,7 @@ assert_eq "tracked media asset (not an archive): prints nothing" "" "${media_out
 # anything - so it must not be flagged. Without the `-s` mode check this
 # reproduces exactly: a caller who already quieted this same symlink via the
 # workflow's `excludes` input for the completeness gate above would still
-# see this notice fire on it (adversarial-reviewer, GH-90 round 2).
+# see this notice fire on it.
 git_case_symlink="$(git_case_dir symlink)"
 new_git_case symlink
 printf 'x' > target.php
@@ -117,8 +116,8 @@ assert_eq "tracked symlink named like an archive: prints nothing" "" "${symlink_
 # The `120000 | 160000` mode filter has two branches - the symlink case
 # above only proves the first. A git-tracked GITLINK (a submodule, mode
 # 160000) named like an archive must not be flagged either, proven
-# directly rather than assumed from the symlink case (test-quality-reviewer,
-# GH-90 push-scope round 1). `--cacheinfo` with the well-known empty-tree
+# directly rather than assumed from the symlink case. `--cacheinfo` with
+# the well-known empty-tree
 # SHA registers a gitlink entry directly in the index, mirroring
 # test-semgrep-report-check.sh's own gitlink fixture - no real submodule is
 # needed to stage one.
@@ -173,9 +172,8 @@ assert_contains "compound suffix .tgz is matched on its own, not via a shorter s
 # stage-1/2/3 lines for the same path, which must be named exactly once in
 # the notice, not three times. Mirrors test-semgrep-report-check.sh's own
 # conflicted-stage fixture for the analogous case in
-# assert_semgrep_report_complete() (shell-script-reviewer, GH-90 push-scope
-# round 1). `--index-info` stages the conflict directly, without a real
-# merge.
+# assert_semgrep_report_complete(). `--index-info` stages the conflict
+# directly, without a real merge.
 git_case_conflict="$(git_case_dir conflict)"
 new_git_case conflict
 blob1="$(printf 'a' | git hash-object -w --stdin)"

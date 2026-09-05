@@ -62,8 +62,8 @@ assert_eq "assert_absent_from_json_array: all tracked paths legitimately absent 
 # Every fixture above and below this line puts the interesting tracked path
 # FIRST in the argument list - link.js, always link.js - so a mutation that
 # collapsed the `for tracked_path in "$@"` loop to checking only "$1" would
-# still pass all of them (mutation-confirmed, test-quality-reviewer round
-# 10). This one deliberately matches on the THIRD (logo.png), not the
+# still pass all of them (mutation-confirmed). This one deliberately
+# matches on the THIRD (logo.png), not the
 # first, so the loop's own iteration is what a regression would need to
 # break for this test to still pass.
 third_arg_found_output="$(assert_absent_from_json_array scanned 'index($p) != null' '["logo.png"]' link.js vendored-dir logo.png 2>&1)"
@@ -93,7 +93,7 @@ assert_contains "assert_absent_from_json_array: the crash-message names jq's own
 # fixture's haystack ('42') and its first tracked path ('link.js')
 # independently crash the same filter, so only naming the actual path
 # proves which one was really checked (mutation-confirmed: `shift 2`
-# leaves this suite green otherwise - test-quality-reviewer, round 26).
+# leaves this suite green otherwise).
 assert_contains "assert_absent_from_json_array: the crash-message names the first tracked path, not the haystack argument itself" \
     "${crash_output}" "link.js"
 
@@ -111,9 +111,9 @@ assert_contains_in_order "assert_absent_from_json_array: the guarded skipped fil
     "${guarded_found_output}" "::error::" "link.js" "skipped"
 
 # A raw newline in the matched tracked path must not split the annotation
-# into a second, unattributed log line - security-reviewer, round 10:
-# neither interpolated value here went through sanitize_for_annotation()
-# before this fix, unlike every other annotation site in
+# into a second, unattributed log line - neither interpolated value here
+# went through sanitize_for_annotation() before this fix, unlike every
+# other annotation site in
 # semgrep-report-check.sh at the time. Built via `jq -n --arg` so the
 # newline is properly JSON-escaped in the fixture itself, same as the
 # reason-check's own newline fixture in test-semgrep-report-check.sh - a
