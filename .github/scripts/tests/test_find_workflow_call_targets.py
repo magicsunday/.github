@@ -113,19 +113,16 @@ class SanitizeForStderrTest(unittest.TestCase):
 
 
 class FindTargetsExceptionDiagnosticTest(unittest.TestCase):
-    def test_stderr_diagnostic_does_not_forge_a_second_annotation_line(self):
-        # End-to-end reproduction of the exact live exploit: a malformed
-        # workflow file whose FILENAME carries an embedded newline followed
-        # by a spoofed `::error::` line. Skips (rather than fails) on a
-        # filesystem that rejects newlines in filenames, mirroring
+    def _assert_forged_name_does_not_split_stderr(self, forged_name):
+        # Skips (rather than fails) on a filesystem that rejects the given
+        # control byte in a filename, mirroring
         # test-readme-catalog-check.sh's own newline-filename test.
         with tempfile.TemporaryDirectory() as workflows_dir:
-            forged_name = "legit\n::error::INJECTED spoofed annotation.yml"
             try:
                 with open(os.path.join(workflows_dir, forged_name), "w", encoding="utf-8") as handle:
                     handle.write("on: {workflow_call:")
             except OSError:
-                self.skipTest("this filesystem rejects filenames containing a newline")
+                self.skipTest("this filesystem rejects filenames containing this control byte")
 
             result = subprocess.run(
                 [sys.executable, _MODULE_PATH, workflows_dir],
@@ -138,6 +135,25 @@ class FindTargetsExceptionDiagnosticTest(unittest.TestCase):
             stderr_lines = result.stderr.decode("utf-8").splitlines()
             self.assertEqual(len(stderr_lines), 1)
             self.assertNotIn("\n::error::", result.stderr.decode("utf-8"))
+
+    def test_stderr_diagnostic_does_not_forge_a_second_annotation_line(self):
+        # End-to-end reproduction of the exact live exploit: a malformed
+        # workflow file whose FILENAME carries an embedded newline followed
+        # by a spoofed `::error::` line.
+        self._assert_forged_name_does_not_split_stderr(
+            "legit\n::error::INJECTED spoofed annotation.yml"
+        )
+
+    def test_stderr_diagnostic_does_not_forge_a_second_annotation_line_via_bare_cr(self):
+        # Same exploit via a bare CR rather than LF - the channel
+        # annotation-sanitize.sh's own header documents as independently
+        # live-observed against a .NET-based runner's TextReader.ReadLine(),
+        # which treats a bare CR as a line terminator too. splitlines()
+        # below folds a lone CR the same way it folds LF, so this reuses the
+        # same assertion shape as the LF case.
+        self._assert_forged_name_does_not_split_stderr(
+            "legit\r::error::INJECTED spoofed annotation.yml"
+        )
 
 
 class FindTargetsTest(unittest.TestCase):

@@ -183,7 +183,13 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   unit-tested directly by `test_find_workflow_call_targets.py` (run through
   `test-find-workflow-call-targets.sh`, since `run-tests.sh`'s own glob only
   picks up `test-*.sh`), separately from `test-readme-catalog-check.sh`'s
-  end-to-end coverage of the bash wrapper.
+  end-to-end coverage of the bash wrapper. Its own stderr-diagnostic
+  sanitizer is a second, Python-side transcription of `annotation-sanitize.sh`'s
+  escape-then-fold algorithm (a Python subprocess cannot import a bash
+  `readonly` constant the way `semgrep-report-check.sh` does) — kept from
+  silently drifting apart by `test-sanitize-stderr-parity.sh`, a value-based
+  drift guard run over a shared fixture list, mirroring
+  `test-annotation-sanitize-jq-parity.sh`'s role for the bash-only call sites.
   `yamllint.yml` and `i18n.yml` carry comparable inline
   `run:` logic that was deliberately left un-migrated when this convention was
   introduced (GH-47) — extending it to those is a separate decision, not something
