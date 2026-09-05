@@ -11,31 +11,20 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 
 # Writes `git -C repo_root ls-files -s -z` output to a fresh temp file and
 # prints its path on stdout. Its one direct caller is
-# _git_ls_files_filtered_deduped() below (issue #104; re-derive with
-# `grep -vn '^\s*#' .github/scripts/lib/semgrep-report-check.sh | grep -c
-# '_git_tracked_entries_tempfile "'`, expect exactly 1 - the quoted-argument
-# suffix excludes both this comment and the function's own `()` definition
-# line); through that,
-# assert_semgrep_report_complete() and warn_tracked_archives() both reach
-# it indirectly, one call frame deeper than before that extraction, whose
-# failure-handling for this exact mktemp-then-git-ls-files sequence was
-# identical apart from message wording and severity (extracted per an
-# earlier GH-90 round, after two rounds rejected it as too risky to touch
-# assert_semgrep_report_complete()'s existing control flow - both rounds
-# then independently showed the `if !`-guarded call form below avoids the
-# trap this file documents elsewhere: "under `set -e`, a bare
-# `out=\"\$(cmd)\"` line trips errexit immediately on a failing `cmd`,
-# before a following `rc=\$?` line is ever reached" - which is why every
-# caller below invokes this as an `if` condition, never a bare assignment).
+# _git_ls_files_filtered_deduped() below (re-derive: `grep -vn '^\s*#'
+# .github/scripts/lib/semgrep-report-check.sh | grep -c
+# '_git_tracked_entries_tempfile "'`, expect exactly 1); through that,
+# assert_semgrep_report_complete() and warn_tracked_archives() both reach it
+# indirectly. Every caller invokes this as an `if` condition, never a bare
+# assignment - under `set -e`, `out="$(cmd)"` trips errexit immediately on a
+# failing `cmd`, before a following `rc=$?` line is ever reached.
 #
 # Distinguishes a mktemp failure from a `git ls-files` failure via its own
-# return code (1 vs 2) rather than a single generic failure, so each
-# indirect caller keeps its own distinct message and severity:
-# assert_semgrep_report_complete() fails closed with `::error::`/`return 1`
-# on either, warn_tracked_archives() degrades open with
-# `::warning::`/`return 0` on either. On a `git ls-files` failure the temp
-# file is already removed before this returns - the caller needs no
-# cleanup for that branch, only for its own success path.
+# return code (1 vs 2), so each caller keeps its own distinct message and
+# severity: assert_semgrep_report_complete() fails closed with
+# `::error::`/`return 1` on either, warn_tracked_archives() degrades open
+# with `::warning::`/`return 0` on either. On a `git ls-files` failure the
+# temp file is already removed before this returns.
 _git_tracked_entries_tempfile() {
     local repo_root="$1"
     local f
@@ -59,69 +48,52 @@ _git_tracked_entries_tempfile() {
 
 # Fills the array named by $1 (a nameref - the caller passes a plain
 # variable name, e.g. `_git_ls_files_filtered_deduped tracked "$repo_root"
-# keep`) with every tracked path from _git_tracked_entries_tempfile()'s
-# scan of repo_root ($2) whose git file mode IS a symlink (120000) or
+# keep`) with every tracked path from _git_tracked_entries_tempfile()'s scan
+# of repo_root ($2) whose git file mode IS a symlink (120000) or
 # gitlink/submodule (160000) if sense ($3) is "keep", or whose mode is
-# NEITHER of those two if sense is "skip". Hardcoded rather
-# than a caller-supplied mode list - every call site in this file always
-# filters on exactly these two modes (re-derive: `grep -vn '^\s*#'
-# .github/scripts/lib/semgrep-report-check.sh .github/scripts/tests/*.sh |
-# grep '_git_ls_files_filtered_deduped [a-z]'` - stripping comment lines
-# first excludes this file's own usage-example prose, which would
-# otherwise self-match; expect only `keep`/`skip` as the trailing
-# argument on every real call site, never a mode list), the only two git object types
-# `git ls-files -s` can report that _git_tracked_entries_tempfile()'s
-# callers care about; a
-# variadic mode parameter would generalize over a dimension nothing here
-# exercises. No second temp file for the result - unlike _git_tracked_entries_tempfile()'s
-# own NUL-delimited file, which is load-bearing (a command-substitution
-# capture would silently drop the NULs it separates entries with, per that
-# function's own comment), the filtered/deduped result has no such
-# constraint: it goes straight into the caller's own array in the same
-# shell, no boundary to smuggle it across.
+# NEITHER of those two if sense is "skip". Hardcoded rather than a
+# caller-supplied mode list - every call site filters on exactly these two
+# modes (re-derive: `grep -vn '^\s*#' .github/scripts/lib/semgrep-report-check.sh
+# .github/scripts/tests/*.sh | grep '_git_ls_files_filtered_deduped [a-z]'`
+# - stripping comment lines first excludes this file's own usage-example
+# prose, which would otherwise self-match; expect only `keep`/`skip` as the
+# trailing argument, never a mode list). No second temp file for the
+# result: unlike _git_tracked_entries_tempfile()'s own NUL-delimited file
+# (load-bearing there, since a command-substitution capture would silently
+# drop the NULs), the filtered/deduped result goes straight into the
+# caller's array in the same shell, so there's no boundary to smuggle it
+# across.
 #
 # Adjacent duplicates of the same path collapse to one entry - an
-# unresolved merge conflict stages the same path three times (once per
-# stage) all under the same mode. As observed 2026-09-02 (re-derived when
-# this dedup lived inline in assert_semgrep_report_complete() before this
-# extraction - see issue #104), `git ls-files -s` sorts primarily by
-# pathname, so every stage of a conflicted path is contiguous in read
-# order; comparing only against the last-appended array element is
-# therefore equivalent to a full "seen" set here, at the cost of one array
-# read instead of a hash lookup and without a second data structure.
-# Extension/content filtering beyond mode, where a caller needs it
-# (e.g. warn_tracked_archives()'s archive-suffix check), is safe to apply
-# AFTER this function returns rather than duplicated inside it: a
-# conflicted path's stages all carry the identical path string, so any
-# filter keyed purely on that string agrees across every stage regardless
-# of whether dedup happens before or after it.
+# unresolved merge conflict stages the same path once per stage, all under
+# the same mode. `git ls-files -s` sorts primarily by pathname, so every
+# stage of a conflicted path is contiguous in read order; comparing only
+# against the last-appended array element is therefore equivalent to a
+# full "seen" set here, without a second data structure. Extension/content
+# filtering beyond mode (e.g. warn_tracked_archives()'s archive-suffix
+# check) is safe to apply AFTER this function returns: a conflicted path's
+# stages all carry the identical path string, so such a filter agrees
+# across every stage regardless of whether dedup happens before or after it.
 #
 # Returns 1 on a mktemp failure and 2 on a `git ls-files` failure -
 # _git_tracked_entries_tempfile()'s own two-code contract, propagated
-# verbatim - leaving the array untouched either way, so a caller already
-# handling that contract needs no third branch.
+# verbatim - leaving the array untouched either way.
 _git_ls_files_filtered_deduped() {
     # Every OTHER local below is underscore-prefixed too, not just style -
     # a nameref resolves by NAME against the function's own scope, so a
     # later plain `local` here that happened to reuse the caller's chosen
-    # array name (e.g. a future third caller passing "mode" or "path")
-    # would silently shadow `_out` for the rest of the call: the write
-    # lands in that new local instead of the caller's array, `_out` still
-    # thinks it succeeded (rc=0), and the caller is left with a silently
-    # EMPTY result - false-success on a completeness-relevant check.
-    # Verified live: `f() { local -n _out="$1"; local mode=x; _out=(a); };
-    # declare -a mode=(); f mode; echo "${#mode[@]}"` prints `0`, no error
-    # (contrast a name colliding with `_out` ITSELF, which bash rejects
-    # outright with "circular name reference" - only a collision with one
-    # of the OTHER locals is silent). Prefixing them removes the entire
-    # collision surface, rather than relying on no caller ever choosing
-    # one of these names - assert_semgrep_report_complete()'s own
-    # (now-removed) inline loop already used this convention one level up,
-    # for the same reason (re-derive: `git show
-    # ada43bb~1:.github/scripts/lib/semgrep-report-check.sh | grep -n
-    # "local _entry _mode\|local entry mode"`); warn_tracked_archives()'s
-    # sibling loop did not (plain `mode`, `tracked_path`), which is exactly
-    # the gap this extraction closes.
+    # array name (e.g. a future caller passing "mode" or "path") would
+    # silently shadow `_out` for the rest of the call: the write lands in
+    # that new local instead of the caller's array, `_out` still thinks it
+    # succeeded (rc=0), and the caller is left with a silently EMPTY result
+    # - false-success on a completeness-relevant check. Verified live:
+    # `f() { local -n _out="$1"; local mode=x; _out=(a); }; declare -a
+    # mode=(); f mode; echo "${#mode[@]}"` prints `0`, no error (contrast a
+    # name colliding with `_out` ITSELF, which bash rejects outright with
+    # "circular name reference" - only a collision with one of the OTHER
+    # locals is silent). Prefixing every local removes the entire collision
+    # surface, rather than relying on no caller ever choosing one of these
+    # names.
     local -n _out="$1"
     local _repo_root="$2" _sense="$3"
 

@@ -537,12 +537,8 @@ mkdir -p "${tmp_scan_dir}"
 # jq_stderr_file, two more further down for the repo_root block's
 # git_ls_files_file, plus test-warn-tracked-archives.sh's own leak
 # assertion against the same git_ls_files_file cleanup - shared via
-# _git_ls_files_filtered_deduped(), issue #104, not a private copy of the
-# shape) now lives in lib/harness.sh (generalised across
-# files per simplicity-reviewer/test-quality-reviewer, GH-90 round 4; first
-# extracted here per simplicity-reviewer round 2, from the same duplication
-# shape round 1 already fixed once for the git-case setup, via
-# new_git_case() a few lines below).
+# _git_ls_files_filtered_deduped(), not a private copy of the shape) lives
+# in lib/harness.sh.
 
 assert_no_tmp_leak "${tmp_scan_dir}" "jq's stderr temp file does not survive a crash-path call" \
     assert_semgrep_report_complete "${non_string_path}"
@@ -979,20 +975,17 @@ conflict_occurrences="$(printf '%s' "${conflict_output}" | grep -o 'link.php' | 
 assert_eq "repo_root: a conflicted-stage path is named exactly once, not once per stage" "1" "${conflict_occurrences}"
 
 # The `repo_root` block's own `git_ls_files_file` (semgrep-report-check.sh)
-# now has NEITHER cleanup site directly in `assert_semgrep_report_complete()`
-# itself - both the `git ls-files`-failure branch (GH-90 round 4) and the
-# success continuation (issue #104's `_git_ls_files_filtered_deduped()`
-# extraction) live entirely inside a shared helper this block calls, and
-# are reached only indirectly through it. Neither of the two leak
-# assertions above this point passes `repo_root` at all, so neither
-# reaches either cleanup site; without a dedicated assertion here, deleting
-# either `rm -f` inside the shared helper would leave this suite green
-# (proven: removing either in a scratch copy left "All report-check tests
-# passed." unchanged). Both guards, now inside the helper, are exercised by
-# the next two assertions below - unchanged in shape by either extraction,
-# since each assertion still calls assert_semgrep_report_complete() with a
-# real repo_root, which still reaches the helper's guards, just one call
-# frame deeper than before.
+# has NEITHER cleanup site directly in `assert_semgrep_report_complete()`
+# itself - both the `git ls-files`-failure branch and the success
+# continuation live entirely inside the shared `_git_ls_files_filtered_deduped()`
+# helper this block calls, reached only indirectly through it. Neither of
+# the two leak assertions above this point passes `repo_root` at all, so
+# neither reaches either cleanup site; without a dedicated assertion here,
+# deleting either `rm -f` inside the shared helper would leave this suite
+# green (proven: removing either in a scratch copy left "All report-check
+# tests passed." unchanged). Both guards are exercised by the next two
+# assertions below, which still call assert_semgrep_report_complete() with
+# a real repo_root.
 assert_no_tmp_leak "${tmp_scan_dir}" "repo_root: git_ls_files_file does not survive a git-ls-files failure" \
     assert_semgrep_report_complete "${report_not_a_repo}" "${git_case_not_a_repo}"
 
