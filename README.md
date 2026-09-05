@@ -133,15 +133,5 @@ scheduled run.
 
 `CONTRIBUTING.md` above stays generic (PHP/Composer, `composer ci:test`)
 since it is also served as the default for repositories without their own —
-this repository itself has no PHP/Composer toolchain. Its own style/shell
-gate is `lint.yml`; `security.yml` and `commit-lint.yml` run additional
-checks (security scans, the commit/PR-title convention) against this
-repository's own pushes and pull requests too. Re-derive `lint.yml`'s
-current job list with `yq '.jobs | keys' .github/workflows/lint.yml` rather
-than trusting a hand-typed count here. Two of its jobs are directly runnable
-one-liners: the shell tests (`bash .github/scripts/tests/run-tests.sh`) and
-the README-catalog freshness check (`source
-.github/scripts/lib/readme-catalog-check.sh && assert_readme_catalog_complete
-.github/workflows README.md`). The remaining jobs (yamllint, the
-pip-closures-freshness check, the semgrep smoke test) need their pinned
-toolchains installed and have no separate local invocation.
+this repository itself has no PHP/Composer toolchain. See its own workflows
+under `.github/workflows/` for its actual CI configuration.
