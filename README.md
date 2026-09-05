@@ -128,3 +128,19 @@ The sync runs with `skip-delete`, so it only creates and updates: labels
 specific to a repository are never removed. To change the set for every
 repository, edit `labels.yml` here — each repository picks it up on its next
 scheduled run.
+
+## Contributing to this repository
+
+This repository's own `CONTRIBUTING.md` is shared: it is served as the
+default `CONTRIBUTING.md` for any `magicsunday/*` repository that does not
+define its own, so it stays generic (PHP/Composer, `composer ci:test`) rather
+than describing this repository's actual gate. This repository has no
+PHP/Composer toolchain — its own gate is `lint.yml`; re-derive its current
+job list with `yq '.jobs | keys' .github/workflows/lint.yml` rather than
+trusting a hand-typed count here. Two of its jobs are directly runnable
+one-liners: the shell tests (`bash .github/scripts/tests/run-tests.sh`) and
+the README-catalog freshness check (`source
+.github/scripts/lib/readme-catalog-check.sh && assert_readme_catalog_complete
+.github/workflows README.md`). The remaining jobs (yamllint, the
+pip-closures-freshness check, the semgrep smoke test) need their pinned
+toolchains installed and have no separate local invocation.
