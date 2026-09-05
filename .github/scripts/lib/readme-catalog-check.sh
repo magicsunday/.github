@@ -11,13 +11,16 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # workflows_dir ($1) whose `on:` trigger declares workflow_call - shelling
 # out to find_workflow_call_targets.py (issue #118) for a real, structural
 # YAML parse rather than pattern-matching the raw text. That closes, by
-# construction, every trigger-shape gap the old sed/grep heuristic's own
-# history had to patch one at a time: the scalar/flow-sequence shorthand
-# (`on: workflow_call` / `on: [push, workflow_call]`), a byte-inexact `on:`
-# line (a quoted `'on':` key), and the workflow_call-named-JOB collision -
-# see that script's own header for the YAML-parser specifics (including the
-# "Norway problem" boolean-key resolution GitHub Actions' own bare `on:`
-# convention runs into).
+# construction, every trigger-shape gap this detector ever had: two - the
+# scalar/flow-sequence shorthand (`on: workflow_call` / `on: [push,
+# workflow_call]`) and a byte-inexact `on:` line (a quoted `'on':` key) -
+# were accepted, documented limitations of the old sed/grep heuristic right
+# up to this replacement; the third, the workflow_call-named-JOB collision,
+# had already been patched INTO that heuristic earlier in this same effort
+# (issue #101's range-scoping fix), not left open for this replacement to
+# close - see that script's own header for the YAML-parser specifics
+# (including the "Norway problem" boolean-key resolution GitHub Actions'
+# own bare `on:` convention runs into).
 #
 # Captured via a temp FILE, not `$(...)`: the Python script's own output is
 # NUL-terminated, one raw (unsanitised) basename per record, and bash
@@ -100,7 +103,9 @@ assert_readme_catalog_complete() {
     # the Python producer's NUL-delimited multi-record stream, not to this
     # already-line-safe output. `|| rc=$?` on a plain (non-`local`)
     # assignment still captures the real command's exit status, the same
-    # split-declaration pattern `catalog_table` already uses two lines up.
+    # split-declaration pattern already used above for `catalog_table`
+    # (declared without a value, then assigned separately, so `|| rc=$?`
+    # is never masked the way a combined `local x=$(cmd)` would mask it).
     names="$(find_workflow_call_targets "${workflows_dir}")" || rc=$?
     if [ "${rc}" -ne 0 ]; then
         echo "::error::find_workflow_call_targets failed (exit ${rc}) - see the log above for the underlying error."

@@ -198,17 +198,21 @@ class FindTargetsTest(unittest.TestCase):
 
     def test_symlinked_workflow_file_is_skipped_without_leaking_target_content(self):
         # A git-tracked symlink pointing outside workflows_dir must never
-        # be opened at all - live-reproduced exploit: without the
-        # os.path.islink() guard, a malformed YAML target's exception
-        # message embeds a verbatim source snippet, which the per-file
-        # skip diagnostic then prints to stderr, leaking arbitrary
-        # filesystem content a fork PR's symlink could point at.
+        # be opened at all. PyYAML's exception message never embeds a
+        # source snippet for a file-handle input (only for an in-memory
+        # string - verified live: Mark.get_snippet() returns None whenever
+        # its buffer is None, which it always is for a stream source), so
+        # this pins the guard itself rather than a content-leak this
+        # specific error path was never actually capable of. The fixture's
+        # SECRET_TOKEN line still lets this test fail loudly if that
+        # PyYAML behaviour is ever wrong or changes.
+        secret_marker = "SECRET_TOKEN=abcdef1234567890"
         with tempfile.TemporaryDirectory() as base_dir:
             workflows_dir = os.path.join(base_dir, "workflows")
             os.mkdir(workflows_dir)
             secret_path = os.path.join(base_dir, "secret.txt")
             with open(secret_path, "w", encoding="utf-8") as handle:
-                handle.write("SECRET_TOKEN=abcdef1234567890\nmalformed: {unterminated\n")
+                handle.write(f"{secret_marker}\nmalformed: {{unterminated\n")
 
             try:
                 os.symlink(secret_path, os.path.join(workflows_dir, "evil.yml"))
@@ -226,7 +230,7 @@ class FindTargetsTest(unittest.TestCase):
             self.assertEqual(result.stdout, b"")
             stderr_text = result.stderr.decode("utf-8")
             self.assertIn("evil.yml is a symlink, skipping", stderr_text)
-            self.assertNotIn("SECRET_TOKEN", stderr_text)
+            self.assertNotIn(secret_marker, stderr_text)
 
     def test_empty_directory_yields_nothing(self):
         with tempfile.TemporaryDirectory() as workflows_dir:
