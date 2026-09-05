@@ -454,16 +454,4 @@ assert_contains "assert_readme_catalog_complete: a crashed producer names itself
 
 unset -f find_workflow_call_targets
 
-# assert_readme_catalog_complete()'s OWN mktemp guard runs before it ever
-# calls find_workflow_call_targets() (already unset above), so this needs
-# no real find_workflow_call_targets() to be present.
-mktemp() { return 1; }
-mktemp_failure_output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
-mktemp_failure_rc=$?
-unset -f mktemp
-assert_eq "assert_readme_catalog_complete: a mktemp failure returns non-zero" \
-    "1" "${mktemp_failure_rc}"
-assert_contains "assert_readme_catalog_complete: a mktemp failure prints its own ::error::" \
-    "${mktemp_failure_output}" "::error::" "mktemp failed"
-
 report_and_exit "readme-catalog-check tests"

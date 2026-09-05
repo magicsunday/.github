@@ -72,9 +72,10 @@ find_workflow_call_targets() {
 # change instead fails closed (an empty catalog_table reports every target
 # as missing, a loud CI failure) rather than silently.
 #
-# find_workflow_call_targets() is called as an ordinary command into a temp
-# file, never through `done < <(find_workflow_call_targets ...)`: bash does
-# not propagate a process substitution's exit status into the shell that
+# find_workflow_call_targets() is captured via a plain command
+# substitution (`names="$(find_workflow_call_targets ...)" || rc=$?`),
+# never through `done < <(find_workflow_call_targets ...)`: bash does not
+# propagate a process substitution's exit status into the shell that
 # started it, so a crashed producer (its own non-zero return, e.g. from
 # find_workflow_call_targets.py exiting uncaught) would otherwise look
 # identical to "legitimately found zero targets" - the `while read` loop
@@ -87,19 +88,22 @@ assert_readme_catalog_complete() {
     local workflows_dir="$1"
     local readme_file="$2"
     local name line found failed=0
-    local catalog_table names_file rc=0
+    local catalog_table names rc=0
 
     catalog_table="$(sed -n '/^| Workflow | Purpose | Permissions/,/^$/p' "${readme_file}")"
 
-    names_file="$(mktemp)" || {
-        echo "::error::mktemp failed while listing workflow_call targets."
-        return 1
-    }
-
-    find_workflow_call_targets "${workflows_dir}" > "${names_file}" || rc=$?
+    # A plain command substitution, not a temp file: by the time this
+    # capture runs, find_workflow_call_targets()'s own stdout is already
+    # one sanitize_for_annotation()-folded name per line (embedded raw
+    # newlines already turned into spaces there) - the NUL-safety a temp
+    # file would buy belongs only to THAT function's own inner capture of
+    # the Python producer's NUL-delimited multi-record stream, not to this
+    # already-line-safe output. `|| rc=$?` on a plain (non-`local`)
+    # assignment still captures the real command's exit status, the same
+    # split-declaration pattern `catalog_table` already uses two lines up.
+    names="$(find_workflow_call_targets "${workflows_dir}")" || rc=$?
     if [ "${rc}" -ne 0 ]; then
         echo "::error::find_workflow_call_targets failed (exit ${rc}) - see the log above for the underlying error."
-        rm -f "${names_file}" || true
         return 1
     fi
 
@@ -119,8 +123,7 @@ assert_readme_catalog_complete() {
             echo "::error::${name} declares workflow_call: but is not listed in README.md's workflow catalog - add it (see issue #101)."
             failed=1
         fi
-    done < "${names_file}"
-    rm -f "${names_file}" || true
+    done <<< "${names}"
 
     return "${failed}"
 }

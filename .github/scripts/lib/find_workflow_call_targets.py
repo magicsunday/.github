@@ -2,14 +2,16 @@
 # Sourced (via `python3 <this file> <workflows_dir>`) by
 # readme-catalog-check.sh's find_workflow_call_targets() to detect a
 # workflow_call trigger via a real YAML parse instead of pattern-matching
-# the raw text - issue #118. The old sed/grep heuristic accepted three
-# known, documented gaps: the scalar/flow-sequence trigger shorthand (`on:
-# workflow_call` / `on: [push, workflow_call]`), a byte-inexact `on:` line
-# (a quoted `'on':` key), and a job literally named `workflow_call` being
-# misread as the trigger. A real parser closes all three by construction -
-# it evaluates the trigger's actual YAML shape and value under the real
-# `on:`/`jobs:` key structure, not the literal bytes of the line that
-# introduces it.
+# the raw text - issue #118. The old sed/grep heuristic accepted two known,
+# documented gaps at the time of this replacement: the scalar/flow-sequence
+# trigger shorthand (`on: workflow_call` / `on: [push, workflow_call]`) and
+# a byte-inexact `on:` line (a quoted `'on':` key). A real parser closes
+# both by construction - it evaluates the trigger's actual YAML shape and
+# value, not the literal bytes of the line that introduces it. (A THIRD
+# gap, a job literally named `workflow_call` being misread as the trigger,
+# was already closed years earlier by scoping the old heuristic's search to
+# the `on:` block rather than the whole file - not something this
+# replacement had to fix.)
 #
 # Prints one NUL-terminated, unsanitised basename per matching file to
 # stdout - NUL rather than newline, because a git-tracked filename may
@@ -101,6 +103,27 @@ def find_targets(workflows_dir):
     )
 
     for path in paths:
+        if os.path.islink(path):
+            # A git-tracked symlink (mode 120000) can point anywhere on the
+            # runner filesystem, and glob()/open() do not distinguish it
+            # from a real file. Skipped before ever opening it: a PyYAML
+            # parse failure on the symlink's TARGET embeds a verbatim
+            # source snippet in its exception message (str(exc)), which
+            # this loop's own except-branch below prints to stderr - fine
+            # for a file the diff's own author already controls, but a
+            # newly opened information-disclosure channel for anything
+            # OUTSIDE the checked-out tree a fork PR's symlink could
+            # target. The old sed/grep detector this script replaces never
+            # read file content into any message at all, so this is a
+            # regression this real parser must not reintroduce.
+            print(
+                "find_workflow_call_targets.py: "
+                f"{_sanitize_for_stderr(os.path.basename(path))} is a symlink, skipping "
+                "(a workflow file has no reason to be one)",
+                file=sys.stderr,
+            )
+            continue
+
         try:
             with open(path, "r", encoding="utf-8") as handle:
                 doc = yaml.safe_load(handle)
