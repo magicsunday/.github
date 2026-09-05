@@ -37,9 +37,32 @@
 # `key-duplicates` and exits 1.
 import glob
 import os
+import re
 import sys
 
 import yaml
+
+# Mirrors annotation-sanitize.sh's sanitize_for_annotation() jq filter
+# (`gsub("%"; "%25") | gsub("[[:cntrl:]]"; " ")`) exactly, in Python: this
+# script's own stderr diagnostic below is a SECOND CI-annotation producer
+# in this repo that has nothing to route through the bash function, since
+# it runs in a separate process the bash caller only pipes stdout from
+# (readme-catalog-check.sh's `python3 ... > "${tmp_file}"` never touches
+# stderr, which flows straight into the Actions job log unfiltered) - a
+# real, git-trackable filename or PyYAML exception message containing a
+# raw newline would otherwise forge a second, attacker-authored `::error::`
+# line the same way annotation-sanitize.sh's own header documents. Order
+# matters: percent-escape first, or a literal `%0D`/`%0A` in the source
+# text would be indistinguishable from an already-escaped sequence once
+# the runner decodes it back. `[:cntrl:]` in jq is Unicode-aware (C0
+# controls, DEL, and C1 controls such as U+0085 NEL) - re.sub() operates on
+# Python's own Unicode codepoints already, so no decode step is needed
+# here the way jq's own UTF-8 requirement forces on the bash side.
+_CNTRL_PATTERN = re.compile("[\x00-\x1f\x7f\u0080-\u009f]")
+
+
+def _sanitize_for_stderr(text):
+    return _CNTRL_PATTERN.sub(" ", text.replace("%", "%25"))
 
 
 def _has_workflow_call_trigger(doc):
@@ -99,9 +122,18 @@ def find_targets(workflows_dir):
             # which files declare workflow_call - a stderr line naming the
             # skipped file is the proportionate response to any single
             # file's processing failure, not a hard failure of the whole
-            # scan.
+            # scan. Both interpolated values are routed through
+            # _sanitize_for_stderr() - a git-tracked filename can carry an
+            # embedded raw newline (the exact forgery channel this file's
+            # own header already accounts for on the stdout side), and
+            # PyYAML's own exception message re-embeds the full raw path
+            # in its "in '<path>', line N, column M" context, so `exc`
+            # needs the same treatment as the bare filename, not just
+            # os.path.basename(path) alone.
             print(
-                f"find_workflow_call_targets.py: {os.path.basename(path)} could not be processed, skipping: {exc}",
+                "find_workflow_call_targets.py: "
+                f"{_sanitize_for_stderr(os.path.basename(path))} could not be processed, skipping: "
+                f"{_sanitize_for_stderr(str(exc))}",
                 file=sys.stderr,
             )
             continue
