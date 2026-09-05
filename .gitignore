@@ -1,0 +1,4 @@
+# Python bytecode cache - find_workflow_call_targets.py (issue #118) is the
+# first tracked Python source in this repo, so nothing ignored these before.
+__pycache__/
+*.pyc
