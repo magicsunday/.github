@@ -131,13 +131,14 @@ scheduled run.
 
 ## Contributing to this repository
 
-This repository's own `CONTRIBUTING.md` is shared: it is served as the
-default `CONTRIBUTING.md` for any `magicsunday/*` repository that does not
-define its own, so it stays generic (PHP/Composer, `composer ci:test`) rather
-than describing this repository's actual gate. This repository has no
-PHP/Composer toolchain — its own gate is `lint.yml`; re-derive its current
-job list with `yq '.jobs | keys' .github/workflows/lint.yml` rather than
-trusting a hand-typed count here. Two of its jobs are directly runnable
+`CONTRIBUTING.md` above stays generic (PHP/Composer, `composer ci:test`)
+since it is also served as the default for repositories without their own —
+this repository itself has no PHP/Composer toolchain. Its own style/shell
+gate is `lint.yml`; `security.yml` and `commit-lint.yml` run additional
+checks (security scans, the commit/PR-title convention) against this
+repository's own pushes and pull requests too. Re-derive `lint.yml`'s
+current job list with `yq '.jobs | keys' .github/workflows/lint.yml` rather
+than trusting a hand-typed count here. Two of its jobs are directly runnable
 one-liners: the shell tests (`bash .github/scripts/tests/run-tests.sh`) and
 the README-catalog freshness check (`source
 .github/scripts/lib/readme-catalog-check.sh && assert_readme_catalog_complete
