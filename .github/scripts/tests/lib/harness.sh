@@ -231,7 +231,7 @@ finish_git_case() {
 # test-semgrep-report-check.sh (jq_stderr_file, git_ls_files_file) and
 # test-warn-tracked-archives.sh (git_ls_files_file's cleanup, reached via
 # warn_tracked_archives()'s call into the shared
-# _git_ls_files_filtered_deduped() helper - issue #104 - not a private
+# _git_ls_files_filtered_deduped() helper, not a private
 # copy of the shape). "$1" is the caller's own
 # TMPDIR-scoped scan directory (a subdirectory of its own work_dir, never
 # the shared host /tmp - scanning that would flake under a busy host, since

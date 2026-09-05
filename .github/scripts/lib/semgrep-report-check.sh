@@ -91,9 +91,12 @@ _git_ls_files_filtered_deduped() {
     # mode=(); f mode; echo "${#mode[@]}"` prints `0`, no error (contrast a
     # name colliding with `_out` ITSELF, which bash rejects outright with
     # "circular name reference" - only a collision with one of the OTHER
-    # locals is silent). Prefixing every local removes the entire collision
-    # surface, rather than relying on no caller ever choosing one of these
-    # names.
+    # locals is silent). Prefixing every local closes the collision for any
+    # caller-chosen name that is not itself one of this function's own
+    # underscore-prefixed internals (`_repo_root`, `_sense`, `_entry`,
+    # `_mode`, `_path`, `_match`, `_git_ls_files_file`, `_tef_rc`) - narrower
+    # than "no caller ever chooses one of these names", but every real
+    # caller's array name (`tracked`, `raw_paths`) is outside that set.
     local -n _out="$1"
     local _repo_root="$2" _sense="$3"
 

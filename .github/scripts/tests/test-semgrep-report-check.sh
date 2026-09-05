@@ -414,9 +414,9 @@ assert_contains "jq_stderr_file rm -f failure still prints the annotation under 
 # guards (re-derive with `awk '/^assert_semgrep_report_complete\(\)/,/^}/'
 # ../lib/semgrep-report-check.sh | grep -c 'rm -f .* || true'` -> 2 - both
 # for jq_stderr_file; the repo_root block's own git_ls_files_file guard
-# moved entirely into the shared _git_ls_files_filtered_deduped() helper
-# per issue #104, which now returns its filtered result as a plain array
-# rather than a second tempfile the caller would need its own guard for.
+# moved entirely into the shared _git_ls_files_filtered_deduped() helper,
+# which returns its filtered result as a plain array rather than a second
+# tempfile the caller would need its own guard for.
 # A file-wide, unscoped count also picks up that helper's own guard and
 # _git_tracked_entries_tempfile()'s, so it no longer answers this question
 # on its own), not one - the case above only covers jq_stderr_file's crash branch. The
@@ -1020,17 +1020,16 @@ assert_fail "repo_root: a git_ls_files_file mktemp failure fails closed with its
 unset -f mktemp
 rm -f "${mktemp_call_count_file}"
 
-# `_git_ls_files_filtered_deduped()`'s nameref out-parameter (issue #104)
-# resolves the caller's array by NAME against the function's own scope -
-# before every one of its own locals was underscore-prefixed, a caller
-# naming its array `mode` or `path` (both plain, unprefixed names the
-# function used internally) would have the write silently land in the
-# function's OWN local instead of the caller's array: `rc=0` (false
-# success), caller's array stays empty - and the exit code is what a
-# caller actually branches on, so nothing here makes the check FAIL.
-# Reproducible by sourcing this file's pre-fix revision (`git show
-# bfdfaa8~1:.github/scripts/lib/semgrep-report-check.sh`) and calling the
-# function with a colliding array name; Bash does print SOME diagnostic
+# `_git_ls_files_filtered_deduped()`'s nameref out-parameter resolves the
+# caller's array by NAME against the function's own scope - before every
+# one of its own locals was underscore-prefixed, a caller naming its array
+# `mode` or `path` (both plain, unprefixed names the function used
+# internally) would have the write silently land in the function's OWN
+# local instead of the caller's array: `rc=0` (false success), caller's
+# array stays empty - and the exit code is what a caller actually branches
+# on, so nothing here makes the check FAIL. Reproducible by removing the
+# underscore prefix from the function's internal locals and calling it
+# with a colliding array name; Bash does print SOME diagnostic
 # line to stderr once the shadowed scalar is hit (the exact wording
 # depends on which `set` options are active at the call site - not worth
 # pinning here, since it is not what this fix cares about), but that line
