@@ -102,6 +102,15 @@ _git_ls_files_filtered_deduped() {
         return 1
     fi
 
+    # The whole loop's stdout is redirected to `out_file` ONCE below, rather
+    # than each `printf` reopening it with its own `>>` - load-bearing for
+    # warn_tracked_archives()'s `skip 120000 160000` call, which keeps
+    # nearly every tracked path in the repository (everything that is NOT a
+    # symlink/gitlink), not the small symlink/gitlink-only set
+    # assert_semgrep_report_complete()'s `keep` call produces. A per-line
+    # `>> "$out_file"` there is a separate open/write/close per surviving
+    # path - one bash-level redirect open plus one write() per line here,
+    # the same shape the in-memory array this replaced already had.
     local entry mode path m match last_path="" have_last=0
     while IFS= read -r -d '' entry; do
         mode="${entry%% *}"
@@ -119,11 +128,11 @@ _git_ls_files_filtered_deduped() {
         fi
         path="${entry#*$'\t'}"
         if [ "$have_last" -eq 0 ] || [ "$last_path" != "$path" ]; then
-            printf '%s\0' "$path" >> "$out_file"
+            printf '%s\0' "$path"
             last_path="$path"
             have_last=1
         fi
-    done < "$git_ls_files_file"
+    done < "$git_ls_files_file" > "$out_file"
     rm -f "$git_ls_files_file" || true
 
     printf '%s' "$out_file"
