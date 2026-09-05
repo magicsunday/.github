@@ -229,8 +229,10 @@ finish_git_case() {
 # Runs "${@:2}" with TMPDIR pointed at "$1" and asserts no tmp.* file left
 # there survives the call - shared by every leak assertion in
 # test-semgrep-report-check.sh (jq_stderr_file, git_ls_files_file) and
-# test-warn-tracked-archives.sh (git_ls_files_file's own copy of the same
-# cleanup shape in warn_tracked_archives()). "$1" is the caller's own
+# test-warn-tracked-archives.sh (git_ls_files_file's cleanup, reached via
+# warn_tracked_archives()'s call into the shared
+# _git_ls_files_filtered_deduped() helper - issue #104 - not a private
+# copy of the shape). "$1" is the caller's own
 # TMPDIR-scoped scan directory (a subdirectory of its own work_dir, never
 # the shared host /tmp - scanning that would flake under a busy host, since
 # another process creating or removing an unrelated `tmp.*` file between the
