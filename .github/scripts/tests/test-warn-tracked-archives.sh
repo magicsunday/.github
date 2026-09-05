@@ -277,14 +277,16 @@ assert_eq "git_ls_files_file rm -f failure on the success continuation still exi
 assert_contains "git_ls_files_file rm -f failure on the success continuation still prints the notice under a real set -e caller" \
     "${rm_guard_success_output}" "::notice::" "bundle.zip"
 
-# The rm-guard tests above only prove the `rm -f "$git_ls_files_file" || true`
-# line survives an `rm` FAILURE, not that it runs at all on a genuinely
-# successful call - deleting the whole line (not just its `|| true`) would
-# leak a temp file on every run and leave every case in this file green
-# (test-quality-reviewer, GH-90 round 4). Mirrors
-# test-semgrep-report-check.sh's own assert_no_tmp_leak() coverage for the
-# analogous line in assert_semgrep_report_complete(); the shared helper and
-# its TMPDIR-scoped scan-directory rationale live in lib/harness.sh.
+# The rm-guard tests above only prove the `rm -f "$_git_ls_files_file" || true`
+# line (now inside the shared _git_ls_files_filtered_deduped() helper, issue
+# #104 - not directly in warn_tracked_archives() itself) survives an `rm`
+# FAILURE, not that it runs at all on a genuinely successful call - deleting
+# the whole line (not just its `|| true`) would leak a temp file on every run
+# and leave every case in this file green (test-quality-reviewer, GH-90 round
+# 4). Mirrors test-semgrep-report-check.sh's own assert_no_tmp_leak()
+# coverage for the same helper line, reached from assert_semgrep_report_complete()
+# instead; the shared helper and its TMPDIR-scoped scan-directory rationale
+# live in lib/harness.sh.
 tmp_scan_dir="${work_dir}/tmp-scan"
 mkdir -p "${tmp_scan_dir}"
 assert_no_tmp_leak "${tmp_scan_dir}" "git_ls_files_file does not survive a successful warn_tracked_archives call" \
