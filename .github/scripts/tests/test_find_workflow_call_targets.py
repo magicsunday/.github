@@ -9,6 +9,8 @@
 # unittest module rather than a test-*.sh script.
 import importlib.util
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -119,6 +121,51 @@ class FindTargetsTest(unittest.TestCase):
     def test_empty_directory_yields_nothing(self):
         with tempfile.TemporaryDirectory() as workflows_dir:
             self.assertEqual(list(find_workflow_call_targets.find_targets(workflows_dir)), [])
+
+    def test_non_utf8_file_is_skipped_not_raised(self):
+        # A yaml.YAMLError-only except clause does not catch this: a raw
+        # non-UTF-8 byte makes `open(..., encoding="utf-8")` raise
+        # UnicodeDecodeError instead, which propagates out of this
+        # generator uncaught unless the except clause is broad enough -
+        # exactly the gap that let a real workflow_call trigger in a later
+        # file go unreported (verified live during the issue #118 audit).
+        with tempfile.TemporaryDirectory() as workflows_dir:
+            with open(os.path.join(workflows_dir, "a-bad-encoding.yml"), "wb") as handle:
+                handle.write(b"name: bad byte \xff here\non:\n    push:\n")
+            with open(os.path.join(workflows_dir, "z-real.yml"), "w", encoding="utf-8") as handle:
+                handle.write("on:\n    workflow_call:\n")
+
+            targets = list(find_workflow_call_targets.find_targets(workflows_dir))
+
+            self.assertEqual(targets, ["z-real.yml"])
+
+
+class MainTest(unittest.TestCase):
+    def test_wrong_argument_count_returns_2(self):
+        for argv in (["prog"], ["prog", "a", "b"]):
+            with self.subTest(argv=argv):
+                self.assertEqual(find_workflow_call_targets.main(argv), 2)
+
+    def test_success_writes_nul_terminated_records_and_returns_0(self):
+        # Run as a real subprocess rather than calling main() in-process:
+        # this is the actual invocation shape readme-catalog-check.sh uses
+        # (`python3 find_workflow_call_targets.py <dir>`), and it exercises
+        # the real sys.stdout.buffer rather than a substitute object.
+        with tempfile.TemporaryDirectory() as workflows_dir:
+            with open(os.path.join(workflows_dir, "real.yml"), "w", encoding="utf-8") as handle:
+                handle.write("on:\n    workflow_call:\n")
+            with open(os.path.join(workflows_dir, "other.yml"), "w", encoding="utf-8") as handle:
+                handle.write("on:\n    push:\n")
+
+            result = subprocess.run(
+                [sys.executable, _MODULE_PATH, workflows_dir],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, b"real.yml\x00")
 
 
 if __name__ == "__main__":
