@@ -26,10 +26,14 @@
   - `composer ci:test`
   - For modules that build front-end assets, also run `make build` and commit the rebuilt bundle.
   - **This repository (`magicsunday/.github`) has no PHP/Composer toolchain** — its
-    own gate is `lint.yml` (yamllint, pip-closures-freshness, semgrep-smoke, and the
-    shell test suite). Reproduce the shell tests locally with
-    `bash .github/scripts/tests/run-tests.sh`; the other jobs run against this
-    repository's own CI configuration and have no separate local invocation.
+    own gate is `lint.yml`; re-derive its current job list with
+    `yq '.jobs | keys' .github/workflows/lint.yml` rather than trusting a hand-typed
+    count here. Two of its jobs are directly runnable one-liners: the shell tests
+    (`bash .github/scripts/tests/run-tests.sh`) and the README-catalog freshness
+    check (`source .github/scripts/lib/readme-catalog-check.sh &&
+    assert_readme_catalog_complete .github/workflows README.md`). The remaining
+    jobs (yamllint, the pip-closures-freshness check, the semgrep smoke test) need
+    their pinned toolchains installed and have no separate local invocation.
 - Include tests for new behavior and regression tests for fixes.
 
 ## 4. Development setup (minimal)
