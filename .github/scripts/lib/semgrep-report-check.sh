@@ -68,7 +68,7 @@ _git_tracked_entries_tempfile() {
 # unresolved merge conflict stages the same path once per stage, all under
 # the same mode. `git ls-files -s` sorts primarily by pathname, so every
 # stage of a conflicted path is contiguous in read order - as observed
-# 2026-09-02, a 3-way add/add conflict's stage lines land contiguously in
+# 2026-09-02, a conflicted path's stage lines land contiguously in
 # `git ls-files -s -z` output. Comparing only
 # against the last-appended array element is therefore equivalent to a
 # full "seen" set here, without a second data structure. Extension/content
