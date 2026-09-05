@@ -97,10 +97,10 @@ _git_ls_files_filtered_deduped() {
     # (contrast a name colliding with `_out` ITSELF, which bash rejects
     # outright with "circular name reference" - only a collision with one
     # of the OTHER locals is silent). Prefixing them removes the entire
-    # collision surface rather than relying on today's two callers
-    # ("tracked", "raw_paths") never happening to choose one of these
-    # names - the same underscore convention this file's own (now-removed)
-    # inline loops already used one level up, for the same reason.
+    # collision surface, rather than relying on no caller ever choosing
+    # one of these names - the same underscore convention this file's own
+    # (now-removed) inline loops already used one level up, for the same
+    # reason.
     local -n _out="$1"
     local _repo_root="$2" _sense="$3"
     shift 3
