@@ -30,7 +30,6 @@ runs.
 | `yamllint.yml` | Lints YAML against the house style (4-space indent) | `contents: read` |
 | `i18n.yml` | Enforces the catalogue layout; optional `make lang` freshness gate | `contents: read` |
 | `bundle-freshness.yml` | Verifies committed build artefacts match a clean rebuild | `contents: read` |
-| `greetings.yml` | Greets first-time contributors | `issues: write`, `pull-requests: write` |
 | `auto-merge-deps.yml` | Auto-merges passing dependency bumps (patch and minor only; `pip` is excluded — see below) | `contents: write`, `pull-requests: write` |
 | `ai-issue-labeler.yml` | Classifies a newly opened issue against the caller's own live label set via the Anthropic API and applies the labels it is confident about — see below | `issues: write` |
 | `php-quality.yml` | Runs the granular `composer ci:test:php:*` PHP quality gate across a version matrix | `contents: read` |
