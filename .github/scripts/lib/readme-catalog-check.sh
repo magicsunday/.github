@@ -10,17 +10,10 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # Prints, one per line, the basename of every *.yml/*.yaml file under
 # workflows_dir ($1) whose `on:` trigger declares workflow_call - shelling
 # out to find_workflow_call_targets.py (issue #118) for a real, structural
-# YAML parse rather than pattern-matching the raw text. That closes, by
-# construction, every trigger-shape gap this detector ever had: two - the
-# scalar/flow-sequence shorthand (`on: workflow_call` / `on: [push,
-# workflow_call]`) and a byte-inexact `on:` line (a quoted `'on':` key) -
-# were accepted, documented limitations of the old sed/grep heuristic right
-# up to this replacement; the third, the workflow_call-named-JOB collision,
-# had already been patched INTO that heuristic earlier in this same effort
-# (issue #101's range-scoping fix), not left open for this replacement to
-# close - see that script's own header for the YAML-parser specifics
-# (including the "Norway problem" boolean-key resolution GitHub Actions'
-# own bare `on:` convention runs into).
+# YAML parse rather than pattern-matching the raw text. See that script's
+# own header for exactly which sed/grep-heuristic trigger-shape gaps this
+# closes and how (including the "Norway problem" boolean-key resolution
+# GitHub Actions' own bare `on:` convention runs into).
 #
 # Captured via a temp FILE, not `$(...)`: the Python script's own output is
 # NUL-terminated, one raw (unsanitised) basename per record, and bash
