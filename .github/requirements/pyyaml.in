@@ -1,0 +1,9 @@
+# Pinned PyYAML version used by find_workflow_call_targets.py to parse each
+# workflow's `on:` trigger structurally instead of pattern-matching the YAML
+# text (issue #118) — see AGENTS.md for why the pin lives here.
+#
+# pyyaml.txt is the compiled, hash-locked closure — never hand-edit it.
+# Regenerate after bumping the version below: search AGENTS.md for
+# "hash-locked closure" for the exact command (platform/pip-tools pins and
+# working directory matter — don't improvise a shorter one).
+PyYAML==6.0.3
