@@ -33,7 +33,7 @@ build_minified_fixture() {
 # for) and must also fail rather than be silently read as "not found" - the
 # same failure class issue #65 already documents for semgrep-report-check.sh's
 # other jq calls, reintroduced once in an earlier, inline version of this
-# exact helper (round 8 of issue #49) before being extracted here with a test.
+# exact helper before being extracted here with a test.
 #
 # The assignment is the `if`'s own condition, not a standalone statement
 # before one: under `set -e`, a bare `out="$(cmd)"` line trips errexit

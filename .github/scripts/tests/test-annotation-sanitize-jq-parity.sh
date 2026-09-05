@@ -10,8 +10,8 @@
 # TRACKS are identical by construction, and this test's job shrinks to
 # proving none of them quietly reverted to a hand-typed literal. That
 # guarantee is scoped to these three named sites, not to the repo as a
-# whole (CC3, code-reviewer, GH-91) - a future caller elsewhere that hand-
-# retypes the filter again needs its own assertion added here, the same
+# whole - a future caller elsewhere that hand-retypes the filter again
+# needs its own assertion added here, the same
 # way this file's own history added one per new site (issues #78, #80,
 # #49, #91).
 #
@@ -23,12 +23,11 @@
 # keyed on the jq punctuation immediately around the splice (a closing
 # `) as $path`, a closing `)`) is fragile, since moving that punctuation
 # onto its own line changes no jq/bash behaviour at all yet breaks a
-# line-anchored match (mutation-confirmed, test-quality-reviewer, GH-91).
-# A file-wide COUNT of the splice text is stable against that reformat, but
-# introduces a different gap: two sites checked as one aggregate number
-# lets a doubled occurrence at one site mask a reversion at the other,
-# since both shapes sum to the same total (mutation-confirmed,
-# test-quality-reviewer, GH-91). Extracting each site's own block first
+# line-anchored match. A file-wide COUNT of the splice text is stable
+# against that reformat, but introduces a different gap: two sites checked
+# as one aggregate number lets a doubled occurrence at one site mask a
+# reversion at the other, since both shapes sum to the same total.
+# Extracting each site's own block first
 # (via extract_block, anchored on text that identifies WHICH pipeline this
 # is - "no-skipped-inventory" for the .path pipeline, the NUL-split call
 # for the batched one - neither of which a jq reformat has any reason to
@@ -70,9 +69,9 @@ assert_eq "ANNOTATION_SANITIZE_JQ_FILTER is declared readonly exactly once" \
 
 # sanitize_for_annotation() passes the WHOLE jq program as one argument, so
 # its interpolation (`jq -Rsr "${ANNOTATION_SANITIZE_JQ_FILTER}"`) is
-# self-contained on one line - anchoring on it directly is safe (confirmed,
-# test-quality-reviewer, GH-91: a line-continuation reformat of the
-# surrounding printf | jq pipe does not break it).
+# self-contained on one line - anchoring on it directly is safe (a
+# line-continuation reformat of the surrounding printf | jq pipe does not
+# break it).
 assert_nonempty \
     "$(grep -F -- 'jq -Rsr "${ANNOTATION_SANITIZE_JQ_FILTER}"' "${ANNOTATION_SANITIZE_FILE}")" \
     "sanitize_for_annotation() in ${ANNOTATION_SANITIZE_FILE} does not interpolate ANNOTATION_SANITIZE_JQ_FILTER into its jq -Rsr call"

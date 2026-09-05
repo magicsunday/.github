@@ -66,7 +66,7 @@ assert_matches "root-level file caught" ".semgrepignore"
 cd "${original_dir}" || exit 1
 
 # The exact case a root-only `test -e .semgrepignore` shipped once without
-# catching (issue #48 round 1) - Semgrepignore v2 honors a `.semgrepignore`
+# catching - Semgrepignore v2 honors a `.semgrepignore`
 # at any directory level, so the guard has to walk the tree.
 case_dir="$(mktemp -d "${work_dir}/case-XXXXXX")" || exit 1
 cd "${case_dir}" || exit 1
