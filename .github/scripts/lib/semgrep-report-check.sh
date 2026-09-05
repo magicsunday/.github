@@ -88,12 +88,8 @@ _git_ls_files_filtered_deduped() {
     # succeeded (rc=0), and the caller is left with a silently EMPTY result
     # - false-success on a completeness-relevant check. Verified live:
     # `f() { local -n _out="$1"; local mode=x; _out=(a); }; declare -a
-    # mode=(); f mode; echo "${#mode[@]}"` prints `0`, no error (contrast a
-    # name colliding with `_out` ITSELF: bash prints repeated "circular name
-    # reference" warnings there, but - verified live - the call still
-    # completes with the correct result, unlike a collision with one of the
-    # OTHER locals below, which is silent AND produces a wrong, empty
-    # result). Prefixing every local closes the collision for any
+    # mode=(); f mode; echo "${#mode[@]}"` prints `0`, no error. Prefixing
+    # every local closes the collision for any
     # caller-chosen name that is not itself one of this function's own
     # underscore-prefixed internals (`_repo_root`, `_sense`, `_entry`,
     # `_mode`, `_path`, `_match`, `_git_ls_files_file`, `_tef_rc`) - narrower
