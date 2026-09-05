@@ -391,12 +391,11 @@ unset -f cat
 # below drives the shared run_under_shadowed_rm() from lib/harness.sh.
 # Two of its four call sites in this file (re-derive with `grep -vn
 # '^\s*#' test-semgrep-report-check.sh | grep -c 'run_under_shadowed_rm
-# "'` -> 4 - stripping comment lines first excludes this comment's own
-# mention above) cover a
-# guard that lives directly inside assert_semgrep_report_complete()
-# itself (both for jq_stderr_file); the other two now live one or two
-# call frames deeper, inside the shared _git_ls_files_filtered_deduped()
-# helper (the repo_root block's own success-continuation guard) and,
+# "'` -> 4) cover a guard that lives directly inside
+# assert_semgrep_report_complete() itself (both for jq_stderr_file);
+# the other two now live one or two call frames deeper, inside the
+# shared _git_ls_files_filtered_deduped() helper (the repo_root
+# block's own success-continuation guard) and,
 # further inside that, _git_tracked_entries_tempfile() (the
 # git-ls-files-failure branch) - both reached only indirectly through
 # this function's calls into them.
@@ -975,9 +974,10 @@ assert_eq "repo_root: a conflicted-stage path is named exactly once, not once pe
 
 # The `repo_root` block's own `git_ls_files_file` (semgrep-report-check.sh)
 # has NEITHER cleanup site directly in `assert_semgrep_report_complete()`
-# itself - both the `git ls-files`-failure branch and the success
-# continuation live entirely inside the shared `_git_ls_files_filtered_deduped()`
-# helper this block calls, reached only indirectly through it. Neither of
+# itself - the success continuation lives inside the shared
+# `_git_ls_files_filtered_deduped()` helper this block calls, and the
+# `git ls-files`-failure branch lives one frame deeper still, inside
+# `_git_tracked_entries_tempfile()`, which that helper calls. Neither of
 # the two leak assertions above this point passes `repo_root` at all, so
 # neither reaches either cleanup site; without a dedicated assertion here,
 # deleting either `rm -f` inside the shared helper would leave this suite
