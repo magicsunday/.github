@@ -23,11 +23,11 @@
 # keyed on the jq punctuation immediately around the splice (a closing
 # `) as $path`, a closing `)`) is fragile, since moving that punctuation
 # onto its own line changes no jq/bash behaviour at all yet breaks a
-# line-anchored match. A file-wide COUNT of the splice text is stable
-# against that reformat, but introduces a different gap: two sites checked
-# as one aggregate number lets a doubled occurrence at one site mask a
-# reversion at the other, since both shapes sum to the same total.
-# Extracting each site's own block first
+# line-anchored match (mutation-confirmed). A file-wide COUNT of the splice
+# text is stable against that reformat, but introduces a different gap: two
+# sites checked as one aggregate number lets a doubled occurrence at one
+# site mask a reversion at the other, since both shapes sum to the same
+# total (mutation-confirmed). Extracting each site's own block first
 # (via extract_block, anchored on text that identifies WHICH pipeline this
 # is - "no-skipped-inventory" for the .path pipeline, the NUL-split call
 # for the batched one - neither of which a jq reformat has any reason to
