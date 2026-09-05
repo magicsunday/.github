@@ -237,76 +237,29 @@ assert_eq "mktemp failure: exits 0 rather than failing the job" "0" "${mktemp_fa
 assert_contains "mktemp failure: prints its own ::warning::" \
     "${mktemp_failure_output}" "::warning::" "temp file"
 
-# `_git_ls_files_filtered_deduped()` (issue #104) makes a SECOND, distinct
-# mktemp call of its own - for its filtered/deduped output file - after
-# `_git_tracked_entries_tempfile()`'s first one (git_ls_files_file)
-# succeeds. warn_tracked_archives() has no earlier mktemp call of its own
-# (unlike assert_semgrep_report_complete()'s jq_stderr_file), so this is the
-# SECOND mktemp call overall here, not the third as in the sibling suite.
-# Must degrade the same way as the first-call failure above: ::warning::,
-# return 0, never propagate.
-mktemp_call_count_file="$(mktemp)" || exit 1
-echo 0 > "${mktemp_call_count_file}"
-mktemp() {
-    local n
-    n=$(($(cat "${mktemp_call_count_file}") + 1))
-    echo "${n}" > "${mktemp_call_count_file}"
-    if [ "${n}" -eq 2 ]; then
-        return 1
-    fi
-    command mktemp "$@"
-}
-out_file_mktemp_failure_output="$(warn_tracked_archives "${git_case_none}" 2>&1)"
-out_file_mktemp_failure_rc=$?
-unset -f mktemp
-rm -f "${mktemp_call_count_file}"
-assert_eq "out_file mktemp failure inside _git_ls_files_filtered_deduped(): exits 0 rather than failing the job" \
-    "0" "${out_file_mktemp_failure_rc}"
-assert_contains "out_file mktemp failure inside _git_ls_files_filtered_deduped(): prints its own ::warning::" \
-    "${out_file_mktemp_failure_output}" "::warning::" "temp file"
-
-# The failure above must also clean up _git_tracked_entries_tempfile()'s own
-# tempfile (git_ls_files_file) - it already succeeded by the time out_file's
-# mktemp fails, so nothing else removes it.
-tmp_scan_dir_second_mktemp="${work_dir}/tmp-scan-second-mktemp"
-mkdir -p "${tmp_scan_dir_second_mktemp}"
-mktemp_call_count_file="$(mktemp)" || exit 1
-echo 0 > "${mktemp_call_count_file}"
-mktemp() {
-    local n
-    n=$(($(cat "${mktemp_call_count_file}") + 1))
-    echo "${n}" > "${mktemp_call_count_file}"
-    if [ "${n}" -eq 2 ]; then
-        return 1
-    fi
-    command mktemp "$@"
-}
-assert_no_tmp_leak "${tmp_scan_dir_second_mktemp}" "git_ls_files_file does not survive an out_file mktemp failure" \
-    warn_tracked_archives "${git_case_none}"
-unset -f mktemp
-rm -f "${mktemp_call_count_file}"
-
-# warn_tracked_archives() has one `rm -f ... || true` guard of its own (the
-# success continuation right after `hits` is built; re-derive with
-# `awk '/^warn_tracked_archives\(\)/,/^}/' ../lib/semgrep-report-check.sh |
-# grep -c 'rm -f .*|| true'` -> 1) plus the one inside the shared
-# _git_tracked_entries_tempfile() helper it calls (the git-ls-files-failure
+# warn_tracked_archives() has NO `rm -f ... || true` guard of its own since
+# issue #104's extraction - the only tempfile it ever touches
+# (git_ls_files_file) is now created AND cleaned up entirely inside
+# _git_ls_files_filtered_deduped(), whose result comes back as a plain
+# array (re-derive with `awk '/^warn_tracked_archives\(\)/,/^}/'
+# ../lib/semgrep-report-check.sh | grep -c 'rm -f .*|| true'` -> 0). The
+# guard inside the shared helper it calls (the git-ls-files-failure
 # branch, shared with assert_semgrep_report_complete() - already exercised
 # from that side by test-semgrep-report-check.sh's own rm-shadow cases, but
 # proven again here from THIS function's own call perspective, since a
 # regression in how warn_tracked_archives() propagates the helper's failure
-# would not be caught by the sibling suite at all). Both are untested by
-# every case above: each drives the function via `$(...)` capture in a
-# script that never sets `-e`, which cannot exercise either guard - command
-# substitution does not propagate errexit into itself, so an unguarded `rm`
-# failure there wouldn't abort anything even without `|| true`. The real
+# would not be caught by the sibling suite at all) is untested by every
+# case above: each drives the function via `$(...)` capture in a script
+# that never sets `-e`, which cannot exercise it - command substitution
+# does not propagate errexit into itself, so an unguarded `rm` failure
+# there wouldn't abort anything even without `|| true`. The real
 # production caller (code-scanning.yml) invokes the function as a bare
-# statement under `set -euo pipefail`. Mutation-confirmed: removing either
+# statement under `set -euo pipefail`. Mutation-confirmed: removing the
 # `|| true` left every case above green while a real `set -e` caller
 # aborted silently before its own diagnostic ever printed - drives the
 # shared run_under_shadowed_rm() from lib/harness.sh, the same helper
 # test-semgrep-report-check.sh uses for assert_semgrep_report_complete()'s
-# analogous guards (generalised across files per simplicity-reviewer,
+# analogous guard (generalised across files per simplicity-reviewer,
 # GH-90).
 LIB_FILE="${SCRIPT_DIR}/../lib/semgrep-report-check.sh"
 

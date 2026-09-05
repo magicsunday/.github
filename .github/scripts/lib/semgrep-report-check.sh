@@ -50,34 +50,43 @@ _git_tracked_entries_tempfile() {
     printf '%s' "$f"
 }
 
-# Prints, NUL-delimited, to a fresh temp file whose path is printed on
-# stdout, every tracked path from _git_tracked_entries_tempfile()'s scan of
-# repo_root ($1) whose git file mode passes the filter: kept when it IS one
-# of the modes in $3.. if sense ($2) is "keep", or when it is NOT one of them
-# if sense is "skip". Adjacent duplicates of the same path collapse to one
-# entry - an unresolved merge conflict stages the same path three times
-# (once per stage) all under the same mode, and `git ls-files -s` sorts
-# primarily by pathname, so every stage of a conflicted path is contiguous in
-# read order; comparing only against the last emitted path is therefore
-# equivalent to a full "seen" set here, at the cost of one scalar comparison
-# instead of a hash lookup and without a second data structure (as observed
-# 2026-09-02, re-derived when this dedup lived inline in
-# assert_semgrep_report_complete() before this extraction - see issue #104).
-# Extension/content filtering beyond mode, where a caller needs it (e.g.
-# warn_tracked_archives()'s archive-suffix check), is safe to apply AFTER
-# this function returns rather than duplicated inside it: a conflicted
-# path's stages all carry the identical path string, so any filter keyed
-# purely on that string agrees across every stage regardless of whether
-# dedup happens before or after it.
+# Fills the array named by $1 (a nameref - the caller passes a plain
+# variable name, e.g. `_git_ls_files_filtered_deduped tracked "$repo_root"
+# keep 120000 160000`) with every tracked path from
+# _git_tracked_entries_tempfile()'s scan of repo_root ($2) whose git file
+# mode passes the filter: kept when it IS one of the modes in $4.. if sense
+# ($3) is "keep", or when it is NOT one of them if sense is "skip". No
+# second temp file for the result - unlike _git_tracked_entries_tempfile()'s
+# own NUL-delimited file, which is load-bearing (a command-substitution
+# capture would silently drop the NULs it separates entries with, per that
+# function's own comment), the filtered/deduped result has no such
+# constraint: it goes straight into the caller's own array in the same
+# shell, no boundary to smuggle it across.
 #
-# Returns 1 on ANY mktemp failure - this function's own second mktemp call,
-# or _git_tracked_entries_tempfile()'s first one - and 2 on a `git ls-files`
-# failure, printing nothing either way. Same two-code contract as
-# _git_tracked_entries_tempfile() itself, one level up, so a caller already
-# handling that contract does not need a third branch.
+# Adjacent duplicates of the same path collapse to one entry - an
+# unresolved merge conflict stages the same path three times (once per
+# stage) all under the same mode, and `git ls-files -s` sorts primarily by
+# pathname, so every stage of a conflicted path is contiguous in read
+# order; comparing only against the last-appended array element is
+# therefore equivalent to a full "seen" set here, at the cost of one array
+# read instead of a hash lookup and without a second data structure (as
+# observed 2026-09-02, re-derived when this dedup lived inline in
+# assert_semgrep_report_complete() before this extraction - see issue
+# #104). Extension/content filtering beyond mode, where a caller needs it
+# (e.g. warn_tracked_archives()'s archive-suffix check), is safe to apply
+# AFTER this function returns rather than duplicated inside it: a
+# conflicted path's stages all carry the identical path string, so any
+# filter keyed purely on that string agrees across every stage regardless
+# of whether dedup happens before or after it.
+#
+# Returns 1 on a mktemp failure and 2 on a `git ls-files` failure -
+# _git_tracked_entries_tempfile()'s own two-code contract, propagated
+# verbatim - leaving the array untouched either way, so a caller already
+# handling that contract needs no third branch.
 _git_ls_files_filtered_deduped() {
-    local repo_root="$1" sense="$2"
-    shift 2
+    local -n _out="$1"
+    local repo_root="$2" sense="$3"
+    shift 3
     local -a modes=("$@")
 
     local git_ls_files_file tef_rc
@@ -96,22 +105,8 @@ _git_ls_files_filtered_deduped() {
     # this trap).
     [ "$tef_rc" -eq 0 ] || return "$tef_rc"
 
-    local out_file
-    if ! out_file="$(mktemp)"; then
-        rm -f "$git_ls_files_file" || true
-        return 1
-    fi
-
-    # The whole loop's stdout is redirected to `out_file` ONCE below, rather
-    # than each `printf` reopening it with its own `>>` - load-bearing for
-    # warn_tracked_archives()'s `skip 120000 160000` call, which keeps
-    # nearly every tracked path in the repository (everything that is NOT a
-    # symlink/gitlink), not the small symlink/gitlink-only set
-    # assert_semgrep_report_complete()'s `keep` call produces. A per-line
-    # `>> "$out_file"` there is a separate open/write/close per surviving
-    # path - one bash-level redirect open plus one write() per line here,
-    # the same shape the in-memory array this replaced already had.
-    local entry mode path m match last_path="" have_last=0
+    _out=()
+    local entry mode path m match
     while IFS= read -r -d '' entry; do
         mode="${entry%% *}"
         match=1
@@ -127,15 +122,11 @@ _git_ls_files_filtered_deduped() {
             [ "$match" -eq 1 ] && continue
         fi
         path="${entry#*$'\t'}"
-        if [ "$have_last" -eq 0 ] || [ "$last_path" != "$path" ]; then
-            printf '%s\0' "$path"
-            last_path="$path"
-            have_last=1
+        if [ "${#_out[@]}" -eq 0 ] || [ "${_out[-1]}" != "$path" ]; then
+            _out+=("$path")
         fi
-    done < "$git_ls_files_file" > "$out_file"
+    done < "$git_ls_files_file"
     rm -f "$git_ls_files_file" || true
-
-    printf '%s' "$out_file"
 }
 
 # Fails unless Semgrep's --json-output report shows a complete scan. Prints
@@ -475,14 +466,15 @@ assert_semgrep_report_complete() {
         # .github --include=*.yml --include=*.sh`), the sole production
         # caller checks out a single ref with `actions/checkout`, which
         # never leaves the index mid-conflict — the multi-stage/dedup
-        # concern _git_ls_files_filtered_deduped() below still guards
-        # against cannot manifest through that call path today, but costs
-        # nothing extra to keep for a caller that might. This also keeps
+        # concern _git_ls_files_filtered_deduped() (above) guards against
+        # cannot manifest through that call path today, but costs nothing
+        # extra to keep for a caller that might. This also keeps
         # `git ls-files`' own sorted iteration order intact — the test
         # pinning two simultaneously-missing paths' exact join order
         # depends on it.
-        local filtered_file frc
-        if filtered_file="$(_git_ls_files_filtered_deduped "$repo_root" keep 120000 160000)"; then
+        local -a tracked=()
+        local frc
+        if _git_ls_files_filtered_deduped tracked "$repo_root" keep 120000 160000; then
             frc=0
         else
             frc=$?
@@ -496,12 +488,6 @@ assert_semgrep_report_complete() {
             echo "::error::\`git ls-files\` failed in ${safe_repo_root} — the tree cannot be compared against the report, so it cannot be shown complete."
             return 1
         fi
-        local -a tracked=()
-        local _tracked_path
-        while IFS= read -r -d '' _tracked_path; do
-            tracked+=("$_tracked_path")
-        done < "$filtered_file"
-        rm -f "$filtered_file" || true
 
         # NUL-separated end to end, same reason `git ls-files -z` is used
         # above: an ordinary line-based read would misparse the rare path
@@ -642,8 +628,9 @@ warn_tracked_archives() {
         ".7z" ".rar" ".gz" ".bz2" ".xz"
     )
 
-    local raw_file frc
-    if raw_file="$(_git_ls_files_filtered_deduped "$repo_root" skip 120000 160000)"; then
+    local -a raw_paths=()
+    local frc
+    if _git_ls_files_filtered_deduped raw_paths "$repo_root" skip 120000 160000; then
         frc=0
     else
         frc=$?
@@ -666,7 +653,7 @@ warn_tracked_archives() {
     # function's own comment).
     local -a hits=()
     local raw_path lower_path ext matched
-    while IFS= read -r -d '' raw_path; do
+    for raw_path in "${raw_paths[@]}"; do
         lower_path="${raw_path,,}"
         matched=0
         for ext in "${archive_exts[@]}"; do
@@ -678,8 +665,7 @@ warn_tracked_archives() {
             esac
         done
         [ "$matched" -eq 1 ] && hits+=("$raw_path")
-    done < "$raw_file"
-    rm -f "$raw_file" || true
+    done
 
     if [ "${#hits[@]}" -eq 0 ]; then
         return 0
