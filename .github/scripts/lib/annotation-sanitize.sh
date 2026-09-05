@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
-# Sourced by semgrepignore-guard.sh, semgrep-report-check.sh,
-# semgrep-smoke-helpers.sh and readme-catalog-check.sh (re-derive:
+# Sourced directly (same checkout) by semgrepignore-guard.sh,
+# semgrep-report-check.sh, semgrep-smoke-helpers.sh and
+# readme-catalog-check.sh (re-derive:
 # `grep -rl '^source ".*annotation-sanitize\.sh"' .github/scripts/lib`), so
 # every caller shares ONE sanitizer rather than
 # carrying its own copy that can drift apart - semgrep-report-check.sh's own
 # jq_error path once did exactly
 # that (issue #78): it kept the same `tr '[:cntrl:]' '?'` collision
 # sanitize_for_annotation() itself used to fold to before GH-48 fixed it
-# here, so a fix landed in one copy without reaching the other.
+# here, so a fix landed in one copy without reaching the other. Also sourced,
+# via a checkout of THIS repository into its own runner rather than a local
+# path, by commit-convention.yml - a reusable workflow callable from any
+# repository, with no checkout of its own repository otherwise (re-derive:
+# `grep -n 'annotation-sanitize.sh' .github/workflows/commit-convention.yml`).
 
 # Neutralizes a string before the caller embeds it into a GitHub Actions
 # `::error::` log annotation, closing two independent forgery channels a
