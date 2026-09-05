@@ -72,8 +72,9 @@ rm -f "${workflows_dir}/job-name-collision.yml"
 
 # A workflow file whose final line is the trigger itself, with no trailing
 # newline - a bash `while read` implementation of this function would
-# silently drop this line at EOF; the sed-based extraction reads to true
-# EOF regardless.
+# silently drop this line at EOF; find_workflow_call_targets.py's own
+# `yaml.safe_load()` has no such edge case, but this pins that guarantee
+# end-to-end through the bash wrapper.
 printf 'name: No trailing newline\non:\n    workflow_call:' \
     > "${workflows_dir}/no-trailing-newline.yml"
 
@@ -83,8 +84,10 @@ assert_eq "find_workflow_call_targets: a trigger on the file's last line, with n
 rm -f "${workflows_dir}/no-trailing-newline.yml"
 
 # A column-0 comment line INSIDE the on: mapping - valid YAML (comments
-# ignore surrounding indentation) - must not prematurely close the sed
-# range before the real trigger key beneath it.
+# ignore surrounding indentation) - must not hide the real trigger key
+# beneath it. A real YAML parser already gets this right by construction,
+# unlike the old sed-range heuristic this replaced, but this pins it
+# end-to-end.
 cat > "${workflows_dir}/mid-block-comment.yml" <<'EOF'
 name: Comment inside on-block
 on:
@@ -399,17 +402,32 @@ assert_eq "find_workflow_call_targets: a real python3 failure propagates as a no
 
 # The mktemp guard fails closed rather than proceeding with an empty
 # variable - mirrors test-warn-tracked-archives.sh's own shadowed-mktemp
-# technique for the same shape. Run BEFORE find_workflow_call_targets()
-# itself is shadowed away below: `unset -f` on a function that was
-# REDEFINED (not merely wrapped) deletes it outright rather than restoring
-# the original sourced definition, so this is the last point in the file
-# where the real function is still callable.
+# technique for the same shape. Asserting the exit code alone is not
+# enough to pin this: with the `|| return 1` guard removed, `python3 ...
+# > ""` (an empty redirect target) ALSO fails and ALSO returns non-zero -
+# not from python3, from bash's own "No such file or directory" on the
+# empty redirect target, which happens BEFORE bash even attempts to exec
+# python3. Mutation-confirmed live (both with and without the guard, and
+# also confirmed that a python3-stub sentinel file is unwritten in BOTH
+# cases either way, since bash never reaches the point of running the
+# command it would redirect into - a sentinel-based test would have been
+# equally vacuous). What DOES discriminate: the guard's own `return 1` is
+# silent, while bash's own redirect-failure message goes to stderr - so
+# asserting stderr is EMPTY proves the guard fired before that line was
+# ever reached, not merely that the function eventually returned
+# non-zero somehow. Run BEFORE find_workflow_call_targets() itself is
+# shadowed away below: `unset -f` on a function that was REDEFINED (not
+# merely wrapped) deletes it outright rather than restoring the original
+# sourced definition, so this is the last point in the file where the
+# real function is still callable.
 mktemp() { return 1; }
 find_workflow_call_targets_mktemp_rc=0
-find_workflow_call_targets "${workflows_dir}" > /dev/null || find_workflow_call_targets_mktemp_rc=$?
+find_workflow_call_targets_mktemp_stderr="$(find_workflow_call_targets "${workflows_dir}" 2>&1 >/dev/null)" || find_workflow_call_targets_mktemp_rc=$?
 unset -f mktemp
 assert_eq "find_workflow_call_targets: a mktemp failure returns non-zero" \
     "1" "${find_workflow_call_targets_mktemp_rc}"
+assert_eq "find_workflow_call_targets: a mktemp failure returns silently, before the python3 redirect line" \
+    "" "${find_workflow_call_targets_mktemp_stderr}"
 
 # A crashed producer must fail the whole check LOUDLY, not silently report
 # "zero targets" - the exact defect found and fixed during the issue #118
