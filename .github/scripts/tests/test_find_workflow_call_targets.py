@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+# Exercises find_workflow_call_targets.py directly (issue #118) - the unit
+# layer that pins _has_workflow_call_trigger()'s per-shape behaviour and the
+# YAML-parse-error skip path, complementing rather than duplicating
+# test-readme-catalog-check.sh's end-to-end coverage of the bash wrapper
+# (sanitisation, NUL-record framing, the temp-file exit-code capture). Run
+# via run-tests.sh through the test-find-workflow-call-targets.sh wrapper -
+# this file has no bash logic of its own to test, so it is a plain stdlib
+# unittest module rather than a test-*.sh script.
+import importlib.util
+import os
+import tempfile
+import unittest
+
+_MODULE_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "lib", "find_workflow_call_targets.py"
+)
+_spec = importlib.util.spec_from_file_location("find_workflow_call_targets", _MODULE_PATH)
+# spec_from_file_location() is typed as returning Optional[ModuleSpec] for a
+# path it cannot resolve at all - not a real possibility here, since
+# _MODULE_PATH is computed from this test file's own known-good location,
+# but the assert makes that guarantee explicit for the type checker rather
+# than silently narrowing past it.
+assert _spec is not None and _spec.loader is not None
+find_workflow_call_targets = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(find_workflow_call_targets)
+
+
+class HasWorkflowCallTriggerTest(unittest.TestCase):
+    def test_block_form_with_trigger(self):
+        # The realistic shape: PyYAML resolves the bare `on:` key to the
+        # boolean True (the "Norway problem"), so this is what a real
+        # `yaml.safe_load()` of a GitHub Actions workflow actually produces.
+        doc = {True: {"workflow_call": None, "push": None}}
+        self.assertTrue(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
+    def test_block_form_without_trigger(self):
+        doc = {True: {"push": None}}
+        self.assertFalse(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
+    def test_scalar_form_with_trigger(self):
+        doc = {True: "workflow_call"}
+        self.assertTrue(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
+    def test_scalar_form_without_trigger(self):
+        doc = {True: "push"}
+        self.assertFalse(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
+    def test_flow_sequence_form_with_trigger(self):
+        doc = {True: ["push", "workflow_call"]}
+        self.assertTrue(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
+    def test_flow_sequence_form_without_trigger(self):
+        doc = {True: ["push"]}
+        self.assertFalse(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
+    def test_quoted_on_key_falls_back_to_string_key(self):
+        # The old sed/grep detector's own documented gap: a quoted `'on':`
+        # key never starts a line with the literal text `on:`, so it was
+        # silently invisible. yaml.safe_load() parses a quoted key as the
+        # plain string "on", not the boolean True - the fallback this
+        # function's own .get(True, .get("on")) chain exists for.
+        doc = {"on": {"workflow_call": None}}
+        self.assertTrue(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
+    def test_job_named_workflow_call_is_not_a_trigger(self):
+        # A real YAML parse inherently keeps `jobs:` and `on:` as separate
+        # dict keys, so a job literally named workflow_call can never be
+        # misread as the trigger - unlike a flat text-pattern match.
+        doc = {True: {"push": None}, "jobs": {"workflow_call": {"runs-on": "ubuntu-latest"}}}
+        self.assertFalse(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
+    def test_no_on_key_at_all(self):
+        doc = {"name": "No trigger key"}
+        self.assertFalse(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
+    def test_non_dict_document_shapes(self):
+        for doc in (None, "just a string", ["a", "list"], 42):
+            with self.subTest(doc=doc):
+                self.assertFalse(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
+
+class FindTargetsTest(unittest.TestCase):
+    def test_returns_yml_then_yaml_sorted_within_each_group(self):
+        with tempfile.TemporaryDirectory() as workflows_dir:
+            fixtures = {
+                "z.yml": "on:\n    workflow_call:\n",
+                "a.yml": "on:\n    workflow_call:\n",
+                "b.yaml": "on:\n    workflow_call:\n",
+            }
+            for name, content in fixtures.items():
+                with open(os.path.join(workflows_dir, name), "w", encoding="utf-8") as handle:
+                    handle.write(content)
+
+            targets = list(find_workflow_call_targets.find_targets(workflows_dir))
+
+            self.assertEqual(targets, ["a.yml", "z.yml", "b.yaml"])
+
+    def test_skips_a_file_without_the_trigger(self):
+        with tempfile.TemporaryDirectory() as workflows_dir:
+            with open(os.path.join(workflows_dir, "push-only.yml"), "w", encoding="utf-8") as handle:
+                handle.write("on:\n    push:\n")
+
+            self.assertEqual(list(find_workflow_call_targets.find_targets(workflows_dir)), [])
+
+    def test_malformed_yaml_is_skipped_not_raised(self):
+        with tempfile.TemporaryDirectory() as workflows_dir:
+            with open(os.path.join(workflows_dir, "broken.yml"), "w", encoding="utf-8") as handle:
+                # An unterminated flow mapping - a genuine YAML syntax error,
+                # not merely an unusual-but-valid document shape.
+                handle.write("on: {workflow_call:\n")
+            with open(os.path.join(workflows_dir, "real.yml"), "w", encoding="utf-8") as handle:
+                handle.write("on:\n    workflow_call:\n")
+
+            targets = list(find_workflow_call_targets.find_targets(workflows_dir))
+
+            self.assertEqual(targets, ["real.yml"])
+
+    def test_empty_directory_yields_nothing(self):
+        with tempfile.TemporaryDirectory() as workflows_dir:
+            self.assertEqual(list(find_workflow_call_targets.find_targets(workflows_dir)), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
