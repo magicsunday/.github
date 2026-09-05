@@ -374,4 +374,29 @@ assert_eq "assert_readme_catalog_complete: a row in a DIFFERENT table (e.g. Inpu
 assert_contains "assert_readme_catalog_complete: an Inputs-only row names the workflow in its ::error::" \
     "${output}" "::error::" "real.yml" "not listed in README.md"
 
+# A crashed producer must fail the whole check LOUDLY, not silently report
+# "zero targets" - the exact defect found and fixed during the issue #118
+# audit (assert_readme_catalog_complete() used to consume
+# find_workflow_call_targets() via `done < <(...)`, whose exit status bash
+# never propagates into the enclosing shell). Shadowing the function itself
+# (rather than crafting a real file that crashes find_workflow_call_targets.py)
+# isolates this from the per-file skip path already covered above, and pins
+# the CALLER's own exit-code handling regardless of what happens to ever
+# make the Python script fail outright in the future.
+find_workflow_call_targets() { return 1; }
+
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a crashed producer fails closed, not silently 'zero targets'" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a crashed producer names itself in its ::error::" \
+    "${output}" "::error::" "find_workflow_call_targets failed"
+
+unset -f find_workflow_call_targets
+
 report_and_exit "readme-catalog-check tests"

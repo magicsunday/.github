@@ -15,9 +15,10 @@
 # header for why that must survive intact into sanitize_for_annotation()
 # rather than being consumed by a newline-based split first). Sanitising
 # the printed name for CI-annotation forgery is the CALLER's job
-# (readme-catalog-check.sh already has sanitize_for_annotation() for this
-# and every other producer in this repo routes through the same one
-# function, rather than a second, independently-drifting copy here).
+# (readme-catalog-check.sh already has sanitize_for_annotation() for this,
+# and every other annotation producer in this repo routes through that
+# same function rather than a second, independently-drifting copy -
+# re-derive: `git grep -n sanitize_for_annotation -- .github`).
 import glob
 import os
 import sys
@@ -41,9 +42,7 @@ def _has_workflow_call_trigger(doc):
     # free from using a real parser, not a separately-tracked feature.
     trigger = doc.get(True, doc.get("on"))
 
-    if isinstance(trigger, dict):
-        return "workflow_call" in trigger
-    if isinstance(trigger, list):
+    if isinstance(trigger, (dict, list)):
         return "workflow_call" in trigger
     if isinstance(trigger, str):
         return trigger == "workflow_call"
@@ -64,16 +63,26 @@ def find_targets(workflows_dir):
         try:
             with open(path, "r", encoding="utf-8") as handle:
                 doc = yaml.safe_load(handle)
-        except yaml.YAMLError as exc:
-            # Not fatal: the old sed/grep detector also produced no match
-            # on unparsable text, just silently. A malformed workflow file
-            # is caught separately by this repo's own yamllint job - this
-            # script's job is only to report which files declare
-            # workflow_call, so a stderr line (visible in the CI log, unlike
-            # the old detector's total silence) is the proportionate
-            # response here, not a hard failure of this unrelated check.
+        except Exception as exc:
+            # Deliberately broad, not narrowed to yaml.YAMLError:
+            # `open()`/`yaml.safe_load()` on one bad file can also raise
+            # UnicodeDecodeError (non-UTF-8 bytes), OSError (permission
+            # denied), or RecursionError (a pathologically deep flow
+            # sequence) - none a yaml.YAMLError subclass. Verified live: a
+            # single non-UTF-8 byte in one file, with a genuine
+            # workflow_call trigger in a sibling that sorts after it,
+            # otherwise propagates out of this loop uncaught - the whole
+            # process exits nonzero having yielded nothing, and the
+            # caller's completeness check (readme-catalog-check.sh) then
+            # reports every target as absent rather than flagging the real
+            # one as undocumented. A malformed workflow file is caught
+            # separately by this repo's own yamllint job, so this script's
+            # only job here is reporting which files declare
+            # workflow_call - a stderr line naming the skipped file is the
+            # proportionate response to any single file's processing
+            # failure, not a hard failure of the whole scan.
             print(
-                f"find_workflow_call_targets.py: {os.path.basename(path)} is not valid YAML, skipping: {exc}",
+                f"find_workflow_call_targets.py: {os.path.basename(path)} could not be processed, skipping: {exc}",
                 file=sys.stderr,
             )
             continue

@@ -71,13 +71,37 @@ find_workflow_call_targets() {
 # table would silently widen extraction into it. A header-line wording
 # change instead fails closed (an empty catalog_table reports every target
 # as missing, a loud CI failure) rather than silently.
+#
+# find_workflow_call_targets() is called as an ordinary command into a temp
+# file, never through `done < <(find_workflow_call_targets ...)`: bash does
+# not propagate a process substitution's exit status into the shell that
+# started it, so a crashed producer (its own non-zero return, e.g. from
+# find_workflow_call_targets.py exiting uncaught) would otherwise look
+# identical to "legitimately found zero targets" - the `while read` loop
+# simply sees an empty stream, `failed` stays 0, and this function reports
+# success for a scan that never actually ran. Verified live before this fix
+# (issue #118 audit): forcing find_workflow_call_targets() to fail left this
+# function returning 0 with no ::error:: even though a genuine,
+# undocumented workflow_call target existed in workflows_dir.
 assert_readme_catalog_complete() {
     local workflows_dir="$1"
     local readme_file="$2"
     local name line found failed=0
-    local catalog_table
+    local catalog_table names_file rc=0
 
     catalog_table="$(sed -n '/^| Workflow | Purpose | Permissions/,/^$/p' "${readme_file}")"
+
+    names_file="$(mktemp)" || {
+        echo "::error::mktemp failed while listing workflow_call targets."
+        return 1
+    }
+
+    find_workflow_call_targets "${workflows_dir}" > "${names_file}" || rc=$?
+    if [ "${rc}" -ne 0 ]; then
+        echo "::error::find_workflow_call_targets failed (exit ${rc}) - see the log above for the underlying error."
+        rm -f "${names_file}" || true
+        return 1
+    fi
 
     while IFS= read -r name; do
         [ -n "${name}" ] || continue
@@ -95,7 +119,8 @@ assert_readme_catalog_complete() {
             echo "::error::${name} declares workflow_call: but is not listed in README.md's workflow catalog - add it (see issue #101)."
             failed=1
         fi
-    done < <(find_workflow_call_targets "${workflows_dir}")
+    done < "${names_file}"
+    rm -f "${names_file}" || true
 
     return "${failed}"
 }
