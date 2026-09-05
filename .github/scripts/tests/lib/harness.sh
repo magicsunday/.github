@@ -154,7 +154,7 @@ require_file() {
 # both needing their drift-guard's own source files to exist before sourcing
 # and comparing them. Compares against a call-local snapshot of `failures`
 # taken before this call's own require_file()s run, not merely "is
-# failures &gt; 0" - the inline shape this replaced was only ever reachable as
+# failures > 0" - the inline shape this replaced was only ever reachable as
 # the very first assertion in its file (so the global counter still read 0
 # at call time), but a shared library function has no such guarantee for a
 # future caller placed after an earlier, unrelated failure already

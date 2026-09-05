@@ -28,14 +28,8 @@ PRUNE_DIRS_FILE="${REPO_ROOT}/.github/scripts/lib/semgrep-prune-dirs.sh"
 GUARD_FILE="${REPO_ROOT}/.github/scripts/lib/semgrepignore-guard.sh"
 WORKFLOW_FILE="${REPO_ROOT}/.github/workflows/code-scanning.yml"
 
-require_file "${PRUNE_DIRS_FILE}"
-require_file "${GUARD_FILE}"
-require_file "${WORKFLOW_FILE}"
-# failures=0 is set at lib/harness.sh's top level, sourced above.
-# shellcheck disable=SC2154
-if [ "${failures}" -gt 0 ]; then
-    report_and_exit "semgrep prune-dirs sourcing drift-guard test"
-fi
+require_files_or_bail "semgrep prune-dirs sourcing drift-guard test" \
+    "${PRUNE_DIRS_FILE}" "${GUARD_FILE}" "${WORKFLOW_FILE}"
 
 # shellcheck source=../lib/semgrep-prune-dirs.sh
 source "${PRUNE_DIRS_FILE}"

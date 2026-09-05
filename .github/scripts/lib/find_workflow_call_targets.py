@@ -97,11 +97,14 @@ def _has_workflow_call_trigger(doc):
 
 
 def find_targets(workflows_dir):
-    # Two separately-sorted globs, concatenated - matching the iteration
-    # order the bash caller's own tests were written against
-    # (`*.yml` results, then `*.yaml` results), so swapping the underlying
-    # implementation does not reorder any existing assertion's expected
-    # output.
+    # Two separately-sorted globs, concatenated - preserving the sed/grep-era
+    # `*.yml` results, then `*.yaml` results order. No current bash-side
+    # assertion depends on this cross-extension ordering (every one either
+    # matches order-independently or, where the raw output is compared,
+    # only ever has one matching file at that point in its fixture), but
+    # test_returns_yml_then_yaml_sorted_within_each_group in
+    # test_find_workflow_call_targets.py does pin it directly - preserving
+    # it costs nothing and avoids a gratuitous behavior change.
     paths = sorted(glob.glob(os.path.join(workflows_dir, "*.yml"))) + sorted(
         glob.glob(os.path.join(workflows_dir, "*.yaml"))
     )

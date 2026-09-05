@@ -28,12 +28,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)" || exit 1
 LIB_DIR="${REPO_ROOT}/.github/scripts/lib"
 WORKFLOW_FILE="${REPO_ROOT}/.github/workflows/code-scanning.yml"
 
-require_file "${WORKFLOW_FILE}"
-# failures=0 is set at lib/harness.sh's top level, sourced above.
-# shellcheck disable=SC2154
-if [ "${failures}" -gt 0 ]; then
-    report_and_exit "lib source/cp drift-guard test"
-fi
+require_files_or_bail "lib source/cp drift-guard test" "${WORKFLOW_FILE}"
 
 # Every BASH_SOURCE-relative `source ".../<file>.sh"` dependency named across
 # all lib files, deduplicated. This pattern (not a plain `source "X.sh"`)

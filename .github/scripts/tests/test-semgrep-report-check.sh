@@ -142,6 +142,38 @@ _bootstrap_check_report_and_exit 1 1 "1 failure(s)." \
 _bootstrap_check_report_and_exit 0 0 "All bootstrap probe passed." \
     "report_and_exit()'s own zero-failures contract is broken"
 
+# require_files_or_bail() calls report_and_exit() (which calls `exit`) on
+# ITS OWN failure, so it needs the same real-child-process treatment as
+# report_and_exit() above - and its whole reason for existing over a naive
+# "is failures -gt 0" check is a call-local snapshot, which only a
+# PRE-EXISTING nonzero `failures` count (simulating an earlier, unrelated
+# failure in the same file) can actually discriminate: re-derive
+# (`grep -rn 'require_files_or_bail "' .github/scripts/tests/*.sh`) - every
+# call site this helper currently has runs as the very first statement in
+# its file, so none of them exercises this path.
+_bootstrap_check_require_files_or_bail() {
+    local failures_input="$1" fixture_file="$2" expected_rc="$3" expected_output="$4" fatal_msg="$5"
+    local out rc
+    out="$(SCRIPT_DIR="${SCRIPT_DIR}" BOOTSTRAP_FAILURES="${failures_input}" BOOTSTRAP_FIXTURE="${fixture_file}" bash -c '
+        source "${SCRIPT_DIR}/lib/harness.sh"
+        failures="${BOOTSTRAP_FAILURES}"
+        require_files_or_bail "bootstrap probe" "${BOOTSTRAP_FIXTURE}"
+        echo "did not bail"
+    ' 2>&1)"
+    rc=$?
+    if [ "${rc}" != "${expected_rc}" ] || [ "${out}" != "${expected_output}" ]; then
+        echo "FATAL: ${fatal_msg}: rc='${rc}' output='${out}'"
+        exit 1
+    fi
+}
+_bootstrap_check_require_files_or_bail 1 "${_bootstrap_existing_file}" \
+    0 "did not bail" \
+    "require_files_or_bail()'s own call-local-snapshot contract is broken - a pre-existing unrelated failure must not bail on an existing file"
+_bootstrap_check_require_files_or_bail 0 "${work_dir}/does-not-exist-fixture" \
+    1 "FAIL: expected file not found: ${work_dir}/does-not-exist-fixture
+1 failure(s)." \
+    "require_files_or_bail()'s own missing-file bail contract is broken"
+
 # assert_contains() has the identical gap already closed for its sibling
 # below, just never closed for itself: every genuine call site in this file
 # - grep for `assert_contains "`, skip the two lines marked "bootstrap
