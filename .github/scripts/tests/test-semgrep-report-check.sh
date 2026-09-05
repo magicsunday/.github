@@ -1039,10 +1039,16 @@ rm -f "${mktemp_call_count_file}"
 # (non-toy) shape of this collision, once the shadowed scalar is hit by an
 # array read/append - re-derive by sourcing this file's pre-fix revision
 # (`git show bfdfaa8~1:.github/scripts/lib/semgrep-report-check.sh`) and
-# calling the function with a colliding array name - but that line does
-# not affect `$?`, and nothing in this workflow's job treats a stray
-# stderr line as a failure signal, so it would not have surfaced this bug
-# either. Pin the fix directly, calling the helper (not either of its two
+# calling the function with a colliding array name under THIS test file's
+# own `set -uo pipefail` (no `-e`). That combination is this test file's
+# own execution mode only, not the production caller's: under
+# `code-scanning.yml`'s real `set -euo pipefail`, calling the pre-fix
+# function the same way (`if _git_ls_files_filtered_deduped mode "$repo"
+# keep 120000 160000; then ... fi`) hard-aborts the whole script right
+# there instead - a visibly failing, nonzero-exit job, just not one that
+# prints the `::error::` annotation this check exists to produce. Neither
+# outcome is a silent pass; only the FAILURE MODE differs. Pin the fix
+# directly, calling the helper (not either of its two
 # callers, whose own array names - `tracked`, `raw_paths` - never collided
 # and so could not have caught this) with an array named exactly `mode`,
 # one of the collision-prone names.
