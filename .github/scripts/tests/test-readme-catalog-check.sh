@@ -379,8 +379,12 @@ assert_contains "assert_readme_catalog_complete: an Inputs-only row names the wo
 # find_workflow_call_targets() itself - pinning the `python3 ... || rc=$?`
 # / `[ "${rc}" -ne 0 ]` line directly, since the crashed-producer test below
 # only proves assert_readme_catalog_complete()'s OWN exit-code handling by
-# replacing the whole function, never exercising this line at all.
-python3_stub_dir="$(mktemp -d)" || exit 1
+# replacing the whole function, never exercising this line at all. Nested
+# under work_dir (matching test-semgrepignore-guard.sh's fake_jq_dir), not a
+# free-standing mktemp -d with its own rm -rf: the top-level `trap 'rm -rf
+# "${work_dir}"' EXIT` above then covers it too, so it cannot leak even if a
+# future edit adds an early return between creating it and cleaning it up.
+python3_stub_dir="$(mktemp -d "${work_dir}/python3-stub-XXXXXX")" || exit 1
 cat > "${python3_stub_dir}/python3" <<'EOS'
 #!/usr/bin/env bash
 exit 1
@@ -389,7 +393,6 @@ chmod +x "${python3_stub_dir}/python3"
 
 real_targets_rc=0
 PATH="${python3_stub_dir}:${PATH}" find_workflow_call_targets "${workflows_dir}" > /dev/null || real_targets_rc=$?
-rm -rf "${python3_stub_dir}"
 
 assert_eq "find_workflow_call_targets: a real python3 failure propagates as a non-zero return" \
     "1" "${real_targets_rc}"
