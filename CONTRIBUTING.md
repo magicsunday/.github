@@ -25,10 +25,6 @@
 - Before requesting review, run the mandatory checks locally:
   - `composer ci:test`
   - For modules that build front-end assets, also run `make build` and commit the rebuilt bundle.
-  - This file is served as the default for any repository that does not define
-    its own — a repository whose quality gate isn't PHP/Composer-based (e.g.
-    `magicsunday/.github` itself) documents its own local-verification command
-    in its own README instead of overriding this shared default here.
 - Include tests for new behavior and regression tests for fixes.
 
 ## 4. Development setup (minimal)
