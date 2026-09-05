@@ -136,17 +136,7 @@ def find_targets(workflows_dir):
             # target's basename echoed on stdout as a "workflow_call
             # target" whenever the file IT points at happens to structurally
             # declare one - a narrow, low-value existence/shape oracle about
-            # an arbitrary file on the runner, not a content leak. This is
-            # NOT newly introduced by the switch to a real parser: the old
-            # sed/grep detector's own glob+sed already followed a symlink
-            # transparently and read (and could report on) whatever it
-            # pointed at - live-verified against the actual pre-#118 script
-            # (issue #101's version, commit 8befa81): a symlink in
-            # workflows_dir pointing at a workflow_call-declaring file
-            # OUTSIDE it was read and reported the same way. Closing it
-            # here is simply the first time this pre-existing oracle gets
-            # addressed, not a regression fix for something this rewrite
-            # caused.
+            # an arbitrary file on the runner, not a content leak.
             print(
                 "find_workflow_call_targets.py: "
                 f"{_sanitize_for_stderr(os.path.basename(path))} is a symlink, skipping "

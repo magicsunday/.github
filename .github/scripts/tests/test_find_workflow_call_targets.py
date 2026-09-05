@@ -56,6 +56,22 @@ class HasWorkflowCallTriggerTest(unittest.TestCase):
         doc = {True: ["push"]}
         self.assertFalse(find_workflow_call_targets._has_workflow_call_trigger(doc))
 
+    def test_on_key_with_no_value_is_not_a_trigger(self):
+        # A bare `on:` with nothing under it - yaml.safe_load("on:\n")
+        # resolves the trigger value to None, neither dict/list/str, so
+        # this exercises the function's final `return False` fallback.
+        doc = {True: None}
+        self.assertFalse(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
+    def test_on_key_resolved_to_a_boolean_scalar_is_not_a_trigger(self):
+        # `on: yes` / `on: true` - YAML 1.1's implicit typing coerces the
+        # scalar itself to a bool (the same "Norway problem" this file's
+        # own doc.get(True, ...) fallback already accounts for on the KEY
+        # side), so the trigger value here is a bool, not a string -
+        # also exercises the final `return False` fallback.
+        doc = {True: True}
+        self.assertFalse(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
     def test_quoted_on_key_falls_back_to_string_key(self):
         # The old sed/grep detector's own documented gap: a quoted `'on':`
         # key never starts a line with the literal text `on:`, so it was
