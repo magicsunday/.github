@@ -147,6 +147,24 @@ require_file() {
     fi
 }
 
+# require_file()s every remaining argument, then bails via report_and_exit
+# "$1" if any of them was missing -- the same require_file-then-bail-on-
+# failures shape test-annotation-sanitize-jq-parity.sh and
+# test-sanitize-stderr-parity.sh each had inline before this was extracted,
+# both needing their drift-guard's own source files to exist before sourcing
+# and comparing them.
+require_files_or_bail() {
+    local test_name="$1"
+    shift
+    local f
+    for f in "$@"; do
+        require_file "${f}"
+    done
+    if [ "${failures}" -gt 0 ]; then
+        report_and_exit "${test_name}"
+    fi
+}
+
 # Fails with "FAIL: $2" and increments `failures` unless "$1" is non-empty --
 # the same drift-guard extraction-sanity check
 # test-semgrep-prune-dirs.sh and test-lib-source-cp-drift.sh

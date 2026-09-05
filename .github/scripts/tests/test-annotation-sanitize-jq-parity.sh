@@ -48,13 +48,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)" || exit 1
 ANNOTATION_SANITIZE_FILE="${REPO_ROOT}/.github/scripts/lib/annotation-sanitize.sh"
 REPORT_CHECK_FILE="${REPO_ROOT}/.github/scripts/lib/semgrep-report-check.sh"
 
-require_file "${ANNOTATION_SANITIZE_FILE}"
-require_file "${REPORT_CHECK_FILE}"
-# failures=0 is set at lib/harness.sh's top level, sourced above.
-# shellcheck disable=SC2154
-if [ "${failures}" -gt 0 ]; then
-    report_and_exit "annotation-sanitize jq-filter parity drift-guard test"
-fi
+require_files_or_bail "annotation-sanitize jq-filter parity drift-guard test" \
+    "${ANNOTATION_SANITIZE_FILE}" "${REPORT_CHECK_FILE}"
 
 # shellcheck source=../lib/annotation-sanitize.sh
 source "${ANNOTATION_SANITIZE_FILE}"
