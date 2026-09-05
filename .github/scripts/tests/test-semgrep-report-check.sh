@@ -627,16 +627,20 @@ assert_fail "repo_root: a git-tracked path absent from both inventories fails, n
     "${report_symlink}" "link.php" "${git_case_symlink}"
 
 # `git_ls_files_file`'s `rm -f ... || true` guard on the SUCCESS
-# continuation (after `tracked` is built, still on the missing-symlink
-# path) shares the same untested-under-a-real-`set -e`-caller risk
-# (test-quality-reviewer, mutation-confirmed, round 29): without `|| true`,
-# an `rm` failure here aborts the script silently before the missing-path
-# annotation ever prints. Asserts rc too, not just the message
-# (shell-script-reviewer, mutation-confirmed, round 30: the message-only
-# form here missed an independent regression - this branch's own `return 1`
-# flipped to `return 0` still prints the identical annotation, so only the
-# real child process's own exit code catches a caller silently treating a
-# missing tracked symlink as success).
+# continuation lives inside `_git_ls_files_filtered_deduped()` now (issue
+# #104), one call frame deeper than `assert_semgrep_report_complete()`
+# itself (see the file-wide count note further below) - reached the same
+# way regardless, since this fixture still calls
+# assert_semgrep_report_complete() with a real repo_root, which still
+# reaches the helper's guard. Shares the same untested-under-a-real-`set -e`
+# caller risk as the other guards in this file: without `|| true`, an
+# `rm` failure here aborts the script silently before the missing-path
+# annotation ever prints. Asserts rc too, not just the message -
+# mutation-confirmed that the message-only form misses an independent
+# regression: this branch's own `return 1` flipped to `return 0` still
+# prints the identical annotation, so only the real child process's own
+# exit code catches a caller silently treating a missing tracked symlink
+# as success.
 git_ls_success_guard_output="$(run_under_shadowed_rm "${LIB_FILE}" assert_semgrep_report_complete "${report_symlink}" "${git_case_symlink}")"
 git_ls_success_guard_rc=$?
 assert_eq "git_ls_files_file rm -f failure on the missing-symlink success continuation still fails closed under a real set -e caller" \
@@ -1025,11 +1029,19 @@ rm -f "${mktemp_call_count_file}"
 # naming its array `mode` or `path` (both plain, unprefixed names the
 # function used internally) would have the write silently land in the
 # function's OWN local instead of the caller's array: `rc=0` (false
-# success), caller's array stays empty, no error anywhere. Pin the fix
-# directly, calling the helper (not either of its two callers, whose own
-# array names - `tracked`, `raw_paths` - never collided and so could not
-# have caught this) with an array named exactly `mode`, one of the
-# collision-prone names.
+# success), caller's array stays empty - and the exit code is what a
+# caller actually branches on, so nothing here makes the check FAIL. Bash
+# itself does print a "bad array subscript" line to stderr in the real
+# (non-toy) shape of this collision, once the shadowed scalar is hit by an
+# array read/append - re-derive by sourcing this file's pre-fix revision
+# (`git show bfdfaa8~1:.github/scripts/lib/semgrep-report-check.sh`) and
+# calling the function with a colliding array name - but that line does
+# not affect `$?`, and nothing in this workflow's job treats a stray
+# stderr line as a failure signal, so it would not have surfaced this bug
+# either. Pin the fix directly, calling the helper (not either of its two
+# callers, whose own array names - `tracked`, `raw_paths` - never collided
+# and so could not have caught this) with an array named exactly `mode`,
+# one of the collision-prone names.
 git_case_filtered_deduped_nameref="$(git_case_dir filtered-deduped-nameref)"
 new_git_case filtered-deduped-nameref
 printf 'x' > a.php
