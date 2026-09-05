@@ -9,9 +9,10 @@
 # both by construction - it evaluates the trigger's actual YAML shape and
 # value, not the literal bytes of the line that introduces it. (A THIRD
 # gap, a job literally named `workflow_call` being misread as the trigger,
-# was already closed years earlier by scoping the old heuristic's search to
-# the `on:` block rather than the whole file - not something this
-# replacement had to fix.)
+# was already closed earlier in this same effort - issue #101's
+# range-scoping fix, not this replacement - by scoping the old heuristic's
+# search to the `on:` block rather than the whole file; re-derive:
+# `git log --format='%h %ad %s' --date=iso -- .github/scripts/lib/readme-catalog-check.sh`.)
 #
 # Prints one NUL-terminated, unsanitised basename per matching file to
 # stdout - NUL rather than newline, because a git-tracked filename may
@@ -47,7 +48,10 @@ import sys
 import yaml
 
 # Mirrors annotation-sanitize.sh's sanitize_for_annotation() jq filter
-# (`gsub("%"; "%25") | gsub("[[:cntrl:]]"; " ")`) exactly, in Python: this
+# (its readonly ANNOTATION_SANITIZE_JQ_FILTER constant - re-derive: `grep -n
+# 'readonly ANNOTATION_SANITIZE_JQ_FILTER=' .github/scripts/lib/annotation-sanitize.sh`;
+# test-sanitize-stderr-parity.sh is the drift guard that actually enforces
+# this, not this comment) exactly, in Python: this
 # script's own stderr diagnostic below is a SECOND CI-annotation producer
 # in this repo that has nothing to route through the bash function, since
 # it runs in a separate process the bash caller only pipes stdout from
@@ -106,16 +110,26 @@ def find_targets(workflows_dir):
         if os.path.islink(path):
             # A git-tracked symlink (mode 120000) can point anywhere on the
             # runner filesystem, and glob()/open() do not distinguish it
-            # from a real file. Skipped before ever opening it: a PyYAML
-            # parse failure on the symlink's TARGET embeds a verbatim
-            # source snippet in its exception message (str(exc)), which
-            # this loop's own except-branch below prints to stderr - fine
-            # for a file the diff's own author already controls, but a
-            # newly opened information-disclosure channel for anything
-            # OUTSIDE the checked-out tree a fork PR's symlink could
-            # target. The old sed/grep detector this script replaces never
-            # read file content into any message at all, so this is a
-            # regression this real parser must not reintroduce.
+            # from a real file. Skipped before ever opening it: yaml.safe_load()
+            # is called on an open FILE HANDLE below, not a string, and
+            # PyYAML's Mark.get_snippet() returns None whenever its buffer
+            # is None - which it always is for a stream/file-object source
+            # (verified live: the same parse error yields a snippet with
+            # the offending source line for a string input, but only
+            # path/line/column, no source text, for a file-handle input) -
+            # so a parse failure on the symlink's TARGET cannot leak its
+            # content via the exception message this loop's own
+            # except-branch below prints. What a symlink WOULD still let a
+            # fork PR do without this guard: get a successfully-parsed
+            # target's basename echoed on stdout as a "workflow_call
+            # target" whenever the file IT points at happens to structurally
+            # declare one - a narrow, low-value existence/shape oracle
+            # about an arbitrary file on the runner, not a content leak.
+            # The old sed/grep detector this script replaces never opened
+            # anything outside workflows_dir at all, so closing even that
+            # narrow oracle here is the proportionate response to a real,
+            # newly introduced code path, not a hardening of something
+            # pre-existing.
             print(
                 "find_workflow_call_targets.py: "
                 f"{_sanitize_for_stderr(os.path.basename(path))} is a symlink, skipping "
