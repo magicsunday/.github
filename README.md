@@ -131,7 +131,7 @@ scheduled run.
 
 ## Contributing to this repository
 
-`CONTRIBUTING.md` above stays generic (PHP/Composer, `composer ci:test`)
-since it is also served as the default for repositories without their own —
-this repository itself has no PHP/Composer toolchain. See its own workflows
-under `.github/workflows/` for its actual CI configuration.
+`CONTRIBUTING.md` above stays generic since it is also served as the default
+for repositories without their own — this repository itself has no
+PHP/Composer toolchain. See its own workflows under `.github/workflows/` for
+its actual CI configuration.
