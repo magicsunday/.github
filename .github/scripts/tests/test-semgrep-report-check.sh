@@ -1021,23 +1021,23 @@ rm -f "${mktemp_call_count_file}"
 
 # `_git_ls_files_filtered_deduped()`'s nameref out-parameter (issue #104)
 # resolves the caller's array by NAME against the function's own scope -
-# before every one of its own locals was underscore-prefixed
-# (shell-script-reviewer, GH-104 push-scope round), a caller naming its
-# array `mode` or `path` (both plain, unprefixed names the function used
-# internally) would have the write silently land in the function's OWN
-# local instead of the caller's array: `rc=0` (false success), caller's
-# array stays empty, no error anywhere. Pin the fix directly, calling the
-# helper (not either of its two callers, whose own array names - `tracked`,
-# `raw_paths` - never collided and so could not have caught this) with an
-# array named exactly `mode`, one of the collision-prone names.
-_git_ls_files_filtered_deduped_case="$(git_case_dir filtered-deduped-nameref)"
+# before every one of its own locals was underscore-prefixed, a caller
+# naming its array `mode` or `path` (both plain, unprefixed names the
+# function used internally) would have the write silently land in the
+# function's OWN local instead of the caller's array: `rc=0` (false
+# success), caller's array stays empty, no error anywhere. Pin the fix
+# directly, calling the helper (not either of its two callers, whose own
+# array names - `tracked`, `raw_paths` - never collided and so could not
+# have caught this) with an array named exactly `mode`, one of the
+# collision-prone names.
+git_case_filtered_deduped_nameref="$(git_case_dir filtered-deduped-nameref)"
 new_git_case filtered-deduped-nameref
 printf 'x' > a.php
 ln -s a.php link.php
 finish_git_case "${original_dir}"
 declare -a mode=()
 _git_ls_files_filtered_deduped_rc=0
-_git_ls_files_filtered_deduped mode "${_git_ls_files_filtered_deduped_case}" keep 120000 160000 \
+_git_ls_files_filtered_deduped mode "${git_case_filtered_deduped_nameref}" keep 120000 160000 \
     || _git_ls_files_filtered_deduped_rc=$?
 assert_eq "_git_ls_files_filtered_deduped(): a caller array named like an internal local (mode) still succeeds" \
     "0" "${_git_ls_files_filtered_deduped_rc}"
@@ -1045,5 +1045,28 @@ assert_eq "_git_ls_files_filtered_deduped(): a caller array named like an intern
     "1" "${#mode[@]}"
 assert_eq "_git_ls_files_filtered_deduped(): the caller's mode array holds the real result, not the function's own internal value" \
     "link.php" "${mode[0]:-}"
+
+# The header comment's contract ("leaving the array untouched" on either
+# failure return; implicitly clearing stale data on a success return) has
+# no coverage above - every case there starts from a freshly-declared EMPTY
+# array, so nothing proves `_out=()` runs at all. Mutation-confirmed:
+# deleting that line leaves every case above green.
+declare -a stale_success=(bogus-leftover)
+_git_ls_files_filtered_deduped stale_success "${git_case_filtered_deduped_nameref}" keep 120000 160000
+assert_eq "_git_ls_files_filtered_deduped(): a stale pre-existing element is cleared on a successful call" \
+    "1" "${#stale_success[@]}"
+assert_eq "_git_ls_files_filtered_deduped(): the cleared array holds the real result, not the stale element" \
+    "link.php" "${stale_success[0]:-}"
+
+git_case_filtered_deduped_not_a_repo="$(git_case_dir filtered-deduped-not-a-repo)"
+mkdir -p "${git_case_filtered_deduped_not_a_repo}"
+declare -a stale_failure=(bogus-leftover)
+_git_ls_files_filtered_deduped_rc=0
+_git_ls_files_filtered_deduped stale_failure "${git_case_filtered_deduped_not_a_repo}" keep 120000 160000 \
+    || _git_ls_files_filtered_deduped_rc=$?
+assert_eq "_git_ls_files_filtered_deduped(): a git-ls-files failure returns 2" \
+    "2" "${_git_ls_files_filtered_deduped_rc}"
+assert_eq "_git_ls_files_filtered_deduped(): a git-ls-files failure leaves a pre-existing array untouched, per its own contract" \
+    "bogus-leftover" "${stale_failure[0]:-}"
 
 report_and_exit "report-check tests"
