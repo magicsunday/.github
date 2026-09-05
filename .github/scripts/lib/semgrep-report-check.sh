@@ -464,12 +464,9 @@ assert_semgrep_report_complete() {
     # `excludes` input — a `.semgrepignore` is not an alternative here, per
     # the rejection this file already explains above.
     if [ -n "$repo_root" ]; then
-        # 120000 = symlink, 160000 = gitlink (submodule) — the two modes
-        # this whole block exists to catch (see the comment above). Every
-        # other mode (100644/100755 regular files, 040000 trees do not
-        # appear in `ls-files` output at all) is left to the reason-based
-        # check above; comparing them here is exactly the false-positive
-        # this design deliberately avoids. As observed 2026-09-02
+        # Every mode other than the symlink/gitlink pair
+        # _git_ls_files_filtered_deduped() (above) keeps is left to the
+        # reason-based check above. As observed 2026-09-02
         # (re-derive with `grep -rn "assert_semgrep_report_complete\b"
         # .github --include=*.yml --include=*.sh`), the sole production
         # caller checks out a single ref with `actions/checkout`, which
