@@ -113,23 +113,36 @@ def find_targets(workflows_dir):
             # from a real file. Skipped before ever opening it: yaml.safe_load()
             # is called on an open FILE HANDLE below, not a string, and
             # PyYAML's Mark.get_snippet() returns None whenever its buffer
-            # is None - which it always is for a stream/file-object source
-            # (verified live: the same parse error yields a snippet with
-            # the offending source line for a string input, but only
-            # path/line/column, no source text, for a file-handle input) -
+            # is None - which it always is for a stream/file-object source,
+            # not for a string. Re-derive (the string case prints the
+            # offending source line with a caret, the io.StringIO/stream
+            # case prints only path/line/column):
+            #   python3 -c "
+            #   import yaml, io
+            #   for src in ('a: {b', io.StringIO('a: {b')):
+            #       try:
+            #           yaml.safe_load(src)
+            #       except Exception as e:
+            #           print(str(e))
+            #   "
             # so a parse failure on the symlink's TARGET cannot leak its
             # content via the exception message this loop's own
             # except-branch below prints. What a symlink WOULD still let a
             # fork PR do without this guard: get a successfully-parsed
             # target's basename echoed on stdout as a "workflow_call
             # target" whenever the file IT points at happens to structurally
-            # declare one - a narrow, low-value existence/shape oracle
-            # about an arbitrary file on the runner, not a content leak.
-            # The old sed/grep detector this script replaces never opened
-            # anything outside workflows_dir at all, so closing even that
-            # narrow oracle here is the proportionate response to a real,
-            # newly introduced code path, not a hardening of something
-            # pre-existing.
+            # declare one - a narrow, low-value existence/shape oracle about
+            # an arbitrary file on the runner, not a content leak. This is
+            # NOT newly introduced by the switch to a real parser: the old
+            # sed/grep detector's own glob+sed already followed a symlink
+            # transparently and read (and could report on) whatever it
+            # pointed at - live-verified against the actual pre-#118 script
+            # (issue #101's version, commit 8befa81): a symlink in
+            # workflows_dir pointing at a workflow_call-declaring file
+            # OUTSIDE it was read and reported the same way. Closing it
+            # here is simply the first time this pre-existing oracle gets
+            # addressed, not a regression fix for something this rewrite
+            # caused.
             print(
                 "find_workflow_call_targets.py: "
                 f"{_sanitize_for_stderr(os.path.basename(path))} is a symlink, skipping "

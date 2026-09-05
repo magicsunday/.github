@@ -200,12 +200,14 @@ class FindTargetsTest(unittest.TestCase):
         # A git-tracked symlink pointing outside workflows_dir must never
         # be opened at all. PyYAML's exception message never embeds a
         # source snippet for a file-handle input (only for an in-memory
-        # string - verified live: Mark.get_snippet() returns None whenever
-        # its buffer is None, which it always is for a stream source), so
-        # this pins the guard itself rather than a content-leak this
-        # specific error path was never actually capable of. The fixture's
-        # SECRET_TOKEN line still lets this test fail loudly if that
-        # PyYAML behaviour is ever wrong or changes.
+        # string - Mark.get_snippet() returns None whenever its buffer is
+        # None, which it always is for a stream source; re-derive with
+        # find_workflow_call_targets.py's own comment on this same
+        # mechanism, above its os.path.islink() guard), so this pins the
+        # guard itself rather than a content-leak this specific error path
+        # was never actually capable of. The fixture's SECRET_TOKEN line
+        # still lets this test fail loudly if that PyYAML behaviour is
+        # ever wrong or changes.
         secret_marker = "SECRET_TOKEN=abcdef1234567890"
         with tempfile.TemporaryDirectory() as base_dir:
             workflows_dir = os.path.join(base_dir, "workflows")
