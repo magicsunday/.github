@@ -16,9 +16,7 @@
 # rather than being consumed by a newline-based split first). Sanitising
 # the printed name for CI-annotation forgery is the CALLER's job:
 # readme-catalog-check.sh already has sanitize_for_annotation() for
-# exactly this - the one place an untrusted, attacker-influenced value
-# (a git-tracked path, a scan finding) gets embedded in an annotation in
-# this repo's bash tooling.
+# exactly this.
 #
 # Known limitation: a file with TWO top-level `on:` keys resolves via
 # YAML's own last-key-wins rule, so a workflow_call trigger under the FIRST
