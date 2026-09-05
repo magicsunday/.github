@@ -8,64 +8,46 @@
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 
 # Prints, one per line, the basename of every *.yml/*.yaml file under
-# workflows_dir ($1) whose top-level `on:` block declares a real
-# workflow_call trigger - scoped to the block from the bare `on:` line
-# through the next column-0 line (the same sed-range-then-grep technique
-# assert_readme_catalog_complete() below uses to scope its own table
-# extraction), since `workflow_call` is also a legal JOB id: a job section
-# named `workflow_call:` at the same 4-space depth as a real trigger key
-# previously false-positived under a plain whole-file grep - scoping the
-# search to the `on:` block excludes a `jobs:` section entirely, since the
-# range ends at (and does not extend past) the first line that starts back
-# at column 0. sed's output is captured into a variable and grepped via a
-# here-string rather than piped directly into `grep -q` - under this
-# caller's `set -o pipefail` (lint.yml) a short-circuiting `grep -q` can
-# SIGPIPE a still-writing sed on a large enough `on:` block, and pipefail
-# would then surface that as the whole pipeline failing, silently skipping
-# a real match. Routed through sanitize_for_annotation()
-# (annotation-sanitize.sh) before printing - a git-tracked filename could
-# otherwise carry either forgery channel that function's own header dates
-# and explains - which also keeps this function's one-name-per-line output
-# contract intact for its own caller below, which reads it back with
-# `read`: a raw embedded newline would otherwise split one name across two
-# lines.
+# workflows_dir ($1) whose `on:` trigger declares workflow_call - shelling
+# out to find_workflow_call_targets.py (issue #118) for a real, structural
+# YAML parse rather than pattern-matching the raw text. That closes, by
+# construction, every trigger-shape gap the old sed/grep heuristic's own
+# history had to patch one at a time: the scalar/flow-sequence shorthand
+# (`on: workflow_call` / `on: [push, workflow_call]`), a byte-inexact `on:`
+# line (a quoted `'on':` key), and the workflow_call-named-JOB collision -
+# see that script's own header for the YAML-parser specifics (including the
+# "Norway problem" boolean-key resolution GitHub Actions' own bare `on:`
+# convention runs into).
 #
-# Known limitation (issue #101): only the block form (`on:` followed by an
-# indented `workflow_call:` key) is detected. GitHub Actions also accepts a
-# scalar or flow-sequence trigger shorthand (`on: workflow_call` / `on:
-# [push, workflow_call]`) - a file using either is silently invisible to
-# this function (nothing prints, so assert_readme_catalog_complete() below
-# never flags it missing either), the OPPOSITE of that function's normal
-# fail-closed behaviour. Every workflow in this repository currently uses
-# the block form (re-derive: `grep -n "^on:" .github/workflows/*.yml
-# .github/workflows/*.yaml 2>/dev/null`), so this has not manifested; widen
-# the pattern if that ever changes. The sed range's opening pattern also
-# tolerates trailing whitespace and an inline comment on the `on:` line
-# (`on: `, `on: # comment`), and incidentally a trailing CRLF too, since
-# `[[:space:]]` matches `\r` - only a quoted `'on':` key still silently
-# defeats it (re-derive: `grep -n "^['\"]on['\"]:" .github/workflows/*.yml
-# .github/workflows/*.yaml 2>/dev/null`, expect no output; the earlier
-# `grep -n "^on:"` re-derive above cannot see a quoted key at all, since
-# such a line never starts with the literal text `on:`). (The `2>/dev/null`
-# on all three commands is load-bearing, not decoration: with no *.yaml
-# file under .github/workflows/ yet, bash passes that glob through
-# literally, and grep reports it as a missing file on stderr with a
-# non-zero exit.)
-#
-# Verified, NOT a gap: a column-0 COMMENT line inside the `on:` block does
-# NOT end the range early - the sed end pattern only matches a column-0
-# line that is not itself a comment.
+# Captured via a temp FILE, not `$(...)`: the Python script's own output is
+# NUL-terminated, one raw (unsanitised) basename per record, and bash
+# command substitution silently truncates a captured string at the first
+# embedded NUL byte - reading from a file instead preserves every byte,
+# matching semgrep-report-check.sh's own established
+# _git_tracked_entries_tempfile() idiom for the same NUL-safety reason.
+# Sanitising happens HERE, once per record, straight off the temp file -
+# not inside the Python script (a second, independently-drifting
+# implementation of the same escape-then-fold strategy issue #91 already
+# centralised into sanitize_for_annotation() once) and not via a
+# newline-based `read` (which would let an embedded raw newline in a
+# filename already split the record in two before sanitize_for_annotation()
+# ever saw it whole).
 find_workflow_call_targets() {
     local workflows_dir="$1"
-    local workflow_file name on_block
-    for workflow_file in "${workflows_dir}"/*.yml "${workflows_dir}"/*.yaml; do
-        [ -e "${workflow_file}" ] || continue
-        on_block="$(sed -n '/^on:[[:space:]]*\(#.*\)\{0,1\}$/,/^[^ #]/p' "${workflow_file}")"
-        if grep -qE '^ {4}workflow_call:' <<< "${on_block}"; then
-            name="$(sanitize_for_annotation "$(basename "${workflow_file}")")"
-            printf '%s\n' "${name}"
-        fi
-    done
+    local script_dir tmp_file rc=0 name
+
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    tmp_file="$(mktemp)" || return 1
+    python3 "${script_dir}/find_workflow_call_targets.py" "${workflows_dir}" > "${tmp_file}" || rc=$?
+    if [ "${rc}" -ne 0 ]; then
+        rm -f "${tmp_file}" || true
+        return "${rc}"
+    fi
+
+    while IFS= read -r -d '' name; do
+        printf '%s\n' "$(sanitize_for_annotation "${name}")"
+    done < "${tmp_file}"
+    rm -f "${tmp_file}" || true
 }
 
 # Fails closed (returns 1, one ::error:: per miss) unless every name from

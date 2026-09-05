@@ -2,8 +2,14 @@
 # Exercises find_workflow_call_targets() and assert_readme_catalog_complete()
 # (.github/scripts/lib/readme-catalog-check.sh), the functions lint.yml's
 # "readme-catalog-fresh" job sources to keep README.md's workflow catalog
-# honest against the real *.yml/*.yaml files (issue #101). Run via
-# run-tests.sh.
+# honest against the real *.yml/*.yaml files (issue #101). Since issue #118,
+# find_workflow_call_targets() shells out to find_workflow_call_targets.py
+# for the actual trigger-shape detection - test_find_workflow_call_targets.py
+# (run via test-find-workflow-call-targets.sh) pins that script's own
+# per-shape unit behaviour and its YAML-parse-error handling; this file's
+# job is the end-to-end wiring: sanitisation, the temp-file NUL-safe
+# capture, and assert_readme_catalog_complete()'s README-table matching on
+# top of whatever the Python script reports. Run via run-tests.sh.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -80,7 +86,7 @@ rm -f "${workflows_dir}/no-trailing-newline.yml"
 # ignore surrounding indentation) - must not prematurely close the sed
 # range before the real trigger key beneath it.
 cat > "${workflows_dir}/mid-block-comment.yml" <<'EOF'
-name: Comment inside on:
+name: Comment inside on-block
 on:
     push:
 # a top-level comment mid-block
@@ -98,7 +104,7 @@ rm -f "${workflows_dir}/mid-block-comment.yml"
 # `on:` followed by trailing whitespace or an inline comment is still a
 # valid top-level trigger key - a byte-exact `on:` match would miss it.
 cat > "${workflows_dir}/on-inline-comment.yml" <<'EOF'
-name: Inline comment on the on: line
+name: Inline comment on the on-trigger line
 on: # reusable workflow
     workflow_call:
 jobs:
@@ -114,7 +120,7 @@ rm -f "${workflows_dir}/on-inline-comment.yml"
 # `on:` followed by trailing whitespace and nothing else (no comment) is
 # the same valid shape, exercised separately since it is not implied by
 # the inline-comment case above (the comment group is optional).
-printf 'name: Trailing whitespace on the on: line\non:   \n    workflow_call:\njobs:\n    x:\n        runs-on: ubuntu-latest\n' \
+printf 'name: Trailing whitespace on the on-trigger line\non:   \n    workflow_call:\njobs:\n    x:\n        runs-on: ubuntu-latest\n' \
     > "${workflows_dir}/on-trailing-whitespace.yml"
 
 assert_eq "find_workflow_call_targets: trailing whitespace on the on: line does not hide the trigger" \
@@ -138,6 +144,83 @@ EOF
 assert_contains "find_workflow_call_targets: a .yaml-extension file with a real trigger is not skipped" \
     "$(find_workflow_call_targets "${workflows_dir}")" "real-yaml-ext.yaml"
 rm -f "${workflows_dir}/real-yaml-ext.yaml"
+
+# The scalar trigger shorthand (`on: workflow_call`, no block/mapping at
+# all) - one of the two gaps issue #101 accepted and issue #118 closes via
+# a real YAML parse. The old sed/grep detector's opening pattern anchored on
+# `on:` followed by nothing but optional whitespace/comment, so a value on
+# the SAME line (`on: workflow_call`) never started the range at all.
+cat > "${workflows_dir}/scalar-trigger.yml" <<'EOF'
+name: Scalar trigger shorthand
+on: workflow_call
+jobs:
+    x:
+        runs-on: ubuntu-latest
+EOF
+
+assert_contains "find_workflow_call_targets: the scalar trigger shorthand (on: workflow_call) is detected" \
+    "$(find_workflow_call_targets "${workflows_dir}")" "scalar-trigger.yml"
+rm -f "${workflows_dir}/scalar-trigger.yml"
+
+# The flow-sequence trigger shorthand (`on: [push, workflow_call]`) - the
+# other of the two issue #101 gaps. Also proves a NON-matching sequence
+# (no workflow_call member) is correctly excluded, using the same shape.
+cat > "${workflows_dir}/flow-sequence-trigger.yml" <<'EOF'
+name: Flow-sequence trigger shorthand
+on: [push, workflow_call]
+jobs:
+    x:
+        runs-on: ubuntu-latest
+EOF
+cat > "${workflows_dir}/flow-sequence-no-trigger.yml" <<'EOF'
+name: Flow-sequence without the trigger
+on: [push, pull_request]
+jobs:
+    x:
+        runs-on: ubuntu-latest
+EOF
+
+assert_contains "find_workflow_call_targets: the flow-sequence trigger shorthand (on: [push, workflow_call]) is detected" \
+    "$(find_workflow_call_targets "${workflows_dir}")" "flow-sequence-trigger.yml"
+assert_eq "find_workflow_call_targets: a flow sequence without workflow_call as a member is not misdetected" \
+    "0" "$(find_workflow_call_targets "${workflows_dir}" | grep -c 'flow-sequence-no-trigger.yml')"
+rm -f "${workflows_dir}/flow-sequence-trigger.yml" "${workflows_dir}/flow-sequence-no-trigger.yml"
+
+# A QUOTED `'on':` key - the old sed/grep detector's own documented
+# byte-exact-match gap (its opening pattern anchors on the literal text
+# `on:` at column 0, which a quoted key never starts with). A real YAML
+# parser resolves this to the same trigger mapping either way; see
+# find_workflow_call_targets.py's own header for why the quoted form
+# parses as the plain string key "on" rather than PyYAML's usual
+# boolean-True resolution of the bare, unquoted form.
+cat > "${workflows_dir}/quoted-on-key.yml" <<'EOF'
+name: Quoted on-trigger key
+'on':
+    workflow_call:
+jobs:
+    x:
+        runs-on: ubuntu-latest
+EOF
+
+assert_contains "find_workflow_call_targets: a quoted 'on': key is detected, closing the old detector's own documented gap" \
+    "$(find_workflow_call_targets "${workflows_dir}")" "quoted-on-key.yml"
+rm -f "${workflows_dir}/quoted-on-key.yml"
+
+# A malformed (unparsable) workflow file sitting alongside a real target
+# must not block detection of that sibling - find_workflow_call_targets.py
+# skips a YAML parse error per-file rather than aborting the whole scan,
+# and find_workflow_call_targets() itself must not treat that script's
+# still-zero exit status (the error is reported on stderr, not by failing
+# the process) as a reason to return early either.
+cat > "${workflows_dir}/malformed.yml" <<'EOF'
+on: {workflow_call:
+EOF
+
+assert_contains "find_workflow_call_targets: a malformed sibling file does not hide a real target" \
+    "$(find_workflow_call_targets "${workflows_dir}")" "real.yml"
+assert_eq "find_workflow_call_targets: a malformed file itself is never reported as a target" \
+    "0" "$(find_workflow_call_targets "${workflows_dir}" | grep -c 'malformed.yml')"
+rm -f "${workflows_dir}/malformed.yml"
 
 # A percent-encoded CRLF (`%0D%0A`) in a filename is a forgery channel
 # SEPARATE from a raw control byte - see annotation-sanitize.sh's own
