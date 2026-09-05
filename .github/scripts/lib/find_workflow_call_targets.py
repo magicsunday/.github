@@ -2,28 +2,23 @@
 # Sourced (via `python3 <this file> <workflows_dir>`) by
 # readme-catalog-check.sh's find_workflow_call_targets() to detect a
 # workflow_call trigger via a real YAML parse instead of pattern-matching
-# the raw text - issue #118. The old sed/grep heuristic accepted two known,
-# documented gaps at the time of this replacement: the scalar/flow-sequence
+# the raw text. Evaluating the trigger's actual YAML shape and value, not
+# the literal bytes of the line that introduces it, closes gaps a
+# line-oriented match cannot by construction: the scalar/flow-sequence
 # trigger shorthand (`on: workflow_call` / `on: [push, workflow_call]`) and
-# a byte-inexact `on:` line (a quoted `'on':` key). A real parser closes
-# both by construction - it evaluates the trigger's actual YAML shape and
-# value, not the literal bytes of the line that introduces it. (A THIRD
-# gap, a job literally named `workflow_call` being misread as the trigger,
-# was already closed earlier in this same effort - issue #101's
-# range-scoping fix, not this replacement - by scoping the old heuristic's
-# search to the `on:` block rather than the whole file; re-derive:
-# `git log --format='%h %ad %s' --date=iso -- .github/scripts/lib/readme-catalog-check.sh`.)
+# a byte-inexact `on:` line (a quoted `'on':` key) - see
+# _has_workflow_call_trigger() below for the exact shapes handled.
 #
 # Prints one NUL-terminated, unsanitised basename per matching file to
 # stdout - NUL rather than newline, because a git-tracked filename may
 # itself contain an embedded raw newline (see annotation-sanitize.sh's own
 # header for why that must survive intact into sanitize_for_annotation()
 # rather than being consumed by a newline-based split first). Sanitising
-# the printed name for CI-annotation forgery is the CALLER's job
-# (readme-catalog-check.sh already has sanitize_for_annotation() for this,
-# and every other annotation producer in this repo routes through that
-# same function rather than a second, independently-drifting copy -
-# re-derive: `git grep -n sanitize_for_annotation -- .github`).
+# the printed name for CI-annotation forgery is the CALLER's job:
+# readme-catalog-check.sh already has sanitize_for_annotation() for
+# exactly this - the one place an untrusted, attacker-influenced value
+# (a git-tracked path, a scan finding) gets embedded in an annotation in
+# this repo's bash tooling.
 #
 # Known limitation: a file with TWO top-level `on:` keys resolves via
 # YAML's own last-key-wins rule, so a workflow_call trigger under the FIRST
@@ -91,16 +86,32 @@ def _has_workflow_call_trigger(doc):
     # yields `{True: {"workflow_call": None}}`, not a string key). GitHub
     # Actions' own convention is exactly this bare, unquoted form, so the
     # real trigger mapping normally lives under the key True, not the
-    # string "on". Checking both here also closes the old sed/grep
-    # detector's own documented gap for the rarer, quoted `'on':` form,
-    # which parses as the string key instead - a fix this script gets for
-    # free from using a real parser, not a separately-tracked feature.
-    trigger = doc.get(True, doc.get("on"))
-
-    if isinstance(trigger, (dict, list)):
-        return "workflow_call" in trigger
-    if isinstance(trigger, str):
-        return trigger == "workflow_call"
+    # string "on". Checking both here also handles the rarer, quoted
+    # `'on':` form, which parses as the string key instead.
+    #
+    # Checked independently, not via `doc.get(True, doc.get("on"))`: a
+    # document declaring BOTH a bare `on:` and a quoted `'on':` top-level
+    # key resolves to two DISTINCT dict keys (True and the string "on"),
+    # since YAML compares keys by resolved value, not literal spelling -
+    # verified live: `yaml.safe_load("'on':\n    workflow_call:\non:\n    push:\n")`
+    # yields `{"on": {...}, True: {...}}`, two entries, not a last-key-wins
+    # collapse. A `.get(True, doc.get("on"))` fallback only consults the
+    # string key when True is entirely ABSENT, so it would silently discard
+    # a genuine workflow_call trigger under the quoted key whenever an
+    # unquoted `on:` block also exists (regardless of what IT declares).
+    # This is a different case from the "Known limitation" below, whose
+    # yamllint mitigation covers only two IDENTICALLY-spelled `on:` keys
+    # (both bare, hence the same True key, a real YAML-level duplicate).
+    for key in (True, "on"):
+        if key not in doc:
+            continue
+        trigger = doc[key]
+        if isinstance(trigger, (dict, list)):
+            if "workflow_call" in trigger:
+                return True
+        elif isinstance(trigger, str):
+            if trigger == "workflow_call":
+                return True
     return False
 
 
@@ -156,14 +167,11 @@ def find_targets(workflows_dir):
             # a single non-UTF-8 byte in one file, with a genuine
             # workflow_call trigger in a sibling that sorts after it,
             # otherwise propagates out of this loop uncaught - the whole
-            # process exits nonzero having yielded nothing on stdout. Before
-            # readme-catalog-check.sh's own fix for this, that made the
-            # caller's completeness check silently report SUCCESS with no
-            # ::error:: at all, rather than flagging the real target as
-            # undocumented - see that file's own comment on
-            # assert_readme_catalog_complete() for the exact mechanism. A
-            # malformed workflow file is caught separately by this repo's
-            # own yamllint job, so this script's only job here is reporting
+            # process exits nonzero having yielded nothing on stdout,
+            # silently reporting the caller's completeness check as
+            # successful rather than flagging the real target as
+            # undocumented. A malformed workflow file is caught separately
+            # by this repo's own yamllint job, so this script's only job here is reporting
             # which files declare workflow_call - a stderr line naming the
             # skipped file is the proportionate response to any single
             # file's processing failure, not a hard failure of the whole
