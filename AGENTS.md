@@ -175,7 +175,15 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   scan-report-completeness bullet above), as does `lint.yml`'s
   `readme-catalog-fresh` job (`readme-catalog-check.sh` — cross-checking
   every `workflow_call`-declaring file under `.github/workflows/` against
-  README's catalog table, issue #101).
+  README's catalog table, issue #101). The trigger-detection half of that
+  check (`find_workflow_call_targets()`) shells out to a real YAML parser,
+  `.github/scripts/lib/find_workflow_call_targets.py`, rather than pattern-
+  matching the raw text (issue #118) — pinned via `.github/requirements/
+  pyyaml.in`/`pyyaml.txt` the same way `semgrep.in`/`yamllint.in` are, and
+  unit-tested directly by `test_find_workflow_call_targets.py` (run through
+  `test-find-workflow-call-targets.sh`, since `run-tests.sh`'s own glob only
+  picks up `test-*.sh`), separately from `test-readme-catalog-check.sh`'s
+  end-to-end coverage of the bash wrapper.
   `yamllint.yml` and `i18n.yml` carry comparable inline
   `run:` logic that was deliberately left un-migrated when this convention was
   introduced (GH-47) — extending it to those is a separate decision, not something
