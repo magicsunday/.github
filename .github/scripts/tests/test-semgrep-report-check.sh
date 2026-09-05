@@ -1049,7 +1049,7 @@ ln -s a.php link.php
 finish_git_case "${original_dir}"
 declare -a mode=()
 _git_ls_files_filtered_deduped_rc=0
-_git_ls_files_filtered_deduped mode "${git_case_filtered_deduped_nameref}" keep 120000 160000 \
+_git_ls_files_filtered_deduped mode "${git_case_filtered_deduped_nameref}" keep \
     || _git_ls_files_filtered_deduped_rc=$?
 assert_eq "_git_ls_files_filtered_deduped(): a caller array named like an internal local (mode) still succeeds" \
     "0" "${_git_ls_files_filtered_deduped_rc}"
@@ -1064,7 +1064,7 @@ assert_eq "_git_ls_files_filtered_deduped(): the caller's mode array holds the r
 # array, so nothing proves `_out=()` runs at all. Mutation-confirmed:
 # deleting that line leaves every case above green.
 declare -a stale_success=(bogus-leftover)
-_git_ls_files_filtered_deduped stale_success "${git_case_filtered_deduped_nameref}" keep 120000 160000
+_git_ls_files_filtered_deduped stale_success "${git_case_filtered_deduped_nameref}" keep
 assert_eq "_git_ls_files_filtered_deduped(): a stale pre-existing element is cleared on a successful call" \
     "1" "${#stale_success[@]}"
 assert_eq "_git_ls_files_filtered_deduped(): the cleared array holds the real result, not the stale element" \
@@ -1074,7 +1074,7 @@ git_case_filtered_deduped_not_a_repo="$(git_case_dir filtered-deduped-not-a-repo
 mkdir -p "${git_case_filtered_deduped_not_a_repo}"
 declare -a stale_failure=(bogus-leftover)
 _git_ls_files_filtered_deduped_rc=0
-_git_ls_files_filtered_deduped stale_failure "${git_case_filtered_deduped_not_a_repo}" keep 120000 160000 \
+_git_ls_files_filtered_deduped stale_failure "${git_case_filtered_deduped_not_a_repo}" keep \
     || _git_ls_files_filtered_deduped_rc=$?
 assert_eq "_git_ls_files_filtered_deduped(): a git-ls-files failure returns 2" \
     "2" "${_git_ls_files_filtered_deduped_rc}"
