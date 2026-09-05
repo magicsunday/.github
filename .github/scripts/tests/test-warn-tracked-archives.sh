@@ -243,8 +243,10 @@ assert_contains "mktemp failure: prints its own ::warning::" \
 # _git_ls_files_filtered_deduped(), whose result comes back as a plain
 # array (re-derive with `awk '/^warn_tracked_archives\(\)/,/^}/'
 # ../lib/semgrep-report-check.sh | grep -c 'rm -f .*|| true'` -> 0). The
-# guard inside the shared helper it calls (the git-ls-files-failure
-# branch, shared with assert_semgrep_report_complete() - already exercised
+# guard on the git-ls-files-failure branch - inside
+# _git_tracked_entries_tempfile(), one call frame deeper than
+# _git_ls_files_filtered_deduped() - shared with
+# assert_semgrep_report_complete() - already exercised
 # from that side by test-semgrep-report-check.sh's own rm-shadow cases, but
 # proven again here from THIS function's own call perspective, since a
 # regression in how warn_tracked_archives() propagates the helper's failure
