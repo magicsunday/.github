@@ -30,13 +30,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)" || exit 1
 ANNOTATION_SANITIZE_FILE="${REPO_ROOT}/.github/scripts/lib/annotation-sanitize.sh"
 FIND_TARGETS_FILE="${REPO_ROOT}/.github/scripts/lib/find_workflow_call_targets.py"
 
-require_file "${ANNOTATION_SANITIZE_FILE}"
-require_file "${FIND_TARGETS_FILE}"
-# failures=0 is set at lib/harness.sh's top level, sourced above.
-# shellcheck disable=SC2154
-if [ "${failures}" -gt 0 ]; then
-    report_and_exit "sanitize_for_annotation / _sanitize_for_stderr parity drift-guard test"
-fi
+require_files_or_bail "sanitize_for_annotation / _sanitize_for_stderr parity drift-guard test" \
+    "${ANNOTATION_SANITIZE_FILE}" "${FIND_TARGETS_FILE}"
 
 # shellcheck source=../lib/annotation-sanitize.sh
 source "${ANNOTATION_SANITIZE_FILE}"
@@ -45,11 +40,10 @@ python_sanitize() {
     PYTHONPATH="${SCRIPT_DIR}/../lib" python3 -c '
 import sys
 
-sys.path.insert(0, sys.argv[1])
 import find_workflow_call_targets as m
 
-sys.stdout.write(m._sanitize_for_stderr(sys.argv[2]))
-' "${SCRIPT_DIR}/../lib" "$1"
+sys.stdout.write(m._sanitize_for_stderr(sys.argv[1]))
+' "$1"
 }
 
 assert_parity() {
@@ -59,6 +53,14 @@ assert_parity() {
     python_out="$(python_sanitize "${input}")"
     assert_eq "sanitize parity: ${description}" "${bash_out}" "${python_out}"
 }
+
+# A ground-truth anchor on top of the cross-language comparison below - a
+# blind change identical on both sides (e.g. both implementations starting
+# to strip a leading "sub") would otherwise leave two matching-but-wrong
+# strings that assert_parity alone certifies as agreement, the same failure
+# shape assert_nonempty already guards against elsewhere in this suite.
+assert_eq "sanitize parity: plain text is unchanged (ground truth)" \
+    "sub/real.yml" "$(sanitize_for_annotation "sub/real.yml")"
 
 assert_parity "plain text is unchanged" "sub/real.yml"
 assert_parity "a literal percent is escaped" "100%done.yml"
@@ -71,5 +73,20 @@ assert_parity "a UTF-8-encoded C1 control codepoint (NEL) is neutralised" \
     "$(printf 'sub\xc2\x85dir.yml')"
 assert_parity "a literal question mark next to a folded control byte stays distinguishable" \
     "$(printf 'sub?\x01dir.yml')"
+
+# Boundary fixtures - issue #80 was exactly a one-codepoint-range gap on one
+# side only (tr's single-byte class missing the C1 block a UTF-8-aware jq
+# gsub catches), and jq's [[:cntrl:]] (an external oniguruma-defined class)
+# vs. Python's hand-typed regex range are two independent range definitions
+# that could drift apart at exactly their edges without any interior
+# fixture ever noticing.
+assert_parity "DEL (0x7F) is folded" "$(printf 'sub\x7fdir.yml')"
+assert_parity "a tilde (0x7E, just below DEL) survives unchanged" "sub~dir.yml"
+assert_parity "the C1 range's lower boundary (U+0080) is folded" \
+    "$(printf 'sub\xc2\x80dir.yml')"
+assert_parity "the C1 range's upper boundary (U+009F) is folded" \
+    "$(printf 'sub\xc2\x9fdir.yml')"
+assert_parity "just past the C1 range (U+00A0 NBSP) survives unchanged" \
+    "$(printf 'sub\xc2\xa0dir.yml')"
 
 report_and_exit "sanitize_for_annotation / _sanitize_for_stderr parity drift-guard test"

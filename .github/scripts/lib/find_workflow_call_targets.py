@@ -2,12 +2,14 @@
 # Sourced (via `python3 <this file> <workflows_dir>`) by
 # readme-catalog-check.sh's find_workflow_call_targets() to detect a
 # workflow_call trigger via a real YAML parse instead of pattern-matching
-# the raw text - issue #118. The old sed/grep heuristic accepted two known,
-# documented gaps: the scalar/flow-sequence trigger shorthand (`on:
-# workflow_call` / `on: [push, workflow_call]`) and a byte-inexact `on:`
-# line (a quoted `'on':` key). A real parser closes all three by
-# construction - it evaluates the trigger's actual YAML shape and value,
-# not the literal bytes of the line that introduces it.
+# the raw text - issue #118. The old sed/grep heuristic accepted three
+# known, documented gaps: the scalar/flow-sequence trigger shorthand (`on:
+# workflow_call` / `on: [push, workflow_call]`), a byte-inexact `on:` line
+# (a quoted `'on':` key), and a job literally named `workflow_call` being
+# misread as the trigger. A real parser closes all three by construction -
+# it evaluates the trigger's actual YAML shape and value under the real
+# `on:`/`jobs:` key structure, not the literal bytes of the line that
+# introduces it.
 #
 # Prints one NUL-terminated, unsanitised basename per matching file to
 # stdout - NUL rather than newline, because a git-tracked filename may

@@ -132,9 +132,13 @@ class FindTargetsExceptionDiagnosticTest(unittest.TestCase):
             )
 
             self.assertEqual(result.stdout, b"")
+            # splitlines() itself treats a bare CR as a line boundary the
+            # same way it treats LF, so this one assertion discriminates
+            # both forgery channels - a separate literal "\n::error::"
+            # substring check would be non-discriminating for the CR
+            # variant, whose injected marker contains no "\n" at all.
             stderr_lines = result.stderr.decode("utf-8").splitlines()
             self.assertEqual(len(stderr_lines), 1)
-            self.assertNotIn("\n::error::", result.stderr.decode("utf-8"))
 
     def test_stderr_diagnostic_does_not_forge_a_second_annotation_line(self):
         # End-to-end reproduction of the exact live exploit: a malformed
