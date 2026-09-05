@@ -82,6 +82,64 @@ class HasWorkflowCallTriggerTest(unittest.TestCase):
                 self.assertFalse(find_workflow_call_targets._has_workflow_call_trigger(doc))
 
 
+class SanitizeForStderrTest(unittest.TestCase):
+    def test_embedded_newline_and_carriage_return_are_folded(self):
+        # A git-tracked filename could carry a raw newline into the
+        # per-file skip diagnostic on stderr, which readme-catalog-check.sh
+        # never redirects - unlike sanitize_for_annotation()'s other
+        # callers, nothing downstream would have caught this.
+        self.assertEqual(
+            find_workflow_call_targets._sanitize_for_stderr("legit\n::error::INJECTED"),
+            "legit ::error::INJECTED",
+        )
+        self.assertEqual(
+            find_workflow_call_targets._sanitize_for_stderr("legit\r::error::INJECTED"),
+            "legit ::error::INJECTED",
+        )
+
+    def test_percent_escaped_before_control_fold(self):
+        # Order matters: a literal `%0D` must become `%250D`, not `%0D`
+        # left alone to be decoded by the runner as a real CR later.
+        self.assertEqual(
+            find_workflow_call_targets._sanitize_for_stderr("%0D%0A::error::forged"),
+            "%250D%250A::error::forged",
+        )
+
+    def test_plain_text_is_unchanged(self):
+        self.assertEqual(
+            find_workflow_call_targets._sanitize_for_stderr("real.yml"),
+            "real.yml",
+        )
+
+
+class FindTargetsExceptionDiagnosticTest(unittest.TestCase):
+    def test_stderr_diagnostic_does_not_forge_a_second_annotation_line(self):
+        # End-to-end reproduction of the exact live exploit: a malformed
+        # workflow file whose FILENAME carries an embedded newline followed
+        # by a spoofed `::error::` line. Skips (rather than fails) on a
+        # filesystem that rejects newlines in filenames, mirroring
+        # test-readme-catalog-check.sh's own newline-filename test.
+        with tempfile.TemporaryDirectory() as workflows_dir:
+            forged_name = "legit\n::error::INJECTED spoofed annotation.yml"
+            try:
+                with open(os.path.join(workflows_dir, forged_name), "w", encoding="utf-8") as handle:
+                    handle.write("on: {workflow_call:")
+            except OSError:
+                self.skipTest("this filesystem rejects filenames containing a newline")
+
+            result = subprocess.run(
+                [sys.executable, _MODULE_PATH, workflows_dir],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(result.stdout, b"")
+            stderr_lines = result.stderr.decode("utf-8").splitlines()
+            self.assertEqual(len(stderr_lines), 1)
+            self.assertNotIn("\n::error::", result.stderr.decode("utf-8"))
+
+
 class FindTargetsTest(unittest.TestCase):
     def test_returns_yml_then_yaml_sorted_within_each_group(self):
         with tempfile.TemporaryDirectory() as workflows_dir:

@@ -60,7 +60,7 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   runner that is (both currently `'3.12'` on `ubuntu-latest`, i.e. linux/amd64):
 
   ```bash
-  grep -h "python-version:\|runs-on:" .github/workflows/code-scanning.yml .github/workflows/yamllint.yml
+  grep -h "python-version:\|runs-on:" .github/workflows/code-scanning.yml .github/workflows/yamllint.yml .github/workflows/lint.yml
   ```
 
   Pin the container platform explicitly, or a Docker host on a
