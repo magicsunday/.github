@@ -65,14 +65,14 @@ _git_tracked_entries_tempfile() {
 #
 # Adjacent duplicates of the same path collapse to one entry - an
 # unresolved merge conflict stages the same path three times (once per
-# stage) all under the same mode, and `git ls-files -s` sorts primarily by
+# stage) all under the same mode. As observed 2026-09-02 (re-derived when
+# this dedup lived inline in assert_semgrep_report_complete() before this
+# extraction - see issue #104), `git ls-files -s` sorts primarily by
 # pathname, so every stage of a conflicted path is contiguous in read
 # order; comparing only against the last-appended array element is
 # therefore equivalent to a full "seen" set here, at the cost of one array
-# read instead of a hash lookup and without a second data structure (as
-# observed 2026-09-02, re-derived when this dedup lived inline in
-# assert_semgrep_report_complete() before this extraction - see issue
-# #104). Extension/content filtering beyond mode, where a caller needs it
+# read instead of a hash lookup and without a second data structure.
+# Extension/content filtering beyond mode, where a caller needs it
 # (e.g. warn_tracked_archives()'s archive-suffix check), is safe to apply
 # AFTER this function returns rather than duplicated inside it: a
 # conflicted path's stages all carry the identical path string, so any
@@ -84,16 +84,33 @@ _git_tracked_entries_tempfile() {
 # verbatim - leaving the array untouched either way, so a caller already
 # handling that contract needs no third branch.
 _git_ls_files_filtered_deduped() {
+    # Every OTHER local below is underscore-prefixed too, not just style -
+    # a nameref resolves by NAME against the function's own scope, so a
+    # later plain `local` here that happened to reuse the caller's chosen
+    # array name (e.g. a future third caller passing "mode" or "path")
+    # would silently shadow `_out` for the rest of the call: the write
+    # lands in that new local instead of the caller's array, `_out` still
+    # thinks it succeeded (rc=0), and the caller is left with a silently
+    # EMPTY result - false-success on a completeness-relevant check.
+    # Verified live: `f() { local -n _out="$1"; local mode=x; _out=(a); };
+    # declare -a mode=(); f mode; echo "${#mode[@]}"` prints `0`, no error
+    # (contrast a name colliding with `_out` ITSELF, which bash rejects
+    # outright with "circular name reference" - only a collision with one
+    # of the OTHER locals is silent). Prefixing them removes the entire
+    # collision surface rather than relying on today's two callers
+    # ("tracked", "raw_paths") never happening to choose one of these
+    # names - the same underscore convention this file's own (now-removed)
+    # inline loops already used one level up, for the same reason.
     local -n _out="$1"
-    local repo_root="$2" sense="$3"
+    local _repo_root="$2" _sense="$3"
     shift 3
-    local -a modes=("$@")
+    local -a _modes=("$@")
 
-    local git_ls_files_file tef_rc
-    if git_ls_files_file="$(_git_tracked_entries_tempfile "$repo_root")"; then
-        tef_rc=0
+    local _git_ls_files_file _tef_rc
+    if _git_ls_files_file="$(_git_tracked_entries_tempfile "$_repo_root")"; then
+        _tef_rc=0
     else
-        tef_rc=$?
+        _tef_rc=$?
     fi
     # `$?` inside a negated `if ! cmd; then ...` branch is the NEGATED
     # test's own status (always 0 there), never the original command's -
@@ -103,30 +120,30 @@ _git_ls_files_filtered_deduped() {
     # already use for exactly this reason (see this file's own header
     # comment on that function for the sibling `local x=$(cmd)` variant of
     # this trap).
-    [ "$tef_rc" -eq 0 ] || return "$tef_rc"
+    [ "$_tef_rc" -eq 0 ] || return "$_tef_rc"
 
     _out=()
-    local entry mode path m match
-    while IFS= read -r -d '' entry; do
-        mode="${entry%% *}"
-        match=1
-        for m in "${modes[@]}"; do
-            if [ "$mode" = "$m" ]; then
-                match=0
+    local _entry _mode _path _m _match
+    while IFS= read -r -d '' _entry; do
+        _mode="${_entry%% *}"
+        _match=1
+        for _m in "${_modes[@]}"; do
+            if [ "$_mode" = "$_m" ]; then
+                _match=0
                 break
             fi
         done
-        if [ "$sense" = "skip" ]; then
-            [ "$match" -eq 0 ] && continue
+        if [ "$_sense" = "skip" ]; then
+            [ "$_match" -eq 0 ] && continue
         else
-            [ "$match" -eq 1 ] && continue
+            [ "$_match" -eq 1 ] && continue
         fi
-        path="${entry#*$'\t'}"
-        if [ "${#_out[@]}" -eq 0 ] || [ "${_out[-1]}" != "$path" ]; then
-            _out+=("$path")
+        _path="${_entry#*$'\t'}"
+        if [ "${#_out[@]}" -eq 0 ] || [ "${_out[-1]}" != "$_path" ]; then
+            _out+=("$_path")
         fi
-    done < "$git_ls_files_file"
-    rm -f "$git_ls_files_file" || true
+    done < "$_git_ls_files_file"
+    rm -f "$_git_ls_files_file" || true
 }
 
 # Fails unless Semgrep's --json-output report shows a complete scan. Prints

@@ -1019,4 +1019,31 @@ assert_fail "repo_root: a git_ls_files_file mktemp failure fails closed with its
 unset -f mktemp
 rm -f "${mktemp_call_count_file}"
 
+# `_git_ls_files_filtered_deduped()`'s nameref out-parameter (issue #104)
+# resolves the caller's array by NAME against the function's own scope -
+# before every one of its own locals was underscore-prefixed
+# (shell-script-reviewer, GH-104 push-scope round), a caller naming its
+# array `mode` or `path` (both plain, unprefixed names the function used
+# internally) would have the write silently land in the function's OWN
+# local instead of the caller's array: `rc=0` (false success), caller's
+# array stays empty, no error anywhere. Pin the fix directly, calling the
+# helper (not either of its two callers, whose own array names - `tracked`,
+# `raw_paths` - never collided and so could not have caught this) with an
+# array named exactly `mode`, one of the collision-prone names.
+_git_ls_files_filtered_deduped_case="$(git_case_dir filtered-deduped-nameref)"
+new_git_case filtered-deduped-nameref
+printf 'x' > a.php
+ln -s a.php link.php
+finish_git_case "${original_dir}"
+declare -a mode=()
+_git_ls_files_filtered_deduped_rc=0
+_git_ls_files_filtered_deduped mode "${_git_ls_files_filtered_deduped_case}" keep 120000 160000 \
+    || _git_ls_files_filtered_deduped_rc=$?
+assert_eq "_git_ls_files_filtered_deduped(): a caller array named like an internal local (mode) still succeeds" \
+    "0" "${_git_ls_files_filtered_deduped_rc}"
+assert_eq "_git_ls_files_filtered_deduped(): a caller array named like an internal local (mode) is still filled, not silently left empty" \
+    "1" "${#mode[@]}"
+assert_eq "_git_ls_files_filtered_deduped(): the caller's mode array holds the real result, not the function's own internal value" \
+    "link.php" "${mode[0]:-}"
+
 report_and_exit "report-check tests"
