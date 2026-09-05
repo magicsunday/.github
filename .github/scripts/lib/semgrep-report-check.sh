@@ -10,11 +10,13 @@
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 
 # Writes `git -C repo_root ls-files -s -z` output to a fresh temp file and
-# prints its path on stdout. Shared by assert_semgrep_report_complete() and
-# warn_tracked_archives() below, whose failure-handling for this exact
-# mktemp-then-git-ls-files sequence was identical apart from message wording
-# and severity (extracted per simplicity-reviewer, GH-90 round 3, after two
-# earlier rounds rejected it as too risky to touch
+# prints its path on stdout. Its one direct caller is
+# _git_ls_files_filtered_deduped() below (issue #104); through that,
+# assert_semgrep_report_complete() and warn_tracked_archives() both reach
+# it indirectly, one call frame deeper than before that extraction, whose
+# failure-handling for this exact mktemp-then-git-ls-files sequence was
+# identical apart from message wording and severity (extracted per an
+# earlier GH-90 round, after two rounds rejected it as too risky to touch
 # assert_semgrep_report_complete()'s existing control flow - both rounds
 # then independently showed the `if !`-guarded call form below avoids the
 # trap this file documents elsewhere: "under `set -e`, a bare
@@ -23,12 +25,13 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # caller below invokes this as an `if` condition, never a bare assignment).
 #
 # Distinguishes a mktemp failure from a `git ls-files` failure via its own
-# return code (1 vs 2) rather than a single generic failure, so each caller
-# keeps its own distinct message and severity: assert_semgrep_report_complete()
-# fails closed with `::error::`/`return 1` on either, warn_tracked_archives()
-# degrades open with `::warning::`/`return 0` on either. On a `git ls-files`
-# failure the temp file is already removed before this returns - the caller
-# needs no cleanup for that branch, only for its own success path.
+# return code (1 vs 2) rather than a single generic failure, so each
+# indirect caller keeps its own distinct message and severity:
+# assert_semgrep_report_complete() fails closed with `::error::`/`return 1`
+# on either, warn_tracked_archives() degrades open with
+# `::warning::`/`return 0` on either. On a `git ls-files` failure the temp
+# file is already removed before this returns - the caller needs no
+# cleanup for that branch, only for its own success path.
 _git_tracked_entries_tempfile() {
     local repo_root="$1"
     local f

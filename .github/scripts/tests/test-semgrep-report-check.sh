@@ -535,8 +535,10 @@ mkdir -p "${tmp_scan_dir}"
 
 # assert_no_tmp_leak() (shared by every leak assertion below - two here for
 # jq_stderr_file, two more further down for the repo_root block's
-# git_ls_files_file, plus test-warn-tracked-archives.sh's own copy of the
-# git_ls_files_file shape) now lives in lib/harness.sh (generalised across
+# git_ls_files_file, plus test-warn-tracked-archives.sh's own leak
+# assertion against the same git_ls_files_file cleanup - shared via
+# _git_ls_files_filtered_deduped(), issue #104, not a private copy of the
+# shape) now lives in lib/harness.sh (generalised across
 # files per simplicity-reviewer/test-quality-reviewer, GH-90 round 4; first
 # extracted here per simplicity-reviewer round 2, from the same duplication
 # shape round 1 already fixed once for the git-case setup, via
