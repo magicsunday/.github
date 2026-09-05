@@ -17,13 +17,19 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # previously false-positived under a plain whole-file grep (CodeRabbit,
 # GH-101 PR #117) - scoping the search to the `on:` block excludes a
 # `jobs:` section entirely, since the range ends at (and does not extend
-# past) the first line that starts back at column 0. Routed through
-# sanitize_for_annotation() (annotation-sanitize.sh) before printing - a
-# git-tracked filename could otherwise carry either forgery channel that
-# function's own header dates and explains - which also keeps this
-# function's one-name-per-line output contract intact for its own caller
-# below, which reads it back with `read`: a raw embedded newline would
-# otherwise split one name across two lines.
+# past) the first line that starts back at column 0. sed's output is
+# captured into a variable and grepped via a here-string rather than piped
+# directly into `grep -q` - under this caller's `set -o pipefail` (lint.yml)
+# a short-circuiting `grep -q` can SIGPIPE a still-writing sed on a large
+# enough `on:` block, and pipefail would then surface that as the whole
+# pipeline failing, silently skipping a real match (shell-script-reviewer,
+# GH-101 round 9). Routed through sanitize_for_annotation()
+# (annotation-sanitize.sh) before printing - a git-tracked filename could
+# otherwise carry either forgery channel that function's own header dates
+# and explains - which also keeps this function's one-name-per-line output
+# contract intact for its own caller below, which reads it back with
+# `read`: a raw embedded newline would otherwise split one name across two
+# lines.
 #
 # Known limitation (issue #101): only the block form (`on:` followed by an
 # indented `workflow_call:` key) is detected. GitHub Actions also accepts a
@@ -51,10 +57,11 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # line that is not itself a comment.
 find_workflow_call_targets() {
     local workflows_dir="$1"
-    local workflow_file name
+    local workflow_file name on_block
     for workflow_file in "${workflows_dir}"/*.yml "${workflows_dir}"/*.yaml; do
         [ -e "${workflow_file}" ] || continue
-        if sed -n '/^on:$/,/^[^ #]/p' "${workflow_file}" | grep -qE '^ {4}workflow_call:'; then
+        on_block="$(sed -n '/^on:$/,/^[^ #]/p' "${workflow_file}")"
+        if grep -qE '^ {4}workflow_call:' <<< "${on_block}"; then
             name="$(sanitize_for_annotation "$(basename "${workflow_file}")")"
             printf '%s\n' "${name}"
         fi
