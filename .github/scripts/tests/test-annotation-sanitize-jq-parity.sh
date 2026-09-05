@@ -69,8 +69,8 @@ assert_eq "ANNOTATION_SANITIZE_JQ_FILTER is declared readonly exactly once" \
 
 # sanitize_for_annotation() passes the WHOLE jq program as one argument, so
 # its interpolation (`jq -Rsr "${ANNOTATION_SANITIZE_JQ_FILTER}"`) is
-# self-contained on one line - anchoring on it directly is safe (a
-# line-continuation reformat of the surrounding printf | jq pipe does not
+# self-contained on one line - anchoring on it directly is safe (confirmed:
+# a line-continuation reformat of the surrounding printf | jq pipe does not
 # break it).
 assert_nonempty \
     "$(grep -F -- 'jq -Rsr "${ANNOTATION_SANITIZE_JQ_FILTER}"' "${ANNOTATION_SANITIZE_FILE}")" \

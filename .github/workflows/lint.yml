@@ -191,7 +191,7 @@ jobs:
                   # read as "not found". See its own docblock for why, and
                   # test-semgrep-smoke-helpers.sh for the regression coverage
                   # this exact helper needed after shipping inline, unpinned,
-                  # twice in round 8 of issue #49. `.path?`, not `.path //
+                  # twice. `.path?`, not `.path //
                   # .`: `//` only substitutes on a null/false RESULT, not on
                   # a raised type error, so an unguarded `.path` indexing a
                   # non-object .paths.skipped element would still crash - and
