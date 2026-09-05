@@ -117,10 +117,10 @@ assert_contains_in_order() {
 # Asserts that "$2" - the CAPTURED OUTPUT of some other assert_*() call -
 # itself starts with "FAIL:", i.e. that the inner assertion correctly
 # failed. Prints PASS/FAIL under description "$1" and increments
-# `failures` on a mismatch, same as every other assert here. For probing
-# an assert_*() helper's own failure branch directly (needed this shape once
-# each, testing assert_contains_in_order() and assert_contains() themselves
-# rather than a real caller) - the inner
+# `failures` on a mismatch, same as every other assert here. This shape was
+# needed once each for probing an assert_*() helper's own failure branch
+# directly - testing assert_contains_in_order() and assert_contains()
+# themselves rather than a real caller - the inner
 # call's own `failures` increment happens inside the `$(...)` command
 # substitution that captured it, so it is a subshell-local copy that never
 # reaches this script's real counter; this function's own increment, on
