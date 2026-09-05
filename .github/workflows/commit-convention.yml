@@ -325,10 +325,67 @@ jobs:
                   failures=0
                   checked=0
 
+                  # A third, independent copy of the escape-then-fold algorithm
+                  # .github/scripts/lib/annotation-sanitize.sh's sanitize_for_annotation()
+                  # already canonicalises for every other producer in this repo
+                  # (re-derive: `grep -rl '^source ".*annotation-sanitize\.sh"'
+                  # .github/scripts/lib`) - not sourced from there because this
+                  # is a REUSABLE workflow with no `actions/checkout` step,
+                  # callable from any repository that never checked out
+                  # magicsunday/.github at all. Same escape-then-fold order as
+                  # the canonical implementation: percent-escape first, or a
+                  # literal `%0D`/`%0A` in a PR title or commit subject would be
+                  # indistinguishable from an already-escaped sequence once the
+                  # runner decodes it back. Degrades to the raw, unescaped input
+                  # if jq itself fails, matching the canonical implementation's
+                  # own documented tradeoff (the caller-controlled value still
+                  # reaches the annotation unsanitised on that path, which is
+                  # judged acceptable there for the same reason here: `report()`
+                  # always fails the job regardless, so an attacker gains
+                  # nothing more than annotation forgery on an already-failing
+                  # run - not a distinct, more severe class than the guarded
+                  # path already accepts).
+                  sanitize_for_annotation() {
+                      printf '%s' "$1" \
+                          | jq -Rsr 'gsub("%"; "%25") | gsub("[[:cntrl:]]"; " ")' 2>/dev/null \
+                          || printf '%s' "$1"
+                  }
+
+                  # Self-test, since this copy has no shared drift-guard test
+                  # reaching across the repository boundary the way
+                  # test-annotation-sanitize-jq-parity.sh does for the
+                  # in-repository copies.
+                  sanitize_self_test() {
+                      local description="$1" input="$2" expected="$3" actual
+                      actual="$(sanitize_for_annotation "${input}")"
+                      if [ "${actual}" != "${expected}" ]; then
+                          echo "::error::sanitize_for_annotation self-test: ${description}: expected \"${expected}\", got \"${actual}\""
+                          failures=$((failures + 1))
+                      fi
+                  }
+                  sanitize_self_test "plain text is unchanged" "GH-1: Fix it" "GH-1: Fix it"
+                  sanitize_self_test "a literal percent is escaped" "100%done" "100%25done"
+                  sanitize_self_test "an embedded newline is folded to a space" "$(printf 'legit\nforged ::error::')" "legit forged ::error::"
+                  sanitize_self_test "a percent-encoded CRLF is escaped, not decoded by the runner" "%0D%0A::error::forged" "%250D%250A::error::forged"
+
                   report() {
-                      echo "::error::${1}: \"${2}\""
+                      echo "::error::${1}: \"$(sanitize_for_annotation "${2}")\""
                       failures=$((failures + 1))
                   }
+
+                  # Confirms report() itself actually routes through
+                  # sanitize_for_annotation() - the four sanitize_self_test
+                  # calls above only prove the function works in isolation,
+                  # not that report() calls it. Snapshots `failures` before
+                  # and after, since invoking report() here to test it also
+                  # increments the real counter this step gates on.
+                  _report_self_test_failures="${failures}"
+                  _report_self_test_output="$(report "self-test" "$(printf 'evil\n::error::forged annotation')")"
+                  failures="${_report_self_test_failures}"
+                  if [ "$(printf '%s\n' "${_report_self_test_output}" | wc -l)" -ne 1 ]; then
+                      echo "::error::report() self-test: a forged multi-line payload was not collapsed to one line: ${_report_self_test_output}"
+                      failures=$((failures + 1))
+                  fi
 
                   subject_is_valid "${PR_TITLE}" \
                       || report "pull-request title violates the commit convention" "${PR_TITLE}"
