@@ -29,16 +29,17 @@
 # YAML's own last-key-wins rule, so a workflow_call trigger under the FIRST
 # `on:` block is silently discarded if a second `on:` block follows. Not
 # fixed here because it is already independently gated: this repo's
-# yamllint job (yamllint.yml) overrides line-length, document-start,
-# truthy, comments and indentation, but never key-duplicates, so that rule
+# yamllint job (yamllint.yml) never overrides key-duplicates, so that rule
 # stays at yamllint's default `error` level and rejects a duplicate
-# top-level key - verified against the exact pinned yamllint version and
-# the exact override string that job uses: `printf 'on:\n
-# workflow_call:\non:\n push:\n' | yamllint -d "{extends: default, rules:
-# {line-length: {max: 200, level: warning}, document-start: disable,
-# truthy: {check-keys: false}, comments: {min-spaces-from-content: 1},
-# indentation: {spaces: 4, indent-sequences: true}}}" -` (using the version
-# pinned in .github/requirements/yamllint.in) reports
+# top-level key. Re-derive by extracting the job's OWN current `-d`
+# argument live, rather than a hand-copied string this comment already
+# drifted from once (a prior version claimed "runs every rule at its
+# default", which was already false at the time) - a copy cannot detect
+# the next divergence either, this can:
+#   printf 'on:\n    workflow_call:\non:\n    push:\n' | yamllint -d "$(
+#       grep -oP '(?<=-d ")[^"]+' .github/workflows/yamllint.yml
+#   )" -
+# (using the version pinned in .github/requirements/yamllint.in) reports
 # `key-duplicates` and exits 1.
 import glob
 import os

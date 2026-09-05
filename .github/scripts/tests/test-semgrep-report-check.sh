@@ -147,10 +147,12 @@ _bootstrap_check_report_and_exit 0 0 "All bootstrap probe passed." \
 # report_and_exit() above - and its whole reason for existing over a naive
 # "is failures -gt 0" check is a call-local snapshot, which only a
 # PRE-EXISTING nonzero `failures` count (simulating an earlier, unrelated
-# failure in the same file) can actually discriminate: re-derive
-# (`grep -rn 'require_files_or_bail "' .github/scripts/tests/*.sh`) - every
-# call site this helper currently has runs as the very first statement in
-# its file, so none of them exercises this path.
+# failure in the same file) can actually discriminate: re-derive, anchored
+# at column 0 so it matches only a real call and not this comment's own
+# quoted example or the synthetic bootstrap-probe call below
+# (`grep -n '^require_files_or_bail "' .github/scripts/tests/test-*.sh`) -
+# every call site this helper currently has runs as the very first
+# statement in its file, so none of them exercises this path.
 _bootstrap_check_require_files_or_bail() {
     local failures_input="$1" fixture_file="$2" expected_rc="$3" expected_output="$4" fatal_msg="$5"
     local out rc
