@@ -50,3 +50,6 @@
 - name: "github_actions"
   color: "000000"
   description: "Pull requests that update GitHub Actions code"
+- name: "python"
+  color: "2b67c6"
+  description: "Pull requests that update python code"

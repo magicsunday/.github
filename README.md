@@ -119,9 +119,9 @@ jobs:
 ## Labels
 
 `labels.yml` is the single source of truth for the shared label set — the type
-labels, the four `priority: *` levels, and the two Dependabot-managed labels.
-Names are lowercase; `dependencies` and `github_actions` must stay lowercase
-because Dependabot recreates them that way.
+labels, the four `priority: *` levels, and the three Dependabot-managed labels.
+Names are lowercase; `dependencies`, `github_actions` and `python` must stay
+lowercase because Dependabot recreates them that way.
 
 The sync runs with `skip-delete`, so it only creates and updates: labels
 specific to a repository are never removed. To change the set for every
