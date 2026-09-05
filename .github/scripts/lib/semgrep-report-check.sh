@@ -52,11 +52,16 @@ _git_tracked_entries_tempfile() {
 
 # Fills the array named by $1 (a nameref - the caller passes a plain
 # variable name, e.g. `_git_ls_files_filtered_deduped tracked "$repo_root"
-# keep 120000 160000`) with every tracked path from
-# _git_tracked_entries_tempfile()'s scan of repo_root ($2) whose git file
-# mode passes the filter: kept when it IS one of the modes in $4.. if sense
-# ($3) is "keep", or when it is NOT one of them if sense is "skip". No
-# second temp file for the result - unlike _git_tracked_entries_tempfile()'s
+# keep`) with every tracked path from _git_tracked_entries_tempfile()'s
+# scan of repo_root ($2) whose git file mode IS a symlink (120000) or
+# gitlink/submodule (160000) if sense ($3) is "keep", or whose mode is
+# NEITHER of those two if sense is "skip". Hardcoded rather
+# than a caller-supplied mode list - every call site in this file (both
+# production callers and every test fixture) always filters on exactly
+# these two modes, the only two git object types `git ls-files -s` can
+# report that _git_tracked_entries_tempfile()'s callers care about; a
+# variadic mode parameter would generalize over a dimension nothing here
+# exercises. No second temp file for the result - unlike _git_tracked_entries_tempfile()'s
 # own NUL-delimited file, which is load-bearing (a command-substitution
 # capture would silently drop the NULs it separates entries with, per that
 # function's own comment), the filtered/deduped result has no such
@@ -103,8 +108,6 @@ _git_ls_files_filtered_deduped() {
     # reason.
     local -n _out="$1"
     local _repo_root="$2" _sense="$3"
-    shift 3
-    local -a _modes=("$@")
 
     local _git_ls_files_file _tef_rc
     if _git_ls_files_file="$(_git_tracked_entries_tempfile "$_repo_root")"; then
@@ -123,16 +126,13 @@ _git_ls_files_filtered_deduped() {
     [ "$_tef_rc" -eq 0 ] || return "$_tef_rc"
 
     _out=()
-    local _entry _mode _path _m _match
+    local _entry _mode _path _match
     while IFS= read -r -d '' _entry; do
         _mode="${_entry%% *}"
-        _match=1
-        for _m in "${_modes[@]}"; do
-            if [ "$_mode" = "$_m" ]; then
-                _match=0
-                break
-            fi
-        done
+        case "$_mode" in
+            120000 | 160000) _match=0 ;;
+            *) _match=1 ;;
+        esac
         if [ "$_sense" = "skip" ]; then
             [ "$_match" -eq 0 ] && continue
         else
@@ -491,7 +491,7 @@ assert_semgrep_report_complete() {
         # depends on it.
         local -a tracked=()
         local frc
-        if _git_ls_files_filtered_deduped tracked "$repo_root" keep 120000 160000; then
+        if _git_ls_files_filtered_deduped tracked "$repo_root" keep; then
             frc=0
         else
             frc=$?
@@ -647,7 +647,7 @@ warn_tracked_archives() {
 
     local -a raw_paths=()
     local frc
-    if _git_ls_files_filtered_deduped raw_paths "$repo_root" skip 120000 160000; then
+    if _git_ls_files_filtered_deduped raw_paths "$repo_root" skip; then
         frc=0
     else
         frc=$?
