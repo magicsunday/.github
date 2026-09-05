@@ -261,8 +261,7 @@ assert_contains "mktemp failure: prints its own ::warning::" \
 # aborted silently before its own diagnostic ever printed - drives the
 # shared run_under_shadowed_rm() from lib/harness.sh, the same helper
 # test-semgrep-report-check.sh uses for assert_semgrep_report_complete()'s
-# analogous guard (generalised across files per simplicity-reviewer,
-# GH-90).
+# analogous guard.
 LIB_FILE="${SCRIPT_DIR}/../lib/semgrep-report-check.sh"
 
 rm_guard_failure_output="$(run_under_shadowed_rm "${LIB_FILE}" warn_tracked_archives "${git_case_not_a_repo}")"
