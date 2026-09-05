@@ -152,15 +152,23 @@ require_file() {
 # failures shape test-annotation-sanitize-jq-parity.sh and
 # test-sanitize-stderr-parity.sh each had inline before this was extracted,
 # both needing their drift-guard's own source files to exist before sourcing
-# and comparing them.
+# and comparing them. Compares against a call-local snapshot of `failures`
+# taken before this call's own require_file()s run, not merely "is
+# failures &gt; 0" - the inline shape this replaced was only ever reachable as
+# the very first assertion in its file (so the global counter still read 0
+# at call time), but a shared library function has no such guarantee for a
+# future caller placed after an earlier, unrelated failure already
+# incremented it - that shape would otherwise bail the whole file on an
+# unrelated prior failure instead of reporting it and continuing.
 require_files_or_bail() {
     local test_name="$1"
     shift
+    local before="${failures}"
     local f
     for f in "$@"; do
         require_file "${f}"
     done
-    if [ "${failures}" -gt 0 ]; then
+    if [ "${failures}" -gt "${before}" ]; then
         report_and_exit "${test_name}"
     fi
 }

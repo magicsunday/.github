@@ -196,6 +196,38 @@ class FindTargetsTest(unittest.TestCase):
 
             self.assertEqual(targets, ["real.yml"])
 
+    def test_symlinked_workflow_file_is_skipped_without_leaking_target_content(self):
+        # A git-tracked symlink pointing outside workflows_dir must never
+        # be opened at all - live-reproduced exploit: without the
+        # os.path.islink() guard, a malformed YAML target's exception
+        # message embeds a verbatim source snippet, which the per-file
+        # skip diagnostic then prints to stderr, leaking arbitrary
+        # filesystem content a fork PR's symlink could point at.
+        with tempfile.TemporaryDirectory() as base_dir:
+            workflows_dir = os.path.join(base_dir, "workflows")
+            os.mkdir(workflows_dir)
+            secret_path = os.path.join(base_dir, "secret.txt")
+            with open(secret_path, "w", encoding="utf-8") as handle:
+                handle.write("SECRET_TOKEN=abcdef1234567890\nmalformed: {unterminated\n")
+
+            try:
+                os.symlink(secret_path, os.path.join(workflows_dir, "evil.yml"))
+            except OSError:
+                self.skipTest("this filesystem does not support symlinks")
+
+            result = subprocess.run(
+                [sys.executable, _MODULE_PATH, workflows_dir],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, b"")
+            stderr_text = result.stderr.decode("utf-8")
+            self.assertIn("evil.yml is a symlink, skipping", stderr_text)
+            self.assertNotIn("SECRET_TOKEN", stderr_text)
+
     def test_empty_directory_yields_nothing(self):
         with tempfile.TemporaryDirectory() as workflows_dir:
             self.assertEqual(list(find_workflow_call_targets.find_targets(workflows_dir)), [])
@@ -244,6 +276,34 @@ class MainTest(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0)
             self.assertEqual(result.stdout, b"real.yml\x00")
+
+    def test_non_utf8_filename_round_trips_via_fsencode(self):
+        # main() writes os.fsencode(name), not name.encode() - the latter
+        # raises UnicodeEncodeError uncaught for a surrogateescape-decoded
+        # non-UTF-8 byte, since find_targets()'s own try/except only wraps
+        # the yaml.safe_load() READ side, not this write loop (verified
+        # live: reverting to name.encode() crashes main() for exactly this
+        # case instead of producing a NUL-terminated record). The file's
+        # CONTENT is valid UTF-8 with a real trigger, isolating this to the
+        # filename-encoding path alone.
+        with tempfile.TemporaryDirectory() as workflows_dir:
+            forged_name = b"bad-\xffname.yml"
+            path = os.path.join(os.fsencode(workflows_dir), forged_name)
+            try:
+                with open(path, "wb") as handle:
+                    handle.write(b"on:\n    workflow_call:\n")
+            except OSError:
+                self.skipTest("this filesystem rejects filenames containing this byte")
+
+            result = subprocess.run(
+                [sys.executable, _MODULE_PATH, workflows_dir],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, forged_name + b"\x00")
 
     def test_no_targets_writes_empty_stdout_and_returns_0(self):
         with tempfile.TemporaryDirectory() as workflows_dir:
