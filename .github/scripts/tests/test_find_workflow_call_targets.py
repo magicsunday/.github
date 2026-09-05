@@ -75,19 +75,28 @@ class HasWorkflowCallTriggerTest(unittest.TestCase):
     def test_on_key_resolved_to_a_boolean_scalar_is_not_a_trigger(self):
         # `on: yes` / `on: true` - YAML 1.1's implicit typing coerces the
         # scalar itself to a bool (the same "Norway problem" this file's
-        # own doc.get(True, ...) fallback already accounts for on the KEY
+        # own True-vs-"on" key check already accounts for on the KEY
         # side), so the trigger value here is a bool, not a string -
         # also exercises the final `return False` fallback.
         doc = {True: True}
         self.assertFalse(find_workflow_call_targets._has_workflow_call_trigger(doc))
 
     def test_quoted_on_key_falls_back_to_string_key(self):
-        # The old sed/grep detector's own documented gap: a quoted `'on':`
-        # key never starts a line with the literal text `on:`, so it was
-        # silently invisible. yaml.safe_load() parses a quoted key as the
-        # plain string "on", not the boolean True - the fallback this
-        # function's own .get(True, .get("on")) chain exists for.
+        # yaml.safe_load() parses a quoted `'on':` key as the plain string
+        # "on", not the boolean True a bare `on:` resolves to - checked as
+        # the string-key branch of this function's True/"on" loop.
         doc = {"on": {"workflow_call": None}}
+        self.assertTrue(find_workflow_call_targets._has_workflow_call_trigger(doc))
+
+    def test_both_bare_and_quoted_on_keys_present_checks_both_independently(self):
+        # A document declaring BOTH a bare `on:` (key True) and a quoted
+        # `'on':` (key "on") is not a YAML-level duplicate - the two keys
+        # resolve to different values, so both survive into the parsed
+        # dict as two separate entries (mutation-confirmed against
+        # `doc.get(True, doc.get("on"))`, which returns True's value
+        # whenever True is present at all, silently discarding a genuine
+        # workflow_call trigger under the quoted key).
+        doc = {True: {"push": None}, "on": {"workflow_call": None}}
         self.assertTrue(find_workflow_call_targets._has_workflow_call_trigger(doc))
 
     def test_job_named_workflow_call_is_not_a_trigger(self):

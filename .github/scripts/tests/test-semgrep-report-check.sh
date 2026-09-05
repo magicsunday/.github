@@ -119,6 +119,22 @@ _bootstrap_check "${_bootstrap_out}" "PASS: bootstrap probe" 0 \
     "assert_starts_with_fail()'s own positive-case contract is broken" \
     assert_starts_with_fail "bootstrap probe" "FAIL: genuinely a failure"
 
+# Compares the "$3"/"$4" (expected rc/output) driven by the two bootstrap
+# checks below against the actual "$1"/"$2", printing "FATAL: $5: ..." and
+# exiting 1 on any mismatch - the byte-identical tail
+# _bootstrap_check_report_and_exit() and _bootstrap_check_require_files_or_bail()
+# below each had inline before this was extracted; only that shared
+# compare-and-exit block moves here, since the two functions' own child-process
+# invocations still differ in which extra env vars and which function under
+# test they drive.
+_bootstrap_assert_or_fatal() {
+    local rc="$1" out="$2" expected_rc="$3" expected_output="$4" fatal_msg="$5"
+    if [ "${rc}" != "${expected_rc}" ] || [ "${out}" != "${expected_output}" ]; then
+        echo "FATAL: ${fatal_msg}: rc='${rc}' output='${out}'"
+        exit 1
+    fi
+}
+
 # report_and_exit() calls `exit` itself, so it can only be driven in a real
 # CHILD PROCESS - calling it in-process would exit this test script. Here
 # the `$(...)` captures a genuinely separate `bash -c` process, not the
@@ -132,10 +148,7 @@ _bootstrap_check_report_and_exit() {
         report_and_exit "bootstrap probe"
     ' 2>&1)"
     rc=$?
-    if [ "${rc}" != "${expected_rc}" ] || [ "${out}" != "${expected_output}" ]; then
-        echo "FATAL: ${fatal_msg}: rc='${rc}' output='${out}'"
-        exit 1
-    fi
+    _bootstrap_assert_or_fatal "${rc}" "${out}" "${expected_rc}" "${expected_output}" "${fatal_msg}"
 }
 _bootstrap_check_report_and_exit 1 1 "1 failure(s)." \
     "report_and_exit()'s own nonzero-failures contract is broken - this file's own trailing report_and_exit call would exit 0 no matter what fails below"
@@ -163,10 +176,7 @@ _bootstrap_check_require_files_or_bail() {
         echo "did not bail"
     ' 2>&1)"
     rc=$?
-    if [ "${rc}" != "${expected_rc}" ] || [ "${out}" != "${expected_output}" ]; then
-        echo "FATAL: ${fatal_msg}: rc='${rc}' output='${out}'"
-        exit 1
-    fi
+    _bootstrap_assert_or_fatal "${rc}" "${out}" "${expected_rc}" "${expected_output}" "${fatal_msg}"
 }
 _bootstrap_check_require_files_or_bail 1 "${_bootstrap_existing_file}" \
     0 "did not bail" \
