@@ -68,19 +68,22 @@ def find_targets(workflows_dir):
             # `open()`/`yaml.safe_load()` on one bad file can also raise
             # UnicodeDecodeError (non-UTF-8 bytes), OSError (permission
             # denied), or RecursionError (a pathologically deep flow
-            # sequence) - none a yaml.YAMLError subclass. Verified live: a
-            # single non-UTF-8 byte in one file, with a genuine
+            # sequence) - none a yaml.YAMLError subclass. Without this,
+            # a single non-UTF-8 byte in one file, with a genuine
             # workflow_call trigger in a sibling that sorts after it,
             # otherwise propagates out of this loop uncaught - the whole
-            # process exits nonzero having yielded nothing, and the
-            # caller's completeness check (readme-catalog-check.sh) then
-            # reports every target as absent rather than flagging the real
-            # one as undocumented. A malformed workflow file is caught
-            # separately by this repo's own yamllint job, so this script's
-            # only job here is reporting which files declare
-            # workflow_call - a stderr line naming the skipped file is the
-            # proportionate response to any single file's processing
-            # failure, not a hard failure of the whole scan.
+            # process exits nonzero having yielded nothing on stdout. Before
+            # readme-catalog-check.sh's own fix for this, that made the
+            # caller's completeness check silently report SUCCESS with no
+            # ::error:: at all, rather than flagging the real target as
+            # undocumented - see that file's own comment on
+            # assert_readme_catalog_complete() for the exact mechanism. A
+            # malformed workflow file is caught separately by this repo's
+            # own yamllint job, so this script's only job here is reporting
+            # which files declare workflow_call - a stderr line naming the
+            # skipped file is the proportionate response to any single
+            # file's processing failure, not a hard failure of the whole
+            # scan.
             print(
                 f"find_workflow_call_targets.py: {os.path.basename(path)} could not be processed, skipping: {exc}",
                 file=sys.stderr,

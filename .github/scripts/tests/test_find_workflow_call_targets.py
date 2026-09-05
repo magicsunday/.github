@@ -167,6 +167,21 @@ class MainTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             self.assertEqual(result.stdout, b"real.yml\x00")
 
+    def test_no_targets_writes_empty_stdout_and_returns_0(self):
+        with tempfile.TemporaryDirectory() as workflows_dir:
+            with open(os.path.join(workflows_dir, "other.yml"), "w", encoding="utf-8") as handle:
+                handle.write("on:\n    push:\n")
+
+            result = subprocess.run(
+                [sys.executable, _MODULE_PATH, workflows_dir],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, b"")
+
 
 if __name__ == "__main__":
     unittest.main()

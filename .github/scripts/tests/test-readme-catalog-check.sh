@@ -374,6 +374,26 @@ assert_eq "assert_readme_catalog_complete: a row in a DIFFERENT table (e.g. Inpu
 assert_contains "assert_readme_catalog_complete: an Inputs-only row names the workflow in its ::error::" \
     "${output}" "::error::" "real.yml" "not listed in README.md"
 
+# A REAL python3 failure (not a per-file skip, and not the whole bash
+# function shadowed below) must still propagate through
+# find_workflow_call_targets() itself - pinning the `python3 ... || rc=$?`
+# / `[ "${rc}" -ne 0 ]` line directly, since the crashed-producer test below
+# only proves assert_readme_catalog_complete()'s OWN exit-code handling by
+# replacing the whole function, never exercising this line at all.
+python3_stub_dir="$(mktemp -d)" || exit 1
+cat > "${python3_stub_dir}/python3" <<'EOS'
+#!/usr/bin/env bash
+exit 1
+EOS
+chmod +x "${python3_stub_dir}/python3"
+
+real_targets_rc=0
+PATH="${python3_stub_dir}:${PATH}" find_workflow_call_targets "${workflows_dir}" > /dev/null || real_targets_rc=$?
+rm -rf "${python3_stub_dir}"
+
+assert_eq "find_workflow_call_targets: a real python3 failure propagates as a non-zero return" \
+    "1" "${real_targets_rc}"
+
 # A crashed producer must fail the whole check LOUDLY, not silently report
 # "zero targets" - the exact defect found and fixed during the issue #118
 # audit (assert_readme_catalog_complete() used to consume
