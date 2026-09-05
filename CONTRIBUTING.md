@@ -25,15 +25,10 @@
 - Before requesting review, run the mandatory checks locally:
   - `composer ci:test`
   - For modules that build front-end assets, also run `make build` and commit the rebuilt bundle.
-  - **This repository (`magicsunday/.github`) has no PHP/Composer toolchain** — its
-    own gate is `lint.yml`; re-derive its current job list with
-    `yq '.jobs | keys' .github/workflows/lint.yml` rather than trusting a hand-typed
-    count here. Two of its jobs are directly runnable one-liners: the shell tests
-    (`bash .github/scripts/tests/run-tests.sh`) and the README-catalog freshness
-    check (`source .github/scripts/lib/readme-catalog-check.sh &&
-    assert_readme_catalog_complete .github/workflows README.md`). The remaining
-    jobs (yamllint, the pip-closures-freshness check, the semgrep smoke test) need
-    their pinned toolchains installed and have no separate local invocation.
+  - This file is served as the default for any repository that does not define
+    its own — a repository whose quality gate isn't PHP/Composer-based (e.g.
+    `magicsunday/.github` itself) documents its own local-verification command
+    in its own README instead of overriding this shared default here.
 - Include tests for new behavior and regression tests for fixes.
 
 ## 4. Development setup (minimal)
@@ -51,10 +46,7 @@ composer install
 composer ci:test
 ```
 
-- See the repository's README for any module-specific setup (e.g. Docker build box, asset build via `make build`).
-- This section describes the PHP/Composer module setup shared by most
-  `magicsunday/*` repositories. `magicsunday/.github` itself has no PHP toolchain —
-  see the repository-specific note under "Pull requests" above.
+- See the repository's README for any module-specific setup (e.g. Docker build box, asset build via `make build`), or for a different toolchain entirely.
 
 ## 5. Agent contributions
 
