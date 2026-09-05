@@ -32,6 +32,10 @@ runs.
 | `bundle-freshness.yml` | Verifies committed build artefacts match a clean rebuild | `contents: read` |
 | `greetings.yml` | Greets first-time contributors | `issues: write`, `pull-requests: write` |
 | `auto-merge-deps.yml` | Auto-merges passing dependency bumps (patch and minor only; `pip` is excluded — see below) | `contents: write`, `pull-requests: write` |
+| `ai-issue-labeler.yml` | Classifies a newly opened issue against the caller's own live label set via the Anthropic API and applies the labels it is confident about — see below | `issues: write` |
+| `php-quality.yml` | Runs the granular `composer ci:test:php:*` PHP quality gate across a version matrix | `contents: read` |
+
+`ai-issue-labeler.yml` also requires a `secrets: anthropic_api_key` passthrough, so every calling repository must provision its own `ANTHROPIC_API_KEY` secret. See the workflow's own header comment for why and the exact caller shape.
 
 Two contracts are easy to miss when adopting `commit-convention.yml`: the caller
 must include `edited` in its `pull_request` `types:`, or a corrected subject is
@@ -78,6 +82,10 @@ Workflows not listed here take no inputs.
 | | `node-image` — image whose gettext must match the local `make lang` | `node:24-alpine` |
 | `bundle-freshness.yml` | `bundle-dir` — directory whose committed artefacts must match a rebuild | `resources/js` |
 | | `node-image` — image whose Node/Rollup must match the local `make build` | `node:24-alpine` |
+| `php-quality.yml` | `php-versions` — JSON array of PHP versions for the build matrix | `["8.3", "8.4", "8.5"]` |
+| | `run-psr4` — run the strict PSR-4 autoload check | `false` |
+| | `run-infection` — run mutation testing, on the `infection-php` leg only | `false` |
+| | `infection-php` — the single PHP version leg that runs mutation testing | `8.4` |
 
 ### Adopting a workflow
 

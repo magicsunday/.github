@@ -221,3 +221,29 @@ jobs:
 
             - name: Run shell-logic tests
               run: bash .github/scripts/tests/run-tests.sh
+
+    readme-catalog-fresh:
+        name: Verify README's workflow catalog lists every workflow_call target
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            # assert_readme_catalog_complete() (readme-catalog-check.sh)
+            # carries the complete assertion - the anchored workflow_call
+            # detection, the table-row-start match, and the filename
+            # sanitising - so test-readme-catalog-check.sh exercises the
+            # exact wiring this step relies on, not just its parts
+            # (issue #101).
+            - name: Compare workflow_call targets against README.md
+              run: |
+                  set -euo pipefail
+                  # shellcheck source=scripts/lib/readme-catalog-check.sh
+                  source .github/scripts/lib/readme-catalog-check.sh
+                  assert_readme_catalog_complete .github/workflows README.md

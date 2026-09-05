@@ -1,0 +1,294 @@
+#!/usr/bin/env bash
+# Exercises find_workflow_call_targets() and assert_readme_catalog_complete()
+# (.github/scripts/lib/readme-catalog-check.sh), the functions lint.yml's
+# "readme-catalog-fresh" job sources to keep README.md's workflow catalog
+# honest against the real *.yml/*.yaml files (issue #101). Run via
+# run-tests.sh.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/harness.sh
+source "${SCRIPT_DIR}/lib/harness.sh"
+# shellcheck source=../lib/readme-catalog-check.sh
+source "${SCRIPT_DIR}/../lib/readme-catalog-check.sh"
+
+work_dir="$(mktemp -d)" || exit 1
+trap 'rm -rf "${work_dir}"' EXIT
+
+# --- find_workflow_call_targets() ---
+
+workflows_dir="${work_dir}/workflows"
+mkdir -p "${workflows_dir}"
+
+cat > "${workflows_dir}/real.yml" <<'EOF'
+name: Real
+on:
+    workflow_call:
+jobs:
+    x:
+        runs-on: ubuntu-latest
+EOF
+
+# A comment mentioning the trigger string, at a DIFFERENT indentation than
+# a real trigger key ever has - the exact shape a bare substring grep would
+# wrongly count as a target.
+cat > "${workflows_dir}/mentions-only.yml" <<'EOF'
+name: Mentions only
+
+# See AGENTS.md for why this workflow does NOT declare workflow_call: itself.
+on:
+    push:
+jobs:
+    x:
+        runs-on: ubuntu-latest
+EOF
+
+assert_eq "find_workflow_call_targets: only the file with a real, correctly-indented trigger is returned" \
+    "real.yml" \
+    "$(find_workflow_call_targets "${workflows_dir}")"
+
+# A job literally named `workflow_call` sits at the same 4-space indent a
+# real trigger key does - a plain regex matching any 4-space-indented
+# `workflow_call:` line, regardless of whether it sits inside the `on:`
+# mapping, would misdetect this as a trigger.
+cat > "${workflows_dir}/job-name-collision.yml" <<'EOF'
+name: Job named workflow_call
+on:
+    push:
+jobs:
+    workflow_call:
+        runs-on: ubuntu-latest
+EOF
+
+assert_eq "find_workflow_call_targets: a job literally named workflow_call is not misdetected as a trigger" \
+    "0" "$(find_workflow_call_targets "${workflows_dir}" | grep -c 'job-name-collision.yml')"
+rm -f "${workflows_dir}/job-name-collision.yml"
+
+# A workflow file whose final line is the trigger itself, with no trailing
+# newline - a bash `while read` implementation of this function would
+# silently drop this line at EOF; the sed-based extraction reads to true
+# EOF regardless.
+printf 'name: No trailing newline\non:\n    workflow_call:' \
+    > "${workflows_dir}/no-trailing-newline.yml"
+
+assert_eq "find_workflow_call_targets: a trigger on the file's last line, with no trailing newline, is still found" \
+    "no-trailing-newline.yml" \
+    "$(find_workflow_call_targets "${workflows_dir}" | grep 'no-trailing-newline.yml')"
+rm -f "${workflows_dir}/no-trailing-newline.yml"
+
+# A column-0 comment line INSIDE the on: mapping - valid YAML (comments
+# ignore surrounding indentation) - must not prematurely close the sed
+# range before the real trigger key beneath it.
+cat > "${workflows_dir}/mid-block-comment.yml" <<'EOF'
+name: Comment inside on:
+on:
+    push:
+# a top-level comment mid-block
+    workflow_call:
+jobs:
+    x:
+        runs-on: ubuntu-latest
+EOF
+
+assert_eq "find_workflow_call_targets: a column-0 comment inside the on: block does not hide a later trigger" \
+    "mid-block-comment.yml" \
+    "$(find_workflow_call_targets "${workflows_dir}" | grep 'mid-block-comment.yml')"
+rm -f "${workflows_dir}/mid-block-comment.yml"
+
+# `on:` followed by trailing whitespace or an inline comment is still a
+# valid top-level trigger key - a byte-exact `on:` match would miss it.
+cat > "${workflows_dir}/on-inline-comment.yml" <<'EOF'
+name: Inline comment on the on: line
+on: # reusable workflow
+    workflow_call:
+jobs:
+    x:
+        runs-on: ubuntu-latest
+EOF
+
+assert_eq "find_workflow_call_targets: an inline comment on the on: line does not hide the trigger" \
+    "on-inline-comment.yml" \
+    "$(find_workflow_call_targets "${workflows_dir}" | grep 'on-inline-comment.yml')"
+rm -f "${workflows_dir}/on-inline-comment.yml"
+
+# `on:` followed by trailing whitespace and nothing else (no comment) is
+# the same valid shape, exercised separately since it is not implied by
+# the inline-comment case above (the comment group is optional).
+printf 'name: Trailing whitespace on the on: line\non:   \n    workflow_call:\njobs:\n    x:\n        runs-on: ubuntu-latest\n' \
+    > "${workflows_dir}/on-trailing-whitespace.yml"
+
+assert_eq "find_workflow_call_targets: trailing whitespace on the on: line does not hide the trigger" \
+    "on-trailing-whitespace.yml" \
+    "$(find_workflow_call_targets "${workflows_dir}" | grep 'on-trailing-whitespace.yml')"
+rm -f "${workflows_dir}/on-trailing-whitespace.yml"
+
+# GitHub Actions accepts a .yaml extension exactly as it accepts .yml - a
+# glob matching only *.yml would leave a workflow_call target saved as
+# .yaml silently invisible to the whole check, rather than flagged as
+# undocumented.
+cat > "${workflows_dir}/real-yaml-ext.yaml" <<'EOF'
+name: Real, .yaml extension
+on:
+    workflow_call:
+jobs:
+    x:
+        runs-on: ubuntu-latest
+EOF
+
+assert_contains "find_workflow_call_targets: a .yaml-extension file with a real trigger is not skipped" \
+    "$(find_workflow_call_targets "${workflows_dir}")" "real-yaml-ext.yaml"
+rm -f "${workflows_dir}/real-yaml-ext.yaml"
+
+# A percent-encoded CRLF (`%0D%0A`) in a filename is a forgery channel
+# SEPARATE from a raw control byte - see annotation-sanitize.sh's own
+# header for why both need neutralising and why a plain `tr -d '\r\n'`
+# cannot see this one at all. Pins that find_workflow_call_targets()
+# actually routes through sanitize_for_annotation() rather than a
+# narrower, hand-rolled guard.
+cat > "${workflows_dir}/%0D%0A::add-mask::pwned.yml" <<'EOF'
+on:
+    workflow_call:
+EOF
+# Structural wiring check, not a re-pin of sanitize_for_annotation()'s exact
+# escape format - that byte-exact guarantee already lives at its one source,
+# test-annotation-sanitize.sh; two exact-value pins of the same fact would
+# only drift independently.
+assert_contains "find_workflow_call_targets: a percent-encoded CRLF in the filename is escaped, not left decodable" \
+    "$(find_workflow_call_targets "${workflows_dir}" | grep '0D')" "%25"
+rm -f "${workflows_dir}/%0D%0A::add-mask::pwned.yml"
+
+# A git-tracked filename may legally contain an embedded newline - see
+# annotation-sanitize.sh's own header for why an unstripped one would let
+# the annotation's own text forge a second, attacker-controlled workflow
+# command. Asserted by LINE COUNT rather than by content: if the embedded
+# newline survived unstripped, printing this one name via `printf '%s\n'`
+# would itself introduce an extra line break, so two target files would
+# come out as three printed lines instead of two.
+newline_name="$(printf 'evil\n::add-mask::pwned.yml')"
+touch "${workflows_dir}/${newline_name}" 2>/dev/null || {
+    echo "SKIP: this filesystem rejects filenames containing a newline; embedded-newline sanitising is untested here."
+}
+if [ -e "${workflows_dir}/${newline_name}" ]; then
+    cat > "${workflows_dir}/${newline_name}" <<'EOF'
+on:
+    workflow_call:
+EOF
+    targets="$(find_workflow_call_targets "${workflows_dir}")"
+    assert_eq "find_workflow_call_targets: an embedded newline in the filename does not add an extra printed line" \
+        "2" "$(printf '%s\n' "${targets}" | grep -c .)"
+    rm -f "${workflows_dir}/${newline_name}"
+fi
+
+# --- assert_readme_catalog_complete() ---
+
+readme_file="${work_dir}/README.md"
+
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a fully-documented catalog returns 0" "0" "${rc}"
+assert_eq "assert_readme_catalog_complete: a fully-documented catalog prints nothing" "" "${output}"
+
+# End-to-end: a .yaml-extension target flows through the full completeness
+# assertion, not just find_workflow_call_targets() in isolation.
+cat > "${workflows_dir}/e2e.yaml" <<'EOF'
+on:
+    workflow_call:
+EOF
+
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `e2e.yaml` | End-to-end .yaml coverage | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a documented .yaml-extension target passes end-to-end" "0" "${rc}"
+
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: an undocumented .yaml-extension target fails end-to-end" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: an undocumented .yaml-extension target names itself in its ::error::" \
+    "${output}" "::error::" "e2e.yaml" "not listed in README.md"
+
+rm -f "${workflows_dir}/e2e.yaml"
+
+# A README.md missing its final newline (a common editor/save-without-
+# final-newline shape) must not lose the catalog's last row: this pins
+# `sed`'s own handling of an unterminated final line during table
+# extraction. `printf` (no `EOF\n` heredoc terminator) constructs this
+# exact shape.
+printf '| Workflow | Purpose | Permissions |\n| --- | --- | --- |\n| `real.yml` | Does the real thing | `contents: read` |' \
+    > "${readme_file}"
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a catalog row on the file's last line, with no trailing newline, is still found" \
+    "0" "${rc}"
+
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a missing entry returns non-zero" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a missing entry names the workflow in its ::error::" \
+    "${output}" "::error::" "real.yml" "not listed in README.md"
+
+# A free-standing prose mention of the filename, in backticks, is NOT a
+# catalog-table row - the exact shape a bare substring grep would wrongly
+# accept as "documented".
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+
+Unrelated prose that happens to mention `real.yml` without documenting it
+as a catalog entry.
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a bare prose mention (not a table row) still fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a bare prose mention names the workflow in its ::error::" \
+    "${output}" "::error::" "real.yml" "not listed in README.md"
+
+# A row shaped exactly like a catalog entry, but living in a DIFFERENT
+# table using the same `| \`name\` | ... |` row shape, must NOT satisfy
+# the check - only a row inside the MAIN catalog table (the block from
+# its own header through the next blank line) counts as "documented".
+# (readme-catalog-check.sh's own docstring carries the one re-derivable
+# claim that README.md has a real table matching this fixture's shape.)
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `other.yml` | Some other workflow | `contents: read` |
+
+### Inputs
+
+| Workflow | Input | Default |
+| --- | --- | --- |
+| `real.yml` | `some-input` — not a catalog row | `false` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a row in a DIFFERENT table (e.g. Inputs) still fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: an Inputs-only row names the workflow in its ::error::" \
+    "${output}" "::error::" "real.yml" "not listed in README.md"
+
+report_and_exit "readme-catalog-check tests"

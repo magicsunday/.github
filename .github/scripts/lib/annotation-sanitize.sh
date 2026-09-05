@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Sourced by semgrepignore-guard.sh, semgrep-report-check.sh and
-# semgrep-smoke-helpers.sh (re-derive: `grep -rl '^source ".*annotation-sanitize\.sh"'
-# .github/scripts/lib`), so every caller shares ONE sanitizer rather than
+# Sourced by semgrepignore-guard.sh, semgrep-report-check.sh,
+# semgrep-smoke-helpers.sh and readme-catalog-check.sh (re-derive:
+# `grep -rl '^source ".*annotation-sanitize\.sh"' .github/scripts/lib`), so
+# every caller shares ONE sanitizer rather than
 # carrying its own copy that can drift apart - semgrep-report-check.sh's own
 # jq_error path once did exactly
 # that (issue #78): it kept the same `tr '[:cntrl:]' '?'` collision

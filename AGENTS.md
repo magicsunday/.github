@@ -172,7 +172,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   workflow checks out via `job.workflow_repository`/`job.workflow_sha`).
   `lint.yml`'s own `semgrep-smoke` job follows the same pattern
   (`semgrep-smoke-helpers.sh`, split out of `semgrep-report-check.sh` per the
-  scan-report-completeness bullet above).
+  scan-report-completeness bullet above), as does `lint.yml`'s
+  `readme-catalog-fresh` job (`readme-catalog-check.sh` — cross-checking
+  every `workflow_call`-declaring file under `.github/workflows/` against
+  README's catalog table, issue #101).
   `yamllint.yml` and `i18n.yml` carry comparable inline
   `run:` logic that was deliberately left un-migrated when this convention was
   introduced (GH-47) — extending it to those is a separate decision, not something
