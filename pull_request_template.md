@@ -15,7 +15,7 @@
 
 - [ ] Tests added or updated for the changed behavior
 - [ ] Documentation updated where relevant (README, inline docs)
-- [ ] The project's quality gate passes locally (e.g. `composer ci:test`)
+- [ ] The project's own CI gate passes locally (see the repository's README/CONTRIBUTING for the exact command)
 
 ## How to verify
 
