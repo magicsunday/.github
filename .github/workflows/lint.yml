@@ -219,6 +219,20 @@ jobs:
               with:
                   persist-credentials: false
 
+            - name: Set up Python
+              uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+              with:
+                  python-version: '3.12'
+
+            # find_workflow_call_targets.py (issue #118) needs PyYAML on the
+            # runner - test-find-workflow-call-targets.sh and
+            # test-readme-catalog-check.sh both exercise it, directly and via
+            # the bash wrapper respectively, so run-tests.sh itself now has
+            # this dependency, not only the readme-catalog-fresh job below.
+            - name: Install PyYAML
+              run: |
+                  pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/pyyaml.txt
+
             - name: Run shell-logic tests
               run: bash .github/scripts/tests/run-tests.sh
 
@@ -235,12 +249,23 @@ jobs:
               with:
                   persist-credentials: false
 
+            - name: Set up Python
+              uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+              with:
+                  python-version: '3.12'
+
+            # find_workflow_call_targets() (readme-catalog-check.sh) shells
+            # out to find_workflow_call_targets.py for a real YAML parse
+            # (issue #118), which needs PyYAML installed on the runner.
+            - name: Install PyYAML
+              run: |
+                  pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/pyyaml.txt
+
             # assert_readme_catalog_complete() (readme-catalog-check.sh)
-            # carries the complete assertion - the anchored workflow_call
-            # detection, the table-row-start match, and the filename
-            # sanitising - so test-readme-catalog-check.sh exercises the
-            # exact wiring this step relies on, not just its parts
-            # (issue #101).
+            # carries the complete assertion - the workflow_call detection,
+            # the table-row-start match, and the filename sanitising - so
+            # test-readme-catalog-check.sh exercises the exact wiring this
+            # step relies on, not just its parts (issue #101).
             - name: Compare workflow_call targets against README.md
               run: |
                   set -euo pipefail
