@@ -37,13 +37,25 @@ require_files_or_bail "sanitize_for_annotation / _sanitize_for_stderr parity dri
 source "${ANNOTATION_SANITIZE_FILE}"
 
 python_sanitize() {
-    PYTHONPATH="${SCRIPT_DIR}/../lib" python3 -c '
+    # Loaded via importlib.util.spec_from_file_location, not a bare `import
+    # find_workflow_call_targets` off a PYTHONPATH-prepended lib/ dir: the
+    # latter puts that directory ahead of the stdlib on sys.path, so any
+    # future file placed there with a stdlib-colliding name (e.g. a
+    # glob.py) would silently shadow the real module the moment
+    # find_workflow_call_targets.py's own `import glob` resolves against it
+    # instead - live-verified. This mirrors how
+    # test_find_workflow_call_targets.py already loads the same module.
+    python3 -c '
+import importlib.util
 import sys
 
-import find_workflow_call_targets as m
+spec = importlib.util.spec_from_file_location("find_workflow_call_targets", sys.argv[1])
+assert spec is not None and spec.loader is not None
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
 
-sys.stdout.write(m._sanitize_for_stderr(sys.argv[1]))
-' "$1"
+sys.stdout.write(m._sanitize_for_stderr(sys.argv[2]))
+' "${FIND_TARGETS_FILE}" "$1"
 }
 
 assert_parity() {

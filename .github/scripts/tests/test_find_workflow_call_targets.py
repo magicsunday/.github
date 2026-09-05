@@ -28,6 +28,15 @@ find_workflow_call_targets = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(find_workflow_call_targets)
 
 
+def _run_script(workflows_dir):
+    return subprocess.run(
+        [sys.executable, _MODULE_PATH, workflows_dir],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+
 class HasWorkflowCallTriggerTest(unittest.TestCase):
     def test_block_form_with_trigger(self):
         # The realistic shape: PyYAML resolves the bare `on:` key to the
@@ -140,12 +149,7 @@ class FindTargetsExceptionDiagnosticTest(unittest.TestCase):
             except OSError:
                 self.skipTest("this filesystem rejects filenames containing this control byte")
 
-            result = subprocess.run(
-                [sys.executable, _MODULE_PATH, workflows_dir],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=False,
-            )
+            result = _run_script(workflows_dir)
 
             self.assertEqual(result.stdout, b"")
             # splitlines() itself treats a bare CR as a line boundary the
@@ -237,12 +241,7 @@ class FindTargetsTest(unittest.TestCase):
             except OSError:
                 self.skipTest("this filesystem does not support symlinks")
 
-            result = subprocess.run(
-                [sys.executable, _MODULE_PATH, workflows_dir],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=False,
-            )
+            result = _run_script(workflows_dir)
 
             self.assertEqual(result.returncode, 0)
             self.assertEqual(result.stdout, b"")
@@ -289,12 +288,7 @@ class MainTest(unittest.TestCase):
             with open(os.path.join(workflows_dir, "other.yml"), "w", encoding="utf-8") as handle:
                 handle.write("on:\n    push:\n")
 
-            result = subprocess.run(
-                [sys.executable, _MODULE_PATH, workflows_dir],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=False,
-            )
+            result = _run_script(workflows_dir)
 
             self.assertEqual(result.returncode, 0)
             self.assertEqual(result.stdout, b"real.yml\x00")
@@ -317,12 +311,7 @@ class MainTest(unittest.TestCase):
             except OSError:
                 self.skipTest("this filesystem rejects filenames containing this byte")
 
-            result = subprocess.run(
-                [sys.executable, _MODULE_PATH, workflows_dir],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=False,
-            )
+            result = _run_script(workflows_dir)
 
             self.assertEqual(result.returncode, 0)
             self.assertEqual(result.stdout, forged_name + b"\x00")
@@ -332,12 +321,7 @@ class MainTest(unittest.TestCase):
             with open(os.path.join(workflows_dir, "other.yml"), "w", encoding="utf-8") as handle:
                 handle.write("on:\n    push:\n")
 
-            result = subprocess.run(
-                [sys.executable, _MODULE_PATH, workflows_dir],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=False,
-            )
+            result = _run_script(workflows_dir)
 
             self.assertEqual(result.returncode, 0)
             self.assertEqual(result.stdout, b"")
