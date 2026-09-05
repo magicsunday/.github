@@ -104,14 +104,11 @@ _git_ls_files_filtered_deduped() {
     local _git_ls_files_file
     local _tef_rc=0
     _git_ls_files_file="$(_git_tracked_entries_tempfile "$_repo_root")" || _tef_rc=$?
-    # A bare `x="$(cmd)"` line trips `set -e` immediately on a failing
-    # `cmd`, before a following `rc=$?` line is ever reached (this file's
-    # own header comment on _git_tracked_entries_tempfile() has the sibling
-    # trap this avoids: `if ! x="$(f)"; then echo "$?"; fi` reads the
-    # NEGATED test's own status, always 0, never the original command's).
-    # Putting the assignment on the left of `||` sidesteps both traps at
-    # once - the assignment's failure doesn't trip errexit there, and
-    # `_tef_rc=$?` captures its real exit code.
+    # Left of `||`, not a bare assignment (see the header comment on
+    # _git_tracked_entries_tempfile() above) or an `if !`-negated test
+    # (`if ! x="$(f)"; then echo "$?"; fi` reads the negated test's own
+    # status, always 0, never the original command's) - `||` sidesteps
+    # both at once, and `_tef_rc=$?` captures the real exit code.
     [ "$_tef_rc" -eq 0 ] || return "$_tef_rc"
 
     _out=()
