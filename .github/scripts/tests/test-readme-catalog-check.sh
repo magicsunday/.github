@@ -390,15 +390,19 @@ assert_contains "assert_readme_catalog_complete: an Inputs-only row names the wo
 python3_stub_dir="$(mktemp -d "${work_dir}/python3-stub-XXXXXX")" || exit 1
 cat > "${python3_stub_dir}/python3" <<'EOS'
 #!/usr/bin/env bash
-exit 1
+exit 3
 EOS
 chmod +x "${python3_stub_dir}/python3"
 
 real_targets_rc=0
 PATH="${python3_stub_dir}:${PATH}" find_workflow_call_targets "${workflows_dir}" > /dev/null || real_targets_rc=$?
 
-assert_eq "find_workflow_call_targets: a real python3 failure propagates as a non-zero return" \
-    "1" "${real_targets_rc}"
+# Exit 3, not 1: a mutant that hardcodes `return 1` on python3 failure
+# (instead of `return "${rc}"`, propagating the real exit code) would still
+# pass an rc==1 assertion by coincidence - this pins the actual value, not
+# merely "non-zero".
+assert_eq "find_workflow_call_targets: a real python3 failure propagates its real exit code" \
+    "3" "${real_targets_rc}"
 
 # The mktemp guard fails closed rather than proceeding with an empty
 # variable - mirrors test-warn-tracked-archives.sh's own shadowed-mktemp
