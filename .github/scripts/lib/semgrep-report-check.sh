@@ -64,10 +64,12 @@ _git_tracked_entries_tempfile() {
 # gitlink/submodule (160000) if sense ($3) is "keep", or whose mode is
 # NEITHER of those two if sense is "skip". Hardcoded rather
 # than a caller-supplied mode list - every call site in this file always
-# filters on exactly these two modes (re-derive: `grep -n
-# "_git_ls_files_filtered_deduped [a-z]" .github/scripts/lib/semgrep-report-check.sh
-# .github/scripts/tests/*.sh`, expect only `keep`/`skip` as the trailing
-# argument, never a mode list), the only two git object types
+# filters on exactly these two modes (re-derive: `grep -vn '^\s*#'
+# .github/scripts/lib/semgrep-report-check.sh .github/scripts/tests/*.sh |
+# grep '_git_ls_files_filtered_deduped [a-z]'` - stripping comment lines
+# first excludes this file's own usage-example prose, which would
+# otherwise self-match; expect only `keep`/`skip` as the trailing
+# argument on every real call site, never a mode list), the only two git object types
 # `git ls-files -s` can report that _git_tracked_entries_tempfile()'s
 # callers care about; a
 # variadic mode parameter would generalize over a dimension nothing here
