@@ -625,9 +625,9 @@ assert_fail "repo_root: a git-tracked path absent from both inventories fails, n
     "${report_symlink}" "link.php" "${git_case_symlink}"
 
 # `git_ls_files_file`'s `rm -f ... || true` guard on the SUCCESS
-# continuation lives inside `_git_ls_files_filtered_deduped()` now (issue
-# #104), one call frame deeper than `assert_semgrep_report_complete()`
-# itself (see the file-wide count note further below) - reached the same
+# continuation lives inside `_git_ls_files_filtered_deduped()`, one call
+# frame deeper than `assert_semgrep_report_complete()` itself (see the
+# file-wide count note further below) - reached the same
 # way regardless, since this fixture still calls
 # assert_semgrep_report_complete() with a real repo_root, which still
 # reaches the helper's guard. Shares the same untested-under-a-real-`set -e`

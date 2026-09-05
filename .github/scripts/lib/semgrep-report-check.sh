@@ -15,9 +15,10 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # .github/scripts/lib/semgrep-report-check.sh | grep -c
 # '_git_tracked_entries_tempfile "'`, expect exactly 1); through that,
 # assert_semgrep_report_complete() and warn_tracked_archives() both reach it
-# indirectly. Every caller invokes this as an `if` condition, never a bare
-# assignment - under `set -e`, `out="$(cmd)"` trips errexit immediately on a
-# failing `cmd`, before a following `rc=$?` line is ever reached.
+# indirectly. Every caller invokes this on the left of an `if` or `||`,
+# never a bare assignment - under `set -e`, `out="$(cmd)"` trips errexit
+# immediately on a failing `cmd`, before a following `rc=$?` line is ever
+# reached.
 #
 # Distinguishes a mktemp failure from a `git ls-files` failure via its own
 # return code (1 vs 2), so each caller keeps its own distinct message and
@@ -100,20 +101,17 @@ _git_ls_files_filtered_deduped() {
     local -n _out="$1"
     local _repo_root="$2" _sense="$3"
 
-    local _git_ls_files_file _tef_rc
-    if _git_ls_files_file="$(_git_tracked_entries_tempfile "$_repo_root")"; then
-        _tef_rc=0
-    else
-        _tef_rc=$?
-    fi
-    # `$?` inside a negated `if ! cmd; then ...` branch is the NEGATED
-    # test's own status (always 0 there), never the original command's -
-    # verified live (`if ! x="$(f)"; then echo "$?"; fi` where f returns 1
-    # prints 0), which is why this captures the code in an `else` branch
-    # instead, the same shape _git_tracked_entries_tempfile()'s own callers
-    # already use for exactly this reason (see this file's own header
-    # comment on that function for the sibling `local x=$(cmd)` variant of
-    # this trap).
+    local _git_ls_files_file
+    local _tef_rc=0
+    _git_ls_files_file="$(_git_tracked_entries_tempfile "$_repo_root")" || _tef_rc=$?
+    # A bare `x="$(cmd)"` line trips `set -e` immediately on a failing
+    # `cmd`, before a following `rc=$?` line is ever reached (this file's
+    # own header comment on _git_tracked_entries_tempfile() has the sibling
+    # trap this avoids: `if ! x="$(f)"; then echo "$?"; fi` reads the
+    # NEGATED test's own status, always 0, never the original command's).
+    # Putting the assignment on the left of `||` sidesteps both traps at
+    # once - the assignment's failure doesn't trip errexit there, and
+    # `_tef_rc=$?` captures its real exit code.
     [ "$_tef_rc" -eq 0 ] || return "$_tef_rc"
 
     _out=()
@@ -478,12 +476,8 @@ assert_semgrep_report_complete() {
         # pinning two simultaneously-missing paths' exact join order
         # depends on it.
         local -a tracked=()
-        local frc
-        if _git_ls_files_filtered_deduped tracked "$repo_root" keep; then
-            frc=0
-        else
-            frc=$?
-        fi
+        local frc=0
+        _git_ls_files_filtered_deduped tracked "$repo_root" keep || frc=$?
         if [ "$frc" -eq 1 ]; then
             echo "::error::Could not create a temp file to compare the tree against the report — the completeness check cannot run."
             return 1
@@ -634,12 +628,8 @@ warn_tracked_archives() {
     )
 
     local -a raw_paths=()
-    local frc
-    if _git_ls_files_filtered_deduped raw_paths "$repo_root" skip; then
-        frc=0
-    else
-        frc=$?
-    fi
+    local frc=0
+    _git_ls_files_filtered_deduped raw_paths "$repo_root" skip || frc=$?
     if [ "$frc" -eq 1 ]; then
         echo "::warning::Could not create a temp file to list tracked archives - the archive-visibility notice did not run."
         return 0
