@@ -11,7 +11,11 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 
 # Writes `git -C repo_root ls-files -s -z` output to a fresh temp file and
 # prints its path on stdout. Its one direct caller is
-# _git_ls_files_filtered_deduped() below (issue #104); through that,
+# _git_ls_files_filtered_deduped() below (issue #104; re-derive with
+# `grep -vn '^\s*#' .github/scripts/lib/semgrep-report-check.sh | grep -c
+# '_git_tracked_entries_tempfile "'`, expect exactly 1 - the quoted-argument
+# suffix excludes both this comment and the function's own `()` definition
+# line); through that,
 # assert_semgrep_report_complete() and warn_tracked_archives() both reach
 # it indirectly, one call frame deeper than before that extraction, whose
 # failure-handling for this exact mktemp-then-git-ls-files sequence was
@@ -59,10 +63,13 @@ _git_tracked_entries_tempfile() {
 # scan of repo_root ($2) whose git file mode IS a symlink (120000) or
 # gitlink/submodule (160000) if sense ($3) is "keep", or whose mode is
 # NEITHER of those two if sense is "skip". Hardcoded rather
-# than a caller-supplied mode list - every call site in this file (both
-# production callers and every test fixture) always filters on exactly
-# these two modes, the only two git object types `git ls-files -s` can
-# report that _git_tracked_entries_tempfile()'s callers care about; a
+# than a caller-supplied mode list - every call site in this file always
+# filters on exactly these two modes (re-derive: `grep -n
+# "_git_ls_files_filtered_deduped [a-z]" .github/scripts/lib/semgrep-report-check.sh
+# .github/scripts/tests/*.sh`, expect only `keep`/`skip` as the trailing
+# argument, never a mode list), the only two git object types
+# `git ls-files -s` can report that _git_tracked_entries_tempfile()'s
+# callers care about; a
 # variadic mode parameter would generalize over a dimension nothing here
 # exercises. No second temp file for the result - unlike _git_tracked_entries_tempfile()'s
 # own NUL-delimited file, which is load-bearing (a command-substitution
