@@ -50,6 +50,85 @@ _git_tracked_entries_tempfile() {
     printf '%s' "$f"
 }
 
+# Prints, NUL-delimited, to a fresh temp file whose path is printed on
+# stdout, every tracked path from _git_tracked_entries_tempfile()'s scan of
+# repo_root ($1) whose git file mode passes the filter: kept when it IS one
+# of the modes in $3.. if sense ($2) is "keep", or when it is NOT one of them
+# if sense is "skip". Adjacent duplicates of the same path collapse to one
+# entry - an unresolved merge conflict stages the same path three times
+# (once per stage) all under the same mode, and `git ls-files -s` sorts
+# primarily by pathname, so every stage of a conflicted path is contiguous in
+# read order; comparing only against the last emitted path is therefore
+# equivalent to a full "seen" set here, at the cost of one scalar comparison
+# instead of a hash lookup and without a second data structure (as observed
+# 2026-09-02, re-derived when this dedup lived inline in
+# assert_semgrep_report_complete() before this extraction - see issue #104).
+# Extension/content filtering beyond mode, where a caller needs it (e.g.
+# warn_tracked_archives()'s archive-suffix check), is safe to apply AFTER
+# this function returns rather than duplicated inside it: a conflicted
+# path's stages all carry the identical path string, so any filter keyed
+# purely on that string agrees across every stage regardless of whether
+# dedup happens before or after it.
+#
+# Returns 1 on ANY mktemp failure - this function's own second mktemp call,
+# or _git_tracked_entries_tempfile()'s first one - and 2 on a `git ls-files`
+# failure, printing nothing either way. Same two-code contract as
+# _git_tracked_entries_tempfile() itself, one level up, so a caller already
+# handling that contract does not need a third branch.
+_git_ls_files_filtered_deduped() {
+    local repo_root="$1" sense="$2"
+    shift 2
+    local -a modes=("$@")
+
+    local git_ls_files_file tef_rc
+    if git_ls_files_file="$(_git_tracked_entries_tempfile "$repo_root")"; then
+        tef_rc=0
+    else
+        tef_rc=$?
+    fi
+    # `$?` inside a negated `if ! cmd; then ...` branch is the NEGATED
+    # test's own status (always 0 there), never the original command's -
+    # verified live (`if ! x="$(f)"; then echo "$?"; fi` where f returns 1
+    # prints 0), which is why this captures the code in an `else` branch
+    # instead, the same shape _git_tracked_entries_tempfile()'s own callers
+    # already use for exactly this reason (see this file's own header
+    # comment on that function for the sibling `local x=$(cmd)` variant of
+    # this trap).
+    [ "$tef_rc" -eq 0 ] || return "$tef_rc"
+
+    local out_file
+    if ! out_file="$(mktemp)"; then
+        rm -f "$git_ls_files_file" || true
+        return 1
+    fi
+
+    local entry mode path m match last_path="" have_last=0
+    while IFS= read -r -d '' entry; do
+        mode="${entry%% *}"
+        match=1
+        for m in "${modes[@]}"; do
+            if [ "$mode" = "$m" ]; then
+                match=0
+                break
+            fi
+        done
+        if [ "$sense" = "skip" ]; then
+            [ "$match" -eq 0 ] && continue
+        else
+            [ "$match" -eq 1 ] && continue
+        fi
+        path="${entry#*$'\t'}"
+        if [ "$have_last" -eq 0 ] || [ "$last_path" != "$path" ]; then
+            printf '%s\0' "$path" >> "$out_file"
+            last_path="$path"
+            have_last=1
+        fi
+    done < "$git_ls_files_file"
+    rm -f "$git_ls_files_file" || true
+
+    printf '%s' "$out_file"
+}
+
 # Fails unless Semgrep's --json-output report shows a complete scan. Prints
 # exactly one `::error::` workflow annotation on failure (so a raw newline or
 # a literal `%` in a path can never split it into an unattributed log line —
@@ -377,64 +456,43 @@ assert_semgrep_report_complete() {
     # `excludes` input — a `.semgrepignore` is not an alternative here, per
     # the rejection this file already explains above.
     if [ -n "$repo_root" ]; then
-        local git_ls_files_file tpf_rc
-        if git_ls_files_file="$(_git_tracked_entries_tempfile "$repo_root")"; then
-            tpf_rc=0
-        else
-            tpf_rc=$?
-        fi
-        if [ "$tpf_rc" -eq 1 ]; then
-            echo "::error::Could not create a temp file to compare the tree against the report — the completeness check cannot run."
-            return 1
-        elif [ "$tpf_rc" -eq 2 ]; then
-            local safe_repo_root
-            safe_repo_root="$(sanitize_for_annotation "${repo_root}")"
-            echo "::error::\`git ls-files\` failed in ${safe_repo_root} — the tree cannot be compared against the report, so it cannot be shown complete."
-            return 1
-        fi
         # 120000 = symlink, 160000 = gitlink (submodule) — the two modes
         # this whole block exists to catch (see the comment above). Every
         # other mode (100644/100755 regular files, 040000 trees do not
         # appear in `ls-files` output at all) is left to the reason-based
         # check above; comparing them here is exactly the false-positive
-        # this design deliberately avoids.
-        # `git ls-files -s` emits one line per (mode, object, stage)
-        # combination, not one line per path — an unresolved merge conflict
-        # on a tracked symlink produces three stage-1/2/3 lines for the SAME
-        # path, all still mode 120000. Reproduced live: without the
-        # adjacency guard below, `tracked` duplicated that path three
-        # times in the annotation. As observed 2026-09-02 (re-derive with
-        # `grep -rn "assert_semgrep_report_complete\b" .github --include=*.yml
-        # --include=*.sh`), the sole production caller checks out a single
-        # ref with `actions/checkout`, which never leaves the index
-        # mid-conflict, so this cannot manifest through that call path
-        # today — the check costs nothing extra, so there is no reason to
-        # leave the duplication in for a caller that might. Kept as a plain
-        # indexed array, deduped by comparing against the LAST element
-        # already appended, not a companion "seen" set (tried first, then
-        # simplified away): `git ls-files -s` sorts primarily by pathname,
-        # so every stage of the same conflicted path is contiguous in read
-        # order — as observed 2026-09-02, staging a 3-way conflict returns
-        # its three stage lines back to back — which means an adjacent-only
-        # comparison collapses them exactly as a full set would, at the
-        # cost of one array read instead of a hash lookup, and without a
-        # second data structure. This also keeps `git ls-files`' own
-        # sorted iteration order intact — the test pinning two
-        # simultaneously-missing paths' exact join order depends on it.
+        # this design deliberately avoids. As observed 2026-09-02
+        # (re-derive with `grep -rn "assert_semgrep_report_complete\b"
+        # .github --include=*.yml --include=*.sh`), the sole production
+        # caller checks out a single ref with `actions/checkout`, which
+        # never leaves the index mid-conflict — the multi-stage/dedup
+        # concern _git_ls_files_filtered_deduped() below still guards
+        # against cannot manifest through that call path today, but costs
+        # nothing extra to keep for a caller that might. This also keeps
+        # `git ls-files`' own sorted iteration order intact — the test
+        # pinning two simultaneously-missing paths' exact join order
+        # depends on it.
+        local filtered_file frc
+        if filtered_file="$(_git_ls_files_filtered_deduped "$repo_root" keep 120000 160000)"; then
+            frc=0
+        else
+            frc=$?
+        fi
+        if [ "$frc" -eq 1 ]; then
+            echo "::error::Could not create a temp file to compare the tree against the report — the completeness check cannot run."
+            return 1
+        elif [ "$frc" -eq 2 ]; then
+            local safe_repo_root
+            safe_repo_root="$(sanitize_for_annotation "${repo_root}")"
+            echo "::error::\`git ls-files\` failed in ${safe_repo_root} — the tree cannot be compared against the report, so it cannot be shown complete."
+            return 1
+        fi
         local -a tracked=()
-        local _entry _mode _tracked_path
-        while IFS= read -r -d '' _entry; do
-            _mode="${_entry%% *}"
-            case "$_mode" in
-                120000 | 160000)
-                    _tracked_path="${_entry#*$'\t'}"
-                    if [ "${#tracked[@]}" -eq 0 ] || [ "${tracked[-1]}" != "$_tracked_path" ]; then
-                        tracked+=("$_tracked_path")
-                    fi
-                    ;;
-            esac
-        done < "$git_ls_files_file"
-        rm -f "$git_ls_files_file" || true
+        local _tracked_path
+        while IFS= read -r -d '' _tracked_path; do
+            tracked+=("$_tracked_path")
+        done < "$filtered_file"
+        rm -f "$filtered_file" || true
 
         # NUL-separated end to end, same reason `git ls-files -z` is used
         # above: an ordinary line-based read would misparse the rare path
@@ -575,33 +633,32 @@ warn_tracked_archives() {
         ".7z" ".rar" ".gz" ".bz2" ".xz"
     )
 
-    local git_ls_files_file tpf_rc
-    if git_ls_files_file="$(_git_tracked_entries_tempfile "$repo_root")"; then
-        tpf_rc=0
+    local raw_file frc
+    if raw_file="$(_git_ls_files_filtered_deduped "$repo_root" skip 120000 160000)"; then
+        frc=0
     else
-        tpf_rc=$?
+        frc=$?
     fi
-    if [ "$tpf_rc" -eq 1 ]; then
+    if [ "$frc" -eq 1 ]; then
         echo "::warning::Could not create a temp file to list tracked archives - the archive-visibility notice did not run."
         return 0
-    elif [ "$tpf_rc" -eq 2 ]; then
+    elif [ "$frc" -eq 2 ]; then
         local safe_repo_root
         safe_repo_root="$(sanitize_for_annotation "${repo_root}")"
         echo "::warning::\`git ls-files\` failed in ${safe_repo_root} - the archive-visibility notice did not run."
         return 0
     fi
 
+    # The dedup this loop used to do inline now happens once, upstream, in
+    # _git_ls_files_filtered_deduped() - safe to move because a conflicted
+    # path's stages all carry the identical path string, so the extension
+    # match below (keyed purely on that string) agrees across every stage
+    # regardless of whether dedup ran before or after it (see that
+    # function's own comment).
     local -a hits=()
-    local entry mode tracked_path lower_path ext matched
-    while IFS= read -r -d '' entry; do
-        mode="${entry%% *}"
-        case "$mode" in
-            120000 | 160000)
-                continue
-                ;;
-        esac
-        tracked_path="${entry#*$'\t'}"
-        lower_path="${tracked_path,,}"
+    local raw_path lower_path ext matched
+    while IFS= read -r -d '' raw_path; do
+        lower_path="${raw_path,,}"
         matched=0
         for ext in "${archive_exts[@]}"; do
             case "$lower_path" in
@@ -611,22 +668,9 @@ warn_tracked_archives() {
                     ;;
             esac
         done
-        if [ "$matched" -eq 1 ]; then
-            # `git ls-files -s` emits one line per (mode, object, stage), not
-            # one per path - an unresolved merge conflict on a tracked
-            # archive produces three stage-1/2/3 lines for the same path,
-            # which would otherwise name it three times in one notice. Same
-            # adjacent-only dedup as assert_semgrep_report_complete()'s own
-            # repo_root block above (see its comment for the full
-            # reachability/ordering rationale - not reachable through the
-            # real production caller today, kept because it costs nothing
-            # extra and the sibling block already pays for it).
-            if [ "${#hits[@]}" -eq 0 ] || [ "${hits[-1]}" != "$tracked_path" ]; then
-                hits+=("$tracked_path")
-            fi
-        fi
-    done < "$git_ls_files_file"
-    rm -f "$git_ls_files_file" || true
+        [ "$matched" -eq 1 ] && hits+=("$raw_path")
+    done < "$raw_file"
+    rm -f "$raw_file" || true
 
     if [ "${#hits[@]}" -eq 0 ]; then
         return 0

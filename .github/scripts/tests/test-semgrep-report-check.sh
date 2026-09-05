@@ -1016,4 +1016,55 @@ assert_fail "repo_root: a git_ls_files_file mktemp failure fails closed with its
 unset -f mktemp
 rm -f "${mktemp_call_count_file}"
 
+# `_git_ls_files_filtered_deduped()` (issue #104) makes a SECOND, distinct
+# mktemp call of its own - for the filtered/deduped output file - after
+# `_git_tracked_entries_tempfile()`'s first one succeeds. Failing only the
+# THIRD mktemp call overall (1: jq_stderr_file, 2: git_ls_files_file,
+# 3: this new out_file) is the only way to reach this specific branch -
+# genuinely new coverage this extraction added, not reachable before it
+# existed. Must fail closed with the SAME "Could not create a temp file"
+# message as the second-call failure above: from a caller's perspective
+# both are "a temp file this check needed could not be created", and the
+# function deliberately does not distinguish which of its two mktemp calls
+# failed (see its own header comment).
+mktemp_call_count_file="$(mktemp)" || exit 1
+echo 0 > "${mktemp_call_count_file}"
+mktemp() {
+    local n
+    n=$(($(cat "${mktemp_call_count_file}") + 1))
+    echo "${n}" > "${mktemp_call_count_file}"
+    if [ "${n}" -eq 3 ]; then
+        return 1
+    fi
+    command mktemp "$@"
+}
+assert_fail "repo_root: an out_file mktemp failure inside _git_ls_files_filtered_deduped() also fails closed with the same message" \
+    "${report_baseline}" "Could not create a temp file" "${git_case_baseline}"
+unset -f mktemp
+rm -f "${mktemp_call_count_file}"
+
+# The failure above must also clean up `_git_tracked_entries_tempfile()`'s
+# own tempfile (git_ls_files_file) before returning - it already succeeded
+# by the time out_file's mktemp fails, so nothing else removes it. Reusing
+# the same third-call-fails shadow, but under assert_no_tmp_leak() rather
+# than assert_fail(), to prove the cleanup actually ran rather than merely
+# that the function still failed closed.
+tmp_scan_dir_third_mktemp="${work_dir}/tmp-scan-third-mktemp"
+mkdir -p "${tmp_scan_dir_third_mktemp}"
+mktemp_call_count_file="$(mktemp)" || exit 1
+echo 0 > "${mktemp_call_count_file}"
+mktemp() {
+    local n
+    n=$(($(cat "${mktemp_call_count_file}") + 1))
+    echo "${n}" > "${mktemp_call_count_file}"
+    if [ "${n}" -eq 3 ]; then
+        return 1
+    fi
+    command mktemp "$@"
+}
+assert_no_tmp_leak "${tmp_scan_dir_third_mktemp}" "repo_root: git_ls_files_file does not survive an out_file mktemp failure" \
+    assert_semgrep_report_complete "${report_baseline}" "${git_case_baseline}"
+unset -f mktemp
+rm -f "${mktemp_call_count_file}"
+
 report_and_exit "report-check tests"
