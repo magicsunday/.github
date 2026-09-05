@@ -74,6 +74,13 @@ def _sanitize_for_stderr(text):
     return _CNTRL_PATTERN.sub(" ", text.replace("%", "%25"))
 
 
+def _warn(path, message):
+    print(
+        f"find_workflow_call_targets.py: {_sanitize_for_stderr(os.path.basename(path))} {message}",
+        file=sys.stderr,
+    )
+
+
 def _has_workflow_call_trigger(doc):
     if not isinstance(doc, dict):
         return False
@@ -137,12 +144,7 @@ def find_targets(workflows_dir):
             # target" whenever the file IT points at happens to structurally
             # declare one - a narrow, low-value existence/shape oracle about
             # an arbitrary file on the runner, not a content leak.
-            print(
-                "find_workflow_call_targets.py: "
-                f"{_sanitize_for_stderr(os.path.basename(path))} is a symlink, skipping "
-                "(a workflow file has no reason to be one)",
-                file=sys.stderr,
-            )
+            _warn(path, "is a symlink, skipping (a workflow file has no reason to be one)")
             continue
 
         try:
@@ -176,12 +178,7 @@ def find_targets(workflows_dir):
             # in its "in '<path>', line N, column M" context, so `exc`
             # needs the same treatment as the bare filename, not just
             # os.path.basename(path) alone.
-            print(
-                "find_workflow_call_targets.py: "
-                f"{_sanitize_for_stderr(os.path.basename(path))} could not be processed, skipping: "
-                f"{_sanitize_for_stderr(str(exc))}",
-                file=sys.stderr,
-            )
+            _warn(path, f"could not be processed, skipping: {_sanitize_for_stderr(str(exc))}")
             continue
 
         if _has_workflow_call_trigger(doc):

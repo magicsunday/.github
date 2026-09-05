@@ -231,6 +231,7 @@ jobs:
             # this dependency, not only the readme-catalog-fresh job below.
             - name: Install PyYAML
               run: |
+                  set -euo pipefail
                   pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/pyyaml.txt
 
             - name: Run shell-logic tests
@@ -259,6 +260,7 @@ jobs:
             # (issue #118), which needs PyYAML installed on the runner.
             - name: Install PyYAML
               run: |
+                  set -euo pipefail
                   pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/pyyaml.txt
 
             # assert_readme_catalog_complete() (readme-catalog-check.sh)
