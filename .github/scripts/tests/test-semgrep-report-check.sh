@@ -1028,14 +1028,12 @@ rm -f "${mktemp_call_count_file}"
 # array stays empty - and the exit code is what a caller actually branches
 # on, so nothing here makes the check FAIL. Reproducible by removing the
 # underscore prefix from the function's internal locals and calling it
-# with a colliding array name; Bash does print SOME diagnostic
-# line to stderr once the shadowed scalar is hit (the exact wording
-# depends on which `set` options are active at the call site - not worth
-# pinning here, since it is not what this fix cares about), but that line
-# never affects `$?`, so it is not a signal a caller can branch on the way
-# it branches on the exit code - the false success (`rc=0`, empty result)
-# is the actual defect this fix closes, independent of whatever stderr
-# noise happens to accompany it. Pin the fix
+# with a colliding array name; verified live, Bash prints NOTHING to
+# stderr for this exact collision (an internal scalar local shadowed by
+# the caller's array name - not to be confused with the nameref `_out`
+# itself colliding, a different case that DOES warn) - the false success
+# (`rc=0`, empty result) is the only observable symptom, with no
+# diagnostic of any kind a caller could branch on. Pin the fix
 # directly, calling the helper (not either of its two
 # callers, whose own array names - `tracked`, `raw_paths` - never collided
 # and so could not have caught this) with an array named exactly `mode`,
