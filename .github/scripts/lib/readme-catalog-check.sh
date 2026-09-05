@@ -14,16 +14,15 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # assert_readme_catalog_complete() below uses to scope its own table
 # extraction), since `workflow_call` is also a legal JOB id: a job section
 # named `workflow_call:` at the same 4-space depth as a real trigger key
-# previously false-positived under a plain whole-file grep (CodeRabbit,
-# GH-101 PR #117) - scoping the search to the `on:` block excludes a
-# `jobs:` section entirely, since the range ends at (and does not extend
-# past) the first line that starts back at column 0. sed's output is
-# captured into a variable and grepped via a here-string rather than piped
-# directly into `grep -q` - under this caller's `set -o pipefail` (lint.yml)
-# a short-circuiting `grep -q` can SIGPIPE a still-writing sed on a large
-# enough `on:` block, and pipefail would then surface that as the whole
-# pipeline failing, silently skipping a real match (shell-script-reviewer,
-# GH-101 round 9). Routed through sanitize_for_annotation()
+# previously false-positived under a plain whole-file grep - scoping the
+# search to the `on:` block excludes a `jobs:` section entirely, since the
+# range ends at (and does not extend past) the first line that starts back
+# at column 0. sed's output is captured into a variable and grepped via a
+# here-string rather than piped directly into `grep -q` - under this
+# caller's `set -o pipefail` (lint.yml) a short-circuiting `grep -q` can
+# SIGPIPE a still-writing sed on a large enough `on:` block, and pipefail
+# would then surface that as the whole pipeline failing, silently skipping
+# a real match. Routed through sanitize_for_annotation()
 # (annotation-sanitize.sh) before printing - a git-tracked filename could
 # otherwise carry either forgery channel that function's own header dates
 # and explains - which also keeps this function's one-name-per-line output
@@ -50,7 +49,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # (The `2>/dev/null` on both commands is load-bearing, not decoration: with
 # no *.yaml file under .github/workflows/ yet, bash passes that glob
 # through literally, and grep reports it as a missing file on stderr with a
-# non-zero exit - shell-script-reviewer, GH-101 round 8.)
+# non-zero exit.)
 #
 # Verified, NOT a gap: a column-0 COMMENT line inside the `on:` block does
 # NOT end the range early - the sed end pattern only matches a column-0

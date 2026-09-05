@@ -35,7 +35,7 @@ runs.
 | `ai-issue-labeler.yml` | Classifies a newly opened issue against the caller's own live label set via the Anthropic API and applies the labels it is confident about — see below | `issues: write` |
 | `php-quality.yml` | Runs the granular `composer ci:test:php:*` PHP quality gate across a version matrix | `contents: read` |
 
-`ai-issue-labeler.yml` also requires a `secrets: anthropic_api_key` passthrough — this account has no org-wide secret inheritance, so every calling repository must provision its own `ANTHROPIC_API_KEY` secret. See the workflow's own header comment for the exact caller shape.
+`ai-issue-labeler.yml` also requires a `secrets: anthropic_api_key` passthrough, so every calling repository must provision its own `ANTHROPIC_API_KEY` secret. See the workflow's own header comment for why (no org-wide secret inheritance on this account) and the exact caller shape.
 
 Two contracts are easy to miss when adopting `commit-convention.yml`: the caller
 must include `edited` in its `pull_request` `types:`, or a corrected subject is

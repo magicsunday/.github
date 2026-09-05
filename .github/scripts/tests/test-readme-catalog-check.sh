@@ -48,9 +48,9 @@ assert_eq "find_workflow_call_targets: only the file with a real, correctly-inde
     "$(find_workflow_call_targets "${workflows_dir}")"
 
 # A job literally named `workflow_call` sits at the same 4-space indent a
-# real trigger key does - CodeRabbit, GH-101 PR #117: the original regex
-# matched any 4-space-indented `workflow_call:` line regardless of whether
-# it was inside the `on:` mapping at all.
+# real trigger key does - a plain regex matching any 4-space-indented
+# `workflow_call:` line, regardless of whether it sits inside the `on:`
+# mapping, would misdetect this as a trigger.
 cat > "${workflows_dir}/job-name-collision.yml" <<'EOF'
 name: Job named workflow_call
 on:
@@ -65,9 +65,9 @@ assert_eq "find_workflow_call_targets: a job literally named workflow_call is no
 rm -f "${workflows_dir}/job-name-collision.yml"
 
 # A workflow file whose final line is the trigger itself, with no trailing
-# newline - security-reviewer, GH-101 round 7: an earlier bash `while read`
-# implementation of this function would have silently dropped this line at
-# EOF; the sed-based extraction reads to true EOF regardless.
+# newline - a bash `while read` implementation of this function would
+# silently drop this line at EOF; the sed-based extraction reads to true
+# EOF regardless.
 printf 'name: No trailing newline\non:\n    workflow_call:' \
     > "${workflows_dir}/no-trailing-newline.yml"
 
@@ -78,8 +78,7 @@ rm -f "${workflows_dir}/no-trailing-newline.yml"
 
 # A column-0 comment line INSIDE the on: mapping - valid YAML (comments
 # ignore surrounding indentation) - must not prematurely close the sed
-# range before the real trigger key beneath it (adversarial-reviewer,
-# GH-101 round 7).
+# range before the real trigger key beneath it.
 cat > "${workflows_dir}/mid-block-comment.yml" <<'EOF'
 name: Comment inside on:
 on:
@@ -96,10 +95,10 @@ assert_eq "find_workflow_call_targets: a column-0 comment inside the on: block d
     "$(find_workflow_call_targets "${workflows_dir}" | grep 'mid-block-comment.yml')"
 rm -f "${workflows_dir}/mid-block-comment.yml"
 
-# GitHub Actions accepts a .yaml extension exactly as it accepts .yml -
-# adversarial-reviewer, GH-101 round 2: the original glob only matched
-# *.yml, so a workflow_call target saved as .yaml was silently invisible
-# to the whole check rather than being flagged as undocumented.
+# GitHub Actions accepts a .yaml extension exactly as it accepts .yml - a
+# glob matching only *.yml would leave a workflow_call target saved as
+# .yaml silently invisible to the whole check, rather than flagged as
+# undocumented.
 cat > "${workflows_dir}/real-yaml-ext.yaml" <<'EOF'
 name: Real, .yaml extension
 on:
@@ -125,8 +124,8 @@ on:
 EOF
 # Structural wiring check, not a re-pin of sanitize_for_annotation()'s exact
 # escape format - that byte-exact guarantee already lives at its one source,
-# test-annotation-sanitize.sh (simplicity-reviewer: two exact-value pins of
-# the same fact drift independently).
+# test-annotation-sanitize.sh; two exact-value pins of the same fact would
+# only drift independently.
 assert_contains "find_workflow_call_targets: a percent-encoded CRLF in the filename is escaped, not left decodable" \
     "$(find_workflow_call_targets "${workflows_dir}" | grep '0D')" "%25"
 rm -f "${workflows_dir}/%0D%0A::add-mask::pwned.yml"
@@ -169,8 +168,7 @@ assert_eq "assert_readme_catalog_complete: a fully-documented catalog returns 0"
 assert_eq "assert_readme_catalog_complete: a fully-documented catalog prints nothing" "" "${output}"
 
 # End-to-end: a .yaml-extension target flows through the full completeness
-# assertion, not just find_workflow_call_targets() in isolation
-# (adversarial-reviewer, GH-101 round 3).
+# assertion, not just find_workflow_call_targets() in isolation.
 cat > "${workflows_dir}/e2e.yaml" <<'EOF'
 on:
     workflow_call:
