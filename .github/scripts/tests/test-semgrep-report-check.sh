@@ -1034,20 +1034,17 @@ rm -f "${mktemp_call_count_file}"
 # function used internally) would have the write silently land in the
 # function's OWN local instead of the caller's array: `rc=0` (false
 # success), caller's array stays empty - and the exit code is what a
-# caller actually branches on, so nothing here makes the check FAIL. Bash
-# itself does print a "bad array subscript" line to stderr in the real
-# (non-toy) shape of this collision, once the shadowed scalar is hit by an
-# array read/append - re-derive by sourcing this file's pre-fix revision
-# (`git show bfdfaa8~1:.github/scripts/lib/semgrep-report-check.sh`) and
-# calling the function with a colliding array name under THIS test file's
-# own `set -uo pipefail` (no `-e`). That combination is this test file's
-# own execution mode only, not the production caller's: under
-# `code-scanning.yml`'s real `set -euo pipefail`, calling the pre-fix
-# function the same way (`if _git_ls_files_filtered_deduped mode "$repo"
-# keep 120000 160000; then ... fi`) hard-aborts the whole script right
-# there instead - a visibly failing, nonzero-exit job, just not one that
-# prints the `::error::` annotation this check exists to produce. Neither
-# outcome is a silent pass; only the FAILURE MODE differs. Pin the fix
+# caller actually branches on, so nothing here makes the check FAIL.
+# Reproducible by sourcing this file's pre-fix revision (`git show
+# bfdfaa8~1:.github/scripts/lib/semgrep-report-check.sh`) and calling the
+# function with a colliding array name; Bash does print SOME diagnostic
+# line to stderr once the shadowed scalar is hit (the exact wording
+# depends on which `set` options are active at the call site - not worth
+# pinning here, since it is not what this fix cares about), but that line
+# never affects `$?`, so it is not a signal a caller can branch on the way
+# it branches on the exit code - the false success (`rc=0`, empty result)
+# is the actual defect this fix closes, independent of whatever stderr
+# noise happens to accompany it. Pin the fix
 # directly, calling the helper (not either of its two
 # callers, whose own array names - `tracked`, `raw_paths` - never collided
 # and so could not have caught this) with an array named exactly `mode`,
