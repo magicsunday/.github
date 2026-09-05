@@ -19,6 +19,17 @@
 # and every other annotation producer in this repo routes through that
 # same function rather than a second, independently-drifting copy -
 # re-derive: `git grep -n sanitize_for_annotation -- .github`).
+#
+# Known limitation: a file with TWO top-level `on:` keys resolves via
+# YAML's own last-key-wins rule, so a workflow_call trigger under the FIRST
+# `on:` block is silently discarded if a second `on:` block follows. Not
+# fixed here because it is already independently gated: this repo's
+# yamllint job runs every rule at its default, and yamllint's default
+# key-duplicates rule rejects a duplicate top-level key as an ERROR -
+# verified against the exact pinned yamllint version: `printf 'on:\n
+# workflow_call:\non:\n push:\n' | yamllint -d default -` (using the
+# version pinned in .github/requirements/yamllint.in) reports
+# `key-duplicates` and exits 1.
 import glob
 import os
 import sys
