@@ -397,6 +397,20 @@ PATH="${python3_stub_dir}:${PATH}" find_workflow_call_targets "${workflows_dir}"
 assert_eq "find_workflow_call_targets: a real python3 failure propagates as a non-zero return" \
     "1" "${real_targets_rc}"
 
+# The mktemp guard fails closed rather than proceeding with an empty
+# variable - mirrors test-warn-tracked-archives.sh's own shadowed-mktemp
+# technique for the same shape. Run BEFORE find_workflow_call_targets()
+# itself is shadowed away below: `unset -f` on a function that was
+# REDEFINED (not merely wrapped) deletes it outright rather than restoring
+# the original sourced definition, so this is the last point in the file
+# where the real function is still callable.
+mktemp() { return 1; }
+find_workflow_call_targets_mktemp_rc=0
+find_workflow_call_targets "${workflows_dir}" > /dev/null || find_workflow_call_targets_mktemp_rc=$?
+unset -f mktemp
+assert_eq "find_workflow_call_targets: a mktemp failure returns non-zero" \
+    "1" "${find_workflow_call_targets_mktemp_rc}"
+
 # A crashed producer must fail the whole check LOUDLY, not silently report
 # "zero targets" - the exact defect found and fixed during the issue #118
 # audit (assert_readme_catalog_complete() used to consume
@@ -421,5 +435,17 @@ assert_contains "assert_readme_catalog_complete: a crashed producer names itself
     "${output}" "::error::" "find_workflow_call_targets failed"
 
 unset -f find_workflow_call_targets
+
+# assert_readme_catalog_complete()'s OWN mktemp guard runs before it ever
+# calls find_workflow_call_targets() (already unset above), so this needs
+# no real find_workflow_call_targets() to be present.
+mktemp() { return 1; }
+mktemp_failure_output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+mktemp_failure_rc=$?
+unset -f mktemp
+assert_eq "assert_readme_catalog_complete: a mktemp failure returns non-zero" \
+    "1" "${mktemp_failure_rc}"
+assert_contains "assert_readme_catalog_complete: a mktemp failure prints its own ::error::" \
+    "${mktemp_failure_output}" "::error::" "mktemp failed"
 
 report_and_exit "readme-catalog-check tests"
