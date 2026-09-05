@@ -38,17 +38,18 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 # never flags it missing either), the OPPOSITE of that function's normal
 # fail-closed behaviour. Every workflow in this repository currently uses
 # the block form (re-derive: `grep -n "^on:" .github/workflows/*.yml
-# .github/workflows/*.yaml 2>/dev/null` and check none has trailing content
-# on the `on:` line itself), so this has not manifested; widen the pattern
-# if that ever changes. The same silent-miss applies to any `on:` line the
-# sed range's own opening pattern doesn't match byte-for-byte (a CRLF line
-# ending, a quoted `'on':` key, or trailing content/whitespace) - re-derive
-# both the absence of CRLF (`grep -lP '\r' .github/workflows/*.yml
-# .github/workflows/*.yaml 2>/dev/null`, expect no output) and the
-# exact-`on:` claim above together, since either drifting reopens this gap.
-# (The `2>/dev/null` on both commands is load-bearing, not decoration: with
-# no *.yaml file under .github/workflows/ yet, bash passes that glob
-# through literally, and grep reports it as a missing file on stderr with a
+# .github/workflows/*.yaml 2>/dev/null`), so this has not manifested; widen
+# the pattern if that ever changes. The sed range's opening pattern also
+# tolerates trailing whitespace and an inline comment on the `on:` line
+# (`on: `, `on: # comment`), and incidentally a trailing CRLF too, since
+# `[[:space:]]` matches `\r` - only a quoted `'on':` key still silently
+# defeats it (re-derive: `grep -n "^['\"]on['\"]:" .github/workflows/*.yml
+# .github/workflows/*.yaml 2>/dev/null`, expect no output; the earlier
+# `grep -n "^on:"` re-derive above cannot see a quoted key at all, since
+# such a line never starts with the literal text `on:`). (The `2>/dev/null`
+# on all three commands is load-bearing, not decoration: with no *.yaml
+# file under .github/workflows/ yet, bash passes that glob through
+# literally, and grep reports it as a missing file on stderr with a
 # non-zero exit.)
 #
 # Verified, NOT a gap: a column-0 COMMENT line inside the `on:` block does
@@ -59,7 +60,7 @@ find_workflow_call_targets() {
     local workflow_file name on_block
     for workflow_file in "${workflows_dir}"/*.yml "${workflows_dir}"/*.yaml; do
         [ -e "${workflow_file}" ] || continue
-        on_block="$(sed -n '/^on:$/,/^[^ #]/p' "${workflow_file}")"
+        on_block="$(sed -n '/^on:[[:space:]]*\(#.*\)\{0,1\}$/,/^[^ #]/p' "${workflow_file}")"
         if grep -qE '^ {4}workflow_call:' <<< "${on_block}"; then
             name="$(sanitize_for_annotation "$(basename "${workflow_file}")")"
             printf '%s\n' "${name}"

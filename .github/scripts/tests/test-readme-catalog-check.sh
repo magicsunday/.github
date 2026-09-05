@@ -95,6 +95,33 @@ assert_eq "find_workflow_call_targets: a column-0 comment inside the on: block d
     "$(find_workflow_call_targets "${workflows_dir}" | grep 'mid-block-comment.yml')"
 rm -f "${workflows_dir}/mid-block-comment.yml"
 
+# `on:` followed by trailing whitespace or an inline comment is still a
+# valid top-level trigger key - a byte-exact `on:` match would miss it.
+cat > "${workflows_dir}/on-inline-comment.yml" <<'EOF'
+name: Inline comment on the on: line
+on: # reusable workflow
+    workflow_call:
+jobs:
+    x:
+        runs-on: ubuntu-latest
+EOF
+
+assert_eq "find_workflow_call_targets: an inline comment on the on: line does not hide the trigger" \
+    "on-inline-comment.yml" \
+    "$(find_workflow_call_targets "${workflows_dir}" | grep 'on-inline-comment.yml')"
+rm -f "${workflows_dir}/on-inline-comment.yml"
+
+# `on:` followed by trailing whitespace and nothing else (no comment) is
+# the same valid shape, exercised separately since it is not implied by
+# the inline-comment case above (the comment group is optional).
+printf 'name: Trailing whitespace on the on: line\non:   \n    workflow_call:\njobs:\n    x:\n        runs-on: ubuntu-latest\n' \
+    > "${workflows_dir}/on-trailing-whitespace.yml"
+
+assert_eq "find_workflow_call_targets: trailing whitespace on the on: line does not hide the trigger" \
+    "on-trailing-whitespace.yml" \
+    "$(find_workflow_call_targets "${workflows_dir}" | grep 'on-trailing-whitespace.yml')"
+rm -f "${workflows_dir}/on-trailing-whitespace.yml"
+
 # GitHub Actions accepts a .yaml extension exactly as it accepts .yml - a
 # glob matching only *.yml would leave a workflow_call target saved as
 # .yaml silently invisible to the whole check, rather than flagged as
