@@ -106,9 +106,13 @@ _git_ls_files_filtered_deduped() {
     # outright with "circular name reference" - only a collision with one
     # of the OTHER locals is silent). Prefixing them removes the entire
     # collision surface, rather than relying on no caller ever choosing
-    # one of these names - the same underscore convention this file's own
-    # (now-removed) inline loops already used one level up, for the same
-    # reason.
+    # one of these names - assert_semgrep_report_complete()'s own
+    # (now-removed) inline loop already used this convention one level up,
+    # for the same reason (re-derive: `git show
+    # ada43bb~1:.github/scripts/lib/semgrep-report-check.sh | grep -n
+    # "local _entry _mode\|local entry mode"`); warn_tracked_archives()'s
+    # sibling loop did not (plain `mode`, `tracked_path`), which is exactly
+    # the gap this extraction closes.
     local -n _out="$1"
     local _repo_root="$2" _sense="$3"
 
