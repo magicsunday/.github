@@ -22,9 +22,10 @@
 - Open a PR from a branch in your fork.
 - Describe scope, motivation, and validation steps.
 - Follow the repository's pull-request template if present.
-- Before requesting review, run the mandatory checks locally:
-  - `composer ci:test`
-  - For modules that build front-end assets, also run `make build` and commit the rebuilt bundle.
+- Before requesting review, run the project's own quality gate locally (see
+  its README for the exact command, e.g. `composer ci:test` for PHP modules).
+  For modules that build front-end assets, also run `make build` and commit
+  the rebuilt bundle.
 - Include tests for new behavior and regression tests for fixes.
 
 ## 4. Development setup (minimal)
