@@ -193,9 +193,9 @@ rm -f "${workflows_dir}/flow-sequence-trigger.yml" "${workflows_dir}/flow-sequen
 # byte-exact-match gap (its opening pattern anchors on the literal text
 # `on:` at column 0, which a quoted key never starts with). A real YAML
 # parser resolves this to the same trigger mapping either way; see
-# find_workflow_call_targets.py's own header for why the quoted form
-# parses as the plain string key "on" rather than PyYAML's usual
-# boolean-True resolution of the bare, unquoted form.
+# find_workflow_call_targets.py's own _has_workflow_call_trigger() for why
+# the quoted form parses as the plain string key "on" rather than
+# PyYAML's usual boolean-True resolution of the bare, unquoted form.
 cat > "${workflows_dir}/quoted-on-key.yml" <<'EOF'
 name: Quoted on-trigger key
 'on':
