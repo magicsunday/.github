@@ -224,10 +224,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   happens to keep a path of that name would have it dropped from the workspace,
   and with it from whatever the job goes on to lint or scan — without anything
   being reported as missing. Fail with a message naming the path instead.
-  Both the guard and the removal exist only for a job that also checks the
-  caller out — `ai-issue-labeler.yml` and `commit-convention.yml` never do, so
-  they skip the guard (nothing can collide), and `commit-convention.yml` also
-  skips the removal (no later step inspects the workspace).
+  The guard exists only for a job that also checks the caller out —
+  `ai-issue-labeler.yml` and `commit-convention.yml` never do, so they skip
+  it (nothing can collide). `commit-convention.yml` also skips the removal:
+  no later step there inspects the workspace.
   `github.job_workflow_sha` looks like the right property and is **not**: it exists
   only as an OIDC claim and interpolates to an empty string here, which
   `actions/checkout` silently treats as "default branch". Measured on both call

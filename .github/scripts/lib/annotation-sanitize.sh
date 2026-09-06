@@ -1,24 +1,14 @@
 #!/usr/bin/env bash
-# Sourced as a sibling of the same directory by semgrepignore-guard.sh,
-# semgrep-report-check.sh, semgrep-smoke-helpers.sh and
-# readme-catalog-check.sh (re-derive:
-# `grep -rl '^source ".*annotation-sanitize\.sh"' .github/scripts/lib`). For
-# the two of those code-scanning.yml runs in consumer repositories
-# (semgrepignore-guard.sh, semgrep-report-check.sh) that directory at runtime
-# is the runner's $SCRIPT_LIB, into which the workflow copies this file next
-# to them (re-derive: `grep -n 'scripts/lib/' .github/workflows/code-scanning.yml`;
-# test-lib-source-cp-drift.sh guards that copy list); the other two are
-# sourced by lint.yml from this repository's own checkout - so
-# every caller shares ONE sanitizer rather than
-# carrying its own copy that can drift apart - semgrep-report-check.sh's own
-# jq_error path once did exactly
-# that (issue #78): it kept the same `tr '[:cntrl:]' '?'` collision
+# Sourced by semgrepignore-guard.sh, semgrep-report-check.sh,
+# semgrep-smoke-helpers.sh and readme-catalog-check.sh (re-derive:
+# `grep -rl '^source ".*annotation-sanitize\.sh"' .github/scripts/lib`) and
+# by commit-convention.yml out of its own checkout of this repository
+# (re-derive: `grep -n 'annotation-sanitize.sh' .github/workflows/commit-convention.yml`),
+# so every caller shares ONE sanitizer rather than carrying its own copy that
+# can drift apart - semgrep-report-check.sh's own jq_error path once did
+# exactly that (issue #78): it kept the same `tr '[:cntrl:]' '?'` collision
 # sanitize_for_annotation() itself used to fold to before GH-48 fixed it
-# here, so a fix landed in one copy without reaching the other. Also sourced
-# by commit-convention.yml, which checks THIS repository out at the executing
-# workflow's own revision (job.workflow_sha) because a reusable workflow's
-# workspace holds no copy of its own repository otherwise (re-derive:
-# `grep -n 'annotation-sanitize.sh' .github/workflows/commit-convention.yml`).
+# here, so a fix landed in one copy without reaching the other.
 
 # Neutralizes a string before the caller embeds it into a GitHub Actions
 # `::error::` log annotation, closing two independent forgery channels a

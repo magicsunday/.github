@@ -279,20 +279,15 @@ jobs:
 
             # This job never checks out the caller, so the workspace holds no
             # copy of this repository's own scripts: checked out here at the
-            # revision of the workflow being executed. `ref:` is what keeps the
-            # sourced code matching the workflow that runs it — the shape
-            # code-scanning.yml, yamllint.yml, zizmor.yml and ai-issue-labeler.yml
-            # use, per AGENTS.md ("Read a reusable workflow's own files with the
-            # `job` context"). Not label-sync.yml's ref-less shape: that fetches
-            # a data manifest where latest-main is the intent; a sourced function
-            # contract is not. No reserved-path guard — as in ai-issue-labeler.yml,
-            # since with no caller checkout there is no path to collide with —
-            # and, unlike all four, no removal afterwards: no later step here
-            # inspects the workspace. Gated on
-            # the same pull-request number the check step keys on, so a run that
-            # skips at that step (merge_group, a PR-less trigger) never depends on
-            # a network fetch it would not use — a checkout hiccup must not red
-            # the merge queue (see the header).
+            # revision of the workflow being executed (`job` context, per
+            # AGENTS.md "Read a reusable workflow's own files with the `job`
+            # context"). No reserved-path guard and no removal afterwards:
+            # nothing of the caller's is in the workspace to collide with, and
+            # no later step inspects it. Gated on the same pull-request number
+            # the check step keys on, so a run that skips there (merge_group, a
+            # PR-less trigger) never depends on a network fetch it would not
+            # use — a checkout hiccup must not red the merge queue (see the
+            # header).
             - name: Check the shared-checkout preconditions
               if: github.event.pull_request.number != ''
               shell: bash
