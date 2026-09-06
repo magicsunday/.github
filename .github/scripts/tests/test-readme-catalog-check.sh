@@ -548,6 +548,25 @@ assert_contains "assert_readme_catalog_complete: with zero targets a row for a t
 assert_eq "assert_readme_catalog_complete: zero targets, two bad rows, exactly two ::error:: lines" \
     "2" "$(printf '%s\n' "${output}" | grep -c '::error::')"
 
+# The empty-cell guard's `continue` matters even when it is NOT masked by
+# an empty names list: with a real target present, a missing `continue`
+# would fall through into the membership grep for the empty row and print
+# a second, filename-less ::error:: line - the zero-targets case above
+# cannot catch that, because there an empty needle trivially matches the
+# single empty line names holds regardless of the guard.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `` | Empty name | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: an empty backtick cell fails alongside a real, documented target" "1" "${rc}"
+assert_eq "assert_readme_catalog_complete: an empty backtick cell produces exactly one ::error::, not a second fallthrough line" \
+    "1" "$(printf '%s\n' "${output}" | grep -c '::error::')"
+
 # A REAL python3 failure (not a per-file skip, and not the whole bash
 # function shadowed below) must still propagate through
 # find_workflow_call_targets() itself - pinning the `python3 ... || rc=$?`
