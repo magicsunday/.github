@@ -454,6 +454,28 @@ assert_eq "assert_readme_catalog_complete: a stale row without a later backticke
 assert_contains "assert_readme_catalog_complete: a stale row without a later backticked cell names itself" \
     "${output}" "gone.yml" "is missing"
 
+# A name cell whose OWN backtick is left unclosed, while a LATER cell in
+# the same row does carry backticks (a plausible typo, not an absurd
+# construction) - the case guard only requires some backtick later in the
+# line, and the extraction then greedily strips to whatever backtick it
+# finds first, which can belong to that later cell. Must fail with its own
+# diagnostic, not a garbled "row" that swallowed the Purpose/Permissions
+# columns and got reported as a missing file under a wrong name.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `sloppy.yml | Purpose has no backtick here | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a name cell without its own closing backtick fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a name cell without its own closing backtick names the real defect, not a garbled filename" \
+    "${output}" "::error::" "no closing backtick"
+assert_eq "assert_readme_catalog_complete: real.yml stays undisturbed by the malformed sibling row" \
+    "1" "$(printf '%s\n' "${output}" | grep -c '::error::')"
+
 # A row in a DIFFERENT table naming a non-target is not a stale catalog
 # row - the reverse direction is scoped to the main catalog table exactly
 # like the forward one.

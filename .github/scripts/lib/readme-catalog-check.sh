@@ -137,7 +137,13 @@ assert_readme_catalog_complete() {
     # because the row text is README-controlled input into a ::error:: line,
     # the same forgery channel the filesystem-side names go through. An empty
     # backtick cell is rejected before the membership test: with zero
-    # targets, names is one empty line, which an empty row would match.
+    # targets, names is one empty line, which an empty row would match. A
+    # name cell missing its OWN closing backtick is rejected the same way:
+    # the case guard below only requires some backtick later in the line,
+    # so `%%` then greedily strips to the first backtick it finds - which,
+    # for a name left unclosed, can be a LATER cell's own backtick, pulling
+    # that cell's text into row. A real filename never contains `|`, so a
+    # row that does is exactly that malformed shape, not a valid name.
     while IFS= read -r line; do
         case "${line}" in
             "| \`"*"\`"*) ;;
@@ -145,6 +151,13 @@ assert_readme_catalog_complete() {
         esac
         row="${line#| \`}"
         row="${row%%\`*}"
+        case "${row}" in
+            *'|'*)
+                echo "::error::a catalog row's name cell in README.md has no closing backtick before the next column - fix the row (see issue #116)."
+                failed=1
+                continue
+                ;;
+        esac
         if [ -z "${row}" ]; then
             echo "::error::an empty backtick cell in README.md's workflow catalog names no workflow - remove the row (see issue #116)."
             failed=1
