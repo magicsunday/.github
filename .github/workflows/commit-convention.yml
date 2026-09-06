@@ -285,9 +285,10 @@ jobs:
             # use, per AGENTS.md ("Read a reusable workflow's own files with the
             # `job` context"). Not label-sync.yml's ref-less shape: that fetches
             # a data manifest where latest-main is the intent; a sourced function
-            # contract is not. No reserved-path guard and no removal afterwards,
-            # unlike those four — with no caller checkout there is no path to
-            # collide with, and no later step inspects the workspace. Gated on
+            # contract is not. No reserved-path guard — as in ai-issue-labeler.yml,
+            # since with no caller checkout there is no path to collide with —
+            # and, unlike all four, no removal afterwards: no later step here
+            # inspects the workspace. Gated on
             # the same pull-request number the check step keys on, so a run that
             # skips at that step (merge_group, a PR-less trigger) never depends on
             # a network fetch it would not use — a checkout hiccup must not red
