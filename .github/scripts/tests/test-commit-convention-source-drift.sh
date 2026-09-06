@@ -43,11 +43,6 @@ source_relative="${source_target#*/}"
 assert_eq "the source line's directory prefix is the checkout step's path:" \
     "${checkout_path}" "${source_prefix}"
 
-if [ -f "${REPO_ROOT}/${source_relative}" ]; then
-    echo "PASS: the sourced file exists at ${source_relative}"
-else
-    echo "FAIL: the sourced file does not exist at ${source_relative}"
-    failures=$((failures + 1))
-fi
+require_file "${REPO_ROOT}/${source_relative}"
 
 report_and_exit "commit-convention shared-checkout source drift-guard test"

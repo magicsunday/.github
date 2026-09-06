@@ -2,11 +2,13 @@
 # Sourced as a sibling of the same directory by semgrepignore-guard.sh,
 # semgrep-report-check.sh, semgrep-smoke-helpers.sh and
 # readme-catalog-check.sh (re-derive:
-# `grep -rl '^source ".*annotation-sanitize\.sh"' .github/scripts/lib`) - at
-# consumer runtime that directory is the runner's $SCRIPT_LIB, into which
-# code-scanning.yml copies this file alongside them (re-derive:
-# `grep -n 'annotation-sanitize.sh' .github/workflows/code-scanning.yml`;
-# test-lib-source-cp-drift.sh guards that copy list) - so
+# `grep -rl '^source ".*annotation-sanitize\.sh"' .github/scripts/lib`). For
+# the two of those code-scanning.yml runs in consumer repositories
+# (semgrepignore-guard.sh, semgrep-report-check.sh) that directory at runtime
+# is the runner's $SCRIPT_LIB, into which the workflow copies this file next
+# to them (re-derive: `grep -n 'scripts/lib/' .github/workflows/code-scanning.yml`;
+# test-lib-source-cp-drift.sh guards that copy list); the other two are
+# sourced by lint.yml from this repository's own checkout - so
 # every caller shares ONE sanitizer rather than
 # carrying its own copy that can drift apart - semgrep-report-check.sh's own
 # jq_error path once did exactly
