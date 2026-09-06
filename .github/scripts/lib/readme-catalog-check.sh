@@ -50,7 +50,10 @@ find_workflow_call_targets() {
 # Fails closed (returns 1, one ::error:: per miss) unless every name from
 # find_workflow_call_targets() is documented as its own row in readme_file
 # ($2)'s MAIN workflow catalog table specifically - not merely somewhere in
-# the file. Scoped to the block from that table's own header line through
+# the file - and, the reverse direction (issue #116), unless every row of
+# that table still names one of those targets: a row whose file was removed,
+# renamed or stopped declaring workflow_call: fails the same way. Scoped to
+# the block from that table's own header line through
 # the next blank line: README.md has other sections using the identical
 # `| \`name\` | ... |` row shape (re-derive: `grep -n -E '\| \`.*\.ya?ml\`
 # \|' README.md` and check which headings the hits fall under) - without this
@@ -84,7 +87,7 @@ find_workflow_call_targets() {
 assert_readme_catalog_complete() {
     local workflows_dir="$1"
     local readme_file="$2"
-    local name line found failed=0
+    local name line row cause found failed=0
     local catalog_table names rc=0
 
     catalog_table="$(sed -n '/^| Workflow | Purpose | Permissions/,/^$/p' "${readme_file}")"
@@ -123,6 +126,43 @@ assert_readme_catalog_complete() {
             failed=1
         fi
     done <<< "${names}"
+
+    # The reverse direction: walk the same scoped catalog_table, so a row in
+    # any other table is out of scope here exactly as above, and compare
+    # each row's name against the same names list. The membership test
+    # runs on the RAW row text, deliberately: names already holds the
+    # sanitize_for_annotation()-folded form of each filename, and the
+    # forward loop above accepts a row only when it carries that same
+    # form - so a row that matches a target only after being sanitised
+    # itself would be a row the forward direction never accepted either.
+    # Sanitising happens for the printed annotation alone, because the row
+    # text is README-controlled input into a ::error:: line, the same
+    # forgery channel the filesystem-side names go through.
+    while IFS= read -r line; do
+        case "${line}" in
+            "| \`"*"\` |"*) ;;
+            *) continue ;;
+        esac
+        row="${line#| \`}"
+        row="${row%%\`*}"
+        found=0
+        while IFS= read -r name; do
+            if [ "${name}" = "${row}" ]; then
+                found=1
+                break
+            fi
+        done <<< "${names}"
+
+        if [ "${found}" -eq 0 ]; then
+            if [ -e "${workflows_dir}/${row}" ]; then
+                cause="exists but no longer declares workflow_call:"
+            else
+                cause="no such file under ${workflows_dir}"
+            fi
+            echo "::error::$(sanitize_for_annotation "${row}") is listed in README.md's workflow catalog but ${cause} - remove the row or restore the trigger (see issue #116)."
+            failed=1
+        fi
+    done <<< "${catalog_table}"
 
     return "${failed}"
 }

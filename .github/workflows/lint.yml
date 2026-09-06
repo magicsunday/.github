@@ -265,7 +265,8 @@ jobs:
 
             # assert_readme_catalog_complete() (readme-catalog-check.sh)
             # carries the complete assertion - the workflow_call detection,
-            # the table-row-start match, and the filename sanitising - so
+            # the table-row-start match, the reverse walk of the catalog's
+            # own rows (issue #116), and the filename sanitising - so
             # test-readme-catalog-check.sh exercises the exact wiring this
             # step relies on, not just its parts (issue #101).
             - name: Compare workflow_call targets against README.md

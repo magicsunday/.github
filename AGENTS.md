@@ -175,7 +175,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   scan-report-completeness bullet above), as does `lint.yml`'s
   `readme-catalog-fresh` job (`readme-catalog-check.sh` — cross-checking
   every `workflow_call`-declaring file under `.github/workflows/` against
-  README's catalog table, issue #101). The trigger-detection half of that
+  README's catalog table, issue #101, and every catalog row back against
+  those files, issue #116). The trigger-detection half of that
   check (`find_workflow_call_targets()`) shells out to a real YAML parser,
   `.github/scripts/lib/find_workflow_call_targets.py`, rather than pattern-
   matching the raw text (issue #118) — pinned via `.github/requirements/

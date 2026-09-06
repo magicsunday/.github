@@ -8,8 +8,9 @@
 # (run via test-find-workflow-call-targets.sh) pins that script's own
 # per-shape unit behaviour and its YAML-parse-error handling; this file's
 # job is the end-to-end wiring: sanitisation, the temp-file NUL-safe
-# capture, and assert_readme_catalog_complete()'s README-table matching on
-# top of whatever the Python script reports. Run via run-tests.sh.
+# capture, and assert_readme_catalog_complete()'s README-table matching in
+# both directions (issue #101 forward, issue #116 reverse) on top of
+# whatever the Python script reports. Run via run-tests.sh.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -362,7 +363,6 @@ assert_contains "assert_readme_catalog_complete: a bare prose mention names the 
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |
-| `other.yml` | Some other workflow | `contents: read` |
 
 ### Inputs
 
@@ -376,6 +376,99 @@ rc=$?
 assert_eq "assert_readme_catalog_complete: a row in a DIFFERENT table (e.g. Inputs) still fails" "1" "${rc}"
 assert_contains "assert_readme_catalog_complete: an Inputs-only row names the workflow in its ::error::" \
     "${output}" "::error::" "real.yml" "not listed in README.md"
+
+# --- the reverse direction (issue #116): a catalog row with no living target ---
+
+# A catalog row whose file was removed (or renamed) - the forward walk
+# above cannot see it: it iterates files, never README rows.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `gone.yml` | Removed long ago | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a catalog row for a removed file fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a removed file's row names itself and the cause in its ::error::" \
+    "${output}" "::error::" "gone.yml" "no such file"
+
+# A catalog row whose file still exists but no longer declares
+# workflow_call: (de-reusabled) - mentions-only.yml above is exactly that
+# shape: present, `on: push` only.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `mentions-only.yml` | Used to be reusable | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a catalog row for a file that no longer declares workflow_call: fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a de-reusabled file's row names itself and the cause in its ::error::" \
+    "${output}" "::error::" "mentions-only.yml" "no longer declares workflow_call"
+
+# Both directions at once: a half-fixed rename leaves the OLD row behind
+# while the NEW file is undocumented - one run reports both.
+cat > "${workflows_dir}/renamed.yml" <<'EOF'
+on:
+    workflow_call:
+EOF
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `old-name.yml` | Row left behind by a rename | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a half-fixed rename fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a half-fixed rename reports the undocumented new file" \
+    "${output}" "renamed.yml" "not listed in README.md"
+assert_contains "assert_readme_catalog_complete: a half-fixed rename reports the stale old row" \
+    "${output}" "old-name.yml" "no such file"
+rm -f "${workflows_dir}/renamed.yml"
+
+# A row in a DIFFERENT table naming a non-target is not a stale catalog
+# row - the reverse direction is scoped to the main catalog table exactly
+# like the forward one.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+
+### Inputs
+
+| Workflow | Input | Default |
+| --- | --- | --- |
+| `gone.yml` | `some-input` — not a catalog row | `false` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a non-target row in a DIFFERENT table is not reported as stale" "0" "${rc}"
+
+# A stale row's NAME comes from README, not from the filesystem, so it is
+# a second caller-controlled input into a ::error:: line - it must route
+# through sanitize_for_annotation() like the filesystem-side names do
+# (structural wiring check, same as the find_workflow_call_targets() one
+# above; the exact escape format is pinned once, in
+# test-annotation-sanitize.sh).
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `%0D%0A::add-mask::gone.yml` | Forged row | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a forged stale row still fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a percent-encoded CRLF in a stale row's name is escaped, not left decodable" \
+    "$(printf '%s\n' "${output}" | grep '0D')" "%25"
 
 # A REAL python3 failure (not a per-file skip, and not the whole bash
 # function shadowed below) must still propagate through
