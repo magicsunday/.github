@@ -534,6 +534,55 @@ assert_eq "assert_readme_catalog_complete: a well-formed row with multiple backt
 assert_eq "assert_readme_catalog_complete: a well-formed row with multiple backtick-quoted Permissions segments prints nothing" \
     "" "${output}"
 
+# A table missing its GFM alignment separator (a plausible manual-edit
+# slip - GFM tables render as plain text without it, so the mistake is not
+# always visually obvious) must not shift the first real data row into a
+# position an earlier, position-counting implementation treated as fixed
+# furniture: recognising both furniture lines by their own content, never
+# by counting, means a stale row here is still validated regardless of
+# whether the table around it is otherwise well-formed.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| `gone.yml` | Removed long ago | `contents: read` |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a stale row survives even when the table is missing its separator row" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a stale row missing the separator row names itself" \
+    "${output}" "gone.yml" "is missing"
+
+# The colon-alignment separator variants (left/center/right) are equally
+# recognised as furniture by the same "only |, -, : and whitespace" shape.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+|:---|:---:|---:|
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a colon-alignment separator is still recognised as furniture" "0" "${rc}"
+
+# A duplicated header line inside the table body is itself recognised as
+# furniture (its exact text can never be mistaken for a data row, since a
+# real catalog row always needs a backtick-quoted name) and does not
+# disturb validation of the real rows around it.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| Workflow | Purpose | Permissions |
+| `gone.yml` | Removed long ago | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a duplicated header line does not disturb the stale row after it" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a duplicated header line's neighbour still names the real defect" \
+    "${output}" "gone.yml" "is missing"
+
 # A row in a DIFFERENT table naming a non-target is not a stale catalog
 # row - the reverse direction is scoped to the main catalog table exactly
 # like the forward one.

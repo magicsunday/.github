@@ -96,7 +96,7 @@ assert_readme_catalog_complete() {
     local workflows_dir="$1"
     local readme_file="$2"
     local name line row message found failed=0
-    local catalog_table names rc=0 row_index=0
+    local catalog_table names rc=0
 
     catalog_table="$(sed -n '/^| Workflow | Purpose | Permissions/,/^$/p' "${readme_file}")"
 
@@ -135,19 +135,27 @@ assert_readme_catalog_complete() {
         fi
     done <<< "${names}"
 
-    # The reverse direction. Rows 1 and 2 of catalog_table are always the
-    # header ("| Workflow | ... |", the sed range's own start pattern) and
-    # the GFM alignment separator ("| --- | ... |") - fixed markdown
-    # furniture, never data, identified by POSITION rather than by shape.
-    # Earlier drafts tried to recognise a data row by its shape (starting
-    # `| \``) instead, which could never tell "not a row" apart from "a row
-    # whose author forgot the backticks entirely" - both are plain
-    # `| text | text | text |` with no backtick anywhere, so a stale row
-    # left in that shape was silently treated as table furniture and
-    # skipped: a full, silent pass (rc=0, no ::error::) for the single most
-    # ordinary manual-edit slip. Counting past the two known-fixed rows
-    # instead means every remaining line is a data row BY DEFINITION,
-    # well-formed or not, and gets validated rather than possibly skipped.
+    # The reverse direction. Two kinds of furniture line precede the data
+    # rows: the header ("| Workflow | ... |", the sed range's own start
+    # pattern) and the GFM alignment separator ("| --- | ... |", or its
+    # colon-alignment variants). Both are recognised by their own CONTENT,
+    # never by counting: a first attempt skipped exactly the first two
+    # lines of catalog_table by position, which assumed the separator is
+    # always there - a README table missing that line (a plausible
+    # manual-edit slip: GFM tables render as plain text without it, so the
+    # mistake is not always visually obvious) shifts the first real data
+    # row into the skipped slot, silently un-validating it (rc=0, no
+    # ::error::) regardless of whether that row was stale. An even earlier
+    # attempt matched a data row by shape (starting `| \``) instead, which
+    # could never tell "not a row" apart from "a row whose author forgot
+    # the backticks entirely" - both are plain `| text | text | text |`
+    # with no backtick anywhere, the same silent-pass shape from a
+    # different cause. A line matching neither furniture shape is a data
+    # row BY DEFINITION, well-formed or not, and gets validated regardless
+    # of the table's own structural health - the header's exact text is
+    # already the sed range's own anchor, and a separator is by GFM syntax
+    # a sequence of only `|`, `-`, `:` and whitespace, a shape no real
+    # catalog row (which needs a backtick-quoted name) can produce.
     #
     # A well-formed data row is matched in one step: `` ` `` starts the name,
     # `[^\`|]*` is the name itself (excluding backtick and pipe, so it can
@@ -173,11 +181,13 @@ assert_readme_catalog_complete() {
     # text is README-controlled input into a ::error:: line, the same
     # forgery channel the filesystem-side names go through.
     while IFS= read -r line; do
-        row_index=$((row_index + 1))
-        if [ "${row_index}" -le 2 ]; then
+        [ -n "${line}" ] || continue
+        case "${line}" in
+            "| Workflow | Purpose | Permissions"*) continue ;;
+        esac
+        if [[ "${line}" =~ ^\|[\|:[:space:]-]+$ ]]; then
             continue
         fi
-        [ -n "${line}" ] || continue
         if [[ "${line}" =~ ^\|\ \`([^\`\|]*)\`[[:space:]]*\| ]]; then
             row="${BASH_REMATCH[1]}"
         else
