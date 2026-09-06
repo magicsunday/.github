@@ -138,16 +138,28 @@ assert_readme_catalog_complete() {
     # the same forgery channel the filesystem-side names go through. An empty
     # backtick cell is rejected before the membership test: with zero
     # targets, names is one empty line, which an empty row would match. A
-    # name cell missing its OWN closing backtick is rejected the same way:
-    # the case guard below only requires some backtick later in the line,
-    # so `%%` then greedily strips to the first backtick it finds - which,
-    # for a name left unclosed, can be a LATER cell's own backtick, pulling
-    # that cell's text into row. A real filename never contains `|`, so a
+    # name cell missing its OWN closing backtick is rejected in two steps:
+    # first, a line starting `| \`` with no second backtick ANYWHERE is a
+    # malformed row, not a non-row line to skip - the row-shape guard below
+    # checks for that explicitly, so a wholly-unclosed name fails loudly
+    # instead of being silently treated like the table header/separator
+    # lines (which never start `| \``). Second, when a later backtick DOES
+    # exist, `%%` greedily strips to the first one it finds - which, for a
+    # name left unclosed, can be a LATER cell's own backtick, pulling that
+    # cell's text into row. A real filename never contains `|`, so a
     # row that does is exactly that malformed shape, not a valid name.
     while IFS= read -r line; do
         case "${line}" in
-            "| \`"*"\`"*) ;;
+            "| \`"*) ;;
             *) continue ;;
+        esac
+        case "${line}" in
+            "| \`"*"\`"*) ;;
+            *)
+                echo "::error::a catalog row's name cell in README.md has no closing backtick anywhere in the row - fix the row (see issue #116)."
+                failed=1
+                continue
+                ;;
         esac
         row="${line#| \`}"
         row="${row%%\`*}"

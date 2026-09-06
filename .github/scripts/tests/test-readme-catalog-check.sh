@@ -476,6 +476,43 @@ assert_contains "assert_readme_catalog_complete: a name cell without its own clo
 assert_eq "assert_readme_catalog_complete: real.yml stays undisturbed by the malformed sibling row" \
     "1" "$(printf '%s\n' "${output}" | grep -c '::error::')"
 
+# A name cell whose backtick is NEVER closed anywhere in the line (unlike
+# the sloppy.yml case above, which has a later cell's backtick to swallow
+# into) must not be silently treated as "not a catalog row" the way the
+# table header/separator lines are - both of those never start `| \``, so
+# a row that DOES start `| \`` but carries no second backtick at all is a
+# malformed row, not a non-row line, and must fail loudly rather than being
+# skipped by the same `continue` that skips the header and separator.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `totally-unclosed.yml is missing its closing backtick and nothing else has one |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a name cell with no closing backtick anywhere in the row fails, not a silent skip" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a name cell with no closing backtick anywhere in the row names the real defect" \
+    "${output}" "::error::" "no closing backtick anywhere in the row"
+
+# The real README's own catalog rows use MULTIPLE backtick-quoted segments
+# in the Permissions column (e.g. `contents: read`, `security-events:
+# write`) - a positive control that the greedy `%%` strip still isolates
+# only the name cell and never trips the new pipe/no-later-backtick guards
+# on a well-formed row that merely has more than one backtick pair.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read`, `security-events: write` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a well-formed row with multiple backtick-quoted Permissions segments passes" "0" "${rc}"
+assert_eq "assert_readme_catalog_complete: a well-formed row with multiple backtick-quoted Permissions segments prints nothing" \
+    "" "${output}"
+
 # A row in a DIFFERENT table naming a non-target is not a stale catalog
 # row - the reverse direction is scoped to the main catalog table exactly
 # like the forward one.
