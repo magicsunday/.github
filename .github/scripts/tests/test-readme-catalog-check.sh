@@ -392,7 +392,7 @@ output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
 rc=$?
 assert_eq "assert_readme_catalog_complete: a catalog row for a removed file fails" "1" "${rc}"
 assert_contains "assert_readme_catalog_complete: a removed file's row names itself and the cause in its ::error::" \
-    "${output}" "::error::" "gone.yml" "is missing"
+    "${output}" "::error::" "gone.yml" "is missing" "restore the file"
 
 # A catalog row whose file still exists but no longer declares
 # workflow_call: (de-reusabled) - mentions-only.yml above is exactly that
@@ -408,7 +408,7 @@ output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
 rc=$?
 assert_eq "assert_readme_catalog_complete: a catalog row for a file that no longer declares workflow_call: fails" "1" "${rc}"
 assert_contains "assert_readme_catalog_complete: a de-reusabled file's row names itself and the cause in its ::error::" \
-    "${output}" "::error::" "mentions-only.yml" "declares no workflow_call"
+    "${output}" "::error::" "mentions-only.yml" "declares no workflow_call" "restore the trigger"
 
 # Both directions at once: a half-fixed rename leaves the OLD row behind
 # while the NEW file is undocumented - one run reports both.

@@ -88,7 +88,7 @@ find_workflow_call_targets() {
 assert_readme_catalog_complete() {
     local workflows_dir="$1"
     local readme_file="$2"
-    local name line row cause action found failed=0
+    local name line row message found failed=0
     local catalog_table names rc=0
 
     catalog_table="$(sed -n '/^| Workflow | Purpose | Permissions/,/^$/p' "${readme_file}")"
@@ -152,13 +152,11 @@ assert_readme_catalog_complete() {
         fi
         if ! grep -qxF -- "${row}" <<< "${names}"; then
             if [ -f "${workflows_dir}/${row}" ]; then
-                cause="the file exists and declares no workflow_call: trigger the parser could read"
-                action="remove the row or restore the trigger"
+                message="the file exists and declares no workflow_call: trigger the parser could read - remove the row or restore the trigger"
             else
-                cause="the file is missing under ${workflows_dir}"
-                action="remove the row or restore the file"
+                message="the file is missing under ${workflows_dir} - remove the row or restore the file"
             fi
-            echo "::error::$(sanitize_for_annotation "${row}") is listed in README.md's workflow catalog, but ${cause} - ${action} (see issue #116)."
+            echo "::error::$(sanitize_for_annotation "${row}") is listed in README.md's workflow catalog, but ${message} (see issue #116)."
             failed=1
         fi
     done <<< "${catalog_table}"
