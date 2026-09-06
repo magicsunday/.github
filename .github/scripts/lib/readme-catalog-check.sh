@@ -96,7 +96,7 @@ assert_readme_catalog_complete() {
     local workflows_dir="$1"
     local readme_file="$2"
     local name line row message found failed=0
-    local catalog_table names rc=0
+    local catalog_table names rc=0 after_header=0
 
     catalog_table="$(sed -n '/^| Workflow | Purpose | Permissions/,/^$/p' "${readme_file}")"
 
@@ -138,55 +138,74 @@ assert_readme_catalog_complete() {
     # The reverse direction. Two kinds of furniture line precede the data
     # rows: the header ("| Workflow | ... |", the sed range's own start
     # pattern) and the GFM alignment separator ("| --- | ... |", or its
-    # colon-alignment variants). Both are recognised by their own CONTENT,
-    # never by counting: a first attempt skipped exactly the first two
-    # lines of catalog_table by position, which assumed the separator is
-    # always there - a README table missing that line (a plausible
-    # manual-edit slip: GFM tables render as plain text without it, so the
-    # mistake is not always visually obvious) shifts the first real data
-    # row into the skipped slot, silently un-validating it (rc=0, no
-    # ::error::) regardless of whether that row was stale. An even earlier
-    # attempt matched a data row by shape (starting `| \``) instead, which
-    # could never tell "not a row" apart from "a row whose author forgot
-    # the backticks entirely" - both are plain `| text | text | text |`
-    # with no backtick anywhere, the same silent-pass shape from a
-    # different cause. A line matching neither furniture shape is a data
-    # row BY DEFINITION, well-formed or not, and gets validated regardless
-    # of the table's own structural health - the header's exact text is
-    # already the sed range's own anchor, and a separator is by GFM syntax
-    # a sequence of only `|`, `-`, `:` and whitespace, a shape no real
-    # catalog row (which needs a backtick-quoted name) can produce.
+    # colon-alignment variants). The header is recognised by its own exact
+    # text, at ANY position - a duplicated header line inside the table body
+    # can never be mistaken for a data row, since a real catalog row always
+    # needs a backtick-quoted name. The separator is different: it is
+    # recognised by content SCOPED TO the line immediately after a
+    # recognised header, not by content alone. Two earlier designs each
+    # traded one silent pass for another:
+    # - Skipping exactly the first two lines of catalog_table by POSITION
+    #   assumed the separator is always there - a README table missing that
+    #   line (a plausible manual-edit slip: GFM tables render as plain text
+    #   without it, so the mistake is not always visually obvious) shifts
+    #   the first real data row into the skipped slot, silently
+    #   un-validating it regardless of whether that row was stale.
+    # - Recognising ANY line made only of `|`, `-`, `:` and whitespace as a
+    #   separator, anywhere in the table, assumed no real catalog row can
+    #   produce that shape - true only for a WELL-FORMED row. A malformed
+    #   or degenerate one (a blanked-out row like `| | | |`, or an
+    #   accidental mid-table duplicate of the separator line itself)
+    #   produces that exact shape too, and four independent review lanes
+    #   reproduced the resulting silent pass live (rc=0, no ::error::) for
+    #   both variants.
+    # Gating the shape check on "immediately after a recognised header"
+    # closes both at once: a missing separator means the line right after
+    # the header does not have the shape, so it falls through and gets
+    # validated as an ordinary data row; a shape-matching line anywhere
+    # else never reaches the furniture branch at all, so it too falls
+    # through and is rejected as malformed like any other non-conforming
+    # row. The shape itself also now requires at least one literal `-` (a
+    # real GFM alignment cell always has one; `| | | |` has none), closing
+    # the narrower case that still reached the header-adjacent slot.
     #
-    # A well-formed data row is matched in one step: `` ` `` starts the name,
-    # `[^\`|]*` is the name itself (excluding backtick and pipe, so it can
-    # never cross into a later cell or absorb a later cell's own backtick),
-    # a second `` ` `` closes it, then optional spaces and the column pipe.
-    # This one pattern is what earlier rounds built as three separate,
-    # accumulating guards (a row-shape case, a swallowed-pipe case, an
-    # empty-cell check) and still missed: a row's OWN closing backtick
-    # immediately followed by the column pipe is the only shape the
-    # membership test below should ever see, so requiring it in the match
-    # itself - rather than trying to rule out each way of not having it -
-    # cannot mis-extract into a later cell's Purpose-column backticks (the
-    # `[^\`|]*` class stops there, well-formed or not) and covers a name
-    # cell with no backtick at all, or with any amount of surrounding
-    # whitespace, the same way: the pattern fails to match, so the row goes
-    # to the malformed-row branch. The membership test still runs on the
-    # RAW captured name, deliberately: names already holds the
-    # sanitize_for_annotation()-folded form of each filename, and the
-    # forward loop above accepts a row only when it carries that same form
-    # - so a row that matches a target only after being sanitised itself
-    # would be a row the forward direction never accepted either.
-    # Sanitising happens for the printed annotation alone, because the row
-    # text is README-controlled input into a ::error:: line, the same
-    # forgery channel the filesystem-side names go through.
+    # A well-formed data row is matched in one step: the leading pipe and
+    # exactly one space (matching the forward loop's own `"| \`${name}\` |"*`
+    # literal above) precede `` ` ``, which starts the name; `[^\`|]*` is the
+    # name itself (excluding backtick and pipe, so it can never cross into a
+    # later cell or absorb a later cell's own backtick); a second `` ` ``
+    # closes it, then optional spaces and the column pipe. This one pattern is
+    # what earlier rounds built as three separate, accumulating guards (a
+    # row-shape case, a swallowed-pipe case, an empty-cell check) and still
+    # missed: a row's OWN closing backtick immediately followed by the
+    # column pipe is the only shape the membership test below should ever
+    # see, so requiring it in the match itself - rather than trying to rule
+    # out each way of not having it - cannot mis-extract into a later
+    # cell's Purpose-column backticks (the `[^\`|]*` class stops there,
+    # well-formed or not) and covers a name cell with no backtick at all,
+    # or with any amount of surrounding whitespace, the same way: the
+    # pattern fails to match, so the row goes to the malformed-row branch.
+    # The membership test still runs on the RAW captured name, deliberately:
+    # names already holds the sanitize_for_annotation()-folded form of each
+    # filename, and the forward loop above accepts a row only when it
+    # carries that same form - so a row that matches a target only after
+    # being sanitised itself would be a row the forward direction never
+    # accepted either. Sanitising happens for the printed annotation alone,
+    # because the row text is README-controlled input into a ::error::
+    # line, the same forgery channel the filesystem-side names go through.
     while IFS= read -r line; do
         [ -n "${line}" ] || continue
         case "${line}" in
-            "| Workflow | Purpose | Permissions"*) continue ;;
+            "| Workflow | Purpose | Permissions"*)
+                after_header=1
+                continue
+                ;;
         esac
-        if [[ "${line}" =~ ^\|[\|:[:space:]-]+$ ]]; then
-            continue
+        if [ "${after_header}" -eq 1 ]; then
+            after_header=0
+            if [[ "${line}" =~ ^\|[\|:[:space:]-]*-[\|:[:space:]-]*$ ]]; then
+                continue
+            fi
         fi
         if [[ "${line}" =~ ^\|\ \`([^\`\|]*)\`[[:space:]]*\| ]]; then
             row="${BASH_REMATCH[1]}"
