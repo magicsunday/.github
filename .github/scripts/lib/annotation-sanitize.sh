@@ -3,7 +3,7 @@
 # semgrep-smoke-helpers.sh and readme-catalog-check.sh (re-derive:
 # `grep -rl '^source ".*annotation-sanitize\.sh"' .github/scripts/lib`) and
 # by commit-convention.yml out of its own checkout of this repository
-# (re-derive: `grep -n 'annotation-sanitize.sh' .github/workflows/commit-convention.yml`),
+# (re-derive: `grep -n '^ *\. ".*annotation-sanitize\.sh"' .github/workflows/commit-convention.yml`),
 # so every caller shares ONE sanitizer rather than carrying its own copy that
 # can drift apart - semgrep-report-check.sh's own jq_error path once did
 # exactly that (issue #78): it kept the same `tr '[:cntrl:]' '?'` collision
