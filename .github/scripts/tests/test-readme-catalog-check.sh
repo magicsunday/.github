@@ -439,8 +439,9 @@ rm -f "${workflows_dir}/renamed-old-name.yml"
 
 # A stale row whose only backticked cell is the name (double space before
 # the next pipe, no backticks later in the row) is still a catalog row: the
-# row match keys on the name's own closing backtick, not on a `\` |` that any
-# later cell may or may not supply.
+# match requires only the name's OWN closing backtick immediately followed
+# by (optional space and) the column pipe - a later cell's own backticks,
+# if any, are irrelevant.
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |
@@ -455,34 +456,33 @@ assert_contains "assert_readme_catalog_complete: a stale row without a later bac
     "${output}" "gone.yml" "is missing"
 
 # A name cell whose OWN backtick is left unclosed, while a LATER cell in
-# the same row does carry backticks (a plausible typo, not an absurd
-# construction) - the case guard only requires some backtick later in the
-# line, and the extraction then greedily strips to whatever backtick it
-# finds first, which can belong to that later cell. Must fail with its own
-# diagnostic, not a garbled "row" that swallowed the Purpose/Permissions
-# columns and got reported as a missing file under a wrong name.
+# the same row does carry backticks, must not mis-extract into that later
+# cell's text: the pattern's `[^\`|]*` name class stops at the first
+# backtick OR pipe it meets, so it can never cross into a later column.
+# Confirmed on the shape most likely to occur for real: the Purpose text
+# itself references another backtick-quoted file, as this repo's own
+# label-sync.yml/i18n.yml/php-quality.yml/auto-merge-deps.yml rows do
+# (re-derive: `grep -c '| \`[a-z0-9_-]*\.yml\` | [^|]*\`' README.md`).
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |
 | `real.yml` | Does the real thing | `contents: read` |
-| `sloppy.yml | Purpose has no backtick here | `contents: read` |
+| `sloppy.yml | Applies the canonical set from `other.yml` | `contents: read` |
 EOF
 
 output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
 rc=$?
-assert_eq "assert_readme_catalog_complete: a name cell without its own closing backtick fails" "1" "${rc}"
+assert_eq "assert_readme_catalog_complete: a name cell without its own closing backtick fails, even with a Purpose-column backtick present" "1" "${rc}"
 assert_contains "assert_readme_catalog_complete: a name cell without its own closing backtick names the real defect, not a garbled filename" \
-    "${output}" "::error::" "no closing backtick"
+    "${output}" "::error::" "not a single backtick-quoted name"
 assert_eq "assert_readme_catalog_complete: real.yml stays undisturbed by the malformed sibling row" \
     "1" "$(printf '%s\n' "${output}" | grep -c '::error::')"
 
-# A name cell whose backtick is NEVER closed anywhere in the line (unlike
-# the sloppy.yml case above, which has a later cell's backtick to swallow
-# into) must not be silently treated as "not a catalog row" the way the
-# table header/separator lines are - both of those never start `| \``, so
-# a row that DOES start `| \`` but carries no second backtick at all is a
-# malformed row, not a non-row line, and must fail loudly rather than being
-# skipped by the same `continue` that skips the header and separator.
+# A name cell whose backtick is NEVER closed anywhere in the line must not
+# be silently treated as "not a catalog row" the way the table
+# header/separator lines are - both of those are recognised by POSITION
+# (rows 1 and 2 of catalog_table), never by shape, so a row with no
+# backtick at all is still row 3+ and still gets validated.
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |
@@ -494,13 +494,34 @@ output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
 rc=$?
 assert_eq "assert_readme_catalog_complete: a name cell with no closing backtick anywhere in the row fails, not a silent skip" "1" "${rc}"
 assert_contains "assert_readme_catalog_complete: a name cell with no closing backtick anywhere in the row names the real defect" \
-    "${output}" "::error::" "no closing backtick anywhere in the row"
+    "${output}" "::error::" "not a single backtick-quoted name"
+assert_eq "assert_readme_catalog_complete: a name cell with no closing backtick anywhere produces exactly one ::error::, not a second fallthrough line" \
+    "1" "$(printf '%s\n' "${output}" | grep -c '::error::')"
 
-# The real README's own catalog rows use MULTIPLE backtick-quoted segments
-# in the Permissions column (e.g. `contents: read`, `security-events:
-# write`) - a positive control that the greedy `%%` strip still isolates
-# only the name cell and never trips the new pipe/no-later-backtick guards
-# on a well-formed row that merely has more than one backtick pair.
+# A stale row left in plain text, with NO backtick anywhere - the single
+# most ordinary manual-edit slip (forgetting the markdown formatting
+# entirely when leaving a row behind) - is structurally identical in shape
+# to the table header ("| word | word | word |"); only counting past the
+# two known-fixed header/separator rows, never matching on shape, tells
+# them apart.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| gone.yml | Removed long ago | contents: read |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a plain-text stale row with no backticks at all fails, not a silent pass" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a plain-text stale row names the real defect" \
+    "${output}" "::error::" "not a single backtick-quoted name"
+
+# This repository's own README rows use MULTIPLE backtick-quoted segments
+# in the Permissions column (re-derive: `grep -c '\`, \`' README.md`) - a
+# positive control that the name-capture class stops at the name's own
+# closing backtick regardless of how many further backtick pairs follow in
+# later columns.
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |
@@ -540,7 +561,8 @@ assert_eq "assert_readme_catalog_complete: a non-target row in a DIFFERENT table
 # the private-copy drift issue #78 documents - would pass a `%25` needle
 # but never print this sentinel. The definition is saved and restored via
 # `declare -f` rather than re-sourced, because annotation-sanitize.sh
-# declares a readonly constant a second source would trip over.
+# declares a readonly constant a second source would trip over (re-derive:
+# `grep -n readonly ../lib/annotation-sanitize.sh`).
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |

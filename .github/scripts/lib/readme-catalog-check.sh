@@ -73,6 +73,13 @@ find_workflow_call_targets() {
 # change instead fails closed (an empty catalog_table reports every target
 # as missing, a loud CI failure) rather than silently.
 #
+# Known limitation (issue #116): the reverse walk's name-capture class
+# excludes both a backtick and a pipe, so a well-formed row whose name
+# LITERALLY contains `|` gets the "not a single backtick-quoted name"
+# diagnostic instead of a genuine "is missing" verdict - the row still
+# fails closed either way. Not fixed, because a GitHub Actions workflow
+# filename cannot contain `|` in practice.
+#
 # find_workflow_call_targets() is captured via a plain command
 # substitution (`names="$(find_workflow_call_targets ...)" || rc=$?`),
 # never through `done < <(find_workflow_call_targets ...)`: bash does not
@@ -89,7 +96,7 @@ assert_readme_catalog_complete() {
     local workflows_dir="$1"
     local readme_file="$2"
     local name line row message found failed=0
-    local catalog_table names rc=0
+    local catalog_table names rc=0 row_index=0
 
     catalog_table="$(sed -n '/^| Workflow | Purpose | Permissions/,/^$/p' "${readme_file}")"
 
@@ -128,48 +135,56 @@ assert_readme_catalog_complete() {
         fi
     done <<< "${names}"
 
-    # The reverse direction. The membership test runs on the RAW row text,
-    # deliberately: names already holds the sanitize_for_annotation()-folded
-    # form of each filename, and the forward loop above accepts a row only
-    # when it carries that same form - so a row that matches a target only
-    # after being sanitised itself would be a row the forward direction never
-    # accepted either. Sanitising happens for the printed annotation alone,
-    # because the row text is README-controlled input into a ::error:: line,
-    # the same forgery channel the filesystem-side names go through. An empty
-    # backtick cell is rejected before the membership test: with zero
-    # targets, names is one empty line, which an empty row would match. A
-    # name cell missing its OWN closing backtick is rejected in two steps:
-    # first, a line starting `| \`` with no second backtick ANYWHERE is a
-    # malformed row, not a non-row line to skip - the row-shape guard below
-    # checks for that explicitly, so a wholly-unclosed name fails loudly
-    # instead of being silently treated like the table header/separator
-    # lines (which never start `| \``). Second, when a later backtick DOES
-    # exist, `%%` greedily strips to the first one it finds - which, for a
-    # name left unclosed, can be a LATER cell's own backtick, pulling that
-    # cell's text into row. A real filename never contains `|`, so a
-    # row that does is exactly that malformed shape, not a valid name.
+    # The reverse direction. Rows 1 and 2 of catalog_table are always the
+    # header ("| Workflow | ... |", the sed range's own start pattern) and
+    # the GFM alignment separator ("| --- | ... |") - fixed markdown
+    # furniture, never data, identified by POSITION rather than by shape.
+    # Earlier drafts tried to recognise a data row by its shape (starting
+    # `| \``) instead, which could never tell "not a row" apart from "a row
+    # whose author forgot the backticks entirely" - both are plain
+    # `| text | text | text |` with no backtick anywhere, so a stale row
+    # left in that shape was silently treated as table furniture and
+    # skipped: a full, silent pass (rc=0, no ::error::) for the single most
+    # ordinary manual-edit slip. Counting past the two known-fixed rows
+    # instead means every remaining line is a data row BY DEFINITION,
+    # well-formed or not, and gets validated rather than possibly skipped.
+    #
+    # A well-formed data row is matched in one step: `` ` `` starts the name,
+    # `[^\`|]*` is the name itself (excluding backtick and pipe, so it can
+    # never cross into a later cell or absorb a later cell's own backtick),
+    # a second `` ` `` closes it, then optional spaces and the column pipe.
+    # This one pattern is what earlier rounds built as three separate,
+    # accumulating guards (a row-shape case, a swallowed-pipe case, an
+    # empty-cell check) and still missed: a row's OWN closing backtick
+    # immediately followed by the column pipe is the only shape the
+    # membership test below should ever see, so requiring it in the match
+    # itself - rather than trying to rule out each way of not having it -
+    # cannot mis-extract into a later cell's Purpose-column backticks (the
+    # `[^\`|]*` class stops there, well-formed or not) and covers a name
+    # cell with no backtick at all, or with any amount of surrounding
+    # whitespace, the same way: the pattern fails to match, so the row goes
+    # to the malformed-row branch. The membership test still runs on the
+    # RAW captured name, deliberately: names already holds the
+    # sanitize_for_annotation()-folded form of each filename, and the
+    # forward loop above accepts a row only when it carries that same form
+    # - so a row that matches a target only after being sanitised itself
+    # would be a row the forward direction never accepted either.
+    # Sanitising happens for the printed annotation alone, because the row
+    # text is README-controlled input into a ::error:: line, the same
+    # forgery channel the filesystem-side names go through.
     while IFS= read -r line; do
-        case "${line}" in
-            "| \`"*) ;;
-            *) continue ;;
-        esac
-        case "${line}" in
-            "| \`"*"\`"*) ;;
-            *)
-                echo "::error::a catalog row's name cell in README.md has no closing backtick anywhere in the row - fix the row (see issue #116)."
-                failed=1
-                continue
-                ;;
-        esac
-        row="${line#| \`}"
-        row="${row%%\`*}"
-        case "${row}" in
-            *'|'*)
-                echo "::error::a catalog row's name cell in README.md has no closing backtick before the next column - fix the row (see issue #116)."
-                failed=1
-                continue
-                ;;
-        esac
+        row_index=$((row_index + 1))
+        if [ "${row_index}" -le 2 ]; then
+            continue
+        fi
+        [ -n "${line}" ] || continue
+        if [[ "${line}" =~ ^\|\ \`([^\`\|]*)\`[[:space:]]*\| ]]; then
+            row="${BASH_REMATCH[1]}"
+        else
+            echo "::error::a catalog row's name cell in README.md is not a single backtick-quoted name immediately followed by the column separator - fix the row (see issue #116)."
+            failed=1
+            continue
+        fi
         if [ -z "${row}" ]; then
             echo "::error::an empty backtick cell in README.md's workflow catalog names no workflow - remove the row (see issue #116)."
             failed=1
