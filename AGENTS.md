@@ -194,13 +194,13 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   `run:` logic that was deliberately left un-migrated when this convention was
   introduced (GH-47) — extending it to those is a separate decision, not something
   this bullet already claims is done. A **reusable, `workflow_call`-only**
-  workflow with no `actions/checkout` of its own repository (callable from any
-  repository that never checked it out) cannot source a local
-  `.github/scripts/lib/*.sh` file directly - `commit-convention.yml` follows
-  `label-sync.yml`'s existing precedent instead, fetching `magicsunday/.github`
-  into its own path (`actions/checkout` with `repository:`) before sourcing
-  `annotation-sanitize.sh` from there, rather than duplicating the sanitizer
-  inline (GH-127).
+  workflow never has its own repository in the workspace, so it cannot source a
+  local `.github/scripts/lib/*.sh` file directly — `commit-convention.yml`
+  checks this repository out at the executing workflow's own revision first
+  (the `job.workflow_repository`/`job.workflow_sha` shape the "Read a reusable
+  workflow's own files with the `job` context" bullet below prescribes) and
+  sources `annotation-sanitize.sh` from that checkout, rather than duplicating
+  the sanitizer inline (GH-127).
 - **The `p/*` Semgrep rule packs `code-scanning.yml` scans with cannot be pinned or
   vendored.** The Semgrep Rules License v. 1.0 forbids distributing the rules or
   making them available to others as a service, which a commit to this public,

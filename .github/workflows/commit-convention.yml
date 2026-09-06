@@ -277,15 +277,39 @@ jobs:
 
                   echo "  ✔ predicate agrees with all ${cases} cases"
 
-            # Fetches the canonical annotation-sanitizer alongside the subject
-            # predicate, the same way label-sync.yml already fetches its own
-            # canonical label manifest for a workflow_call caller that never
-            # checked out magicsunday/.github itself.
-            - name: Fetch the canonical annotation sanitizer
+            # This job never checks out the caller, so the workspace holds no
+            # copy of this repository's own scripts: checked out here at the
+            # revision of the workflow being executed. `ref:` is what keeps the
+            # sourced code matching the workflow that runs it — the shape
+            # code-scanning.yml, yamllint.yml, zizmor.yml and ai-issue-labeler.yml
+            # use, per AGENTS.md ("Read a reusable workflow's own files with the
+            # `job` context"). Not label-sync.yml's ref-less shape: that fetches
+            # a data manifest where latest-main is the intent; a sourced function
+            # contract is not. No reserved-path guard and no removal afterwards,
+            # unlike those four — with no caller checkout there is no path to
+            # collide with, and no later step inspects the workspace. Gated on
+            # the same pull-request number the check step keys on, so a run that
+            # skips at that step (merge_group, a PR-less trigger) never depends on
+            # a network fetch it would not use — a checkout hiccup must not red
+            # the merge queue (see the header).
+            - name: Check the shared-checkout preconditions
+              if: github.event.pull_request.number != ''
+              shell: bash
+              env:
+                  WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+                  WORKFLOW_SHA: ${{ job.workflow_sha }}
+              run: |
+                  set -euo pipefail
+                  test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
+                  test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
+
+            - name: Check out the canonical annotation sanitizer
+              if: github.event.pull_request.number != ''
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
-                  repository: magicsunday/.github
-                  path: .magicsunday-github
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
+                  path: .magicsunday-shared
                   persist-credentials: false
 
             # The title is checked because these repositories squash-merge, so it
@@ -333,7 +357,7 @@ jobs:
                   # shellcheck source=/dev/null
                   . "${RUNNER_TEMP}/subject-lint.sh"
                   # shellcheck source=/dev/null
-                  . ".magicsunday-github/.github/scripts/lib/annotation-sanitize.sh"
+                  . ".magicsunday-shared/.github/scripts/lib/annotation-sanitize.sh"
 
                   failures=0
                   checked=0
@@ -343,34 +367,20 @@ jobs:
                       failures=$((failures + 1))
                   }
 
-                  # Confirms report() itself actually routes through
-                  # sanitize_for_annotation() - annotation-sanitize.sh's own
-                  # test-annotation-sanitize.sh and
-                  # test-annotation-sanitize-jq-parity.sh already prove the
-                  # sanitizer works in isolation, not that THIS caller's
-                  # report() wrapper actually invokes it. Asserts the full
-                  # expected string, not merely that the output collapsed to
-                  # one line - a weaker line-count-only check would still
-                  # pass for a naive `tr '\n' ' '` substitute that dropped the
-                  # percent-escape step entirely (the exact regression class
-                  # issues #78/#80 were).
-                  #
-                  # The snapshot/restore below is currently a no-op: `report()`
-                  # is invoked inside `$(...)`, and bash runs a command
-                  # substitution in its own subshell, so its own
-                  # `failures=$((failures + 1))` never reaches this shell's
-                  # `failures` in the first place (verified live). It stays as
-                  # a defensive guard against a future edit that calls
-                  # report() here WITHOUT capturing it via `$(...)` - dropping
-                  # it would silently double-count this self-test's own
-                  # exercise of report() as a real commit-convention failure.
+                  # Pins that report() actually routes through
+                  # sanitize_for_annotation(): test-annotation-sanitize.sh proves
+                  # the sanitizer in isolation, not that THIS wrapper calls it.
+                  # Asserts the full string, not just the line count. A broken
+                  # harness is not a subject violation, so it exits here rather
+                  # than counting into `failures` — the same shape as the
+                  # MIN_CASES and LC_ALL guards in the predicate step. The
+                  # `$(...)` runs report() in a subshell, so its own increment
+                  # never reaches this shell's `failures`.
                   _report_self_test_expected='::error::self-test: "100%25evil forged ::error::"'
-                  _report_self_test_failures="${failures}"
                   _report_self_test_output="$(report "self-test" "$(printf '100%%evil\nforged ::error::')")"
-                  failures="${_report_self_test_failures}"
                   if [ "${_report_self_test_output}" != "${_report_self_test_expected}" ]; then
                       echo "::error::report() self-test: expected \"${_report_self_test_expected}\", got \"${_report_self_test_output}\""
-                      failures=$((failures + 1))
+                      exit 1
                   fi
 
                   subject_is_valid "${PR_TITLE}" \

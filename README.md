@@ -53,20 +53,25 @@ at the revision of the workflow being executed, to read the pinned tool
 versions in `.github/requirements/`. `zizmor.yml` does the same second checkout
 for a different reason: to compare the caller's `.github/zizmor.yml` against
 the canonical copy in this repository, rather than to read a pinned tool
-version.
+version. `commit-convention.yml` does it to source the shared annotation
+sanitizer (`.github/scripts/lib/annotation-sanitize.sh`) its `::error::` lines
+route through, and `ai-issue-labeler.yml` to stage its own
+`ai-issue-labeler.sh`.
 That works with the caller's own `GITHUB_TOKEN` because this repository is
 public, and it is the reason it has to stay public: making it private would red
 `yamllint`, a required check in several repositories.
 
-That second checkout lands at `.magicsunday-shared` and is deleted again once
-the job no longer needs it - before the scan or the lint runs in
-`code-scanning.yml`/`yamllint.yml`, and right after the comparison in
-`zizmor.yml`, which reads the canonical copy out of `.magicsunday-shared`
-itself and so has to delete it after, not before. Either way,
-**`.magicsunday-shared` is a reserved path in a calling repository**: all
-three workflows stop with a message naming it rather than deleting a path of
-that name, which would leave it out of the scan (or make the verification
-pass vacuously) without anything appearing to be missing.
+That second checkout lands at `.magicsunday-shared`. `code-scanning.yml`,
+`yamllint.yml` and `zizmor.yml` also check the caller out, so they delete it
+again once the job no longer needs it - before the scan or the lint runs in
+the first two, and right after the comparison in `zizmor.yml`, which reads the
+canonical copy out of `.magicsunday-shared` itself and so has to delete it
+after, not before. For those three, **`.magicsunday-shared` is a reserved path
+in a calling repository**: each stops with a message naming it rather than
+deleting a path of that name, which would leave it out of the scan (or make
+the verification pass vacuously) without anything appearing to be missing.
+`ai-issue-labeler.yml` and `commit-convention.yml` never check out the caller,
+so nothing can collide with that path there.
 
 ### Inputs
 
