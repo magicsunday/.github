@@ -68,7 +68,8 @@ find_workflow_call_targets() {
 #
 # Known limitation (issue #101): the table's end boundary is the next BLANK
 # line, not a heading. Removing the blank line before an identically-shaped
-# table would silently widen extraction into it. A header-line wording
+# table would silently widen extraction into it - and, since the reverse walk
+# below, report that table's non-target rows as stale. A header-line wording
 # change instead fails closed (an empty catalog_table reports every target
 # as missing, a loud CI failure) rather than silently.
 #
@@ -127,39 +128,35 @@ assert_readme_catalog_complete() {
         fi
     done <<< "${names}"
 
-    # The reverse direction: walk the same scoped catalog_table, so a row in
-    # any other table is out of scope here exactly as above, and compare
-    # each row's name against the same names list. The membership test
-    # runs on the RAW row text, deliberately: names already holds the
-    # sanitize_for_annotation()-folded form of each filename, and the
-    # forward loop above accepts a row only when it carries that same
-    # form - so a row that matches a target only after being sanitised
-    # itself would be a row the forward direction never accepted either.
-    # Sanitising happens for the printed annotation alone, because the row
-    # text is README-controlled input into a ::error:: line, the same
-    # forgery channel the filesystem-side names go through.
+    # The reverse direction. The membership test runs on the RAW row text,
+    # deliberately: names already holds the sanitize_for_annotation()-folded
+    # form of each filename, and the forward loop above accepts a row only
+    # when it carries that same form - so a row that matches a target only
+    # after being sanitised itself would be a row the forward direction never
+    # accepted either. Sanitising happens for the printed annotation alone,
+    # because the row text is README-controlled input into a ::error:: line,
+    # the same forgery channel the filesystem-side names go through. An empty
+    # backtick cell is rejected before the membership test: with zero
+    # targets, names is one empty line, which an empty row would match.
     while IFS= read -r line; do
         case "${line}" in
-            "| \`"*"\` |"*) ;;
+            "| \`"*"\`"*) ;;
             *) continue ;;
         esac
         row="${line#| \`}"
         row="${row%%\`*}"
-        found=0
-        while IFS= read -r name; do
-            if [ "${name}" = "${row}" ]; then
-                found=1
-                break
-            fi
-        done <<< "${names}"
-
-        if [ "${found}" -eq 0 ]; then
-            if [ -e "${workflows_dir}/${row}" ]; then
-                cause="exists but no longer declares workflow_call:"
+        if [ -z "${row}" ]; then
+            echo "::error::an empty backtick cell in README.md's workflow catalog names no workflow - remove the row (see issue #116)."
+            failed=1
+            continue
+        fi
+        if ! grep -qxF -- "${row}" <<< "${names}"; then
+            if [ -f "${workflows_dir}/${row}" ]; then
+                cause="the file exists and declares no workflow_call: trigger the parser could read"
             else
-                cause="no such file under ${workflows_dir}"
+                cause="the file is missing under ${workflows_dir}"
             fi
-            echo "::error::$(sanitize_for_annotation "${row}") is listed in README.md's workflow catalog but ${cause} - remove the row or restore the trigger (see issue #116)."
+            echo "::error::$(sanitize_for_annotation "${row}") is listed in README.md's workflow catalog, but ${cause} - remove the row or restore the trigger (see issue #116)."
             failed=1
         fi
     done <<< "${catalog_table}"

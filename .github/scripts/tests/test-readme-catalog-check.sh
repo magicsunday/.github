@@ -392,7 +392,7 @@ output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
 rc=$?
 assert_eq "assert_readme_catalog_complete: a catalog row for a removed file fails" "1" "${rc}"
 assert_contains "assert_readme_catalog_complete: a removed file's row names itself and the cause in its ::error::" \
-    "${output}" "::error::" "gone.yml" "no such file"
+    "${output}" "::error::" "gone.yml" "is missing"
 
 # A catalog row whose file still exists but no longer declares
 # workflow_call: (de-reusabled) - mentions-only.yml above is exactly that
@@ -408,11 +408,11 @@ output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
 rc=$?
 assert_eq "assert_readme_catalog_complete: a catalog row for a file that no longer declares workflow_call: fails" "1" "${rc}"
 assert_contains "assert_readme_catalog_complete: a de-reusabled file's row names itself and the cause in its ::error::" \
-    "${output}" "::error::" "mentions-only.yml" "no longer declares workflow_call"
+    "${output}" "::error::" "mentions-only.yml" "declares no workflow_call"
 
 # Both directions at once: a half-fixed rename leaves the OLD row behind
 # while the NEW file is undocumented - one run reports both.
-cat > "${workflows_dir}/renamed.yml" <<'EOF'
+cat > "${workflows_dir}/renamed-old-name.yml" <<'EOF'
 on:
     workflow_call:
 EOF
@@ -427,10 +427,32 @@ output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
 rc=$?
 assert_eq "assert_readme_catalog_complete: a half-fixed rename fails" "1" "${rc}"
 assert_contains "assert_readme_catalog_complete: a half-fixed rename reports the undocumented new file" \
-    "${output}" "renamed.yml" "not listed in README.md"
+    "${output}" "renamed-old-name.yml" "not listed in README.md"
+# The old name is a SUBSTRING of the new one on purpose: a membership test
+# that matched by substring or glob instead of the whole line would accept
+# the stale row as documented and this assertion would fail.
 assert_contains "assert_readme_catalog_complete: a half-fixed rename reports the stale old row" \
-    "${output}" "old-name.yml" "no such file"
-rm -f "${workflows_dir}/renamed.yml"
+    "${output}" "old-name.yml" "is missing"
+assert_eq "assert_readme_catalog_complete: a half-fixed rename emits exactly one ::error:: per direction" \
+    "2" "$(printf '%s\n' "${output}" | grep -c '::error::')"
+rm -f "${workflows_dir}/renamed-old-name.yml"
+
+# A stale row whose only backticked cell is the name (double space before
+# the next pipe, no backticks later in the row) is still a catalog row: the
+# row match keys on the name's own closing backtick, not on a `\` |` that any
+# later cell may or may not supply.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `gone.yml`  | Sloppy row, no later backtick | contents: read |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a stale row without a later backticked cell still fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a stale row without a later backticked cell names itself" \
+    "${output}" "gone.yml" "is missing"
 
 # A row in a DIFFERENT table naming a non-target is not a stale catalog
 # row - the reverse direction is scoped to the main catalog table exactly
@@ -453,10 +475,13 @@ assert_eq "assert_readme_catalog_complete: a non-target row in a DIFFERENT table
 
 # A stale row's NAME comes from README, not from the filesystem, so it is
 # a second caller-controlled input into a ::error:: line - it must route
-# through sanitize_for_annotation() like the filesystem-side names do
-# (structural wiring check, same as the find_workflow_call_targets() one
-# above; the exact escape format is pinned once, in
-# test-annotation-sanitize.sh).
+# through sanitize_for_annotation() like the filesystem-side names do.
+# Pinned by SHADOWING the sanitizer (the file's own technique for mktemp and
+# find_workflow_call_targets below): a hand-rolled `%`-escape in its place -
+# the private-copy drift issue #78 documents - would pass a `%25` needle
+# but never print this sentinel. The definition is saved and restored via
+# `declare -f` rather than re-sourced, because annotation-sanitize.sh
+# declares a readonly constant a second source would trip over.
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |
@@ -464,11 +489,64 @@ cat > "${readme_file}" <<'EOF'
 | `%0D%0A::add-mask::gone.yml` | Forged row | `contents: read` |
 EOF
 
+real_sanitizer="$(declare -f sanitize_for_annotation)"
+sanitize_for_annotation() { printf 'SANITIZED<%s>' "$1"; }
 output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
 rc=$?
+eval "${real_sanitizer}"
 assert_eq "assert_readme_catalog_complete: a forged stale row still fails" "1" "${rc}"
-assert_contains "assert_readme_catalog_complete: a percent-encoded CRLF in a stale row's name is escaped, not left decodable" \
-    "$(printf '%s\n' "${output}" | grep '0D')" "%25"
+assert_contains "assert_readme_catalog_complete: a stale row's name is routed through sanitize_for_annotation() itself" \
+    "${output}" "SANITIZED<%0D%0A::add-mask::gone.yml> is listed"
+
+# The positive control for the raw-vs-sanitised membership the lib's own
+# comment calls deliberate: a target whose filename sanitize_for_annotation()
+# folds, documented under its FOLDED name, passes both directions. A
+# membership test that sanitised the row a second time would flag this row
+# as stale on a README that is consistent with the forward rule.
+cat > "${workflows_dir}/%0D%0A::add-mask::pwned.yml" <<'EOF'
+on:
+    workflow_call:
+EOF
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `%250D%250A::add-mask::pwned.yml` | Documented under its folded name | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a target documented under its sanitised name is accepted by BOTH directions" "0" "${rc}"
+assert_eq "assert_readme_catalog_complete: a target documented under its sanitised name prints nothing" "" "${output}"
+rm -f "${workflows_dir}/%0D%0A::add-mask::pwned.yml"
+
+# Zero targets at all (a workflows dir with no workflow_call: file), plus an
+# empty backtick cell and a row for a trigger-less file: the reverse walk
+# must still fail closed. With zero targets the names list is one empty
+# line, which an unguarded empty row would match - the silent pass the
+# empty-cell guard exists for.
+zero_dir="${work_dir}/workflows-zero"
+mkdir -p "${zero_dir}"
+cat > "${zero_dir}/plain.yml" <<'EOF'
+on:
+    push:
+EOF
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `` | Empty name | `contents: read` |
+| `plain.yml` | Not reusable | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${zero_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: zero targets plus an empty backtick cell fails, not a silent pass" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: an empty backtick cell is reported as naming no workflow" \
+    "${output}" "::error::" "names no workflow"
+assert_contains "assert_readme_catalog_complete: with zero targets a row for a trigger-less file is reported" \
+    "${output}" "plain.yml" "declares no workflow_call"
+assert_eq "assert_readme_catalog_complete: zero targets, two bad rows, exactly two ::error:: lines" \
+    "2" "$(printf '%s\n' "${output}" | grep -c '::error::')"
 
 # A REAL python3 failure (not a per-file skip, and not the whole bash
 # function shadowed below) must still propagate through
