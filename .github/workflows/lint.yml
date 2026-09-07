@@ -242,7 +242,7 @@ jobs:
         # The required-status-check context branch protection matches on is
         # built from this display NAME, not the job id above (verified live
         # via `gh api repos/magicsunday/.github/branches/main/protection
-        # --jq '.required_status_checks.contexts[]?'`, round 28) - renaming
+        # --jq '.required_status_checks.contexts[]?'`) - renaming
         # it here without also updating that setting would leave every
         # future PR permanently BLOCKED, since no job would ever report the
         # context branch protection still waits on. Keeping the string

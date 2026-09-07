@@ -221,6 +221,31 @@ class LoadCatalogTest(_TempRepoTestCase):
         with self.assertRaises(ValueError):
             workflow_catalog.load_catalog(self.catalog_path)
 
+    def test_paragraph_separator_character_in_purpose_is_rejected(self):
+        # U+2029 PARAGRAPH SEPARATOR - Unicode category "Zp", the sibling
+        # of "Zl" tested above; both end up in the same ("Zl", "Zp") tuple
+        # in the guard, but neither test exercises the other's branch.
+        self._write_catalog({"real.yml": {"purpose": "Normal separated", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_bidi_override_character_in_the_catalog_key_is_rejected(self):
+        # The Unicode-category guard runs on every field load_catalog()
+        # passes through it, not only "purpose" - a catalog key is just as
+        # capable of carrying a Trojan-Source-style override character.
+        self._write_catalog({"real‮.yml": {"purpose": "x", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_bidi_override_character_in_a_permission_is_rejected(self):
+        # Same guard, same reasoning, for the third field it is called on:
+        # a permission string is rendered via plain html.escape() (never
+        # _render_purpose()'s backtick handling), so it relies entirely on
+        # this rejection to keep a bidi override out of the table.
+        self._write_catalog({"real.yml": {"purpose": "x", "permissions": ["contents: ‮read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
     def test_slash_in_the_catalog_key_is_rejected(self):
         self._write_catalog({"../../etc/passwd": {"purpose": "x", "permissions": ["contents: read"]}})
         with self.assertRaises(ValueError):
@@ -318,19 +343,28 @@ class RenderTableTest(unittest.TestCase):
         self.assertIn("<td>an unmatched ` backtick</td>", table)
 
     def test_purpose_two_separate_backtick_pairs_both_become_code_elements(self):
-        catalog = {"real.yml": {"purpose": "Uses `foo` and `bar`", "permissions": ["contents: read"]}}
+        # Exercises the pairing loop across more than one iteration (the
+        # 2*pair_index+1/+2 index arithmetic). The trailing unmatched
+        # backtick makes the total count odd, so this also discriminates
+        # the greedy-pairing fix from the old total-count-parity fallback:
+        # that older code would have rendered this whole string literally.
+        catalog = {"real.yml": {"purpose": "Uses `foo` and `bar` also`", "permissions": ["contents: read"]}}
         table = workflow_catalog.render_table(catalog)
-        self.assertIn("<td>Uses <code>foo</code> and <code>bar</code></td>", table)
+        self.assertIn("<td>Uses <code>foo</code> and <code>bar</code> also`</td>", table)
 
     def test_purpose_odd_backtick_count_still_pairs_the_leading_span(self):
         # A trailing, genuinely unmatched backtick does not erase a
-        # complete pair earlier in the same string - only pairing greedily
-        # from the left, mirroring CommonMark, gets this right.
+        # complete pair earlier in the same string - pairing greedily from
+        # the left, not by total-backtick-count parity, is what gets this
+        # right.
         catalog = {"real.yml": {"purpose": "a `b`c`d", "permissions": ["contents: read"]}}
         table = workflow_catalog.render_table(catalog)
         self.assertIn("<td>a <code>b</code>c`d</td>", table)
 
     def test_purpose_code_span_content_is_itself_html_escaped(self):
+        # Guards against a regression that inlines the raw split segment
+        # instead of the already-html.escape()d one - would slip an
+        # unescaped `<script>` into the rendered <code> element.
         catalog = {"real.yml": {"purpose": "Uses `<script>`", "permissions": ["contents: read"]}}
         table = workflow_catalog.render_table(catalog)
         self.assertIn("<td>Uses <code>&lt;script&gt;</code></td>", table)

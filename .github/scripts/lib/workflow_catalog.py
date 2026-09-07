@@ -171,13 +171,20 @@ def _render_purpose(text):
     list, never the raw text, so a `<`/`>`/`&` inside a span is neutralised
     the same as anywhere else in the cell).
 
-    Backticks are paired greedily, left to right, mirroring CommonMark's
-    own resolution instead of an all-or-nothing fallback: an odd TOTAL
-    count does not mean no span is well-formed (e.g. "`b`c`" has one
-    complete pair even though three backticks appear overall) - only the
-    one trailing, genuinely unmatched backtick (if any) renders as a
-    literal character, and any complete pairs before it still become
-    `<code>` elements.
+    Backticks are paired greedily, left to right, instead of an
+    all-or-nothing fallback: an odd TOTAL count does not mean no span is
+    well-formed (e.g. "`b`c`" has one complete pair even though three
+    backticks appear overall) - only the one trailing, genuinely
+    unmatched backtick (if any) renders as a literal character, and any
+    complete pairs before it still become `<code>` elements.
+
+    This pairs individual backtick CHARACTERS, which is a deliberate
+    simplification of CommonMark's own rule: real CommonMark matches
+    same-length backtick RUNS as a single delimiter, precisely so a
+    longer run (e.g. "``") can wrap a span that itself contains a lone
+    backtick. A "purpose" value with a doubled backtick is not handled
+    that way here - it renders as two separate, individually-paired
+    spans instead of one, still fully escaped either way.
     """
     parts = text.split("`")
     escaped = [html.escape(part, quote=False) for part in parts]
