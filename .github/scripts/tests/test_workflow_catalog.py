@@ -387,12 +387,14 @@ class RenderTableTest(unittest.TestCase):
 
     def test_purpose_run_adjacent_to_a_lone_backtick_can_still_style_part_of_it(self):
         # This is the actual discriminator between greedy left-to-right
-        # pairing and the old total-count-parity fallback: 6 backticks is
-        # even, so the old algorithm rendered the whole thing literally,
-        # while greedy pairing pulls the lone backtick after "foo" into a
-        # pair with a run backtick, giving "bar" a real, non-empty <code>
-        # element - exactly the case _render_purpose()'s own docstring
-        # uses as its worked example for "depends on count and position".
+        # pairing and the old total-count-parity fallback: 5 backticks
+        # split into 6 parts, and the old algorithm's fallback triggered
+        # on an EVEN parts count (not the backtick count itself), so it
+        # rendered the whole thing literally. Greedy pairing instead pulls
+        # the lone backtick after "foo" into a pair with a run backtick,
+        # giving "bar" a real, non-empty <code> element - exactly the case
+        # _render_purpose()'s own docstring uses as its worked example for
+        # "depends on count and position".
         catalog = {"real.yml": {"purpose": "``foo`bar``", "permissions": ["contents: read"]}}
         table = workflow_catalog.render_table(catalog)
         self.assertIn("<td><code></code>foo<code>bar</code>`</td>", table)
@@ -590,6 +592,34 @@ class CheckTest(_TempRepoTestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("declares no workflow_call", errors[0])
 
+    def test_invalid_catalog_entry_reports_could_not_be_read(self):
+        # load_catalog()'s own ValueError is thoroughly exercised directly
+        # in LoadCatalogTest, but that bypasses check()'s own except tuple
+        # entirely - nothing here drove check() itself with a catalog that
+        # is syntactically valid JSON but fails load_catalog()'s shape
+        # validation, so the ValueError arm of check()'s try/except was
+        # untested through its actual entry point.
+        self._add_target("real.yml")
+        self._write_catalog({"real.yml": {"purpose": "x"}})  # missing "permissions"
+        self._write_readme("<!-- workflow-catalog:start -->\n<!-- workflow-catalog:end -->\n")
+        errors = self._check()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("could not be read", errors[0])
+
+    def test_pathologically_nested_catalog_reports_one_message_not_a_crash(self):
+        # A syntactically valid but deeply nested JSON document (a
+        # PR-controlled catalog file can contain one) makes json.load()
+        # raise RecursionError instead of JSONDecodeError - this must
+        # fail closed with the same clean message as any other unreadable
+        # catalog, not crash with a raw traceback.
+        self._add_target("real.yml")
+        with open(self.catalog_path, "w", encoding="utf-8") as handle:
+            handle.write("[" * 200000)
+        self._write_readme("<!-- workflow-catalog:start -->\n<!-- workflow-catalog:end -->\n")
+        errors = self._check()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("could not be read", errors[0])
+
     def test_malformed_catalog_reports_one_message_not_a_cascade(self):
         self._add_target("real.yml")
         with open(self.catalog_path, "w", encoding="utf-8") as handle:
@@ -726,15 +756,16 @@ class MainTest(_TempRepoTestCase):
     def test_write_mode_reports_a_missing_catalog_file_on_stderr_and_returns_one(self):
         # --write's try/except also wraps load_catalog(argv[3]), not just
         # write_generated_block() - a missing catalog file raises OSError
-        # there, which every other --write test here never reaches (they
-        # all fail inside write_generated_block()'s own ValueError instead).
+        # there, which the runtime-error test above (missing markers)
+        # never reaches, since it fails inside write_generated_block()'s
+        # own ValueError instead.
         self._write_readme("<!-- workflow-catalog:start -->\n<!-- workflow-catalog:end -->\n")
         # self.catalog_path is never created.
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             code = workflow_catalog.main(["workflow_catalog.py", "--write", self.readme_path, self.catalog_path])
         self.assertEqual(code, 1)
-        self.assertIn("workflow_catalog.py:", stderr.getvalue())
+        self.assertIn(self.catalog_path, stderr.getvalue())
 
     def test_non_utf8_workflow_filename_does_not_crash_the_annotation_print(self):
         # Mirrors readme_catalog_check.py's identical regression test: a

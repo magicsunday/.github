@@ -321,11 +321,16 @@ def check(workflows_dir, readme_path, catalog_path):
     """
     try:
         catalog = load_catalog(catalog_path)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError) as exc:
         # No catalog to compare against, so neither the target-completeness
         # nor the freshness check below can run - return immediately rather
         # than cascading into a misleading "every target is undocumented"
-        # report, same rationale as the file this replaces.
+        # report, same rationale as the file this replaces. RecursionError
+        # is here alongside JSONDecodeError because json.load() raises it
+        # instead for a syntactically valid but pathologically deeply
+        # nested document - a PR-controlled catalog file can trigger this,
+        # and it should fail closed with one clean message the same way,
+        # not crash with a raw traceback.
         return [f"{catalog_path} could not be read: {_sanitize(str(exc))} - fix the file (see issue #116)."]
 
     errors = []
@@ -366,7 +371,7 @@ def main(argv):
         try:
             catalog = load_catalog(argv[3])
             write_generated_block(argv[2], catalog)
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError) as exc:
             print(f"workflow_catalog.py: {_sanitize(str(exc))}", file=sys.stderr)
             return 1
         return 0
