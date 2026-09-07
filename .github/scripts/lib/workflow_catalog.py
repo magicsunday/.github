@@ -65,17 +65,20 @@ def _sanitize(text):
     # them), so a caller embedding a value that HASN'T been proven clean
     # by that check yet (e.g. the value's own rejection message, or a raw
     # workflow filename from disk) must additionally wrap the sanitized
-    # result in `!r` before printing it - repr() escapes every category-C
-    # and Zl/Zp character into a literal, non-raw escape sequence instead
-    # of the raw codepoint: "\xHH" for one below U+0100 (verified:
-    # `repr(chr(0xad))` == "'\\xad'" - U+00AD SOFT HYPHEN, category Cf),
-    # "\uXXXX" for one in the Basic Multilingual Plane (verified:
-    # `repr(chr(0x202e))` == "'\\u202e'", `repr(chr(0x2028))` ==
-    # "'\\u2028'"), or "\UXXXXXXXX" for an astral codepoint (verified:
-    # `repr(chr(0xf0000))` == "'\\U000f0000'") - which exact form varies,
-    # but none of them is the raw codepoint, closing the same
-    # directional-spoofing risk in a printed message that html.escape()
-    # closes in the rendered table.
+    # result in `!r` before printing it - repr() always renders a
+    # Cf/Cs/Co/Cn/Zl/Zp character as some escaped, non-raw form (`\xHH`,
+    # `\uXXXX` or `\UXXXXXXXX` depending on codepoint size; a handful of
+    # C0 controls such as tab/newline/CR get a mnemonic escape like `\t`
+    # instead, but those are already gone by this point - _sanitize()
+    # itself strips every C0/C1 control before `!r` ever runs) - never
+    # the literal codepoint. Verified by scanning every codepoint in
+    # 0x0-0x10FFFF: no character in those categories ever survives
+    # repr() unescaped. This closes a directional-spoofing risk in a
+    # printed message the same way `_reject_unsafe_cell_text()` (not
+    # html.escape(), which does not neutralise a bidi override at all -
+    # verified: `html.escape(chr(0x202e)) == chr(0x202e)`, U+202E RIGHT-
+    # TO-LEFT OVERRIDE passes through unchanged) closes it in the
+    # rendered table.
     # It does NOT escape a combining mark (category M) - Python treats
     # one attached to its base character as printable (verified:
     # `chr(0x301) in repr('e' + chr(0x301))` is True - the combining
