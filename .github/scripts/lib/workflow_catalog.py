@@ -183,8 +183,11 @@ def _render_purpose(text):
     same-length backtick RUNS as a single delimiter, precisely so a
     longer run (e.g. "``") can wrap a span that itself contains a lone
     backtick. A "purpose" value with a doubled backtick is not handled
-    that way here - it renders as two separate, individually-paired
-    spans instead of one, still fully escaped either way.
+    that way here - it does not wrap the intended content in one span at
+    all; each backtick is still paired individually, which produces one
+    or more EMPTY `<code>` elements and leaves the text that was meant
+    to be styled as escaped plain content between them, still fully
+    escaped either way.
     """
     parts = text.split("`")
     escaped = [html.escape(part, quote=False) for part in parts]
