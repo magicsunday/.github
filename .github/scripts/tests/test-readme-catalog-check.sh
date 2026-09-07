@@ -585,6 +585,31 @@ assert_eq "assert_readme_catalog_complete: a duplicated header line does not dis
 assert_contains "assert_readme_catalog_complete: a duplicated header line's neighbour still names the real defect" \
     "${output}" "gone.yml" "is missing"
 
+# The blank-line guard right after the header/separator furniture check
+# is otherwise untested: the sed extraction's range restarts on any LATER
+# occurrence of the exact header text too, so two well-documented tables
+# separated by a blank line concatenate into one catalog_table with that
+# blank line embedded in the middle, not just trailing at the end. Without
+# the guard, that embedded blank line would itself fail the row-match
+# regex and be misreported as a malformed row, even though every real row
+# is correctly documented.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+
+See the catalog above (a decoy: | Workflow | Purpose | Permissions | is not a real header here).
+
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a second real header occurrence, with an embedded blank line, still passes cleanly" "0" "${rc}"
+assert_eq "assert_readme_catalog_complete: a second real header occurrence prints nothing" "" "${output}"
+
 # A row consisting only of separator-shaped characters (pipes, dashes,
 # colons, whitespace) - a plausible blanked-out or duplicated-separator
 # manual-edit slip - must not be silently treated as furniture merely
@@ -722,9 +747,9 @@ assert_eq "assert_readme_catalog_complete: a lone dash in one cell of an otherwi
 assert_contains "assert_readme_catalog_complete: a lone dash in one cell of an otherwise blank row names the real defect" \
     "${output}" "::error::" "not a single backtick-quoted name"
 
-# The separator regex's outer `+` (one-or-more cells) is load-bearing on
-# its own: a bare `|` right after the header has zero cells, so weakening
-# `+` to `*` (zero-or-more) would let it match as an empty separator -
+# The separator regex's exact-3-cell repetition is load-bearing on its
+# own: a bare `|` right after the header has zero cells, so widening it
+# to `*`/`{0,}` (zero-or-more) would let it match as an empty separator -
 # every existing fixture stays green under that weakening, since none of
 # them exercises a zero-cell line.
 cat > "${readme_file}" <<'EOF'
@@ -941,10 +966,9 @@ cat > "${readme_file}" <<'EOF'
 | --- | --- | --- |
 | `gone.yml` | Removed long ago | `contents: read` |
 | malformed row with no backticks at all | text | here |
-| `real.yml` | Does the real thing | `contents: read` |
 EOF
 
-output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+output="$(assert_readme_catalog_complete "${zero_dir}" "${readme_file}")"
 rc=$?
 assert_eq "assert_readme_catalog_complete: a malformed row after a stale one fails" "1" "${rc}"
 assert_contains "assert_readme_catalog_complete: a malformed row after a stale one names its own defect" \
@@ -968,6 +992,46 @@ output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
 rc=$?
 assert_eq "assert_readme_catalog_complete: a header-text substring in prose before the real table is excluded, passes cleanly" "0" "${rc}"
 assert_eq "assert_readme_catalog_complete: a header-text substring in prose before the real table prints nothing" "" "${output}"
+
+# The sed extraction's start pattern requires the FULL header text, not
+# merely a shared prefix: a line starting `| Workflow | Purpose |` but
+# diverging before `Permissions` (a plausible partial-rename typo) must
+# not open the range early - if it did, its own row would be swept into
+# catalog_table right alongside the real table's, rather than staying
+# excluded like any other line outside the real header/blank-line span.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Notes |
+| `fake.yml` | Decoy row before the real header | `contents: read` |
+
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `gone.yml` | Removed long ago | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${zero_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a shorter-prefix header decoy before the real table fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: only the real stale row is reported, not the decoy's own row" \
+    "${output}" "gone.yml" "is missing"
+assert_eq "assert_readme_catalog_complete: a shorter-prefix header decoy produces exactly one ::error::, the decoy never entered catalog_table" \
+    "1" "$(printf '%s\n' "${output}" | grep -c '::error::')"
+
+# The row-match regex's trailing column pipe is not optional: a name
+# cell whose closing backtick is never followed by a column separator AT
+# ALL on the same line (a row truncated mid-write) must still fail
+# closed as malformed, not be silently accepted as a well-formed (if
+# stale) row just because its name happens to parse.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `truncated.yml`
+EOF
+
+output="$(assert_readme_catalog_complete "${zero_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a name cell with no trailing column pipe at all fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a name cell with no trailing column pipe names the real defect, not a stale-row diagnosis" \
+    "${output}" "::error::" "not a single backtick-quoted name"
 
 # The sed extraction's end-of-range pattern requires a TRUE empty line, not
 # merely a whitespace-only one: a line of only spaces inside the table must
@@ -996,12 +1060,11 @@ assert_contains "assert_readme_catalog_complete: a stale row after a whitespace-
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |
-| `real.yml` | Does the real thing | `contents: read` |
 | Workflow | Purpose | Permission Level |
 | `gone.yml` | Removed long ago | `contents: read` |
 EOF
 
-output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+output="$(assert_readme_catalog_complete "${zero_dir}" "${readme_file}")"
 rc=$?
 assert_eq "assert_readme_catalog_complete: a near-miss header-prefix decoy row fails" "1" "${rc}"
 assert_contains "assert_readme_catalog_complete: a near-miss header-prefix decoy row names the real defect" \
