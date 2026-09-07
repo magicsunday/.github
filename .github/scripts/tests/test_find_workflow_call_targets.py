@@ -2,11 +2,13 @@
 # Exercises find_workflow_call_targets.py directly (issue #118) - the unit
 # layer that pins _has_workflow_call_trigger()'s per-shape behaviour and the
 # YAML-parse-error skip path, complementing rather than duplicating
-# test-readme-catalog-check.sh's end-to-end coverage of the bash wrapper
-# (sanitisation, NUL-record framing, the temp-file exit-code capture). Run
-# via run-tests.sh through the test-find-workflow-call-targets.sh wrapper -
-# this file has no bash logic of its own to test, so it is a plain stdlib
-# unittest module rather than a test-*.sh script.
+# test_readme_catalog_check.py's end-to-end coverage of readme_catalog_check.py
+# (which imports find_targets() directly, not via this file's own CLI/
+# NUL-framing path - see main() below and find_workflow_call_targets.py's own
+# header for which callers exercise which path). Run via run-tests.sh through
+# the test-find-workflow-call-targets.sh wrapper - this file has no bash
+# logic of its own to test, so it is a plain stdlib unittest module rather
+# than a test-*.sh script.
 import importlib.util
 import os
 import subprocess
@@ -119,9 +121,10 @@ class HasWorkflowCallTriggerTest(unittest.TestCase):
 class SanitizeForStderrTest(unittest.TestCase):
     def test_embedded_newline_and_carriage_return_are_folded(self):
         # A git-tracked filename could carry a raw newline into the
-        # per-file skip diagnostic on stderr, which readme-catalog-check.sh
-        # never redirects - unlike sanitize_for_annotation()'s other
-        # callers, nothing downstream would have caught this.
+        # per-file skip diagnostic on stderr, which lint.yml's bare
+        # `run: python3 ...` step never redirects - unlike
+        # sanitize_for_annotation()'s other callers, nothing downstream
+        # would have caught this.
         self.assertEqual(
             find_workflow_call_targets._sanitize_for_stderr("legit\n::error::INJECTED"),
             "legit ::error::INJECTED",
@@ -149,8 +152,7 @@ class SanitizeForStderrTest(unittest.TestCase):
 class FindTargetsExceptionDiagnosticTest(unittest.TestCase):
     def _assert_forged_name_does_not_split_stderr(self, forged_name):
         # Skips (rather than fails) on a filesystem that rejects the given
-        # control byte in a filename, mirroring
-        # test-readme-catalog-check.sh's own newline-filename test.
+        # control byte in a filename.
         with tempfile.TemporaryDirectory() as workflows_dir:
             try:
                 with open(os.path.join(workflows_dir, forged_name), "w", encoding="utf-8") as handle:
@@ -288,9 +290,12 @@ class MainTest(unittest.TestCase):
 
     def test_success_writes_nul_terminated_records_and_returns_0(self):
         # Run as a real subprocess rather than calling main() in-process:
-        # this is the actual invocation shape readme-catalog-check.sh uses
-        # (`python3 find_workflow_call_targets.py <dir>`), and it exercises
-        # the real sys.stdout.buffer rather than a substitute object.
+        # this file's own standalone-CLI invocation shape
+        # (`python3 find_workflow_call_targets.py <dir>`) - no current
+        # in-repo caller uses it that way (readme_catalog_check.py imports
+        # find_targets() directly instead, see this file's own header) -
+        # exercises the real sys.stdout.buffer rather than a substitute
+        # object.
         with tempfile.TemporaryDirectory() as workflows_dir:
             with open(os.path.join(workflows_dir, "real.yml"), "w", encoding="utf-8") as handle:
                 handle.write("on:\n    workflow_call:\n")

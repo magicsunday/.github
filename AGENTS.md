@@ -173,24 +173,34 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   `lint.yml`'s own `semgrep-smoke` job follows the same pattern
   (`semgrep-smoke-helpers.sh`, split out of `semgrep-report-check.sh` per the
   scan-report-completeness bullet above), as does `lint.yml`'s
-  `readme-catalog-fresh` job (`readme-catalog-check.sh` — cross-checking
+  `readme-catalog-fresh` job (`readme_catalog_check.py` — cross-checking
   every `workflow_call`-declaring file under `.github/workflows/` against
   README's catalog table, issue #101, and every catalog row back against
-  those files, issue #116). The trigger-detection half of that
-  check (`find_workflow_call_targets()`) shells out to a real YAML parser,
-  `.github/scripts/lib/find_workflow_call_targets.py`, rather than pattern-
-  matching the raw text (issue #118) — pinned via `.github/requirements/
-  pyyaml.in`/`pyyaml.txt` the same way `semgrep.in`/`yamllint.in` are, and
-  unit-tested directly by `test_find_workflow_call_targets.py` (run through
-  `test-find-workflow-call-targets.sh`, since `run-tests.sh`'s own glob only
-  picks up `test-*.sh`), separately from `test-readme-catalog-check.sh`'s
-  end-to-end coverage of the bash wrapper. Its own stderr-diagnostic
-  sanitizer is a second, Python-side transcription of `annotation-sanitize.sh`'s
-  escape-then-fold algorithm (a Python subprocess cannot import a bash
-  `readonly` constant the way `semgrep-report-check.sh` does) — kept from
-  silently drifting apart by `test-sanitize-stderr-parity.sh`, a value-based
-  drift guard run over a shared fixture list, mirroring
-  `test-annotation-sanitize-jq-parity.sh`'s role for the bash-only call sites.
+  those files, issue #116). This is a plain Python module invoked directly
+  from `lint.yml`, not a bash wrapper: an earlier, bash/`sed`/regex version
+  of the reverse direction went through 17 review rounds and three
+  shipped regressions (positional vs. content-based table-furniture
+  detection, a cell-count binding, and — twice — a target filename
+  interpolated into a live shell glob/regex pattern) before the mechanism
+  was replaced outright with a real per-row tokenizer, the same
+  structural-parse shift `find_workflow_call_targets()`
+  (`.github/scripts/lib/find_workflow_call_targets.py`) already made for
+  YAML-trigger detection instead of pattern-matching the raw text (issue
+  #118). `readme_catalog_check.py` imports that module directly into the
+  same process (no subprocess/temp-file handoff, since both halves are
+  Python now) — pinned via `.github/requirements/pyyaml.in`/`pyyaml.txt`
+  the same way `semgrep.in`/`yamllint.in` are, and unit-tested directly by
+  `test_readme_catalog_check.py` and `test_find_workflow_call_targets.py`
+  (each run through its own `test-*.sh` wrapper, since `run-tests.sh`'s own
+  glob only picks up `test-*.sh`, not `test_*.py`). `find_workflow_call_targets.py`'s
+  own stderr-diagnostic sanitizer is a second, Python-side transcription of
+  `annotation-sanitize.sh`'s escape-then-fold algorithm (a Python process
+  cannot import a bash `readonly` constant the way `semgrep-report-check.sh`
+  does) — `readme_catalog_check.py` reuses that same function directly
+  rather than carrying a third copy, kept from silently drifting apart by
+  `test-sanitize-stderr-parity.sh`, a value-based drift guard run over a
+  shared fixture list, mirroring `test-annotation-sanitize-jq-parity.sh`'s
+  role for the bash-only call sites.
   `yamllint.yml` and `i18n.yml` carry comparable inline
   `run:` logic that was deliberately left un-migrated when this convention was
   introduced (GH-47) — extending it to those is a separate decision, not something

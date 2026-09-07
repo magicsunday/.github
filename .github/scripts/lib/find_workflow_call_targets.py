@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
-# Sourced (via `python3 <this file> <workflows_dir>`) by
-# readme-catalog-check.sh's find_workflow_call_targets() to detect a
-# workflow_call trigger via a real YAML parse instead of pattern-matching
-# the raw text. Evaluating the trigger's actual YAML shape and value, not
-# the literal bytes of the line that introduces it, closes gaps a
-# line-oriented match cannot by construction: the scalar/flow-sequence
-# trigger shorthand (`on: workflow_call` / `on: [push, workflow_call]`) and
-# a byte-inexact `on:` line (a quoted `'on':` key) - see
-# _has_workflow_call_trigger() below for the exact shapes handled.
+# find_targets() is imported directly by readme_catalog_check.py's own
+# check() to detect a workflow_call trigger via a real YAML parse instead
+# of pattern-matching the raw text. Evaluating the trigger's actual YAML
+# shape and value, not the literal bytes of the line that introduces it,
+# closes gaps a line-oriented match cannot by construction: the
+# scalar/flow-sequence trigger shorthand (`on: workflow_call` /
+# `on: [push, workflow_call]`) and a byte-inexact `on:` line (a quoted
+# `'on':` key) - see _has_workflow_call_trigger() below for the exact
+# shapes handled.
 #
-# Prints one NUL-terminated, unsanitised basename per matching file to
-# stdout - NUL rather than newline, because a git-tracked filename may
-# itself contain an embedded raw newline (see annotation-sanitize.sh's own
-# header for why that must survive intact into sanitize_for_annotation()
-# rather than being consumed by a newline-based split first). Sanitising
-# the printed name for CI-annotation forgery is the CALLER's job:
-# readme-catalog-check.sh already has sanitize_for_annotation() for
-# exactly this.
+# find_targets() itself yields plain, unsanitised basenames - sanitising a
+# printed name for CI-annotation forgery is the CALLER's job, which
+# readme_catalog_check.py does via this same module's
+# _sanitize_for_stderr(). This file is also directly runnable as its own
+# CLI (`python3 <this file> <workflows_dir>`, see main() below): that path
+# prints one NUL-terminated basename per line to stdout instead - NUL
+# rather than newline, because a git-tracked filename may itself contain
+# an embedded raw newline that a newline-based split would otherwise
+# consume before a caller extracting names from that stdout stream ever
+# saw it whole (see annotation-sanitize.sh's own header for why the same
+# raw-newline hazard matters there too). readme_catalog_check.py imports
+# find_targets() directly and never exercises this CLI path at all - no
+# process boundary, no newline hazard to cross in the first place.
 #
 # Known limitation: a file with TWO top-level `on:` keys resolves via
 # YAML's own last-key-wins rule, so a workflow_call trigger under the FIRST
@@ -45,15 +50,17 @@ import yaml
 # (its readonly ANNOTATION_SANITIZE_JQ_FILTER constant - re-derive: `grep -n
 # 'readonly ANNOTATION_SANITIZE_JQ_FILTER=' .github/scripts/lib/annotation-sanitize.sh`;
 # test-sanitize-stderr-parity.sh is the drift guard that actually enforces
-# this, not this comment) exactly, in Python: this
-# script's own stderr diagnostic below is a SECOND CI-annotation producer
-# in this repo that has nothing to route through the bash function, since
-# it runs in a separate process the bash caller only pipes stdout from
-# (readme-catalog-check.sh's `python3 ... > "${tmp_file}"` never touches
-# stderr, which flows straight into the Actions job log unfiltered) - a
-# real, git-trackable filename or PyYAML exception message containing a
-# raw newline would otherwise forge a second, attacker-authored `::error::`
-# line the same way annotation-sanitize.sh's own header documents. Order
+# this, not this comment) exactly, in Python: this script's own stderr
+# diagnostic below is a SECOND CI-annotation producer in this repo that
+# has nothing to route through the bash function - readme_catalog_check.py
+# imports find_targets() directly and never sees this module's stderr at
+# all, but this file's own standalone CLI path (`python3
+# find_workflow_call_targets.py <dir>`, see main() below) still runs
+# stdout-piped/stderr-unredirected the same way a bare GitHub Actions
+# `run:` step would, so a real, git-trackable filename or PyYAML exception
+# message containing a raw newline would otherwise forge a second,
+# attacker-authored `::error::` line the same way annotation-sanitize.sh's
+# own header documents, for whoever DOES invoke it that way. Order
 # matters: percent-escape first, or a literal `%0D`/`%0A` in the source
 # text would be indistinguishable from an already-escaped sequence once
 # the runner decodes it back. `[:cntrl:]` in jq is Unicode-aware (C0
