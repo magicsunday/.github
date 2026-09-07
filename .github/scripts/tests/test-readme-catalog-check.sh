@@ -281,6 +281,59 @@ rc=$?
 assert_eq "assert_readme_catalog_complete: a fully-documented catalog returns 0" "0" "${rc}"
 assert_eq "assert_readme_catalog_complete: a fully-documented catalog prints nothing" "" "${output}"
 
+# The forward loop's own row match must tolerate the same zero-or-more
+# spacing before the column pipe the reverse walk already accepts (see
+# the "zero spaces before the column pipe" tests below): a real,
+# genuinely-documented target whose row happens to have zero spaces
+# there is not a stale/undocumented workflow, and must not be reported
+# as one just because the forward direction was pickier about spacing
+# than the reverse direction already is.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml`| Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a documented target with zero spaces before the column pipe returns 0" "0" "${rc}"
+assert_eq "assert_readme_catalog_complete: a documented target with zero spaces before the column pipe prints nothing" "" "${output}"
+
+# The forward loop's own match still requires SOME column boundary right
+# after the closing backtick, tolerant whitespace or not: a row glued
+# straight into trailing garbage with no pipe/whitespace boundary at all
+# is not a documented row in any shape, and both directions must say so.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml`X | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a target glued straight into trailing garbage fails closed in both directions" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: the forward loop still reports the target as not listed" \
+    "${output}" "real.yml" "is not listed"
+assert_contains "assert_readme_catalog_complete: the reverse walk still reports the row as malformed" \
+    "${output}" "::error::" "not a single backtick-quoted name"
+
+# The reverse walk's header recognition is deliberately open-ended (a
+# `case` glob suffix, not an exact match) so it tolerates real-world
+# trailing text after "Permissions" - this repo's own README.md header
+# reads "...Permissions the caller must grant |", not the bare
+# "...Permissions |" every other fixture in this file uses. No fixture
+# exercised that trailing-text tolerance directly until now.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions the caller must grant |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a header with realistic trailing text after Permissions returns 0" "0" "${rc}"
+assert_eq "assert_readme_catalog_complete: a header with realistic trailing text after Permissions prints nothing" "" "${output}"
+
 # End-to-end: a .yaml-extension target flows through the full completeness
 # assertion, not just find_workflow_call_targets() in isolation.
 cat > "${workflows_dir}/e2e.yaml" <<'EOF'
@@ -478,6 +531,25 @@ assert_contains "assert_readme_catalog_complete: a name cell without its own clo
 assert_eq "assert_readme_catalog_complete: real.yml stays undisturbed by the malformed sibling row" \
     "1" "$(printf '%s\n' "${output}" | grep -c '::error::')"
 
+# The name-capture class `[^\`|]*` excludes a PIPE as well as a backtick -
+# not merely the backtick, which the sloppy.yml case above already pins.
+# A name cell whose own span contains an embedded pipe before its own
+# closing backtick must still fail as "not a single backtick-quoted
+# name", not mis-extract a garbled multi-cell "name" and report a wrong
+# (if still failing-closed) diagnosis.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `gone.yml | fake-suffix` | Purpose text | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a name cell with an embedded pipe before its own closing backtick fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a name cell with an embedded pipe names the real defect, not a garbled stale name" \
+    "${output}" "::error::" "not a single backtick-quoted name"
+
 # A name cell whose backtick is NEVER closed anywhere in the line must not
 # be silently treated as "not a catalog row" the way the table
 # header/separator lines are - the header is recognised by its own exact
@@ -597,8 +669,6 @@ cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |
 | `real.yml` | Does the real thing | `contents: read` |
-
-See the catalog above (a decoy: | Workflow | Purpose | Permissions | is not a real header here).
 
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |
@@ -993,15 +1063,14 @@ rc=$?
 assert_eq "assert_readme_catalog_complete: a header-text substring in prose before the real table is excluded, passes cleanly" "0" "${rc}"
 assert_eq "assert_readme_catalog_complete: a header-text substring in prose before the real table prints nothing" "" "${output}"
 
-# The sed extraction's start pattern requires the FULL header text, not
-# merely a shared prefix: a line starting `| Workflow | Purpose |` but
-# diverging before `Permissions` (a plausible partial-rename typo) must
-# not open the range early - if it did, its own row would be swept into
+# The sed extraction's start pattern requires the FULL literal
+# "Permissions", not merely a shared prefix of it: a line sharing the
+# most of that word ("Permission Level", missing only the trailing `s`)
+# must not open the range early - if it did, its own row would be swept into
 # catalog_table right alongside the real table's, rather than staying
 # excluded like any other line outside the real header/blank-line span.
 cat > "${readme_file}" <<'EOF'
-| Workflow | Purpose | Notes |
-| `fake.yml` | Decoy row before the real header | `contents: read` |
+| Workflow | Purpose | Permission Level |
 
 | Workflow | Purpose | Permissions |
 | --- | --- | --- |

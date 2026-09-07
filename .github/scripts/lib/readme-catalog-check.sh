@@ -61,10 +61,24 @@ find_workflow_call_targets() {
 # sub-table) or mentioned in free-standing prose would satisfy the check
 # without ever having a Purpose/Permissions row of its own - exactly the
 # drift this function exists to catch, just relocated instead of fixed.
-# Matched via a `case` glob rather than grep -E: the interpolated name can
+# Matched via an anchored `[[ =~ ]]` regex with the name's own `.` escaped
+# first, not a bare `grep -E`/unescaped regex: the interpolated name can
 # contain a literal `.` (a workflow filename's extension separator), which
-# `grep -E` would treat as "any character" instead of a literal dot -
-# `case` compares it as a literal string with no such widening.
+# would otherwise widen to "any character". Escaping only `.` - not the
+# full regex-metacharacter set - mirrors this file's existing risk
+# acceptance for exotic filenames elsewhere (Known limitation, issue #116
+# below): the character classes GitHub Actions workflow filenames actually
+# use (letters, digits, `-`, `_`, `.`) contain exactly one metacharacter.
+# The trailing `[[:space:]]*` tolerates the same zero-or-more spacing
+# before the column pipe the reverse walk's own row regex already accepts
+# (line ~200) - a plain `case "${line}" in "| \`${name}\` |"*)` literal
+# requires exactly one space there, so a real, correctly-documented target
+# whose row happens to have zero spaces before the pipe (a plausible
+# GFM-table reformat) was silently reported as "not listed" even though
+# the reverse walk already accepted the identical row as well-formed
+# (live-reproduced: a zero-space `` `real.yml`| `` row failed here before
+# this fix, while assert_readme_catalog_complete()'s own reverse walk
+# passed it).
 #
 # Known limitation (issue #101): the table's end boundary is the next BLANK
 # line, not a heading. Removing the blank line before an identically-shaped
@@ -95,7 +109,7 @@ find_workflow_call_targets() {
 assert_readme_catalog_complete() {
     local workflows_dir="$1"
     local readme_file="$2"
-    local name line row message found failed=0
+    local name line row message found escaped_name failed=0
     local catalog_table names rc=0 after_header=0
 
     catalog_table="$(sed -n '/^| Workflow | Purpose | Permissions/,/^$/p' "${readme_file}")"
@@ -120,13 +134,12 @@ assert_readme_catalog_complete() {
     while IFS= read -r name; do
         [ -n "${name}" ] || continue
         found=0
+        escaped_name="${name//./\\.}"
         while IFS= read -r line; do
-            case "${line}" in
-                "| \`${name}\` |"*)
-                    found=1
-                    break
-                    ;;
-            esac
+            if [[ "${line}" =~ ^\|\ \`${escaped_name}\`[[:space:]]*\| ]]; then
+                found=1
+                break
+            fi
         done <<< "${catalog_table}"
 
         if [ "${found}" -eq 0 ]; then
