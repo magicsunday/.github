@@ -611,10 +611,12 @@ class CheckTest(_TempRepoTestCase):
         # PR-controlled catalog file can contain one) makes json.load()
         # raise RecursionError instead of JSONDecodeError - this must
         # fail closed with the same clean message as any other unreadable
-        # catalog, not crash with a raw traceback.
+        # catalog, not crash with a raw traceback. Properly closed (not
+        # just an unterminated run of "["), so this is genuinely valid
+        # JSON syntax, not something JSONDecodeError would catch first.
         self._add_target("real.yml")
         with open(self.catalog_path, "w", encoding="utf-8") as handle:
-            handle.write("[" * 200000)
+            handle.write("[" * 200000 + "0" + "]" * 200000)
         self._write_readme("<!-- workflow-catalog:start -->\n<!-- workflow-catalog:end -->\n")
         errors = self._check()
         self.assertEqual(len(errors), 1)
@@ -766,6 +768,20 @@ class MainTest(_TempRepoTestCase):
             code = workflow_catalog.main(["workflow_catalog.py", "--write", self.readme_path, self.catalog_path])
         self.assertEqual(code, 1)
         self.assertIn(self.catalog_path, stderr.getvalue())
+
+    def test_write_mode_reports_a_pathologically_nested_catalog_on_stderr_and_returns_one(self):
+        # main()'s --write branch has its OWN except tuple (line 374),
+        # duplicated from check()'s (line 324) rather than shared - the
+        # RecursionError case above only drives check(), so it cannot
+        # prove the --write branch's copy of the same fix actually works.
+        self._write_readme("<!-- workflow-catalog:start -->\n<!-- workflow-catalog:end -->\n")
+        with open(self.catalog_path, "w", encoding="utf-8") as handle:
+            handle.write("[" * 200000 + "0" + "]" * 200000)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = workflow_catalog.main(["workflow_catalog.py", "--write", self.readme_path, self.catalog_path])
+        self.assertEqual(code, 1)
+        self.assertIn("workflow_catalog.py:", stderr.getvalue())
 
     def test_non_utf8_workflow_filename_does_not_crash_the_annotation_print(self):
         # Mirrors readme_catalog_check.py's identical regression test: a
