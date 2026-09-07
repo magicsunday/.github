@@ -376,10 +376,26 @@ class RenderTableTest(unittest.TestCase):
         # text (see _render_purpose()'s own docstring): each internal
         # pair becomes an EMPTY <code> element, and the text the author
         # meant to style falls out as plain (still escaped) content
-        # between them, rather than staying styled.
+        # between them, rather than staying styled. This isolated-run
+        # shape happens to land on an even total backtick count, where
+        # the greedy-pairing algorithm and the superseded total-count-
+        # parity fallback agree - see the sibling test below for the
+        # shape that actually discriminates the two.
         catalog = {"real.yml": {"purpose": "a ``code`` b", "permissions": ["contents: read"]}}
         table = workflow_catalog.render_table(catalog)
         self.assertIn("<td>a <code></code>code<code></code> b</td>", table)
+
+    def test_purpose_run_adjacent_to_a_lone_backtick_can_still_style_part_of_it(self):
+        # This is the actual discriminator between greedy left-to-right
+        # pairing and the old total-count-parity fallback: 6 backticks is
+        # even, so the old algorithm rendered the whole thing literally,
+        # while greedy pairing pulls the lone backtick after "foo" into a
+        # pair with a run backtick, giving "bar" a real, non-empty <code>
+        # element - exactly the case _render_purpose()'s own docstring
+        # uses as its worked example for "depends on count and position".
+        catalog = {"real.yml": {"purpose": "``foo`bar``", "permissions": ["contents: read"]}}
+        table = workflow_catalog.render_table(catalog)
+        self.assertIn("<td><code></code>foo<code>bar</code>`</td>", table)
 
     def test_apostrophe_is_not_escaped_since_quote_is_false(self):
         catalog = {"real.yml": {"purpose": "Uses the caller's own token", "permissions": ["contents: read"]}}
@@ -706,6 +722,19 @@ class MainTest(_TempRepoTestCase):
             code = workflow_catalog.main(["workflow_catalog.py", "--write", self.readme_path, self.catalog_path])
         self.assertEqual(code, 1)
         self.assertIn("exactly one", stderr.getvalue())
+
+    def test_write_mode_reports_a_missing_catalog_file_on_stderr_and_returns_one(self):
+        # --write's try/except also wraps load_catalog(argv[3]), not just
+        # write_generated_block() - a missing catalog file raises OSError
+        # there, which every other --write test here never reaches (they
+        # all fail inside write_generated_block()'s own ValueError instead).
+        self._write_readme("<!-- workflow-catalog:start -->\n<!-- workflow-catalog:end -->\n")
+        # self.catalog_path is never created.
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = workflow_catalog.main(["workflow_catalog.py", "--write", self.readme_path, self.catalog_path])
+        self.assertEqual(code, 1)
+        self.assertIn("workflow_catalog.py:", stderr.getvalue())
 
     def test_non_utf8_workflow_filename_does_not_crash_the_annotation_print(self):
         # Mirrors readme_catalog_check.py's identical regression test: a
