@@ -183,14 +183,30 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   handful of shipped regressions (positional vs. content-based
   table-furniture detection, a cell-count binding, and a target filename
   interpolated into a live shell glob/regex pattern) before the mechanism
-  was replaced outright with a real per-row tokenizer, the same
-  structural-parse shift `find_targets()`
-  (`.github/scripts/lib/find_workflow_call_targets.py`) already made for
-  YAML-trigger detection instead of pattern-matching the raw text (issue
-  #118). `readme_catalog_check.py` imports that module directly into the
-  same process (no subprocess/temp-file handoff, since both halves are
-  Python now) — pinned via `.github/requirements/pyyaml.in`/`pyyaml.txt`
-  the same way `semgrep.in`/`yamllint.in` are, and unit-tested directly by
+  was replaced with a real per-row tokenizer, the same structural-parse
+  shift `find_targets()` (`.github/scripts/lib/find_workflow_call_targets.py`)
+  already made for YAML-trigger detection instead of pattern-matching the
+  raw text (issue #118) — and that tokenizer itself went through two more
+  designs before landing on the current one: a line-oriented state
+  machine that tried to hand-replicate GFM's block-precedence rules
+  (what an indented/fenced code block or an HTML comment absorbs) one
+  construct at a time, then a lighter check that only counted
+  header-shaped lines, each still findably bypassable because a
+  hand-rolled text-level check can only approximate what actually renders
+  as a live GFM table. `readme_catalog_check.py` now renders README.md
+  through `cmarkgfm` — Python bindings to GitHub's own cmark-gfm C
+  library, the SAME renderer GitHub's servers use, pinned via
+  `.github/requirements/cmarkgfm.in`/`cmarkgfm.txt` the same way
+  `pyyaml.in`/`.txt` is — and reads the catalog back out of the real
+  `<table>` elements in the resulting HTML, so content GitHub would never
+  render as a table (an indented/fenced code block, the inside of an HTML
+  comment, which cmark-gfm's safe mode omits from its output entirely)
+  never becomes a `<table>` element there either, closing the whole bug
+  category structurally instead of one construct at a time. It still
+  imports `find_workflow_call_targets.py` directly into the same process
+  (no subprocess/temp-file handoff, since both halves are Python) —
+  pinned via `.github/requirements/pyyaml.in`/`pyyaml.txt` the same way
+  `semgrep.in`/`yamllint.in` are, and unit-tested directly by
   `test_readme_catalog_check.py` and `test_find_workflow_call_targets.py`
   (each run through its own `test-*.sh` wrapper, since `run-tests.sh`'s own
   glob only picks up `test-*.sh`, not `test_*.py`). `find_workflow_call_targets.py`'s

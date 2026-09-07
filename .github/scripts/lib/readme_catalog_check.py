@@ -6,11 +6,32 @@
 # confusion, a cell-count binding, exact-one-space rigidity, and (its most
 # severe) a target filename interpolated into a live shell glob/regex
 # pattern - all traceable to matching table structure and filenames with
-# ad hoc string/pattern operations instead of a real per-row parse. A real
-# per-row split removes every one of these at once: cells are classified
-# by content and position in the token stream rather than by text search,
-# and a table cell is compared to a filename with plain string equality,
-# which has no metacharacter-interpretation hazard by construction.
+# ad hoc string/pattern operations instead of a real per-row parse.
+#
+# The tokenizer itself went through two more designs after that (issue
+# #116, rounds 20-23): first a line-oriented state machine that tried to
+# hand-replicate GFM's block-precedence rules (an indented or fenced code
+# block, an HTML comment) one construct at a time, then a lighter
+# "ambiguity" check that only counted header-shaped lines. Every round
+# found a new way to hide a decoy catalog - or, in the ambiguity design's
+# case, a way to hide a decoy DATA ROW under a perfectly genuine, unique
+# header - because a hand-rolled text-level check can only ever
+# APPROXIMATE what actually renders as a live GFM table; GFM's own
+# block-precedence rules (what an indented/fenced code block or an HTML
+# comment absorbs, where a table's row-continuation stops) are exactly
+# the part no line-level heuristic can get right in every case. This
+# version stops approximating: it renders README.md through cmarkgfm
+# (GitHub's own cmark-gfm C library, pinned via
+# .github/requirements/cmarkgfm.in - the SAME renderer GitHub's servers
+# use, not an independent reimplementation with its own edge cases to
+# diverge on) and reads the catalog back out of the resulting HTML's real
+# `<table>` elements. Content GitHub would never render as a table -
+# indented/fenced code, the inside of an HTML comment (cmark-gfm's safe
+# mode omits comment content from the output entirely, byte for byte
+# verified 2026-09-07) - never becomes a `<table>` element in that HTML
+# either, so it is structurally invisible to this check the same way it
+# is to a human reading the rendered page, by construction rather than by
+# enumeration.
 #
 # find_targets() is imported directly rather than invoked as a subprocess:
 # the two-language split that used to exist here (this file now does BOTH
@@ -18,32 +39,12 @@
 # to survive an embedded raw newline in a filename crossing a process
 # boundary - a hazard that does not exist when the producer and consumer
 # are plain Python objects in the same interpreter.
-#
-# parse_catalog_table() does not try to tell a real catalog header apart
-# from a decoy one hidden inside some GFM construct that renders as
-# opaque/invisible on GitHub (an indented or fenced code block, an HTML
-# comment, a raw HTML block, YAML front matter, ...). An earlier design
-# tried exactly that, enumerating one such construct at a time as each
-# was found to hide a decoy well enough to defeat this check while
-# staying invisible to a human reviewer - and every round of review
-# found another way to hide one, because GFM has many block types with
-# precedence over table parsing and hand-replicating all of them (plus
-# every one of their own closing-delimiter edge cases: matching
-# character, matching-or-greater run length, no trailing content after
-# the run, ...) is an open-ended chase, not a fixable bug. Instead: scan
-# the WHOLE file for every line that looks like the catalog header (by
-# content, the same way it always has), and treat finding MORE THAN ONE
-# such line anywhere in the file as itself a hard, fail-closed error -
-# regardless of what construct a second one might be hiding inside. A
-# decoy header hidden in a fence/comment/wherever is exactly as visible
-# to this content-based scan as the real one, so it can no longer be
-# silently trusted OR silently ignored; the file is simply ambiguous and
-# a human has to remove the extra occurrence. This closes the entire bug
-# class in one property instead of one construct at a time (issue #116).
+import html.parser
 import importlib.util
 import os
-import re
 import sys
+
+import cmarkgfm
 
 _LIB_DIR = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location(
@@ -59,7 +60,6 @@ find_workflow_call_targets = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(find_workflow_call_targets)
 
 _HEADER_CELLS = ("Workflow", "Purpose")
-_SEPARATOR_CELL = re.compile(r"^:?-+:?$")
 
 
 def _sanitize(text):
@@ -77,74 +77,117 @@ def _sanitize(text):
     return find_workflow_call_targets._sanitize_for_stderr(text)
 
 
-def split_table_row(line):
-    """Splits one GFM table row into its pipe-delimited, stripped cells.
+class _TableExtractor(html.parser.HTMLParser):
+    """Extracts every rendered `<table>` from cmark-gfm's real GFM HTML
+    output as `{"header": [cell, ...], "rows": [[cell, ...], ...]}`,
+    using cmark-gfm's own `<thead>`/`<tbody>` distinction rather than
+    guessing which row is the header from content or position - cmark-gfm
+    already knows, since it parsed the real GFM table grammar (the
+    alignment/separator row included) to produce this markup at all.
 
-    Returns None for a line that is not table-row-shaped at all (does not
-    start with `|`). Every `|` is a column boundary, full stop - no
-    backslash-escaping is recognised. GFM itself lets a cell escape a
-    literal pipe with `\\|`, but adding that here would solve a problem
-    this repository does not have: no workflow file under
-    `.github/workflows/` currently uses `|` in its name (Known
-    limitation, issue #116; re-derive: `ls .github/workflows | grep -c '|'`
-    should print 0) - a name that did would still fail closed via the
-    malformed-row branch below, just with a generic diagnosis rather than
-    a specific one. Recognising an escape sequence that never fires in
-    practice only adds a second, untested code path with its own edge
-    cases (an escaped escape character, a trailing backslash at end of
-    cell) for no real gain - the KISS/YAGNI call this rewrite exists to
-    make, not avoid.
+    Each cell is `(text, is_single_code_span)`. `is_single_code_span` is
+    True only when the cell's ENTIRE content is one `` `code span` `` -
+    no other text before, after, or beside it - mirroring this checker's
+    own definition of a well-formed, single backtick-quoted name cell,
+    now decided from cmark-gfm's real inline-parse result instead of a
+    hand-rolled backtick-position check on raw cell text.
     """
-    stripped = line.strip()
-    if not stripped.startswith("|"):
-        return None
 
-    body = stripped[1:]
-    if body.endswith("|"):
-        body = body[:-1]
+    def __init__(self):
+        super().__init__()
+        self.tables = []
+        self._table = None
+        self._in_thead = False
+        self._row = None
+        self._in_cell = False
+        self._code_depth = 0
+        self._code_span_opens = 0
+        self._plain_text = ""
+        self._code_text = ""
 
-    return [cell.strip() for cell in body.split("|")]
+    def handle_starttag(self, tag, attrs):
+        if tag == "table":
+            self._table = {"header": None, "rows": []}
+        elif tag == "thead":
+            self._in_thead = True
+        elif tag == "tbody":
+            self._in_thead = False
+        elif tag == "tr" and self._table is not None:
+            self._row = []
+        elif tag in ("td", "th") and self._row is not None:
+            self._in_cell = True
+            self._code_depth = 0
+            self._code_span_opens = 0
+            self._plain_text = ""
+            self._code_text = ""
+        elif tag == "code" and self._in_cell:
+            if self._code_depth == 0:
+                self._code_span_opens += 1
+            self._code_depth += 1
+
+    def handle_endtag(self, tag):
+        if tag == "table" and self._table is not None:
+            self.tables.append(self._table)
+            self._table = None
+        elif tag == "tr" and self._row is not None:
+            # A <tr> only ever opens inside an open <table> (handle_starttag
+            # only starts a row when self._table is not None), so this is
+            # always true here - asserted rather than re-checked so a
+            # future refactor that breaks the invariant fails loudly.
+            assert self._table is not None
+            if self._in_thead:
+                self._table["header"] = self._row
+            else:
+                self._table["rows"].append(self._row)
+            self._row = None
+        elif tag in ("td", "th") and self._in_cell:
+            # Symmetric invariant: a cell only ever opens inside an open
+            # row (handle_starttag only sets self._in_cell when self._row
+            # is not None).
+            assert self._row is not None
+            is_code = self._code_span_opens == 1 and not self._plain_text.strip()
+            text = self._code_text if is_code else (self._plain_text + self._code_text).strip()
+            self._row.append((text, is_code))
+            self._in_cell = False
+        elif tag == "code" and self._in_cell and self._code_depth > 0:
+            self._code_depth -= 1
+
+    def handle_data(self, data):
+        if not self._in_cell:
+            return
+        if self._code_depth > 0:
+            self._code_text += data
+        else:
+            self._plain_text += data
 
 
-def _is_header(cells):
+def _is_catalog_header(header):
     return (
-        cells is not None
-        and len(cells) == 3
-        and cells[0] == _HEADER_CELLS[0]
-        and cells[1] == _HEADER_CELLS[1]
-        and cells[2].startswith("Permissions")
+        header is not None
+        and len(header) == 3
+        and header[0][0] == _HEADER_CELLS[0]
+        and header[1][0] == _HEADER_CELLS[1]
+        and header[2][0].startswith("Permissions")
     )
 
 
-def _is_separator(cells):
-    return cells is not None and len(cells) == 3 and all(_SEPARATOR_CELL.match(cell) for cell in cells)
-
-
 def parse_catalog_table(readme_path):
-    """Yields `(kind, payload)` for each line of README's workflow catalog
-    table - `("header", None)`, `("separator", None)`, `("row", name)` for
-    a well-formed `` | `name` | ... | `` data row, or `("malformed", line)`
-    for anything else inside the table's span.
+    """Yields `(kind, payload)` for the workflow catalog table actually
+    rendered from README's content - `("header", None)` once, then
+    `("row", name)` for each well-formed, backtick-quoted name cell, or
+    `("malformed", None)` for a data row whose name cell is not a single
+    `` `name` `` code span.
 
     The header is recognised by content (the exact literal cells
     "Workflow"/"Purpose" and a "Permissions"-prefixed third cell,
     tolerating real-world trailing text like this repo's own
-    "...Permissions the caller must grant") wherever it occurs in the
-    file - including inside a fenced/indented code block, an HTML
-    comment, or any other GFM construct that would render it as
-    invisible/opaque on GitHub. This function does not try to tell such a
-    decoy apart from the real header (see this module's header comment
-    for why that chase doesn't end): it raises ValueError instead if MORE
-    THAN ONE header-shaped line exists anywhere in the file, refusing to
-    guess which one is real. With exactly one, the table's span runs from
-    there through the next blank line.
-
-    The separator (a GFM alignment row) is recognised only on the line
-    immediately after the header - never by table-wide position, never
-    by shape alone at any position - so a missing separator never shifts
-    a real row into a skipped slot, and a separator-shaped line elsewhere
-    in the table is never mistaken for furniture just because of its
-    shape.
+    "...Permissions the caller must grant") among cmark-gfm's OWN
+    `<thead>` rows in the rendered document - never by guessing which
+    line is the header from raw text, since a real GFM table's header is
+    unambiguous once actually parsed. Raises `ValueError` if more than
+    one rendered table matches: two genuinely-rendered, human-visible
+    catalog tables in one README is a real ambiguity a human has to
+    resolve, not something this function can guess past (issue #116).
     """
     if os.path.islink(readme_path):
         # Mirrors find_targets()'s own symlink guard on workflow files, for
@@ -157,41 +200,28 @@ def parse_catalog_table(readme_path):
         raise OSError(f"{readme_path} is a symlink, refusing to follow it")
 
     with open(readme_path, encoding="utf-8") as handle:
-        lines = handle.read().splitlines()
+        text = handle.read()
 
-    header_indexes = [i for i, line in enumerate(lines) if _is_header(split_table_row(line))]
-    if len(header_indexes) > 1:
+    extractor = _TableExtractor()
+    extractor.feed(cmarkgfm.github_flavored_markdown_to_html(text))
+
+    catalog_tables = [table for table in extractor.tables if _is_catalog_header(table["header"])]
+    if len(catalog_tables) > 1:
         raise ValueError(
-            f"README.md contains {len(header_indexes)} lines that look like the workflow "
-            "catalog header - remove the extra one(s) so the real catalog is unambiguous "
+            f"README.md renders {len(catalog_tables)} tables that look like the workflow "
+            "catalog - remove the extra one(s) so the real catalog is unambiguous "
             "(see issue #116)."
         )
-    if not header_indexes:
+    if not catalog_tables:
         return
 
     yield ("header", None)
-    after_header = True
-    for line in lines[header_indexes[0] + 1 :]:
-        if line.strip() == "":
-            return
-
-        cells = split_table_row(line)
-
-        if after_header:
-            after_header = False
-            if _is_separator(cells):
-                yield ("separator", None)
-                continue
-
-        if cells is None or len(cells) != 3:
-            yield ("malformed", line)
-            continue
-
-        name_cell = cells[0]
-        if len(name_cell) >= 2 and name_cell[0] == "`" and name_cell[-1] == "`" and name_cell.count("`") == 2:
-            yield ("row", name_cell[1:-1])
+    for row in catalog_tables[0]["rows"]:
+        name_text, name_is_code = row[0] if row else ("", False)
+        if name_is_code and name_text:
+            yield ("row", name_text)
         else:
-            yield ("malformed", line)
+            yield ("malformed", None)
 
 
 def check(workflows_dir, readme_path):
@@ -218,7 +248,7 @@ def check(workflows_dir, readme_path):
         # misleading cascade of unrelated-looking errors.
         return [f"README.md could not be read: {_sanitize(str(exc))} - fix the file (see issue #116)."]
     except ValueError as exc:
-        # Ambiguous header count - see parse_catalog_table()'s own
+        # Ambiguous catalog-table count - see parse_catalog_table()'s own
         # docstring and this module's header comment for why this is a
         # hard error rather than a best-effort guess. Same early-return
         # rationale as the read-failure branch above: no row_names exist
@@ -246,12 +276,12 @@ def check(workflows_dir, readme_path):
             )
 
     for name in row_names:
-        if not name:
-            errors.append(
-                "an empty backtick cell in README.md's workflow catalog names no workflow "
-                "- remove the row (see issue #116)."
-            )
-            continue
+        # row_names never contains an empty string: parse_catalog_table()
+        # only yields ("row", name) when the cell rendered as a single,
+        # non-empty code span - an empty backtick pair (`` `` ``) renders
+        # as literal text, not an empty <code> element (verified live,
+        # 2026-09-07), so it already falls into the "malformed" path
+        # above instead of reaching here.
         if name in targets:
             continue
         if os.path.isfile(os.path.join(workflows_dir, name)):

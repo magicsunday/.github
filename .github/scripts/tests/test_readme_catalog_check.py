@@ -3,8 +3,9 @@
 # readme-catalog-check.sh's bash/regex mechanism (issue #101, issue #116).
 # Every fixture here pins a real defect or a documented design decision
 # from that mechanism's review history, re-expressed against the
-# tokenizer that replaced it, so the coverage this repo already paid for
-# is not lost in the rewrite.
+# cmarkgfm-rendering-based parser that replaced two prior hand-rolled
+# tokenizer designs (see readme_catalog_check.py's own header comment for
+# why), so the coverage this repo already paid for is not lost.
 import contextlib
 import importlib.util
 import io
@@ -57,42 +58,6 @@ class _TempRepoTestCase(unittest.TestCase):
         return readme_catalog_check.check(self.workflows_dir, self.readme_path)
 
 
-class SplitTableRowTest(unittest.TestCase):
-    def test_not_a_row(self):
-        self.assertIsNone(readme_catalog_check.split_table_row("prose, not a table row"))
-
-    def test_leading_and_trailing_pipe(self):
-        self.assertEqual(
-            readme_catalog_check.split_table_row("| a | b | c |"), ["a", "b", "c"]
-        )
-
-    def test_leading_pipe_only(self):
-        self.assertEqual(readme_catalog_check.split_table_row("| a | b | c"), ["a", "b", "c"])
-
-    def test_zero_spaces_around_delimiters(self):
-        self.assertEqual(readme_catalog_check.split_table_row("|a|b|c|"), ["a", "b", "c"])
-
-    def test_backslash_has_no_special_meaning(self):
-        # No escape handling at all - every `|` is a column boundary,
-        # full stop (see split_table_row's own docstring for why).
-        self.assertEqual(readme_catalog_check.split_table_row(r"| a\ | b |"), ["a\\", "b"])
-
-    def test_tab_indented_line_is_still_a_row(self):
-        self.assertEqual(readme_catalog_check.split_table_row("\t| a | b | c |"), ["a", "b", "c"])
-
-    def test_four_space_indented_line_is_still_a_row(self):
-        # Indentation no longer excludes a line from row recognition at
-        # all (round 22): parse_catalog_table() closes the whole
-        # "decoy hidden in some GFM construct" bug class structurally, by
-        # treating ANY second header-shaped line anywhere in the file as
-        # an ambiguity error, rather than by trying to tell a real header
-        # apart from one hidden in an indented/fenced/commented block one
-        # construct at a time - see readme_catalog_check.py's own header
-        # comment for why. split_table_row() itself is back to a pure,
-        # indentation-agnostic pipe splitter.
-        self.assertEqual(readme_catalog_check.split_table_row("    | a | b | c |"), ["a", "b", "c"])
-
-
 class ParseCatalogTableTest(_TempRepoTestCase):
     def _kinds(self, text):
         self._write_readme(text)
@@ -103,10 +68,7 @@ class ParseCatalogTableTest(_TempRepoTestCase):
             _HEADER
             + "| `real.yml` | Does the real thing | `contents: read` |\n"
         )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "real.yml")],
-        )
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
 
     def test_colon_alignment_separator_is_recognised(self):
         kinds = self._kinds(
@@ -114,7 +76,7 @@ class ParseCatalogTableTest(_TempRepoTestCase):
             "|:---|:---:|---:|\n"
             "| `real.yml` | Does the real thing | `contents: read` |\n"
         )
-        self.assertEqual(kinds[1], ("separator", None))
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
 
     def test_header_tolerates_real_world_trailing_text(self):
         # This repo's own README.md header carries trailing text after
@@ -126,31 +88,168 @@ class ParseCatalogTableTest(_TempRepoTestCase):
             "| --- | --- | --- |\n"
             "| `real.yml` | Does the real thing | `contents: read` |\n"
         )
-        self.assertEqual(kinds[0], ("header", None))
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
 
     def test_near_miss_header_prefix_is_not_a_header(self):
         # Shares "Workflow"/"Purpose" but the third cell does not start
-        # with "Permissions" at all - must fall through as an ordinary
-        # (here: malformed) line, not be mistaken for the real header.
+        # with "Permissions" at all - a genuinely rendered table, but not
+        # recognised as the catalog, so this counts as "no catalog found"
+        # rather than opening on it.
+        kinds = self._kinds("| Workflow | Purpose | Permission Level |\n| --- | --- | --- |\n")
+        self.assertEqual(kinds, [])
+
+    def test_a_row_in_a_different_table_is_never_reached(self):
+        kinds = self._kinds(_TWO_TABLE_README)
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
+
+    def test_header_with_wrong_first_cell_is_not_a_catalog(self):
+        kinds = self._kinds("| NotWorkflow | Purpose | Permissions |\n| --- | --- | --- |\n")
+        self.assertEqual(kinds, [])
+
+    def test_header_with_wrong_second_cell_is_not_a_catalog(self):
+        kinds = self._kinds("| Workflow | NotPurpose | Permissions |\n| --- | --- | --- |\n")
+        self.assertEqual(kinds, [])
+
+    def test_missing_separator_row_is_not_a_table_at_all(self):
+        # Without a GFM alignment row, cmark-gfm never recognises this as
+        # a table at all (renders as a plain paragraph) - correctly "no
+        # catalog found", matching what a human sees on the rendered
+        # page. The old hand-rolled tokenizer used to tolerate this and
+        # parse the row anyway, which was more lenient than real GFM
+        # rendering, not a feature worth keeping.
         kinds = self._kinds(
-            "| Workflow | Purpose | Permission Level |\n"
+            "| Workflow | Purpose | Permissions |\n"
+            "| `gone.yml` | Removed long ago | `contents: read` |\n"
+        )
+        self.assertEqual(kinds, [])
+
+    def test_2_cell_separator_is_not_a_table_at_all(self):
+        # A delimiter row must have the same cell count as the header;
+        # cmark-gfm does not recognise a mismatched one as a table.
+        kinds = self._kinds("| Workflow | Purpose | Permissions |\n| --- | --- |\n")
+        self.assertEqual(kinds, [])
+
+    def test_4_cell_separator_is_not_a_table_at_all(self):
+        kinds = self._kinds("| Workflow | Purpose | Permissions |\n| --- | --- | --- | --- |\n")
+        self.assertEqual(kinds, [])
+
+    def test_name_cell_without_its_own_closing_backtick_is_malformed(self):
+        kinds = self._kinds(
+            _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+            "| `sloppy.yml | Applies the canonical set from `other.yml` | `contents: read` |\n"
+        )
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml"), ("malformed", None)])
+
+    def test_plain_text_stale_row_with_no_backticks_is_malformed(self):
+        kinds = self._kinds(_HEADER + "| gone.yml | Removed long ago | contents: read |\n")
+        self.assertEqual(kinds, [("header", None), ("malformed", None)])
+
+    def test_row_with_multiple_backtick_quoted_permissions_segments(self):
+        kinds = self._kinds(
+            _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read`, `security-events: write` |\n"
+        )
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
+
+    def test_name_cell_with_embedded_pipe_is_malformed(self):
+        # No backslash-escaping is written for the pipe, so cmark-gfm
+        # splits the cell in two - one more column than the 3-column
+        # header has, so GFM's own "extra cells are ignored" rule drops
+        # the last one, leaving a name cell that is not a single code
+        # span either way.
+        kinds = self._kinds(
+            _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+            "| `gone.yml | fake-suffix` | Purpose text | `contents: read` |\n"
+        )
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml"), ("malformed", None)])
+
+    def test_zero_spaces_before_the_column_pipe_is_well_formed(self):
+        kinds = self._kinds(_HEADER + "| `real.yml`| Does the real thing | `contents: read` |\n")
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
+
+    def test_indented_decoy_is_rendered_as_code_not_a_table(self):
+        # cmark-gfm gives an indented code block precedence over table
+        # recognition the same way GitHub's real renderer does - the
+        # decoy never becomes a `<table>` element at all, so it needs no
+        # special-casing here; only the genuine table is ever extracted.
+        kinds = self._kinds(
+            "    | Workflow | Purpose | Permissions |\n"
+            "    | --- | --- | --- |\n"
+            "    | `decoy.yml` | example only | `contents: read` |\n"
             "\n"
             + _HEADER
-            + "| `gone.yml` | Removed long ago | `contents: read` |\n"
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
         )
-        # The decoy line never opens the table at all (started stays
-        # False until the REAL header is seen), so only the real table's
-        # three lines are yielded.
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "gone.yml")],
-        )
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
 
-    def test_two_real_headers_anywhere_in_the_file_is_an_ambiguity_error(self):
-        # A second, later occurrence of the real header text (e.g. two
-        # catalog-shaped tables separated by a blank line) is no longer
-        # silently ignored - with no way to tell which one is real, this
-        # refuses to guess (issue #116, round 22).
+    def test_fenced_decoy_is_rendered_as_code_not_a_table(self):
+        kinds = self._kinds(
+            "```\n"
+            + _HEADER
+            + "| `decoy.yml` | example only | `contents: read` |\n"
+            "```\n"
+            "\n"
+            + _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+        )
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
+
+    def test_html_comment_decoy_is_omitted_from_rendered_output_entirely(self):
+        # cmark-gfm's safe rendering mode omits raw HTML block content -
+        # comments included - from the output entirely (verified live,
+        # 2026-09-07: the rendered HTML contains no trace of the comment's
+        # text at all, not even literally), so a decoy hidden inside one
+        # never produces a `<table>` element to find in the first place.
+        kinds = self._kinds(
+            "<!--\n"
+            + _HEADER
+            + "| `decoy.yml` | example only | `contents: read` |\n"
+            "-->\n"
+            "\n"
+            + _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+        )
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
+
+    def test_entire_catalog_hidden_in_an_html_comment_is_not_documented(self):
+        # The mirror case: if the ONLY catalog-shaped table in the file
+        # is inside a comment, it renders as nothing at all - correctly
+        # "no catalog found" (every declared target reported
+        # undocumented by check()), matching what a human reviewer
+        # actually sees on the page. A prior "ambiguity-only" design
+        # (round 22) missed this: with no SECOND header-shaped line
+        # anywhere, its uniqueness check never fired, and the hidden
+        # table was silently trusted as real (round 23 finding).
+        kinds = self._kinds(
+            "<!--\n"
+            + _HEADER
+            + "| `real.yml` | hidden | `contents: read` |\n"
+            "-->\n"
+        )
+        self.assertEqual(kinds, [])
+
+    def test_indented_row_under_a_real_header_never_joins_the_table(self):
+        # GFM table rows must be contiguous, non-indented lines
+        # immediately following the header/separator - an indented line
+        # breaks the table there, so cmark-gfm renders the header alone
+        # (empty body) and the "row" separately as a code block. The
+        # round-23 codex:codex-rescue finding that broke the old
+        # ambiguity-only design (a hidden row under one genuine,
+        # unambiguous header) cannot occur here: the row simply never
+        # becomes part of the table's body.
+        kinds = self._kinds(
+            _HEADER
+            + "    | `real.yml` | Shown as indented code, not a table row | `contents: read` |\n"
+        )
+        self.assertEqual(kinds, [("header", None)])
+
+    def test_two_genuinely_rendered_catalog_tables_is_an_ambiguity_error(self):
+        # The one case that still needs a hard error: two fully visible,
+        # independently rendered tables both matching the catalog header
+        # - a real ambiguity a human has to resolve, not something
+        # cmark-gfm's rendering alone can disambiguate.
         with self.assertRaises(ValueError) as ctx:
             self._kinds(
                 _HEADER
@@ -159,267 +258,51 @@ class ParseCatalogTableTest(_TempRepoTestCase):
                 + _HEADER
                 + "| `real.yml` | Does the real thing | `contents: read` |\n"
             )
-        self.assertIn("2 lines that look like the workflow catalog header", str(ctx.exception))
+        self.assertIn("2 tables that look like the workflow catalog", str(ctx.exception))
 
-    def test_header_text_substring_in_prose_before_the_table_is_excluded(self):
+    def test_disguised_real_header_with_a_hidden_comment_decoy_is_not_documented(self):
+        # A zero-width space in the real, visible header's text (renders
+        # pixel-identical to "Workflow" in any browser) makes this
+        # checker's exact-text match fail to recognise it, while a
+        # byte-exact decoy hidden in a comment vanishes entirely from the
+        # rendered output (see the comment-omission test above) rather
+        # than being promoted to "the" catalog - fails closed (nothing
+        # recognised as the catalog) rather than trusting the hidden
+        # decoy, unlike the round-23 security-lane finding against the
+        # ambiguity-only design, where exactly this input made the hidden
+        # decoy the sole, silently-trusted "catalog".
         kinds = self._kinds(
-            "See the catalog below (a decoy: | Workflow | Purpose | Permissions | "
-            "is not a real header here).\n"
-            "\n"
+            "<!--\n"
             + _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "real.yml")],
-        )
-
-    def test_duplicated_header_line_inside_the_table_body_is_an_ambiguity_error(self):
-        with self.assertRaises(ValueError):
-            self._kinds(
-                _HEADER
-                + "| `real.yml` | Does the real thing | `contents: read` |\n"
-                "| Workflow | Purpose | Permissions |\n"
-                "| `gone.yml` | Removed long ago | `contents: read` |\n"
-            )
-
-    def test_missing_separator_row_still_validates_the_next_row(self):
-        kinds = self._kinds(
-            "| Workflow | Purpose | Permissions |\n"
-            "| `gone.yml` | Removed long ago | `contents: read` |\n"
-        )
-        self.assertEqual(kinds, [("header", None), ("row", "gone.yml")])
-
-    def test_two_consecutive_separator_shaped_lines(self):
-        # The second one is no longer immediately after the header, so it
-        # must fail as malformed rather than being silently accepted as
-        # furniture a second time.
-        kinds = self._kinds(
-            _HEADER
-            + "| --- | --- | --- |\n"
-        )
-        self.assertEqual(kinds, [("header", None), ("separator", None), ("malformed", "| --- | --- | --- |")])
-
-    def test_2_cell_and_4_cell_separators_are_malformed(self):
-        for separator in ("| --- | --- |", "| --- | --- | --- | --- |"):
-            with self.subTest(separator=separator):
-                kinds = self._kinds(f"| Workflow | Purpose | Permissions |\n{separator}\n")
-                self.assertEqual(kinds, [("header", None), ("malformed", separator)])
-
-    def test_dashless_row_right_after_header_is_malformed(self):
-        kinds = self._kinds(
-            "| Workflow | Purpose | Permissions |\n"
-            "| | | |\n"
-            "| `real.yml` | Does the real thing | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("malformed", "| | | |"), ("row", "real.yml")],
-        )
-
-    def test_name_cell_without_its_own_closing_backtick(self):
-        kinds = self._kinds(
-            _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-            "| `sloppy.yml | Applies the canonical set from `other.yml` | `contents: read` |\n"
-        )
-        self.assertEqual(kinds[2], ("row", "real.yml"))
-        self.assertEqual(kinds[3][0], "malformed")
-
-    def test_plain_text_stale_row_with_no_backticks(self):
-        kinds = self._kinds(
-            _HEADER
-            + "| gone.yml | Removed long ago | contents: read |\n"
-        )
-        self.assertEqual(kinds[2][0], "malformed")
-
-    def test_row_with_multiple_backtick_quoted_permissions_segments(self):
-        kinds = self._kinds(
-            _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read`, `security-events: write` |\n"
-        )
-        self.assertEqual(kinds[2], ("row", "real.yml"))
-
-    def test_name_cell_with_embedded_pipe_is_malformed(self):
-        # The pipe splits the cell in two, well before the name's own
-        # closing backtick is ever reached - the correct, structural
-        # reason this fails, rather than a hand-tuned character class.
-        kinds = self._kinds(
-            _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-            "| `gone.yml | fake-suffix` | Purpose text | `contents: read` |\n"
-        )
-        self.assertEqual(kinds[3][0], "malformed")
-
-    def test_no_trailing_column_pipe_is_malformed(self):
-        # A row shaped like a bare, single-cell fragment (no second or
-        # third column at all) does not have the table's fixed 3-column
-        # shape, even though its one cell is itself backtick-clean.
-        kinds = self._kinds(
-            _HEADER
-            + "| `truncated.yml`\n"
-        )
-        self.assertEqual(kinds[2][0], "malformed")
-
-    def test_zero_spaces_before_the_column_pipe_is_well_formed(self):
-        kinds = self._kinds(
-            _HEADER
-            + "| `real.yml`| Does the real thing | `contents: read` |\n"
-        )
-        self.assertEqual(kinds[2], ("row", "real.yml"))
-
-    def test_a_row_in_a_different_table_is_never_reached(self):
-        kinds = self._kinds(_TWO_TABLE_README)
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "real.yml")],
-        )
-
-    def test_header_with_wrong_first_cell_never_opens_the_table(self):
-        kinds = self._kinds("| NotWorkflow | Purpose | Permissions |\n| --- | --- | --- |\n")
-        self.assertEqual(kinds, [])
-
-    def test_header_with_wrong_second_cell_never_opens_the_table(self):
-        kinds = self._kinds("| Workflow | NotPurpose | Permissions |\n| --- | --- | --- |\n")
-        self.assertEqual(kinds, [])
-
-    def test_header_with_a_fourth_cell_never_opens_the_table(self):
-        kinds = self._kinds("| Workflow | Purpose | Permissions | Extra |\n| --- | --- | --- | --- |\n")
-        self.assertEqual(kinds, [])
-
-    def test_whitespace_only_line_ends_the_table_too(self):
-        kinds = self._kinds(
-            _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-            "   \n"
-            "| `gone.yml` | Removed long ago | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "real.yml")],
-        )
-
-    def test_four_cell_data_row_is_malformed(self):
-        kinds = self._kinds(
-            _HEADER
-            + "| `real.yml` | x | y | extra |\n"
-        )
-        self.assertEqual(kinds[2][0], "malformed")
-
-    def test_non_pipe_line_mid_table_is_malformed_not_a_crash(self):
-        kinds = self._kinds(
-            _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-            "not a pipe row at all\n"
-        )
-        self.assertEqual(kinds[-1], ("malformed", "not a pipe row at all"))
-
-    def test_name_cell_with_a_leading_character_before_the_backtick_is_malformed(self):
-        kinds = self._kinds(
-            _HEADER
-            + "| x`real.yml` | x | `c` |\n"
-        )
-        self.assertEqual(kinds[2][0], "malformed")
-
-    def test_name_cell_with_a_trailing_character_after_the_backtick_is_malformed(self):
-        kinds = self._kinds(
-            _HEADER
-            + "| `real.yml`x | x | `c` |\n"
-        )
-        self.assertEqual(kinds[2][0], "malformed")
-
-    def test_name_cell_with_a_third_embedded_backtick_is_malformed(self):
-        kinds = self._kinds(
-            _HEADER
-            + "| `re`al.yml` | x | `c` |\n"
-        )
-        self.assertEqual(kinds[2][0], "malformed")
-
-    def test_separator_cell_with_trailing_garbage_is_not_recognised(self):
-        kinds = self._kinds("| Workflow | Purpose | Permissions |\n| ---junk | --- | --- |\n")
-        self.assertEqual(kinds[1][0], "malformed")
-
-    def test_partially_separator_shaped_row_after_header_is_malformed(self):
-        kinds = self._kinds(
-            "| Workflow | Purpose | Permissions |\n"
-            "| --- | Not a real separator | `contents: read` |\n"
-        )
-        self.assertEqual(kinds[1][0], "malformed")
-
-    def test_after_header_flag_resets_even_when_the_next_line_is_a_data_row(self):
-        # after_header must reset unconditionally on the line right after
-        # a header, not only when that line happens to be a separator -
-        # otherwise a later dash-shaped line gets misclassified as
-        # furniture instead of malformed.
-        kinds = self._kinds(
-            "| Workflow | Purpose | Permissions |\n"
-            "| `real.yml` | Does the real thing | `contents: read` |\n"
+            + "| `evil.yml` | hidden | `contents: read` |\n"
+            "-->\n\n"
+            "| Work​flow | Purpose | Permissions |\n"
             "| --- | --- | --- |\n"
+            "| `real.yml` | visible | `contents: read` |\n"
         )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("row", "real.yml"), ("malformed", "| --- | --- | --- |")],
-        )
+        self.assertEqual(kinds, [])
 
-    def test_multibyte_utf8_content_is_parsed_correctly(self):
+    def test_details_wrapped_table_is_still_a_real_table(self):
+        # A collapsible <details> section is a common, legitimate GitHub
+        # README pattern - the table inside it is still discoverable by
+        # a human (one click to expand), not hidden the way a comment or
+        # code block is, and cmark-gfm renders it as a genuine <table>
+        # (only the <details>/<summary> tags themselves are the omitted
+        # raw HTML) - so it must count as a real catalog, not be treated
+        # like the opaque constructs above.
         kinds = self._kinds(
-            _HEADER
-            + "| `real.yml` | Uses an em dash — in its purpose text | `contents: read` |\n"
+            "<details>\n<summary>Click to expand</summary>\n\n"
+            + _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n\n"
+            "</details>\n"
         )
-        self.assertEqual(kinds, [("header", None), ("separator", None), ("row", "real.yml")])
-
-    def test_decoy_header_in_an_indented_code_block_is_an_ambiguity_error(self):
-        # Rounds 20-21 tried to tell a real header apart from one hidden
-        # in an indented code block, a fenced code block, or an HTML
-        # comment - one construct at a time, and every round found
-        # another way to hide one (see readme_catalog_check.py's own
-        # header comment). Round 22 stopped enumerating GFM constructs:
-        # ANY second header-shaped line, wherever it is, is now an
-        # ambiguity error - this is the representative case for an
-        # indented decoy; the fenced and HTML-comment cases below are the
-        # same mechanism, not separate code paths anymore.
-        with self.assertRaises(ValueError):
-            self._kinds(
-                "    | Workflow | Purpose | Permissions |\n"
-                "    | --- | --- | --- |\n"
-                "    | `decoy.yml` | example only | `contents: read` |\n"
-                "\n"
-                + _HEADER
-                + "| `real.yml` | Does the real thing | `contents: read` |\n"
-            )
-
-    def test_decoy_header_in_a_fenced_code_block_is_an_ambiguity_error(self):
-        with self.assertRaises(ValueError):
-            self._kinds(
-                "```\n"
-                + _HEADER
-                + "| `decoy.yml` | example only | `contents: read` |\n"
-                "```\n"
-                "\n"
-                + _HEADER
-                + "| `real.yml` | Does the real thing | `contents: read` |\n"
-            )
-
-    def test_decoy_header_in_an_html_comment_is_an_ambiguity_error(self):
-        with self.assertRaises(ValueError):
-            self._kinds(
-                "<!--\n"
-                + _HEADER
-                + "| `decoy.yml` | example only | `contents: read` |\n"
-                "-->\n"
-                "\n"
-                + _HEADER
-                + "| `real.yml` | Does the real thing | `contents: read` |\n"
-            )
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
 
 
 class CheckTest(_TempRepoTestCase):
     def test_fully_documented_catalog_passes(self):
         self._add_target("real.yml")
-        self._write_readme(
-            _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-        )
+        self._write_readme(_HEADER + "| `real.yml` | Does the real thing | `contents: read` |\n")
         self.assertEqual(self._check(), [])
 
     def test_undocumented_target_fails(self):
@@ -431,10 +314,7 @@ class CheckTest(_TempRepoTestCase):
         self.assertIn("is not listed", errors[0])
 
     def test_stale_row_for_removed_file_fails(self):
-        self._write_readme(
-            _HEADER
-            + "| `gone.yml` | Removed long ago | `contents: read` |\n"
-        )
+        self._write_readme(_HEADER + "| `gone.yml` | Removed long ago | `contents: read` |\n")
         errors = self._check()
         self.assertEqual(len(errors), 1)
         self.assertIn("gone.yml", errors[0])
@@ -442,26 +322,24 @@ class CheckTest(_TempRepoTestCase):
 
     def test_stale_row_for_de_reusabled_file_names_the_cause(self):
         self._add_target("gone.yml", workflow_call=False)
-        self._write_readme(
-            _HEADER
-            + "| `gone.yml` | Removed long ago | `contents: read` |\n"
-        )
+        self._write_readme(_HEADER + "| `gone.yml` | Removed long ago | `contents: read` |\n")
         errors = self._check()
         self.assertEqual(len(errors), 1)
         self.assertIn("declares no workflow_call", errors[0])
 
     def test_half_fixed_rename_reports_both_directions(self):
         self._add_target("new-name.yml")
-        self._write_readme(
-            _HEADER
-            + "| `old-name.yml` | Row left behind by a rename | `contents: read` |\n"
-        )
+        self._write_readme(_HEADER + "| `old-name.yml` | Row left behind by a rename | `contents: read` |\n")
         errors = self._check()
         self.assertEqual(len(errors), 2)
         self.assertTrue(any("new-name.yml" in e and "is not listed" in e for e in errors))
         self.assertTrue(any("old-name.yml" in e and "is missing under" in e for e in errors))
 
-    def test_empty_backtick_cell_fails_alongside_a_real_target(self):
+    def test_empty_backtick_pair_is_malformed_not_a_named_row(self):
+        # `` `` `` renders as literal double-backtick text, not an empty
+        # code span (CommonMark's own code-span rule never produces an
+        # empty <code> element) - so this falls into the generic
+        # malformed-row path, not a dedicated "empty name" case.
         self._add_target("real.yml")
         self._write_readme(
             _HEADER
@@ -470,7 +348,7 @@ class CheckTest(_TempRepoTestCase):
         )
         errors = self._check()
         self.assertEqual(len(errors), 1)
-        self.assertIn("names no workflow", errors[0])
+        self.assertIn("not a single backtick-quoted name", errors[0])
 
     def test_malformed_row_fails_alongside_a_real_target(self):
         self._add_target("real.yml")
@@ -503,10 +381,7 @@ class CheckTest(_TempRepoTestCase):
             with self.subTest(name=name):
                 self._add_target(name)
                 try:
-                    self._write_readme(
-                        _HEADER
-                        + f"| `{name}` | Documented | `contents: read` |\n"
-                    )
+                    self._write_readme(_HEADER + f"| `{name}` | Documented | `contents: read` |\n")
                     self.assertEqual(self._check(), [])
                 finally:
                     os.remove(os.path.join(self.workflows_dir, name))
@@ -517,10 +392,7 @@ class CheckTest(_TempRepoTestCase):
         # silently matched by an unrelated row.
         self._add_target("brack[name.yml")
         self._add_target("brack.yml")
-        self._write_readme(
-            _HEADER
-            + "| `brack.yml` | Documented | `contents: read` |\n"
-        )
+        self._write_readme(_HEADER + "| `brack.yml` | Documented | `contents: read` |\n")
         errors = self._check()
         self.assertEqual(len(errors), 1)
         self.assertIn("brack[name.yml", errors[0])
@@ -533,8 +405,7 @@ class CheckTest(_TempRepoTestCase):
         self._add_target("real.yml")
         self._add_target("sneaky.yml")
         self._write_readme(
-            _HEADER
-            + "| `real.yml` | Consolidates `sneaky.yml` for legacy reasons | `contents: read` |\n"
+            _HEADER + "| `real.yml` | Consolidates `sneaky.yml` for legacy reasons | `contents: read` |\n"
         )
         errors = self._check()
         self.assertEqual(len(errors), 1)
@@ -556,10 +427,7 @@ class CheckTest(_TempRepoTestCase):
 
     def test_reverse_direction_sanitizes_a_percent_encoded_control_sequence_in_a_stale_row_name(self):
         name = "gone%0D%0A::error::forged.yml"
-        self._write_readme(
-            _HEADER
-            + f"| `{name}` | Stale row | `contents: read` |\n"
-        )
+        self._write_readme(_HEADER + f"| `{name}` | Stale row | `contents: read` |\n")
         errors = self._check()
         self.assertEqual(len(errors), 1)
         self.assertIn("%25", errors[0])
@@ -616,10 +484,7 @@ class CheckTest(_TempRepoTestCase):
     def test_symlinked_readme_is_refused_not_followed(self):
         target_path = os.path.join(self.work_dir, "secret.txt")
         with open(target_path, "w", encoding="utf-8") as handle:
-            handle.write(
-                _HEADER
-                + "| `leaked-name.yml` | leaked info | `contents: read` |\n"
-            )
+            handle.write(_HEADER + "| `leaked-name.yml` | leaked info | `contents: read` |\n")
         os.symlink(target_path, self.readme_path)
         errors = self._check()
         self.assertEqual(len(errors), 1)
@@ -629,14 +494,12 @@ class CheckTest(_TempRepoTestCase):
     def test_pipe_in_a_target_name_is_the_documented_known_limitation(self):
         # Known limitation (issue #116): no workflow file in this
         # repository currently uses `|` in its name (re-derive:
-        # `ls .github/workflows | grep -c '|'` should print 0), so this
-        # row-splitting-in-two is an accepted, still-fail-closed residual,
-        # not a live bug.
+        # `ls .github/workflows | grep -c '|'` should print 0). GFM
+        # itself has no way to escape a literal pipe without breaking a
+        # cell in two, so a name containing one still fails closed via
+        # the malformed-row path, just with a generic diagnosis.
         self._add_target("a|b.yml")
-        self._write_readme(
-            _HEADER
-            + "| `a|b.yml` | Has a literal pipe in its name | `contents: read` |\n"
-        )
+        self._write_readme(_HEADER + "| `a|b.yml` | Has a literal pipe in its name | `contents: read` |\n")
         errors = self._check()
         self.assertTrue(len(errors) >= 1)
         self.assertTrue(all("not a single backtick-quoted name" in e or "is not listed" in e for e in errors))
@@ -656,7 +519,7 @@ class CheckTest(_TempRepoTestCase):
         )
         errors = self._check()
         self.assertEqual(len(errors), 1)
-        self.assertIn("2 lines that look like the workflow catalog header", errors[0])
+        self.assertIn("2 tables that look like the workflow catalog", errors[0])
 
 
 class MainTest(_TempRepoTestCase):
@@ -672,10 +535,7 @@ class MainTest(_TempRepoTestCase):
 
     def test_returns_zero_for_a_complete_catalog(self):
         self._add_target("real.yml")
-        self._write_readme(
-            _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-        )
+        self._write_readme(_HEADER + "| `real.yml` | Does the real thing | `contents: read` |\n")
         rc, out, _ = self._run_main(["prog", self.workflows_dir, self.readme_path])
         self.assertEqual(rc, 0)
         self.assertEqual(out, "")
@@ -727,7 +587,7 @@ class MainTest(_TempRepoTestCase):
         )
         rc, out, _ = self._run_main(["prog", self.workflows_dir, self.readme_path])
         self.assertEqual(rc, 1)
-        self.assertIn("::error::README.md contains 2 lines", out)
+        self.assertIn("::error::README.md renders 2 tables", out)
 
 
 if __name__ == "__main__":

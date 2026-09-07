@@ -264,6 +264,15 @@ jobs:
                   set -euo pipefail
                   pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/pyyaml.txt
 
+            # readme_catalog_check.py renders README.md through GitHub's
+            # own cmark-gfm C library (issue #116, round 24) instead of a
+            # hand-rolled tokenizer, so it needs cmarkgfm installed on the
+            # runner too.
+            - name: Install cmarkgfm
+              run: |
+                  set -euo pipefail
+                  pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/cmarkgfm.txt
+
             # check() (readme_catalog_check.py) carries the complete
             # assertion - the workflow_call detection, the structural
             # table parse, the reverse walk of the catalog's own rows
