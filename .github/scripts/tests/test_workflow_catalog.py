@@ -317,6 +317,25 @@ class RenderTableTest(unittest.TestCase):
         table = workflow_catalog.render_table(catalog)
         self.assertIn("<td>an unmatched ` backtick</td>", table)
 
+    def test_purpose_two_separate_backtick_pairs_both_become_code_elements(self):
+        catalog = {"real.yml": {"purpose": "Uses `foo` and `bar`", "permissions": ["contents: read"]}}
+        table = workflow_catalog.render_table(catalog)
+        self.assertIn("<td>Uses <code>foo</code> and <code>bar</code></td>", table)
+
+    def test_purpose_odd_backtick_count_still_pairs_the_leading_span(self):
+        # A trailing, genuinely unmatched backtick does not erase a
+        # complete pair earlier in the same string - only pairing greedily
+        # from the left, mirroring CommonMark, gets this right.
+        catalog = {"real.yml": {"purpose": "a `b`c`d", "permissions": ["contents: read"]}}
+        table = workflow_catalog.render_table(catalog)
+        self.assertIn("<td>a <code>b</code>c`d</td>", table)
+
+    def test_purpose_code_span_content_is_itself_html_escaped(self):
+        catalog = {"real.yml": {"purpose": "Uses `<script>`", "permissions": ["contents: read"]}}
+        table = workflow_catalog.render_table(catalog)
+        self.assertIn("<td>Uses <code>&lt;script&gt;</code></td>", table)
+        self.assertNotIn("<code><script>", table)
+
     def test_apostrophe_is_not_escaped_since_quote_is_false(self):
         catalog = {"real.yml": {"purpose": "Uses the caller's own token", "permissions": ["contents: read"]}}
         table = workflow_catalog.render_table(catalog)

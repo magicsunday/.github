@@ -75,24 +75,27 @@ def _reject_unsafe_cell_text(catalog_path, name, field, value):
     # backtick, the marker strings - each added in its own review round,
     # one construct at a time) is needed here any more. This closes
     # CommonMark/GFM-syntax injection, not every GitHub-specific
-    # text-node post-process: `#123`-style issue autolinking, `@user`
-    # mentions and `:emoji:` shortcodes are a separate pass GitHub applies
-    # over rendered text regardless of the raw-HTML-block boundary
-    # (verified live, 2026-09-07) and are NOT neutralised by
-    # html.escape() - accepted as a narrower, lower-severity residual for
-    # "purpose" specifically (name/permissions are wrapped in <code>,
-    # which that pass skips - verified live, same date), the same way a
-    # plain markdown link in "purpose" already was.
+    # text-node post-process: as observed on 2026-09-07 against GitHub's
+    # rendering, a `#123`-style issue reference, an `@user` mention and a
+    # `:emoji:` shortcode inside a raw HTML block were each still rewritten
+    # (autolinked/substituted), while the identical text inside a <code>
+    # element was left untouched. html.escape() does not neutralise `#`,
+    # `@` or `:`, so this is accepted as a narrower, lower-severity residual
+    # for "purpose" specifically (name/permissions are always wrapped in
+    # <code>, which that pass skips), the same way a plain markdown link in
+    # "purpose" already was.
     #
     # What HTML-escaping does NOT fix is anything that isn't a markdown/
     # HTML syntax question in the first place: a Unicode category-C
     # character (Cc/Cf/Cs/Co/Cn - control, format incl. Trojan-Source bidi
     # overrides, surrogate, private-use, unassigned) or a Zl/Zp separator
     # can still end the raw HTML block early at what the parser reads as
-    # a blank line, and even a single combining mark (Mn/Mc/Me - the
-    # building block of "Zalgo" stacking) visually distorts the cell
-    # regardless of escaping, so any occurrence is rejected rather than
-    # only a long run. All three stay a hard rejection.
+    # a blank line. A combining mark (Mn/Mc/Me) is different again: one
+    # attached to its base character renders unremarkably, but there is no
+    # principled threshold between that and a "Zalgo" stack of dozens, and
+    # html.escape() cannot neutralise any of them - so rather than pick an
+    # arbitrary cutoff, any occurrence is rejected. All three stay a hard
+    # rejection.
     if any(
         unicodedata.category(ch) in ("Zl", "Zp") or unicodedata.category(ch)[0] in ("C", "M") for ch in value
     ):
@@ -156,7 +159,7 @@ def load_catalog(catalog_path):
 
 
 def _render_purpose(text):
-    """Escapes `text` for use as "purpose" cell content, preserving a
+    """Escapes `text` for use as "purpose" cell content, preserving each
     backtick-quoted span (e.g. "Applies ... from `labels.yml`") as a real
     `<code>` element instead of literal backticks. Safe to do by simple
     split-and-wrap, unlike a full markdown parser: CommonMark's code-span
@@ -164,16 +167,35 @@ def _render_purpose(text):
     always literal, never further markdown (no link, no HTML tag, no
     emphasis can activate inside one) - so this introduces no new syntax
     to get wrong, only styling for a span whose own content is escaped
-    exactly like the rest of the cell. An odd number of backticks (no
-    matching close anywhere) falls back to every backtick rendering as a
-    literal character, the same as CommonMark's own behaviour for an
-    unpaired backtick.
+    exactly like the rest of the cell (always from the already-escaped
+    list, never the raw text, so a `<`/`>`/`&` inside a span is neutralised
+    the same as anywhere else in the cell).
+
+    Backticks are paired greedily, left to right, mirroring CommonMark's
+    own resolution instead of an all-or-nothing fallback: an odd TOTAL
+    count does not mean no span is well-formed (e.g. "`b`c`" has one
+    complete pair even though three backticks appear overall) - only the
+    one trailing, genuinely unmatched backtick (if any) renders as a
+    literal character, and any complete pairs before it still become
+    `<code>` elements.
     """
     parts = text.split("`")
     escaped = [html.escape(part, quote=False) for part in parts]
-    if len(parts) % 2 == 0:
-        return "`".join(escaped)
-    return "".join(part if i % 2 == 0 else f"<code>{part}</code>" for i, part in enumerate(escaped))
+    pair_count = (len(parts) - 1) // 2
+
+    rendered = [escaped[0]]
+    for pair_index in range(pair_count):
+        code_part = escaped[2 * pair_index + 1]
+        following_text = escaped[2 * pair_index + 2]
+        rendered.append(f"<code>{code_part}</code>")
+        rendered.append(following_text)
+
+    if (len(parts) - 1) % 2 == 1:
+        # A trailing backtick with nothing left to close it - reattach it,
+        # literally, along with whatever text followed it.
+        rendered.append("`" + "`".join(escaped[2 * pair_count + 1 :]))
+
+    return "".join(rendered)
 
 
 def render_table(catalog):
