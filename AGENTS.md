@@ -195,11 +195,14 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   hand-rolled text-level check can only approximate what actually renders
   as a live GFM table. `readme_catalog_check.py` now renders README.md
   through `cmarkgfm` — Python bindings to cmark-gfm, the C library
-  GitHub's own public Markdown API is independently confirmed to run in
-  production (re-derive: `curl -s -D - -X POST
+  GitHub's own public Markdown API is confirmed to run in production as of
+  2026-09-07 (re-derive: `curl -s -D - -X POST
   https://api.github.com/markdown -d '{"text":"test","mode":"gfm"}' -o
-  /dev/null | grep -i x-commonmarker-version` returns a version header;
-  commonmarker is cmark-gfm's Ruby binding) — pinned via
+  /dev/null | grep -i x-commonmarker-version` returns a version header
+  below `1.0` — `commonmarker` versions `<1.0` are cmark-gfm's Ruby
+  binding, but `>=1.0` rewrote it on Rust's `comrak` instead, so a bare
+  header alone stops being evidence for this claim once GitHub's pin
+  crosses that boundary) — pinned via
   `.github/requirements/cmarkgfm.in`/`cmarkgfm.txt` the same way
   `pyyaml.in`/`.txt` is, called with `CMARK_OPT_UNSAFE` so raw HTML (a
   `<table>`, a `<details>` section) renders the same way GitHub's own

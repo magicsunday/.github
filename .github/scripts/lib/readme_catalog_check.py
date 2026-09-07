@@ -22,11 +22,13 @@
 # the part no line-level heuristic can get right in every case. This
 # version stops approximating: it renders README.md through cmarkgfm
 # (Python bindings to cmark-gfm, the C library GitHub's own public
-# Markdown API is independently confirmed to run in production -
+# Markdown API is confirmed to run in production as of 2026-09-07 -
 # re-derive: `curl -s -D - -X POST https://api.github.com/markdown -d
 # '{"text":"test","mode":"gfm"}' -o /dev/null | grep -i
-# x-commonmarker-version` returns a version header, and commonmarker
-# itself is cmark-gfm's Ruby binding - pinned via
+# x-commonmarker-version` returns a version header below 1.0 -
+# commonmarker versions <1.0 are cmark-gfm's Ruby binding, but >=1.0
+# rewrote it on Rust's comrak instead, so this claim needs re-checking
+# once GitHub's pin crosses that boundary - pinned via
 # .github/requirements/cmarkgfm.in, not an independent reimplementation
 # with its own edge cases to diverge on, called with CMARK_OPT_UNSAFE so
 # raw HTML - a <table>, a
@@ -69,6 +71,25 @@ _spec.loader.exec_module(find_workflow_call_targets)
 
 _HEADER_CELLS = ("Workflow", "Purpose")
 
+# Folds the small, fixed set of Cyrillic letters that render identically to
+# their Latin counterparts in GitHub's UI font - a PR-controlled header cell
+# spelled with these instead of plain ASCII compares unequal under a strict
+# `==` while looking byte-for-byte the same to a human reviewer, letting a
+# homoglyph-spoofed decoy catalog hide from _is_catalog_header() entirely
+# while a real one sits elsewhere in the file (live-demonstrated with
+# Cyrillic "о" U+043E in place of Latin "o", round 26). Folding before the
+# comparison instead makes the spoofed table match too, so it is caught by
+# the existing multi-table ambiguity check rather than slipping through
+# unseen.
+_CONFUSABLE_FOLD = str.maketrans(
+    "аеорсхуіѕј" "АЕОРСХУІЅЈ",
+    "aeopcxyisj" "AEOPCXYISJ",
+)
+
+
+def _fold_confusables(text):
+    return text.translate(_CONFUSABLE_FOLD)
+
 
 def _sanitize(text):
     # Mirrors annotation-sanitize.sh's sanitize_for_annotation() jq filter
@@ -104,12 +125,31 @@ class _TableExtractor(html.parser.HTMLParser):
     backtick-quoted name cell, now decided from cmark-gfm's real
     inline-parse result instead of a hand-rolled backtick-position check
     on raw cell text.
+
+    CMARK_OPT_UNSAFE (see parse_catalog_table()) lets raw, attacker-authored
+    HTML - including a <table>/<tr>/<td> that is unbalanced, or nested
+    inside a cell of the table this class is already tracking - through
+    verbatim, so a single flat "current table/row/cell" would let such
+    input silently overwrite or fork that state (round 26: an outer,
+    genuinely-rendered catalog table lost outright by a nested inner one,
+    or a fabricated row spliced into an unrelated table via a bare
+    <tr>/<td> with no <table> of its own). The defence is the same in both
+    shapes: once a table or a cell is already open, any FURTHER
+    table-structural start tag (<table>, or <tr>/<td>/<th>/<thead>/<tbody>
+    while already inside a cell) is treated as ordinary disqualifying
+    content instead of being allowed to touch the tracked state - a
+    genuine second table only ever nests one level deeper (tracked as a
+    depth counter, its own tags fully ignored until its matching close),
+    and a structural tag appearing where only inline content is expected
+    falls through to the same "any other tag disqualifies this cell" rule
+    an <a> or <img> already gets.
     """
 
     def __init__(self):
         super().__init__()
         self.tables = []
         self._table = None
+        self._table_nest_depth = 0
         self._in_thead = False
         self._row = None
         self._in_cell = False
@@ -119,16 +159,44 @@ class _TableExtractor(html.parser.HTMLParser):
         self._plain_text = ""
         self._code_text = ""
 
+    def _current_cell(self):
+        is_code = (
+            self._code_span_opens == 1 and not self._other_tag_seen and not self._plain_text.strip()
+        )
+        text = self._code_text if is_code else (self._plain_text + self._code_text).strip()
+        return (text, is_code)
+
+    def _flush_row(self):
+        # A dangling open <tr> here (no matching </tr> before the next one,
+        # or before </table>) means the input had unbalanced tags - only
+        # reachable with CMARK_OPT_UNSAFE, since cmark-gfm's own
+        # table-extension output is always well-formed. self._table is
+        # guaranteed non-None whenever self._row is: the only place
+        # self._row becomes non-None requires it (see handle_starttag), and
+        # both are reset to None together in the <table>-close branch below.
+        if self._row is not None:
+            assert self._table is not None
+            if self._in_cell:
+                self._row.append(self._current_cell())
+                self._in_cell = False
+            if self._in_thead:
+                self._table["header"] = self._row
+            else:
+                self._table["rows"].append(self._row)
+        self._row = None
+
     def handle_starttag(self, tag, attrs):
         if tag == "table":
+            if self._table is not None:
+                self._table_nest_depth += 1
+                if self._in_cell:
+                    self._other_tag_seen = True
+                return
             self._table = {"header": None, "rows": []}
-        elif tag == "thead":
-            self._in_thead = True
-        elif tag == "tbody":
-            self._in_thead = False
-        elif tag == "tr" and self._table is not None:
-            self._row = []
-        elif tag in ("td", "th") and self._row is not None:
+            return
+        if self._table_nest_depth:
+            return
+        if tag in ("td", "th") and not self._in_cell and self._row is not None:
             self._in_cell = True
             self._in_code = False
             self._code_span_opens = 0
@@ -138,65 +206,63 @@ class _TableExtractor(html.parser.HTMLParser):
         elif tag == "code" and self._in_cell:
             # CommonMark's code-span grammar never nests (`` ``a `b` c`` ``
             # is one flat code span containing a literal backtick, not two
-            # nested <code> elements) and cmark-gfm's safe-mode/tagfilter
-            # rendering never lets literal inline HTML produce a second,
-            # real <code> tag here either - confirmed live, so a plain
-            # boolean is enough; no depth counter is needed for a nesting
-            # level that cannot occur in this pipeline's actual output.
+            # nested <code> elements), but raw inline HTML under
+            # CMARK_OPT_UNSAFE CAN still produce a second, real <code> tag
+            # in the same cell (GFM's tagfilter blacklist does not cover
+            # `code` - checked against cmark-gfm's own tagfilter source,
+            # 2026-09-07): safety here does not come from that being
+            # impossible, it comes from `_code_span_opens == 1` in
+            # `_current_cell()` rejecting any cell with more than one,
+            # exactly like a second code span would be rejected.
             self._code_span_opens += 1
             self._in_code = True
+        elif tag == "thead" and not self._in_cell:
+            self._in_thead = True
+        elif tag == "tbody" and not self._in_cell:
+            self._in_thead = False
+        elif tag == "tr" and not self._in_cell and self._table is not None:
+            self._flush_row()
+            self._row = []
         elif self._in_cell:
             # Any element other than the one code span itself - a
-            # hyperlink, emphasis, an image, anything - disqualifies the
-            # cell from being "a single backtick-quoted name and nothing
-            # else", regardless of whether it contributes visible text.
+            # hyperlink, emphasis, an image, a table-structural tag
+            # appearing where only inline content is expected - disqualifies
+            # the cell from being "a single backtick-quoted name and
+            # nothing else", regardless of whether it contributes visible
+            # text.
             self._other_tag_seen = True
 
     def handle_endtag(self, tag):
-        if tag == "table" and self._table is not None:
-            self.tables.append(self._table)
+        if tag == "table":
+            if self._table_nest_depth:
+                self._table_nest_depth -= 1
+                return
+            if self._table is not None:
+                self._flush_row()
+                self.tables.append(self._table)
             self._table = None
-            # A dangling open <tr>/<td> here means the input had
-            # unbalanced tags before this close - only reachable with
-            # CMARK_OPT_UNSAFE, since cmark-gfm's own table-extension
-            # output is always well-formed, but arbitrary raw HTML now
-            # passes through verbatim rather than being neutralised
-            # (round 25: PR-controlled README.md content, already treated
-            # as fully attacker-controlled elsewhere in this file).
-            # Nothing left to attach it to, so it is discarded, not
-            # crashed on.
             self._row = None
             self._in_cell = False
-        elif tag == "tr" and self._row is not None:
-            # self._table can be None here for the same unbalanced-input
-            # reason - checked rather than asserted, since this state IS
-            # reachable from attacker-supplied content now, not just a
-            # refactor bug: fail closed by discarding the orphaned row,
-            # never by crashing on it.
-            if self._table is not None:
-                if self._in_thead:
-                    self._table["header"] = self._row
-                else:
-                    self._table["rows"].append(self._row)
-            self._row = None
-        elif tag in ("td", "th") and self._in_cell:
+            self._in_thead = False
+            return
+        if self._table_nest_depth:
+            return
+        if tag in ("td", "th") and self._in_cell:
             # Symmetric guard: self._row can be None here for the same
             # unbalanced-input reason - an orphaned cell is discarded,
             # never crashed on.
             if self._row is not None:
-                is_code = (
-                    self._code_span_opens == 1
-                    and not self._other_tag_seen
-                    and not self._plain_text.strip()
-                )
-                text = self._code_text if is_code else (self._plain_text + self._code_text).strip()
-                self._row.append((text, is_code))
+                self._row.append(self._current_cell())
             self._in_cell = False
         elif tag == "code" and self._in_cell:
             self._in_code = False
+        elif tag == "thead" and not self._in_cell:
+            self._in_thead = False
+        elif tag == "tr" and not self._in_cell:
+            self._flush_row()
 
     def handle_data(self, data):
-        if not self._in_cell:
+        if self._table_nest_depth or not self._in_cell:
             return
         if self._in_code:
             self._code_text += data
@@ -208,9 +274,9 @@ def _is_catalog_header(header):
     return (
         header is not None
         and len(header) == 3
-        and header[0][0] == _HEADER_CELLS[0]
-        and header[1][0] == _HEADER_CELLS[1]
-        and header[2][0].startswith("Permissions")
+        and _fold_confusables(header[0][0]) == _HEADER_CELLS[0]
+        and _fold_confusables(header[1][0]) == _HEADER_CELLS[1]
+        and _fold_confusables(header[2][0]).startswith("Permissions")
     )
 
 
@@ -261,7 +327,7 @@ def parse_catalog_table(readme_path):
     # active here, since this is still github_flavored_markdown_to_html()
     # - independently neutralises the genuinely dangerous tags
     # (<script>, <iframe>, <style>, ...) by escaping their angle brackets
-    # even with CMARK_OPT_UNSAFE set (verified live), matching GitHub's
+    # even with CMARK_OPT_UNSAFE set (verified live, 2026-09-07), matching GitHub's
     # own behaviour; moot for this script either way, since the output is
     # only ever walked by html.parser to find <table> elements, never
     # executed or served to a browser.

@@ -370,6 +370,145 @@ class ParseCatalogTableTest(_TempRepoTestCase):
         kinds = self._kinds("<table><tr><td>x</td></table></tr>\n")
         self.assertEqual(kinds, [])
 
+    def test_nested_table_in_the_name_cell_is_malformed_not_a_forged_row(self):
+        # CMARK_OPT_UNSAFE lets a raw <table> nested inside a cell of
+        # another table through verbatim. A single flat "current table"
+        # used to let the inner table's own </table> close silently
+        # overwrite/orphan the outer one, or let the inner table's own
+        # rows count as the accepted catalog content (round 26,
+        # live-demonstrated by three independent review lanes). The outer
+        # table must still be the one recognised, and a cell that itself
+        # embeds a whole other table can never count as "one plain code
+        # span" - it fails closed as malformed instead of forging a row.
+        kinds = self._kinds(
+            "<table>\n"
+            "<thead><tr><th>Workflow</th><th>Purpose</th><th>Permissions</th></tr></thead>\n"
+            "<tbody><tr><td>\n"
+            "<table>\n"
+            "<thead><tr><th>Workflow</th><th>Purpose</th><th>Permissions</th></tr></thead>\n"
+            "<tbody><tr><td><code>evil.yml</code></td><td>Forged</td>"
+            "<td><code>contents: write</code></td></tr></tbody>\n"
+            "</table>\n"
+            "</td><td>Outer purpose</td><td><code>contents: read</code></td></tr></tbody>\n"
+            "</table>\n"
+        )
+        self.assertEqual(kinds, [("header", None), ("malformed", None)])
+
+    def test_nested_table_outside_the_name_cell_does_not_disturb_the_outer_row(self):
+        # Same construct as above, but the nested table sits in a
+        # different column - the outer row's own name cell must still
+        # parse correctly, proving the outer table survives intact rather
+        # than being lost or corrupted wholesale by the nesting elsewhere
+        # in the same row.
+        kinds = self._kinds(
+            "<table>\n"
+            "<thead><tr><th>Workflow</th><th>Purpose</th><th>Permissions</th></tr></thead>\n"
+            "<tbody><tr><td><code>real.yml</code></td><td>\n"
+            "<table>\n"
+            "<thead><tr><th>Workflow</th><th>Purpose</th><th>Permissions</th></tr></thead>\n"
+            "<tbody><tr><td><code>evil.yml</code></td><td>Forged</td>"
+            "<td><code>contents: write</code></td></tr></tbody>\n"
+            "</table>\n"
+            "</td><td><code>contents: read</code></td></tr></tbody>\n"
+            "</table>\n"
+        )
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
+
+    def test_dangling_td_reopened_before_its_close_does_not_bypass_the_hyperlink_guard(self):
+        # A <td> that never gets its own closing tag before a second <td>
+        # starts used to silently reset ALL cell-tracking state - the
+        # round-25 hyperlink/prose disqualifiers included - so only the
+        # reopened, innermost cell's clean state survived to decide
+        # is_single_code_span (round 26, live-demonstrated end to end
+        # through real cmark-gfm rendering). The dangling first cell's
+        # disqualifying <a> must still count once both fold into the same
+        # name cell.
+        kinds = self._kinds(
+            "<table>\n"
+            "<thead><tr><th>Workflow</th><th>Purpose</th><th>Permissions</th></tr></thead>\n"
+            "<tbody><tr>"
+            '<td><a href="evil.example">click me</a><td><code>real.yml</code></td></td>'
+            "<td>Purpose text</td><td><code>contents: read</code></td>"
+            "</tr></tbody>\n"
+            "</table>\n"
+        )
+        self.assertEqual(kinds, [("header", None), ("malformed", None)])
+
+    def test_bare_tr_and_td_without_their_own_table_do_not_forge_a_row(self):
+        # A bare <tr>/<td> pair with no <table> of its own, injected
+        # inside an existing cell, used to prematurely flush/restart the
+        # enclosing row and table state, letting its own well-formed inner
+        # cell become an accepted top-level row with no <table> ever
+        # having been opened for it (round 26, live-demonstrated). The
+        # injected tags must instead be treated the same as any other
+        # disqualifying content in the cell they appear inside.
+        kinds = self._kinds(
+            "<table>\n"
+            "<thead><tr><th>Workflow</th><th>Purpose</th><th>Permissions</th></tr></thead>\n"
+            "<tbody><tr><td>"
+            "<tr><td><code>evil.yml</code></td></tr>"
+            "</td><td>x</td><td><code>contents: read</code></td></tr></tbody>\n"
+            "</table>\n"
+        )
+        self.assertEqual(kinds, [("header", None), ("malformed", None)])
+
+    def test_dangling_tr_left_open_by_the_next_tr_still_documents_its_row(self):
+        # A <tr> that never gets its own </tr> before the next <tr> starts
+        # used to silently reset self._row, dropping the whole prior row -
+        # a real, well-formed name cell included - with no error at all
+        # (round 26, live-demonstrated: HTML5's own optional-tag rule lets
+        # a real browser render two separate, fully populated rows here).
+        # The dangling row must be flushed into the table before the next
+        # one starts, matching what a human would actually see rendered.
+        kinds = self._kinds(
+            "<table>\n"
+            "<thead><tr><th>Workflow</th><th>Purpose</th><th>Permissions</th></tr></thead>\n"
+            "<tbody>"
+            "<tr><td><code>real.yml</code></td><td>Real</td><td><code>contents: read</code></td>"
+            "<tr><td><code>decoy.yml</code></td><td>Decoy</td><td><code>contents: write</code></td></tr>"
+            "</tbody>\n"
+            "</table>\n"
+        )
+        self.assertEqual(
+            kinds,
+            [("header", None), ("row", "real.yml"), ("row", "decoy.yml")],
+        )
+
+    def test_data_row_after_thead_close_without_a_tbody_does_not_overwrite_the_header(self):
+        # _in_thead used to be reset only by a <tbody> START tag, never by
+        # </thead> itself - real GFM output always includes an explicit
+        # <tbody>, but raw HTML under CMARK_OPT_UNSAFE is not required to
+        # (round 26, live-demonstrated). Without a <tbody>, the first data
+        # row after </thead> was still treated as the header, silently
+        # overwriting the real one and making the table stop matching the
+        # catalog header at all.
+        kinds = self._kinds(
+            "<table>\n"
+            "<thead><tr><th>Workflow</th><th>Purpose</th><th>Permissions</th></tr></thead>\n"
+            "<tr><td><code>real.yml</code></td><td>Real</td><td><code>contents: read</code></td></tr>\n"
+            "</table>\n"
+        )
+        self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
+
+    def test_homoglyph_header_decoy_triggers_the_ambiguity_error_not_silent_acceptance(self):
+        # A header spelled with Cyrillic "о" in place of Latin "o"
+        # renders pixel-identical to "Workflow" in GitHub's UI font, but
+        # used to compare unequal under _is_catalog_header()'s exact `==`
+        # match - letting this decoy hide from the checker entirely while
+        # a real catalog sits elsewhere in the file (round 26,
+        # live-demonstrated). Folding the small set of look-alike Cyrillic
+        # letters before comparing makes the decoy match too, so it is
+        # caught by the existing ambiguity check instead of slipping
+        # through unseen.
+        with self.assertRaises(ValueError) as ctx:
+            self._kinds(
+                "| Wоrkflow | Purpose | Permissions |\n"
+                "| --- | --- | --- |\n"
+                "| `decoy.yml` | example only | `contents: read` |\n"
+                "\n" + _HEADER + "| `real.yml` | Does the real thing | `contents: read` |\n"
+            )
+        self.assertIn("2 tables that look like the workflow catalog", str(ctx.exception))
+
     def test_disguised_real_header_with_a_hidden_comment_decoy_is_not_documented(self):
         # A zero-width space in the real, visible header's text (renders
         # pixel-identical to "Workflow" in any browser) makes this
