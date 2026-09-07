@@ -29,14 +29,14 @@ runs.
 <tr><td><code>zizmor.yml</code></td><td>Audit of the caller's workflow YAML (injection, permissions, pins)</td><td><code>contents: read</code>, <code>security-events: write</code></td></tr>
 <tr><td><code>scorecard.yml</code></td><td>OSSF Scorecard supply-chain analysis (public repositories)</td><td><code>security-events: write</code>, <code>id-token: write</code></td></tr>
 <tr><td><code>dependency-review.yml</code></td><td>Blocks vulnerable dependencies in a pull request</td><td><code>contents: read</code>, <code>pull-requests: write</code></td></tr>
-<tr><td><code>label-sync.yml</code></td><td>Applies the canonical label set from `labels.yml`</td><td><code>contents: read</code>, <code>issues: write</code></td></tr>
+<tr><td><code>label-sync.yml</code></td><td>Applies the canonical label set from <code>labels.yml</code></td><td><code>contents: read</code>, <code>issues: write</code></td></tr>
 <tr><td><code>commit-convention.yml</code></td><td>Enforces the commit-subject convention</td><td><code>contents: read</code>, <code>pull-requests: read</code></td></tr>
 <tr><td><code>yamllint.yml</code></td><td>Lints YAML against the house style (4-space indent)</td><td><code>contents: read</code></td></tr>
-<tr><td><code>i18n.yml</code></td><td>Enforces the catalogue layout; optional `make lang` freshness gate</td><td><code>contents: read</code></td></tr>
+<tr><td><code>i18n.yml</code></td><td>Enforces the catalogue layout; optional <code>make lang</code> freshness gate</td><td><code>contents: read</code></td></tr>
 <tr><td><code>bundle-freshness.yml</code></td><td>Verifies committed build artefacts match a clean rebuild</td><td><code>contents: read</code></td></tr>
-<tr><td><code>auto-merge-deps.yml</code></td><td>Auto-merges passing dependency bumps (patch and minor only; `pip` is excluded — see below)</td><td><code>contents: write</code>, <code>pull-requests: write</code></td></tr>
+<tr><td><code>auto-merge-deps.yml</code></td><td>Auto-merges passing dependency bumps (patch and minor only; <code>pip</code> is excluded — see below)</td><td><code>contents: write</code>, <code>pull-requests: write</code></td></tr>
 <tr><td><code>ai-issue-labeler.yml</code></td><td>Classifies a newly opened issue against the caller's own live label set via the Anthropic API and applies the labels it is confident about — see below</td><td><code>issues: write</code></td></tr>
-<tr><td><code>php-quality.yml</code></td><td>Runs the granular `composer ci:test:php:*` PHP quality gate across a version matrix</td><td><code>contents: read</code></td></tr>
+<tr><td><code>php-quality.yml</code></td><td>Runs the granular <code>composer ci:test:php:*</code> PHP quality gate across a version matrix</td><td><code>contents: read</code></td></tr>
 </tbody>
 </table>
 

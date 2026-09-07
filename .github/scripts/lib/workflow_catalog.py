@@ -66,25 +66,33 @@ def _sanitize(text):
 def _reject_unsafe_cell_text(catalog_path, name, field, value):
     # render_table() renders a raw HTML <table>, and GitHub's own renderer
     # treats a raw HTML block's content as opaque - never re-parsed as
-    # markdown (verified live against GitHub's public Markdown API,
-    # 2026-09-07: a markdown link/emphasis/strikethrough/autolink placed
-    # inside a raw <table> renders as inert literal text, not the
-    # construct it would be outside one). html.escape() below neutralises
-    # `<`, `>` and `&` structurally, so no hand-picked list of dangerous
-    # markdown/HTML punctuation (`|`, backtick, the marker strings - each
-    # added in its own review round, one construct at a time) is needed
-    # here any more; escaping closes the whole class instead of the one
-    # construct each prior round was demonstrated with.
+    # CommonMark/GFM markdown (verified live against GitHub's public
+    # Markdown API, 2026-09-07: a markdown link/emphasis/strikethrough/
+    # autolink/reference-style-link placed inside a raw <table> renders as
+    # inert literal text, not the construct it would be outside one).
+    # html.escape() below neutralises `<`, `>` and `&` structurally, so no
+    # hand-picked list of dangerous markdown/HTML punctuation (`|`,
+    # backtick, the marker strings - each added in its own review round,
+    # one construct at a time) is needed here any more. This closes
+    # CommonMark/GFM-syntax injection, not every GitHub-specific
+    # text-node post-process: `#123`-style issue autolinking, `@user`
+    # mentions and `:emoji:` shortcodes are a separate pass GitHub applies
+    # over rendered text regardless of the raw-HTML-block boundary
+    # (verified live, 2026-09-07) and are NOT neutralised by
+    # html.escape() - accepted as a narrower, lower-severity residual for
+    # "purpose" specifically (name/permissions are wrapped in <code>,
+    # which that pass skips - verified live, same date), the same way a
+    # plain markdown link in "purpose" already was.
     #
     # What HTML-escaping does NOT fix is anything that isn't a markdown/
     # HTML syntax question in the first place: a Unicode category-C
     # character (Cc/Cf/Cs/Co/Cn - control, format incl. Trojan-Source bidi
     # overrides, surrogate, private-use, unassigned) or a Zl/Zp separator
     # can still end the raw HTML block early at what the parser reads as
-    # a blank line, and a long run of combining marks (Mn/Mc/Me -
-    # "Zalgo" text, live-demonstrated: GitHub's renderer applies no cap)
-    # visually distorts or obscures the cell regardless of escaping. All
-    # three stay a hard rejection.
+    # a blank line, and even a single combining mark (Mn/Mc/Me - the
+    # building block of "Zalgo" stacking) visually distorts the cell
+    # regardless of escaping, so any occurrence is rejected rather than
+    # only a long run. All three stay a hard rejection.
     if any(
         unicodedata.category(ch) in ("Zl", "Zp") or unicodedata.category(ch)[0] in ("C", "M") for ch in value
     ):
@@ -147,6 +155,27 @@ def load_catalog(catalog_path):
     return data
 
 
+def _render_purpose(text):
+    """Escapes `text` for use as "purpose" cell content, preserving a
+    backtick-quoted span (e.g. "Applies ... from `labels.yml`") as a real
+    `<code>` element instead of literal backticks. Safe to do by simple
+    split-and-wrap, unlike a full markdown parser: CommonMark's code-span
+    rule guarantees the text between a MATCHED pair of backticks is
+    always literal, never further markdown (no link, no HTML tag, no
+    emphasis can activate inside one) - so this introduces no new syntax
+    to get wrong, only styling for a span whose own content is escaped
+    exactly like the rest of the cell. An odd number of backticks (no
+    matching close anywhere) falls back to every backtick rendering as a
+    literal character, the same as CommonMark's own behaviour for an
+    unpaired backtick.
+    """
+    parts = text.split("`")
+    escaped = [html.escape(part, quote=False) for part in parts]
+    if len(parts) % 2 == 0:
+        return "`".join(escaped)
+    return "".join(part if i % 2 == 0 else f"<code>{part}</code>" for i, part in enumerate(escaped))
+
+
 def render_table(catalog):
     """Renders the catalog as the exact HTML table text README.md must
     contain between the generated-block markers. A raw HTML table, not
@@ -170,7 +199,7 @@ def render_table(catalog):
         permissions = ", ".join(f"<code>{html.escape(p, quote=False)}</code>" for p in entry["permissions"])
         lines.append(
             f"<tr><td><code>{html.escape(name, quote=False)}</code></td>"
-            f"<td>{html.escape(entry['purpose'], quote=False)}</td>"
+            f"<td>{_render_purpose(entry['purpose'])}</td>"
             f"<td>{permissions}</td></tr>"
         )
     lines.append("</tbody>")

@@ -155,6 +155,14 @@ class LoadCatalogTest(_TempRepoTestCase):
         with self.assertRaises(ValueError):
             workflow_catalog.load_catalog(self.catalog_path)
 
+    def test_single_combining_mark_in_purpose_is_rejected(self):
+        # The guard rejects ANY occurrence of a combining mark, not only a
+        # long "Zalgo" run - a single one (e.g. from NFD-normalized "é"
+        # spelled as "e" + a combining acute accent) is already enough.
+        self._write_catalog({"real.yml": {"purpose": "cafe" + "́", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
     def test_combining_marks_in_purpose_are_rejected(self):
         # A long run of combining marks ("Zalgo" text) visually distorts
         # or obscures a cell - html.escape() does not touch these either,
@@ -164,16 +172,17 @@ class LoadCatalogTest(_TempRepoTestCase):
         with self.assertRaises(ValueError):
             workflow_catalog.load_catalog(self.catalog_path)
 
-    def test_marker_text_embedded_in_purpose_is_now_safely_allowed(self):
+    def test_marker_text_embedded_in_purpose_is_now_safely_escaped(self):
         # render_table() html.escape()'s every value, so embedding the
-        # literal marker text renders as inert escaped text
-        # ("&lt;!-- workflow-catalog:end --&gt;") instead of the literal
-        # marker string - it can no longer confuse a later --write's
-        # marker count the way it could before escaping existed.
-        self._write_catalog(
-            {"real.yml": {"purpose": "x <!-- workflow-catalog:end --> y", "permissions": ["contents: read"]}}
-        )
-        workflow_catalog.load_catalog(self.catalog_path)  # must not raise
+        # literal marker text renders as inert escaped text instead of the
+        # literal marker string - it can no longer confuse a later
+        # --write's marker count the way it could before escaping existed.
+        catalog = {"real.yml": {"purpose": "x <!-- workflow-catalog:end --> y", "permissions": ["contents: read"]}}
+        self._write_catalog(catalog)
+        loaded = workflow_catalog.load_catalog(self.catalog_path)  # must not raise
+        table = workflow_catalog.render_table(loaded)
+        self.assertIn("x &lt;!-- workflow-catalog:end --&gt; y", table)
+        self.assertNotIn("<!-- workflow-catalog:end -->", table)
 
     def test_raw_html_tag_in_purpose_is_now_safely_escaped(self):
         # `<`/`>` used to let a value construct raw HTML tags that forged
@@ -182,18 +191,24 @@ class LoadCatalogTest(_TempRepoTestCase):
         # turns `<`/`>` into inert `&lt;`/`&gt;` text instead of real tag
         # delimiters - verified live against GitHub's own renderer,
         # 2026-09-07.
-        self._write_catalog(
-            {"real.yml": {"purpose": "x</td><td>not forged</td><td>y", "permissions": ["contents: read"]}}
-        )
-        workflow_catalog.load_catalog(self.catalog_path)  # must not raise
+        catalog = {"real.yml": {"purpose": "x</td><td>not forged</td><td>y", "permissions": ["contents: read"]}}
+        self._write_catalog(catalog)
+        loaded = workflow_catalog.load_catalog(self.catalog_path)  # must not raise
+        table = workflow_catalog.render_table(loaded)
+        self.assertIn("x&lt;/td&gt;&lt;td&gt;not forged&lt;/td&gt;&lt;td&gt;y", table)
+        self.assertNotIn("</td><td>not forged", table)
 
-    def test_backtick_in_the_catalog_key_is_now_safely_allowed(self):
+    def test_backtick_in_the_catalog_key_is_now_safely_escaped(self):
         # render_table() wraps name/permissions in a real <code> element,
         # not markdown backtick syntax, so an embedded backtick is just
         # ordinary (html.escape()d) text now - no code-span to break out
         # of any more.
-        self._write_catalog({"x` **not a breakout** `y.yml": {"purpose": "x", "permissions": ["contents: read"]}})
-        workflow_catalog.load_catalog(self.catalog_path)  # must not raise
+        catalog = {"x` **not a breakout** `y.yml": {"purpose": "x", "permissions": ["contents: read"]}}
+        self._write_catalog(catalog)
+        loaded = workflow_catalog.load_catalog(self.catalog_path)  # must not raise
+        table = workflow_catalog.render_table(loaded)
+        self.assertIn("<code>x` **not a breakout** `y.yml</code>", table)
+        self.assertNotIn("<strong>", table)
 
     def test_backtick_in_purpose_is_still_allowed(self):
         self._write_catalog({"real.yml": {"purpose": "Uses `make lang`", "permissions": ["contents: read"]}})
@@ -272,9 +287,11 @@ class RenderTableTest(unittest.TestCase):
         table = workflow_catalog.render_table(catalog)
         self.assertLess(table.index("b.yml"), table.index("a.yml"))
 
-    def test_purpose_text_with_backticks_and_em_dash_passes_through_unescaped(self):
-        # Backtick and em-dash are not markdown/HTML metacharacters -
-        # html.escape() only touches `<`, `>`, `&`, and quote characters.
+    def test_purpose_backtick_span_becomes_a_real_code_element(self):
+        # A matched backtick pair in "purpose" keeps its intended styling
+        # as a real <code> element instead of rendering as two literal
+        # backtick characters, now that the surrounding raw HTML block is
+        # never re-parsed as markdown.
         catalog = {
             "real.yml": {
                 "purpose": "Uses `make lang` — see below",
@@ -282,7 +299,41 @@ class RenderTableTest(unittest.TestCase):
             }
         }
         table = workflow_catalog.render_table(catalog)
-        self.assertIn("Uses `make lang` — see below", table)
+        self.assertIn("Uses <code>make lang</code> — see below", table)
+
+    def test_purpose_em_dash_passes_through_unescaped(self):
+        # An em-dash is not a markdown/HTML metacharacter - html.escape()
+        # only touches `<`, `>`, `&`, and (with quote=False, not used
+        # here) quote characters.
+        catalog = {"real.yml": {"purpose": "See below — for details", "permissions": ["contents: read"]}}
+        table = workflow_catalog.render_table(catalog)
+        self.assertIn("See below — for details", table)
+
+    def test_purpose_unpaired_backtick_stays_literal(self):
+        # An odd number of backticks has no matching close, mirroring
+        # CommonMark's own code-span rule: it renders as a literal
+        # character rather than an unterminated span.
+        catalog = {"real.yml": {"purpose": "an unmatched ` backtick", "permissions": ["contents: read"]}}
+        table = workflow_catalog.render_table(catalog)
+        self.assertIn("<td>an unmatched ` backtick</td>", table)
+
+    def test_apostrophe_is_not_escaped_since_quote_is_false(self):
+        catalog = {"real.yml": {"purpose": "Uses the caller's own token", "permissions": ["contents: read"]}}
+        table = workflow_catalog.render_table(catalog)
+        self.assertIn("the caller's own token", table)
+        self.assertNotIn("&#x27;", table)
+
+    def test_catalog_key_angle_brackets_are_escaped(self):
+        catalog = {"x</td><td>y.yml": {"purpose": "p", "permissions": ["contents: read"]}}
+        table = workflow_catalog.render_table(catalog)
+        self.assertIn("x&lt;/td&gt;&lt;td&gt;y.yml", table)
+        self.assertNotIn("</td><td>y.yml<", table)
+
+    def test_permission_entry_angle_brackets_are_escaped(self):
+        catalog = {"real.yml": {"purpose": "p", "permissions": ["contents: read</td><td>forged"]}}
+        table = workflow_catalog.render_table(catalog)
+        self.assertIn("contents: read&lt;/td&gt;&lt;td&gt;forged", table)
+        self.assertNotIn("</td><td>forged", table)
 
     def test_angle_brackets_and_ampersand_are_html_escaped(self):
         catalog = {
