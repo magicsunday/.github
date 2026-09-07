@@ -828,6 +828,36 @@ class MainTest(_TempRepoTestCase):
         self.assertEqual(code, 1)
         self.assertIn("workflow_catalog.py:", stderr.getvalue())
 
+    def test_write_mode_reports_a_malformed_catalog_on_stderr_and_returns_one(self):
+        # Same rationale as the RecursionError case above: nothing else
+        # here drives --write with a catalog that fails JSON syntax.
+        # json.JSONDecodeError is a ValueError subclass, so this can't
+        # discriminate dropping ONLY it from the except tuple while
+        # ValueError stays - still worth pinning as a behavioral
+        # guarantee, the same disposition already given to the
+        # analogous check()-side gap.
+        self._write_readme("<!-- workflow-catalog:start -->\n<!-- workflow-catalog:end -->\n")
+        with open(self.catalog_path, "w", encoding="utf-8") as handle:
+            handle.write("{not json")
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = workflow_catalog.main(["workflow_catalog.py", "--write", self.readme_path, self.catalog_path])
+        self.assertEqual(code, 1)
+        self.assertIn("workflow_catalog.py:", stderr.getvalue())
+
+    def test_write_mode_reports_a_non_utf8_catalog_on_stderr_and_returns_one(self):
+        # Same rationale again, for a catalog file that isn't valid
+        # UTF-8. UnicodeDecodeError is also a ValueError subclass, same
+        # equivalent-mutant caveat as the malformed-JSON test above.
+        self._write_readme("<!-- workflow-catalog:start -->\n<!-- workflow-catalog:end -->\n")
+        with open(self.catalog_path, "wb") as handle:
+            handle.write(b"{\"real.yml\": \"\xff\xfe\"}")
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = workflow_catalog.main(["workflow_catalog.py", "--write", self.readme_path, self.catalog_path])
+        self.assertEqual(code, 1)
+        self.assertIn("workflow_catalog.py:", stderr.getvalue())
+
     def test_non_utf8_workflow_filename_does_not_crash_the_annotation_print(self):
         # Mirrors readme_catalog_check.py's identical regression test: a
         # workflow filename decoded from raw POSIX bytes via glob()'s

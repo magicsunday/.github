@@ -66,16 +66,19 @@ def _sanitize(text):
     # by that check yet (e.g. the value's own rejection message, or a raw
     # workflow filename from disk) must additionally wrap the sanitized
     # result in `!r` before printing it - repr() escapes every category-C
-    # and Zl/Zp character into a literal "\uXXXX" escape sequence instead
-    # of the raw codepoint (verified: `repr(chr(0x202e))` == "'\\u202e'",
-    # `repr(chr(0x2028))` == "'\\u2028'"), closing the same
-    # directional-spoofing risk in a printed message that html.escape()
-    # closes in the rendered table. It does NOT escape a combining mark
-    # (category M) - Python treats one attached to its base character as
-    # printable (verified: `chr(0x301) in repr('e' + chr(0x301))` is
-    # True - the combining mark itself passes through repr() unescaped,
-    # merely rendering merged with the "e" wherever displayed) - so a
-    # Zalgo-stacked value can still visually
+    # and Zl/Zp character into a literal "\uXXXX" or, for an astral
+    # codepoint, "\UXXXXXXXX" escape sequence instead of the raw
+    # codepoint (verified: `repr(chr(0x202e))` == "'\\u202e'",
+    # `repr(chr(0x2028))` == "'\\u2028'", `repr(chr(0xf0000))` ==
+    # "'\\U000f0000'"), closing the same directional-spoofing risk in a
+    # printed message that html.escape() closes in the rendered table.
+    # It does NOT escape a combining mark (category M) - Python treats
+    # one attached to its base character as printable (verified:
+    # `chr(0x301) in repr('e' + chr(0x301))` is True - the combining
+    # mark's own codepoint passes through repr() unescaped; whether it
+    # then renders merged with the "e" is up to whatever displays the
+    # output, not something repr() controls) - so a Zalgo-stacked value
+    # can still visually
     # distort a printed message even after `!r`; accepted as a narrower
     # residual, the same disposition already given to combining marks in
     # the rendered table.
