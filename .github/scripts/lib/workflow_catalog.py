@@ -9,15 +9,25 @@
 #
 # This retires 27 rounds of hardening a hand-rolled extractor against every
 # way GitHub-flavoured Markdown/HTML can be nested, unbalanced or spoofed
-# (see this file's own git history) - each fix closed one construct and
-# left the next one for the following round, because the fundamental
-# problem was re-deriving a live rendering engine's structure from
-# PR-controlled markdown by hand. Moving the source of truth to JSON and
-# the README to a generated artefact removes that problem instead of
-# solving it better: a decoy row can no longer "look real to a human but
-# not match the checker" (or the reverse), because the checker no longer
-# interprets the README's content at all - it only asks whether the
-# generated text and the committed text are identical.
+# (see readme_catalog_check.py's own git history:
+# `git log -- .github/scripts/lib/readme_catalog_check.py`) - each fix
+# closed one construct and left the next one for the following round,
+# because the fundamental problem was re-deriving a live rendering
+# engine's structure from PR-controlled markdown by hand. Moving the
+# source of truth to JSON and the README to a generated artefact removes
+# that problem for README.md's own committed bytes: a decoy row can no
+# longer "look real to a human but not match the checker" there, because
+# the checker never interprets README.md's markdown - only compares it
+# byte-for-byte to render_table()'s output. It does NOT make catalog
+# VALUES trustworthy content, though - .github/workflow-catalog.json is
+# exactly as PR-controlled as README.md ever was, and render_table()
+# splices its strings into the generated markdown unescaped. `|`, a
+# newline, or a Unicode control/format character in a "purpose" or
+# "permissions" entry would corrupt or misrepresent the generated table
+# once GitHub renders it - a decoy row hidden in a JSON string value
+# instead of raw README markdown (round 28, live-demonstrated) - so
+# load_catalog() rejects all of those outright rather than passing them
+# through to render_table().
 #
 # find_targets() is imported directly, not invoked as a subprocess - same
 # rationale as the file this replaces: producer and consumer are plain
@@ -26,6 +36,7 @@ import importlib.util
 import json
 import os
 import sys
+import unicodedata
 
 _LIB_DIR = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location(
@@ -51,13 +62,39 @@ def _sanitize(text):
     return find_workflow_call_targets._sanitize_for_stderr(text)
 
 
+def _reject_unsafe_cell_text(catalog_path, name, field, value):
+    # `|` would splice an extra column into render_table()'s markdown row
+    # (GFM silently drops the excess or a neighbouring cell instead of
+    # erroring); a Unicode category-C character (Cc/Cf/Cs/Co/Cn - control,
+    # format incl. bidi overrides, surrogate, private-use, unassigned)
+    # covers both a literal newline (ends the table early, pushing the
+    # real remaining cells into unrelated rendered prose) and a
+    # Trojan-Source-style bidi override with none of those needing their
+    # own hand-picked entry - live-demonstrated for both classes, round
+    # 28. Embedding either marker string would let a later --write lock
+    # onto the wrong occurrence instead of the real one.
+    if (
+        "|" in value
+        or _BEGIN_MARKER in value
+        or _END_MARKER in value
+        or any(unicodedata.category(ch)[0] == "C" for ch in value)
+    ):
+        raise ValueError(
+            f"{catalog_path}: the entry for {_sanitize(name)}'s {field!r} must not contain a `|`, "
+            "a generated-block marker, or a Unicode control/format character - any of those "
+            "would corrupt or misrepresent the generated table (see issue #116)."
+        )
+
+
 def load_catalog(catalog_path):
     """Returns the parsed catalog as an ordered `{name: {"purpose": str,
     "permissions": [str, ...]}}` dict (JSON object order is preserved by
     `json.load()`, which is what makes `render_table()`'s output
     deterministic). Raises `ValueError` if the top-level shape or any
-    entry's shape does not match - fails closed rather than rendering a
-    partial or misleading table from malformed input.
+    entry's shape does not match, or if a name/purpose/permission string
+    contains a character that would corrupt or misrepresent the generated
+    table - fails closed rather than rendering a partial or misleading
+    table from malformed or adversarial input.
     """
     with open(catalog_path, encoding="utf-8") as handle:
         data = json.load(handle)
@@ -66,6 +103,18 @@ def load_catalog(catalog_path):
         raise ValueError(f"{catalog_path} must be a JSON object mapping workflow filenames to entries.")
 
     for name, entry in data.items():
+        # JSON object keys are always strings once json.load() has parsed
+        # them, so only the shape of the string itself needs checking here
+        # - not its type. A catalog key is a workflow-directory basename,
+        # never a path: rejecting "/", "\", and "."/".." keeps
+        # os.path.join(workflows_dir, name) in check() from ever escaping
+        # that directory for an attacker-chosen key.
+        if not name or "/" in name or "\\" in name or name in (".", ".."):
+            raise ValueError(
+                f"{catalog_path}: {_sanitize(name)!r} is not a valid workflow filename to use as a catalog key."
+            )
+        _reject_unsafe_cell_text(catalog_path, name, "name", name)
+
         if not isinstance(entry, dict) or set(entry) != {"purpose", "permissions"}:
             raise ValueError(
                 f"{catalog_path}: the entry for {_sanitize(name)} must be an object with exactly "
@@ -73,6 +122,8 @@ def load_catalog(catalog_path):
             )
         if not isinstance(entry["purpose"], str) or not entry["purpose"]:
             raise ValueError(f"{catalog_path}: the entry for {_sanitize(name)} needs a non-empty string \"purpose\".")
+        _reject_unsafe_cell_text(catalog_path, name, "purpose", entry["purpose"])
+
         permissions = entry["permissions"]
         if not isinstance(permissions, list) or not permissions or not all(
             isinstance(p, str) and p for p in permissions
@@ -81,6 +132,8 @@ def load_catalog(catalog_path):
                 f"{catalog_path}: the entry for {_sanitize(name)} needs \"permissions\" as a non-empty "
                 "list of non-empty strings."
             )
+        for permission in permissions:
+            _reject_unsafe_cell_text(catalog_path, name, "permissions", permission)
 
     return data
 
@@ -96,15 +149,34 @@ def render_table(catalog):
     return "\n".join(lines) + "\n"
 
 
-def _extract_generated_block(readme_text):
-    """Returns the text strictly between the markers, or `None` if either
-    marker is missing or out of order.
+def _find_marker_span(readme_text):
+    """Returns `(content_start, content_end)` for the single generated
+    block, or `None` if either marker is missing, out of order, or
+    appears more than once. Requiring exactly one of each - not just
+    `str.find()`'s first occurrence - closes a real bypass: a second,
+    fully attacker-controlled marker-delimited block elsewhere in the
+    file used to never be compared to anything, so it passed
+    check_freshness() with zero errors while looking just as legitimate
+    as the real one (round 28, live-demonstrated).
     """
+    if readme_text.count(_BEGIN_MARKER) != 1 or readme_text.count(_END_MARKER) != 1:
+        return None
     begin = readme_text.find(_BEGIN_MARKER)
     end = readme_text.find(_END_MARKER)
-    if begin == -1 or end == -1 or end < begin:
+    if end < begin:
         return None
-    return readme_text[begin + len(_BEGIN_MARKER) : end]
+    return begin + len(_BEGIN_MARKER), end
+
+
+def _extract_generated_block(readme_text):
+    """Returns the text strictly between the markers, or `None` if the
+    markers are missing, out of order, or duplicated (see
+    `_find_marker_span()`).
+    """
+    span = _find_marker_span(readme_text)
+    if span is None:
+        return None
+    return readme_text[span[0] : span[1]]
 
 
 def check_freshness(readme_path, catalog):
@@ -114,8 +186,9 @@ def check_freshness(readme_path, catalog):
     current = _extract_generated_block(readme_text)
     if current is None:
         return [
-            f"{readme_path} is missing the {_BEGIN_MARKER!r}/{_END_MARKER!r} generated-catalog "
-            "markers - restore them around the workflow catalog table (see issue #116)."
+            f"{readme_path} must contain exactly one {_BEGIN_MARKER!r}/{_END_MARKER!r} pair "
+            "around the workflow catalog table, in that order - restore or de-duplicate them "
+            "(see issue #116)."
         ]
 
     expected = "\n" + render_table(catalog) + "\n"
@@ -136,14 +209,15 @@ def write_generated_block(readme_path, catalog):
     with open(readme_path, encoding="utf-8") as handle:
         readme_text = handle.read()
 
-    if _extract_generated_block(readme_text) is None:
+    span = _find_marker_span(readme_text)
+    if span is None:
         raise ValueError(
-            f"{readme_path} is missing the {_BEGIN_MARKER!r}/{_END_MARKER!r} markers - add them "
-            "around the table once, by hand, before this can regenerate its contents."
+            f"{readme_path} must contain exactly one {_BEGIN_MARKER!r}/{_END_MARKER!r} pair, in "
+            "that order - add or de-duplicate them, by hand, before this can regenerate its "
+            "contents."
         )
 
-    begin = readme_text.find(_BEGIN_MARKER) + len(_BEGIN_MARKER)
-    end = readme_text.find(_END_MARKER)
+    begin, end = span
     new_text = readme_text[:begin] + "\n" + render_table(catalog) + "\n" + readme_text[end:]
     with open(readme_path, "w", encoding="utf-8") as handle:
         handle.write(new_text)

@@ -239,7 +239,16 @@ jobs:
               run: bash .github/scripts/tests/run-tests.sh
 
     workflow-catalog-fresh:
-        name: Verify README's generated workflow catalog is complete and fresh
+        # The required-status-check context branch protection matches on is
+        # built from this display NAME, not the job id above (verified live
+        # via `gh api repos/magicsunday/.github/branches/main/protection
+        # --jq '.required_status_checks.contexts[]?'`, round 28) - renaming
+        # it here without also updating that setting would leave every
+        # future PR permanently BLOCKED, since no job would ever report the
+        # context branch protection still waits on. Keeping the string
+        # unchanged from the job this replaced avoids needing that
+        # coordinated settings change at all.
+        name: Verify README's workflow catalog lists every workflow_call target
         runs-on: ubuntu-latest
 
         permissions:

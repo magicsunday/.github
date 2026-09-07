@@ -176,8 +176,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   job takes a related but different shape: `workflow_catalog.py` —
   cross-checking every `workflow_call`-declaring file under
   `.github/workflows/` against the catalog, issue #101, every catalog
-  entry back against those files, issue #116, and README.md's rendered
-  table against the catalog — is a plain Python module invoked directly
+  entry back against those files, issue #116, and README.md's committed
+  text against `render_table()`'s output — is a plain Python module invoked directly
   from `lint.yml`, not a bash wrapper sourced the way the examples above
   are. Getting the reverse direction right took many review rounds and
   several full rewrites — bash/`sed`/regex, then a real per-row Python
@@ -196,10 +196,20 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   markdown, never a parse of it, and its error message names the
   `--write` command to regenerate it (`python3
   .github/scripts/lib/workflow_catalog.py --write README.md
-  .github/workflow-catalog.json`). This removes the entire "does the
-  automated check see the same table a human does" question the earlier
-  designs kept re-litigating: there is no longer a table for the checker
-  to interpret, only a string it can compare. It still imports
+  .github/workflow-catalog.json`). This removes the "does the automated
+  check see the same table a human does" question the earlier designs
+  kept re-litigating for README.md's own committed bytes — there is no
+  longer a table for the checker to interpret there, only a string it can
+  compare — but it does not make `.github/workflow-catalog.json`'s VALUES
+  trustworthy content: that file is exactly as PR-controlled as README.md
+  ever was, so `load_catalog()` rejects a `|`, a generated-block marker,
+  or a Unicode control/format character in any name/purpose/permission
+  string before `render_table()` ever sees it, closing the equivalent
+  "decoy row hidden in a value instead of raw markdown" bypass a live
+  round of review found here (round 28) — and `_find_marker_span()`
+  requires exactly one marker pair, closing a second bypass where a
+  duplicated pair elsewhere in the file was never compared to anything.
+  It still imports
   `find_workflow_call_targets.py` directly into the same process (no
   subprocess/temp-file handoff, since both halves are Python) — pinned
   via `.github/requirements/pyyaml.in`/`pyyaml.txt` the same way

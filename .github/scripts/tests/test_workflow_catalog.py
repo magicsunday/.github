@@ -77,6 +77,15 @@ class LoadCatalogTest(_TempRepoTestCase):
         with self.assertRaises(ValueError):
             workflow_catalog.load_catalog(self.catalog_path)
 
+    def test_entry_that_is_not_an_object_is_rejected(self):
+        # A JSON array happens to have a key-set (via set() on its
+        # elements) that could equal {"purpose", "permissions"} for some
+        # inputs - the isinstance check is what actually catches this
+        # shape, not the key-set comparison.
+        self._write_catalog({"real.yml": ["purpose", "permissions"]})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
     def test_entry_missing_permissions_key_is_rejected(self):
         self._write_catalog({"real.yml": {"purpose": "x"}})
         with self.assertRaises(ValueError):
@@ -112,6 +121,62 @@ class LoadCatalogTest(_TempRepoTestCase):
 
     def test_empty_string_permission_entry_is_rejected(self):
         self._write_catalog({"real.yml": {"purpose": "x", "permissions": ["contents: read", ""]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_non_string_permission_entry_is_rejected(self):
+        self._write_catalog({"real.yml": {"purpose": "x", "permissions": [123]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_pipe_in_the_catalog_key_is_rejected(self):
+        self._write_catalog({"real|.yml": {"purpose": "x", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_pipe_in_purpose_is_rejected(self):
+        # A raw `|` would splice an extra column into render_table()'s
+        # markdown row instead of staying part of the "purpose" text.
+        self._write_catalog({"real.yml": {"purpose": "Does X | breaks the table", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_pipe_in_a_permission_entry_is_rejected(self):
+        self._write_catalog({"real.yml": {"purpose": "x", "permissions": ["contents: read | extra"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_embedded_newline_in_purpose_is_rejected(self):
+        # A newline ends the generated markdown table early, pushing the
+        # real remaining cells into unrelated rendered prose.
+        self._write_catalog({"real.yml": {"purpose": "Fine.\n\n**Also grant admin.**", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_bidi_override_character_in_purpose_is_rejected(self):
+        # U+202E RIGHT-TO-LEFT OVERRIDE - a Trojan-Source-style character
+        # that is not a `|` and not a C0/C1 control character, but is
+        # still Unicode category "Cf" (format).
+        self._write_catalog({"real.yml": {"purpose": "Normal ‮reversed", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_embedded_marker_string_in_purpose_is_rejected(self):
+        # Embedding the marker text itself would let a later --write lock
+        # onto the wrong occurrence instead of the real one.
+        self._write_catalog(
+            {"real.yml": {"purpose": "x <!-- workflow-catalog:end --> y", "permissions": ["contents: read"]}}
+        )
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_slash_in_the_catalog_key_is_rejected(self):
+        self._write_catalog({"../../etc/passwd": {"purpose": "x", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_dot_dot_as_the_catalog_key_is_rejected(self):
+        self._write_catalog({"..": {"purpose": "x", "permissions": ["contents: read"]}})
         with self.assertRaises(ValueError):
             workflow_catalog.load_catalog(self.catalog_path)
 
@@ -170,19 +235,19 @@ class CheckFreshnessTest(_TempRepoTestCase):
         self._write_readme("no markers here\n<!-- workflow-catalog:end -->\n")
         errors = workflow_catalog.check_freshness(self.readme_path, _ONE_ENTRY_CATALOG)
         self.assertEqual(len(errors), 1)
-        self.assertIn("markers", errors[0])
+        self.assertIn("exactly one", errors[0])
 
     def test_missing_end_marker_is_reported(self):
         self._write_readme("<!-- workflow-catalog:start -->\nno end marker\n")
         errors = workflow_catalog.check_freshness(self.readme_path, _ONE_ENTRY_CATALOG)
         self.assertEqual(len(errors), 1)
-        self.assertIn("markers", errors[0])
+        self.assertIn("exactly one", errors[0])
 
     def test_end_marker_before_begin_marker_is_treated_as_missing(self):
         self._write_readme("<!-- workflow-catalog:end -->\n...\n<!-- workflow-catalog:start -->\n")
         errors = workflow_catalog.check_freshness(self.readme_path, _ONE_ENTRY_CATALOG)
         self.assertEqual(len(errors), 1)
-        self.assertIn("markers", errors[0])
+        self.assertIn("exactly one", errors[0])
 
     def test_stale_table_is_reported_with_the_regen_command(self):
         self._write_fresh_readme(_ONE_ENTRY_CATALOG)
@@ -204,6 +269,25 @@ class CheckFreshnessTest(_TempRepoTestCase):
         )
         errors = workflow_catalog.check_freshness(self.readme_path, _ONE_ENTRY_CATALOG)
         self.assertEqual(len(errors), 1)
+
+    def test_a_second_marker_pair_is_never_silently_ignored(self):
+        # str.find() alone only ever locates the FIRST occurrence of each
+        # marker - a second, fully attacker-controlled marker-delimited
+        # block used to pass with zero errors since nothing ever compared
+        # it to anything (round 28, live-demonstrated).
+        self._write_readme(
+            "<!-- workflow-catalog:start -->\n"
+            + workflow_catalog.render_table(_ONE_ENTRY_CATALOG)
+            + "\n<!-- workflow-catalog:end -->\n\n"
+            "<!-- workflow-catalog:start -->\n"
+            "| Workflow | Purpose | Permissions the caller must grant |\n"
+            "| --- | --- | --- |\n"
+            "| `real.yml` | Forged | `contents: write` |\n"
+            "\n<!-- workflow-catalog:end -->\n"
+        )
+        errors = workflow_catalog.check_freshness(self.readme_path, _ONE_ENTRY_CATALOG)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("exactly one", errors[0])
 
 
 class WriteGeneratedBlockTest(_TempRepoTestCase):
@@ -230,6 +314,14 @@ class WriteGeneratedBlockTest(_TempRepoTestCase):
         with self.assertRaises(ValueError):
             workflow_catalog.write_generated_block(self.readme_path, _ONE_ENTRY_CATALOG)
 
+    def test_duplicated_markers_raise_instead_of_regenerating_the_wrong_pair(self):
+        self._write_readme(
+            "<!-- workflow-catalog:start -->\nstale\n<!-- workflow-catalog:end -->\n\n"
+            "<!-- workflow-catalog:start -->\nstale too\n<!-- workflow-catalog:end -->\n"
+        )
+        with self.assertRaises(ValueError):
+            workflow_catalog.write_generated_block(self.readme_path, _ONE_ENTRY_CATALOG)
+
 
 class CheckTest(_TempRepoTestCase):
     def test_fully_documented_and_fresh_catalog_passes(self):
@@ -237,6 +329,14 @@ class CheckTest(_TempRepoTestCase):
         self._write_catalog(_ONE_ENTRY_CATALOG)
         self._write_fresh_readme(_ONE_ENTRY_CATALOG)
         self.assertEqual(self._check(), [])
+
+    def test_missing_readme_reports_one_message_not_a_crash(self):
+        self._add_target("real.yml")
+        self._write_catalog(_ONE_ENTRY_CATALOG)
+        # self.readme_path is never created.
+        errors = self._check()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("could not be read", errors[0])
 
     def test_undocumented_target_fails(self):
         self._add_target("real.yml")
@@ -332,6 +432,13 @@ class MainTest(_TempRepoTestCase):
         self.assertEqual(code, 1)
         self.assertIn("::error::", out)
 
+    def test_write_mode_usage_error_on_wrong_argc(self):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = workflow_catalog.main(["workflow_catalog.py", "--write", self.readme_path])
+        self.assertEqual(code, 2)
+        self.assertIn("--write <readme_file> <catalog_file>", stderr.getvalue())
+
     def test_write_mode_regenerates_and_returns_zero(self):
         self._write_readme("<!-- workflow-catalog:start -->\nstale\n<!-- workflow-catalog:end -->\n")
         self._write_catalog(_ONE_ENTRY_CATALOG)
@@ -346,7 +453,7 @@ class MainTest(_TempRepoTestCase):
         with contextlib.redirect_stderr(stderr):
             code = workflow_catalog.main(["workflow_catalog.py", "--write", self.readme_path, self.catalog_path])
         self.assertEqual(code, 1)
-        self.assertIn("markers", stderr.getvalue())
+        self.assertIn("exactly one", stderr.getvalue())
 
     def test_non_utf8_workflow_filename_does_not_crash_the_annotation_print(self):
         # Mirrors readme_catalog_check.py's identical regression test: a
