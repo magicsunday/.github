@@ -2,7 +2,7 @@
 # Exercises readme_catalog_check.py - the structural replacement for
 # readme-catalog-check.sh's bash/regex mechanism (issue #101, issue #116).
 # Every fixture here pins a real defect or a documented design decision
-# from that mechanism's 17-round review history, re-expressed against the
+# from that mechanism's review history, re-expressed against the
 # tokenizer that replaced it, so the coverage this repo already paid for
 # is not lost in the rewrite.
 import contextlib
@@ -19,6 +19,18 @@ _spec = importlib.util.spec_from_file_location("readme_catalog_check", _MODULE_P
 assert _spec is not None and _spec.loader is not None
 readme_catalog_check = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(readme_catalog_check)
+
+_TWO_TABLE_README = (
+    "| Workflow | Purpose | Permissions |\n"
+    "| --- | --- | --- |\n"
+    "| `real.yml` | Does the real thing | `contents: read` |\n"
+    "\n"
+    "### Inputs\n"
+    "\n"
+    "| Workflow | Input | Default |\n"
+    "| --- | --- | --- |\n"
+    "| `gone.yml` | `some-input` | `false` |\n"
+)
 
 
 class _TempRepoTestCase(unittest.TestCase):
@@ -261,21 +273,111 @@ class ParseCatalogTableTest(_TempRepoTestCase):
         self.assertEqual(kinds[2], ("row", "real.yml"))
 
     def test_a_row_in_a_different_table_is_never_reached(self):
+        kinds = self._kinds(_TWO_TABLE_README)
+        self.assertEqual(
+            kinds,
+            [("header", None), ("separator", None), ("row", "real.yml")],
+        )
+
+    def test_header_with_wrong_first_cell_never_opens_the_table(self):
+        kinds = self._kinds("| NotWorkflow | Purpose | Permissions |\n| --- | --- | --- |\n")
+        self.assertEqual(kinds, [])
+
+    def test_header_with_wrong_second_cell_never_opens_the_table(self):
+        kinds = self._kinds("| Workflow | NotPurpose | Permissions |\n| --- | --- | --- |\n")
+        self.assertEqual(kinds, [])
+
+    def test_header_with_a_fourth_cell_never_opens_the_table(self):
+        kinds = self._kinds("| Workflow | Purpose | Permissions | Extra |\n| --- | --- | --- | --- |\n")
+        self.assertEqual(kinds, [])
+
+    def test_whitespace_only_line_ends_the_table_too(self):
         kinds = self._kinds(
             "| Workflow | Purpose | Permissions |\n"
             "| --- | --- | --- |\n"
             "| `real.yml` | Does the real thing | `contents: read` |\n"
-            "\n"
-            "### Inputs\n"
-            "\n"
-            "| Workflow | Input | Default |\n"
-            "| --- | --- | --- |\n"
-            "| `gone.yml` | `some-input` | `false` |\n"
+            "   \n"
+            "| `gone.yml` | Removed long ago | `contents: read` |\n"
         )
         self.assertEqual(
             kinds,
             [("header", None), ("separator", None), ("row", "real.yml")],
         )
+
+    def test_four_cell_data_row_is_malformed(self):
+        kinds = self._kinds(
+            "| Workflow | Purpose | Permissions |\n"
+            "| --- | --- | --- |\n"
+            "| `real.yml` | x | y | extra |\n"
+        )
+        self.assertEqual(kinds[2][0], "malformed")
+
+    def test_non_pipe_line_mid_table_is_malformed_not_a_crash(self):
+        kinds = self._kinds(
+            "| Workflow | Purpose | Permissions |\n"
+            "| --- | --- | --- |\n"
+            "| `real.yml` | Does the real thing | `contents: read` |\n"
+            "not a pipe row at all\n"
+        )
+        self.assertEqual(kinds[-1], ("malformed", "not a pipe row at all"))
+
+    def test_name_cell_with_a_leading_character_before_the_backtick_is_malformed(self):
+        kinds = self._kinds(
+            "| Workflow | Purpose | Permissions |\n"
+            "| --- | --- | --- |\n"
+            "| x`real.yml` | x | `c` |\n"
+        )
+        self.assertEqual(kinds[2][0], "malformed")
+
+    def test_name_cell_with_a_trailing_character_after_the_backtick_is_malformed(self):
+        kinds = self._kinds(
+            "| Workflow | Purpose | Permissions |\n"
+            "| --- | --- | --- |\n"
+            "| `real.yml`x | x | `c` |\n"
+        )
+        self.assertEqual(kinds[2][0], "malformed")
+
+    def test_name_cell_with_a_third_embedded_backtick_is_malformed(self):
+        kinds = self._kinds(
+            "| Workflow | Purpose | Permissions |\n"
+            "| --- | --- | --- |\n"
+            "| `re`al.yml` | x | `c` |\n"
+        )
+        self.assertEqual(kinds[2][0], "malformed")
+
+    def test_separator_cell_with_trailing_garbage_is_not_recognised(self):
+        kinds = self._kinds("| Workflow | Purpose | Permissions |\n| ---junk | --- | --- |\n")
+        self.assertEqual(kinds[1][0], "malformed")
+
+    def test_partially_separator_shaped_row_after_header_is_malformed(self):
+        kinds = self._kinds(
+            "| Workflow | Purpose | Permissions |\n"
+            "| --- | Not a real separator | `contents: read` |\n"
+        )
+        self.assertEqual(kinds[1][0], "malformed")
+
+    def test_after_header_flag_resets_even_when_the_next_line_is_a_data_row(self):
+        # after_header must reset unconditionally on the line right after
+        # a header, not only when that line happens to be a separator -
+        # otherwise a later dash-shaped line gets misclassified as
+        # furniture instead of malformed.
+        kinds = self._kinds(
+            "| Workflow | Purpose | Permissions |\n"
+            "| `real.yml` | Does the real thing | `contents: read` |\n"
+            "| --- | --- | --- |\n"
+        )
+        self.assertEqual(
+            kinds,
+            [("header", None), ("row", "real.yml"), ("malformed", "| --- | --- | --- |")],
+        )
+
+    def test_multibyte_utf8_content_is_parsed_correctly(self):
+        kinds = self._kinds(
+            "| Workflow | Purpose | Permissions |\n"
+            "| --- | --- | --- |\n"
+            "| `real.yml` | Uses an em dash — in its purpose text | `contents: read` |\n"
+        )
+        self.assertEqual(kinds, [("header", None), ("separator", None), ("row", "real.yml")])
 
 
 class CheckTest(_TempRepoTestCase):
@@ -358,7 +460,8 @@ class CheckTest(_TempRepoTestCase):
         # Plain string equality (`name in targets`), never a regex or a
         # shell glob built from the name - every ERE/glob metacharacter is
         # just an ordinary character to `==`/`in`, structurally closing the
-        # entire bug class rounds 15-17 fought in the bash predecessor.
+        # entire bug class the bash predecessor fought (a target filename
+        # interpolated into a live shell glob/regex pattern).
         for name in (
             "plus+name.yml",
             "star*name.yml",
@@ -383,9 +486,9 @@ class CheckTest(_TempRepoTestCase):
                     os.remove(os.path.join(self.workflows_dir, name))
 
     def test_undocumented_bracket_named_target_is_not_masked_by_an_unrelated_row(self):
-        # The exact round-16 fail-open regression: an undocumented target
-        # whose name contains a metacharacter must never be silently
-        # matched by an unrelated row.
+        # The bash predecessor's fail-open regression: an undocumented
+        # target whose name contains a metacharacter must never be
+        # silently matched by an unrelated row.
         self._add_target("brack[name.yml")
         self._add_target("brack.yml")
         self._write_readme(
@@ -416,24 +519,45 @@ class CheckTest(_TempRepoTestCase):
 
     def test_a_row_in_a_different_table_is_not_reported_as_stale(self):
         self._add_target("real.yml")
+        self._write_readme(_TWO_TABLE_README)
+        self.assertEqual(self._check(), [])
+
+    def test_forward_direction_sanitizes_a_target_filename_with_an_embedded_newline(self):
+        name = "evil\n::error::forged.yml"
+        self._add_target(name)
+        self._write_readme("| Workflow | Purpose | Permissions |\n| --- | --- | --- |\n")
+        errors = self._check()
+        self.assertEqual(len(errors), 1)
+        self.assertNotIn("\n", errors[0])
+
+    def test_reverse_direction_sanitizes_a_percent_encoded_control_sequence_in_a_stale_row_name(self):
+        name = "gone%0D%0A::error::forged.yml"
         self._write_readme(
             "| Workflow | Purpose | Permissions |\n"
             "| --- | --- | --- |\n"
-            "| `real.yml` | Does the real thing | `contents: read` |\n"
-            "\n"
-            "### Inputs\n"
-            "\n"
-            "| Workflow | Input | Default |\n"
-            "| --- | --- | --- |\n"
-            "| `gone.yml` | `some-input` | `false` |\n"
+            f"| `{name}` | Stale row | `contents: read` |\n"
         )
-        self.assertEqual(self._check(), [])
+        errors = self._check()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("%25", errors[0])
+        self.assertIn("gone", errors[0])
+
+    def test_non_utf8_readme_fails_closed_with_a_clear_message_instead_of_crashing(self):
+        with open(self.readme_path, "wb") as handle:
+            handle.write(
+                b"| Workflow | Purpose | Permissions |\n"
+                b"| --- | --- | --- |\n"
+                b"| `real.yml` \xff | Does the real thing | `contents: read` |\n"
+            )
+        errors = self._check()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("could not be read", errors[0])
 
     def test_pipe_in_a_target_name_is_the_documented_known_limitation(self):
         # Known limitation (issue #116), unchanged from the bash
-        # predecessor: a workflow filename cannot contain `|` in GitHub
-        # Actions practice, so this row-splitting-in-two is an accepted,
-        # still-fail-closed residual, not a live bug.
+        # predecessor: no workflow file in this repository uses `|` in its
+        # name, so this row-splitting-in-two is an accepted, still-fail-closed
+        # residual, not a live bug.
         self._add_target("a|b.yml")
         self._write_readme(
             "| Workflow | Purpose | Permissions |\n"

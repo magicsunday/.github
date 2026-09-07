@@ -2,24 +2,21 @@
 # Replaces readme-catalog-check.sh's bash/regex mechanism (issue #101,
 # issue #116) with a real tokenizer, the same shift find_workflow_call_targets.py
 # already made on the YAML side (issue #118): every bug the bash version
-# accumulated across 17 review rounds (round 9's position-vs-content
-# furniture confusion, round 13's cell-count binding, round 15's exact-
-# one-space rigidity, rounds 16-17's regex-metacharacter escaping) traces
-# back to the same root cause - interpolating one piece of caller-
-# controlled text (a filename) into a live shell glob/regex pattern built
-# from another. A real per-row split removes the pattern-construction step
-# entirely: a table cell is compared to a filename with plain string
-# equality, which has no metacharacter-interpretation hazard by
-# construction, the same way `case`'s own quoting protected the ORIGINAL
-# bash mechanism until an intermediate rewrite dropped it (git blame this
-# repo's history for the exact sequence).
+# accumulated - position-vs-content table-furniture confusion, a
+# cell-count binding, exact-one-space rigidity, and a target filename
+# interpolated into a live shell glob/regex pattern - traces back to the
+# same root cause: building a shell glob/regex pattern FROM one piece of
+# caller-controlled text to compare against another. A real per-row split
+# removes the pattern-construction step entirely: a table cell is compared
+# to a filename with plain string equality, which has no
+# metacharacter-interpretation hazard by construction.
 #
-# find_workflow_call_targets() is imported directly rather than invoked as
-# a subprocess: the two-language split that used to exist here (this file
-# now does BOTH halves in one process) needed a NUL-delimited temp-file
-# handoff purely to survive an embedded raw newline in a filename crossing
-# a process boundary - a hazard that does not exist when the producer and
-# consumer are plain Python objects in the same interpreter.
+# find_targets() is imported directly rather than invoked as a subprocess:
+# the two-language split that used to exist here (this file now does BOTH
+# halves in one process) needed a NUL-delimited temp-file handoff purely
+# to survive an embedded raw newline in a filename crossing a process
+# boundary - a hazard that does not exist when the producer and consumer
+# are plain Python objects in the same interpreter.
 import importlib.util
 import os
 import re
@@ -64,11 +61,12 @@ def split_table_row(line):
     start with `|`). Every `|` is a column boundary, full stop - no
     backslash-escaping is recognised. GFM itself lets a cell escape a
     literal pipe with `\\|`, but adding that here would solve a problem
-    this repository does not have: a real GitHub Actions workflow filename
-    cannot contain `|` (Known limitation, issue #116, unchanged from the
-    bash predecessor's own accepted residual) - a name that did would
-    still fail closed via the malformed-row branch below, just with a
-    generic diagnosis rather than a specific one, exactly as before.
+    this repository does not have: no workflow file under
+    `.github/workflows/` uses `|` in its name (Known limitation, issue
+    #116, unchanged from the bash predecessor's own accepted residual) - a
+    name that did would still fail closed via the malformed-row branch
+    below, just with a generic diagnosis rather than a specific one,
+    exactly as before.
     Recognising an escape sequence that never fires in practice only adds
     a second, untested code path with its own edge cases (an escaped
     escape character, a trailing backslash at end of cell) for no real
@@ -109,23 +107,19 @@ def parse_catalog_table(readme_path):
     exact literal cells "Workflow"/"Purpose" and a "Permissions"-prefixed
     third cell, tolerating real-world trailing text like this repo's own
     "...Permissions the caller must grant" - never by position) through
-    the next blank line - and STOPS there for good. Earlier bash rounds
-    fought a class of bug where a later, real occurrence of the header
-    text (e.g. two catalog-shaped tables in one README) restarted a
-    sed range a second time, concatenating an embedded blank line into the
-    middle of the extracted text; a single linear pass that returns
-    unconditionally at the first blank line makes that restart structurally
-    impossible rather than merely guarded against - there is exactly one
-    catalog table this function will ever look at, by construction.
+    the next blank line, and stops there for good: a single linear pass
+    that returns unconditionally at the first blank line makes restarting
+    on a later, unrelated header-shaped line (e.g. two catalog-shaped
+    tables in one README) structurally impossible rather than merely
+    guarded against - there is exactly one catalog table this function
+    will ever look at, by construction.
 
     The separator (a GFM alignment row) is recognised only on the line
-    immediately after a just-recognised header - not by table-wide
-    position, not by shape alone at any position - closing both classes
-    of silent pass earlier bash rounds found the hard way: a missing
-    separator no longer shifts a real row into a skipped slot (nothing is
-    ever skipped by position), and a separator-shaped line elsewhere in
-    the table (a blanked-out row, a duplicated separator) is never
-    mistaken for furniture just because of its shape.
+    immediately after a just-recognised header - never by table-wide
+    position, never by shape alone at any position - so a missing
+    separator never shifts a real row into a skipped slot, and a
+    separator-shaped line elsewhere in the table is never mistaken for
+    furniture just because of its shape.
     """
     with open(readme_path, encoding="utf-8") as handle:
         lines = handle.read().splitlines()
@@ -171,17 +165,29 @@ def parse_catalog_table(readme_path):
 def check(workflows_dir, readme_path):
     """Returns a list of `::error::`-ready messages (empty if the catalog
     is complete and accurate): fails closed in both directions - every
-    workflow_call target from find_workflow_call_targets() must have its
-    own catalog row (issue #101), and every catalog row must still name
-    one of those targets (issue #116, the reverse direction this file's
-    predecessor was originally created to add).
+    workflow_call target from find_targets() must have its own catalog row
+    (issue #101), and every catalog row must still name one of those
+    targets (issue #116, the reverse direction this file's predecessor was
+    originally created to add).
     """
     errors = []
 
     targets = list(find_workflow_call_targets.find_targets(workflows_dir))
     row_names = []
 
-    for kind, payload in parse_catalog_table(readme_path):
+    try:
+        rows = list(parse_catalog_table(readme_path))
+    except (OSError, UnicodeDecodeError) as exc:
+        # README.md is a single, always-required input, unlike the
+        # per-file open()/yaml.safe_load() find_targets() above wraps the
+        # same way: there is no sibling file to fall back to, so a decode
+        # or read failure here becomes one clear ::error:: instead of
+        # propagating as an uncaught traceback (which would still fail
+        # the CI job, just with no actionable diagnosis).
+        errors.append(f"README.md could not be read: {_sanitize(str(exc))} - fix the file (see issue #116).")
+        rows = []
+
+    for kind, payload in rows:
         if kind == "row":
             row_names.append(payload)
         elif kind == "malformed":

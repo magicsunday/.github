@@ -172,18 +172,19 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   workflow checks out via `job.workflow_repository`/`job.workflow_sha`).
   `lint.yml`'s own `semgrep-smoke` job follows the same pattern
   (`semgrep-smoke-helpers.sh`, split out of `semgrep-report-check.sh` per the
-  scan-report-completeness bullet above), as does `lint.yml`'s
-  `readme-catalog-fresh` job (`readme_catalog_check.py` — cross-checking
-  every `workflow_call`-declaring file under `.github/workflows/` against
-  README's catalog table, issue #101, and every catalog row back against
-  those files, issue #116). This is a plain Python module invoked directly
-  from `lint.yml`, not a bash wrapper: an earlier, bash/`sed`/regex version
-  of the reverse direction went through 17 review rounds and three
-  shipped regressions (positional vs. content-based table-furniture
-  detection, a cell-count binding, and — twice — a target filename
+  scan-report-completeness bullet above). `lint.yml`'s `readme-catalog-fresh`
+  job takes a related but different shape: `readme_catalog_check.py` —
+  cross-checking every `workflow_call`-declaring file under
+  `.github/workflows/` against README's catalog table, issue #101, and
+  every catalog row back against those files, issue #116 — is a plain
+  Python module invoked directly from `lint.yml`, not a bash wrapper
+  sourced the way the examples above are. An earlier, bash/`sed`/regex
+  version of the reverse direction went through many review rounds and a
+  handful of shipped regressions (positional vs. content-based
+  table-furniture detection, a cell-count binding, and a target filename
   interpolated into a live shell glob/regex pattern) before the mechanism
   was replaced outright with a real per-row tokenizer, the same
-  structural-parse shift `find_workflow_call_targets()`
+  structural-parse shift `find_targets()`
   (`.github/scripts/lib/find_workflow_call_targets.py`) already made for
   YAML-trigger detection instead of pattern-matching the raw text (issue
   #118). `readme_catalog_check.py` imports that module directly into the
