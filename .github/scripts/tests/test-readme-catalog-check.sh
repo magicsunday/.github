@@ -299,6 +299,53 @@ rc=$?
 assert_eq "assert_readme_catalog_complete: a documented target with zero spaces before the column pipe returns 0" "0" "${rc}"
 assert_eq "assert_readme_catalog_complete: a documented target with zero spaces before the column pipe prints nothing" "" "${output}"
 
+# The forward loop's own match quotes the whole target name inside the
+# `[[ =~ ]]` pattern, rather than hand-escaping one character of it: a
+# target name containing ERE metacharacters (regex quantifiers/anchors/
+# classes) must still be matched as a plain literal, exactly like the
+# old `case` glob's own quoting already did before this mechanism
+# changed twice in one round. An isolated directory, not the shared
+# `workflows_dir`, keeps each case from having to also re-document the
+# shared fixture's own `real.yml`.
+metachar_dir="${work_dir}/workflows-metachar"
+mkdir -p "${metachar_dir}"
+for metachar_name in 'plus+name.yml' 'star*name.yml' 'quest?name.yml' \
+    'brack[1].yml' 'paren(1).yml' 'caret^name.yml' 'dollar$name.yml'; do
+    cat > "${metachar_dir}/${metachar_name}" <<'EOF'
+on:
+    workflow_call:
+EOF
+    printf '| Workflow | Purpose | Permissions |\n| --- | --- | --- |\n| `%s` | Documented | `contents: read` |\n' \
+        "${metachar_name}" > "${readme_file}"
+
+    output="$(assert_readme_catalog_complete "${metachar_dir}" "${readme_file}")"
+    rc=$?
+    assert_eq "assert_readme_catalog_complete: a target named '${metachar_name}' documented correctly returns 0" "0" "${rc}"
+    assert_eq "assert_readme_catalog_complete: a target named '${metachar_name}' documented correctly prints nothing" "" "${output}"
+    rm -f "${metachar_dir}/${metachar_name}"
+done
+
+# The same quoting must also fail closed the OTHER direction: an
+# UNDOCUMENTED target whose name contains an ERE metacharacter must not
+# silently match an unrelated row just because the metacharacter would,
+# if left unquoted, widen into regex syntax broad enough to accept it.
+cat > "${metachar_dir}/brack[name.yml" <<'EOF'
+on:
+    workflow_call:
+EOF
+cat > "${metachar_dir}/brack.yml" <<'EOF'
+on:
+    workflow_call:
+EOF
+printf '| Workflow | Purpose | Permissions |\n| --- | --- | --- |\n| `brack.yml` | Documented | `contents: read` |\n' > "${readme_file}"
+
+output="$(assert_readme_catalog_complete "${metachar_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: an undocumented bracket-named target is not masked by an unrelated row" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: the bracket-named target is reported as its own missing entry" \
+    "${output}" "brack[name.yml" "is not listed"
+rm -f "${metachar_dir}/brack[name.yml" "${metachar_dir}/brack.yml"
+
 # The forward loop's own match still requires SOME column boundary right
 # after the closing backtick, tolerant whitespace or not: a row glued
 # straight into trailing garbage with no pipe/whitespace boundary at all
@@ -1064,11 +1111,13 @@ assert_eq "assert_readme_catalog_complete: a header-text substring in prose befo
 assert_eq "assert_readme_catalog_complete: a header-text substring in prose before the real table prints nothing" "" "${output}"
 
 # The sed extraction's start pattern requires the FULL literal
-# "Permissions", not merely a shared prefix of it: a line sharing the
-# most of that word ("Permission Level", missing only the trailing `s`)
-# must not open the range early - if it did, its own row would be swept into
-# catalog_table right alongside the real table's, rather than staying
-# excluded like any other line outside the real header/blank-line span.
+# "Permissions", not merely a shared prefix of it: a line sharing most of
+# that word ("Permission Level", missing only the trailing `s`) must not
+# open the range early - if it did, the real header further down (which
+# DOES fully match, loosened prefix or not) would restart the range a
+# second time, sweeping the decoy header line itself back into
+# catalog_table as a spurious malformed row instead of staying excluded
+# like any other line outside the real header/blank-line span.
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permission Level |
 
@@ -1080,7 +1129,7 @@ EOF
 output="$(assert_readme_catalog_complete "${zero_dir}" "${readme_file}")"
 rc=$?
 assert_eq "assert_readme_catalog_complete: a shorter-prefix header decoy before the real table fails" "1" "${rc}"
-assert_contains "assert_readme_catalog_complete: only the real stale row is reported, not the decoy's own row" \
+assert_contains "assert_readme_catalog_complete: only the real stale row is reported, not a decoy malformed-row entry" \
     "${output}" "gone.yml" "is missing"
 assert_eq "assert_readme_catalog_complete: a shorter-prefix header decoy produces exactly one ::error::, the decoy never entered catalog_table" \
     "1" "$(printf '%s\n' "${output}" | grep -c '::error::')"

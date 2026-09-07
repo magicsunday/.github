@@ -61,24 +61,31 @@ find_workflow_call_targets() {
 # sub-table) or mentioned in free-standing prose would satisfy the check
 # without ever having a Purpose/Permissions row of its own - exactly the
 # drift this function exists to catch, just relocated instead of fixed.
-# Matched via an anchored `[[ =~ ]]` regex with the name's own `.` escaped
-# first, not a bare `grep -E`/unescaped regex: the interpolated name can
-# contain a literal `.` (a workflow filename's extension separator), which
-# would otherwise widen to "any character". Escaping only `.` - not the
-# full regex-metacharacter set - mirrors this file's existing risk
-# acceptance for exotic filenames elsewhere (Known limitation, issue #116
-# below): the character classes GitHub Actions workflow filenames actually
-# use (letters, digits, `-`, `_`, `.`) contain exactly one metacharacter.
-# The trailing `[[:space:]]*` tolerates the same zero-or-more spacing
-# before the column pipe the reverse walk's own row regex already accepts
-# (line ~200) - a plain `case "${line}" in "| \`${name}\` |"*)` literal
-# requires exactly one space there, so a real, correctly-documented target
-# whose row happens to have zero spaces before the pipe (a plausible
-# GFM-table reformat) was silently reported as "not listed" even though
-# the reverse walk already accepted the identical row as well-formed
-# (live-reproduced: a zero-space `` `real.yml`| `` row failed here before
-# this fix, while assert_readme_catalog_complete()'s own reverse walk
-# passed it).
+# Matched via an anchored `[[ =~ ]]` regex, not a bare `case` glob: the
+# interpolated name sits inside its own double quotes in the pattern
+# (`` `"${name}"` ``), which - the same as a quoted expansion inside a
+# case pattern - is matched as a literal string regardless of its
+# content, not as regex syntax. An earlier version of this fix instead
+# hand-escaped only the name's literal `.` (a workflow filename's
+# extension separator, the one metacharacter every fixture exercised)
+# and left every other ERE metacharacter live; three independent lanes
+# reproduced both directions of the resulting regression live - a
+# genuinely documented target containing `+`/`*`/`?`/`[`/`]` etc. was
+# reported as "not listed" (the pattern no longer matched its own,
+# correct row), and an UNDOCUMENTED target containing `[`/`*`/`+` could
+# silently match an unrelated row instead, defeating this function's own
+# fail-closed guarantee. Quoting the whole name instead of hand-escaping
+# one character restores the same content-independent literal match the
+# original `case` glob had, while still gaining the trailing
+# `[[:space:]]*` tolerance the reverse walk's own row regex already
+# accepts: a plain `case "${line}" in "| \`${name}\` |"*)` literal
+# required exactly one space there, so a real, correctly-documented
+# target whose row happens to have zero spaces before the pipe (a
+# plausible GFM-table reformat) was silently reported as "not listed"
+# even though the reverse walk already accepted the identical row as
+# well-formed (live-reproduced: a zero-space `` `real.yml`| `` row
+# failed here before this fix, while assert_readme_catalog_complete()'s
+# own reverse walk passed it).
 #
 # Known limitation (issue #101): the table's end boundary is the next BLANK
 # line, not a heading. Removing the blank line before an identically-shaped
@@ -109,7 +116,7 @@ find_workflow_call_targets() {
 assert_readme_catalog_complete() {
     local workflows_dir="$1"
     local readme_file="$2"
-    local name line row message found escaped_name failed=0
+    local name line row message found failed=0
     local catalog_table names rc=0 after_header=0
 
     catalog_table="$(sed -n '/^| Workflow | Purpose | Permissions/,/^$/p' "${readme_file}")"
@@ -134,9 +141,8 @@ assert_readme_catalog_complete() {
     while IFS= read -r name; do
         [ -n "${name}" ] || continue
         found=0
-        escaped_name="${name//./\\.}"
         while IFS= read -r line; do
-            if [[ "${line}" =~ ^\|\ \`${escaped_name}\`[[:space:]]*\| ]]; then
+            if [[ "${line}" =~ ^\|\ \`"${name}"\`[[:space:]]*\| ]]; then
                 found=1
                 break
             fi
@@ -173,8 +179,7 @@ assert_readme_catalog_complete() {
     # #116 for the exact shapes that broke each earlier attempt.
     #
     # A well-formed data row is matched in one step: the leading pipe and
-    # exactly one space (matching the forward loop's own `"| \`${name}\` |"*`
-    # literal above) precede `` ` ``, which starts the name; `[^\`|]*` is the
+    # exactly one space precede `` ` ``, which starts the name; `[^\`|]*` is the
     # name itself (excluding backtick and pipe, so it can never cross into a
     # later cell or absorb a later cell's own backtick); a second `` ` ``
     # closes it, then optional spaces and the column pipe. This one pattern is
