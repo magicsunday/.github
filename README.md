@@ -19,6 +19,7 @@ job-level block replaces the caller's top-level one instead of merging with it,
 so an omitted scope is dropped to `none` and the run is rejected before any step
 runs.
 
+<!-- workflow-catalog:start -->
 | Workflow | Purpose | Permissions the caller must grant |
 | --- | --- | --- |
 | `code-scanning.yml` | Semgrep scan, results uploaded as code-scanning alerts; fails when the scan does not complete | `contents: read`, `security-events: write` |
@@ -33,6 +34,13 @@ runs.
 | `auto-merge-deps.yml` | Auto-merges passing dependency bumps (patch and minor only; `pip` is excluded — see below) | `contents: write`, `pull-requests: write` |
 | `ai-issue-labeler.yml` | Classifies a newly opened issue against the caller's own live label set via the Anthropic API and applies the labels it is confident about — see below | `issues: write` |
 | `php-quality.yml` | Runs the granular `composer ci:test:php:*` PHP quality gate across a version matrix | `contents: read` |
+
+<!-- workflow-catalog:end -->
+
+This table is generated from `.github/workflow-catalog.json` - edit that
+file, then run `python3 .github/scripts/lib/workflow_catalog.py --write
+README.md .github/workflow-catalog.json` and commit the result. A CI check
+fails the build if the two drift apart.
 
 `ai-issue-labeler.yml` also requires a `secrets: anthropic_api_key` passthrough, so every calling repository must provision its own `ANTHROPIC_API_KEY` secret. See the workflow's own header comment for why and the exact caller shape.
 

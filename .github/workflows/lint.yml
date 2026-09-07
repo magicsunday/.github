@@ -226,30 +226,20 @@ jobs:
 
             # find_workflow_call_targets.py (issue #118) needs PyYAML on the
             # runner - test-find-workflow-call-targets.sh and
-            # test-readme-catalog-check.sh both exercise it (the latter via
-            # readme_catalog_check.py's own direct import), so run-tests.sh
+            # test-workflow-catalog.sh both exercise it (the latter via
+            # workflow_catalog.py's own direct import), so run-tests.sh
             # itself now has this dependency, not only the
-            # readme-catalog-fresh job below.
+            # workflow-catalog-fresh job below.
             - name: Install PyYAML
               run: |
                   set -euo pipefail
                   pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/pyyaml.txt
 
-            # readme_catalog_check.py (issue #116, round 24) imports
-            # cmarkgfm at module load time - test-readme-catalog-check.sh
-            # exercises it via run-tests.sh's glob the same way it does
-            # PyYAML above, so this job needs it too, not only
-            # readme-catalog-fresh below.
-            - name: Install cmarkgfm
-              run: |
-                  set -euo pipefail
-                  pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/cmarkgfm.txt
-
             - name: Run shell-logic tests
               run: bash .github/scripts/tests/run-tests.sh
 
-    readme-catalog-fresh:
-        name: Verify README's workflow catalog lists every workflow_call target
+    workflow-catalog-fresh:
+        name: Verify README's generated workflow catalog is complete and fresh
         runs-on: ubuntu-latest
 
         permissions:
@@ -266,7 +256,7 @@ jobs:
               with:
                   python-version: '3.12'
 
-            # readme_catalog_check.py imports find_workflow_call_targets.py
+            # workflow_catalog.py imports find_workflow_call_targets.py
             # directly (issue #118's real YAML parse) into the same
             # process, which needs PyYAML installed on the runner.
             - name: Install PyYAML
@@ -274,20 +264,11 @@ jobs:
                   set -euo pipefail
                   pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/pyyaml.txt
 
-            # readme_catalog_check.py renders README.md through GitHub's
-            # own cmark-gfm C library (issue #116, round 24) instead of a
-            # hand-rolled tokenizer, so it needs cmarkgfm installed on the
-            # runner too.
-            - name: Install cmarkgfm
-              run: |
-                  set -euo pipefail
-                  pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/cmarkgfm.txt
-
-            # check() (readme_catalog_check.py) carries the complete
-            # assertion - the workflow_call detection, the structural
-            # table parse, the reverse walk of the catalog's own rows
-            # (issue #116), and the filename sanitising - so
-            # test_readme_catalog_check.py exercises the exact wiring this
+            # check() (workflow_catalog.py) carries the complete assertion -
+            # the workflow_call detection, .github/workflow-catalog.json's
+            # own schema, the reverse walk of its entries (issue #116), the
+            # filename sanitising, and README.md's generated-block freshness
+            # - so test_workflow_catalog.py exercises the exact wiring this
             # step relies on, not just its parts (issue #101).
-            - name: Compare workflow_call targets against README.md
-              run: python3 .github/scripts/lib/readme_catalog_check.py .github/workflows README.md
+            - name: Compare workflow_call targets against the catalog and README.md
+              run: python3 .github/scripts/lib/workflow_catalog.py .github/workflows README.md .github/workflow-catalog.json

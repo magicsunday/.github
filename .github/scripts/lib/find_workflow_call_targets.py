@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# find_targets() is imported directly by readme_catalog_check.py's own
+# find_targets() is imported directly by workflow_catalog.py's own
 # check() to detect a workflow_call trigger via a real YAML parse instead
 # of pattern-matching the raw text. Evaluating the trigger's actual YAML
 # shape and value, not the literal bytes of the line that introduces it,
@@ -11,7 +11,7 @@
 #
 # find_targets() itself yields plain, unsanitised basenames - sanitising a
 # printed name for CI-annotation forgery is the CALLER's job, which
-# readme_catalog_check.py does via this same module's
+# workflow_catalog.py does via this same module's
 # _sanitize_for_stderr().
 #
 # Known limitation: a file with TWO top-level `on:` keys resolves via
@@ -51,7 +51,7 @@ import yaml
 # filename or PyYAML exception message containing a raw newline would at
 # minimum forge a second, attacker-authored-looking `::error::` line in
 # that log the same way annotation-sanitize.sh's own header documents,
-# regardless of whether find_targets() runs via readme_catalog_check.py's
+# regardless of whether find_targets() runs via workflow_catalog.py's
 # direct import or any other caller - reason enough to sanitize here
 # either way. Order matters: percent-escape first, or a literal `%0D`/`%0A` in the source
 # text would be indistinguishable from an already-escaped sequence once

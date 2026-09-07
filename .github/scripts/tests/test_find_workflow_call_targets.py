@@ -2,7 +2,7 @@
 # Exercises find_workflow_call_targets.py directly (issue #118) - the unit
 # layer that pins _has_workflow_call_trigger()'s per-shape behaviour and the
 # YAML-parse-error skip path, complementing rather than duplicating
-# test_readme_catalog_check.py's end-to-end coverage of readme_catalog_check.py
+# test_workflow_catalog.py's end-to-end coverage of workflow_catalog.py
 # (which imports find_targets() directly - see find_workflow_call_targets.py's
 # own header). Run via run-tests.sh through the test-find-workflow-call-targets.sh
 # wrapper - this file has no bash logic of its own to test, so it is a plain
