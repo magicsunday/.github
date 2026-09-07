@@ -72,8 +72,10 @@ def _sanitize(text):
     # directional-spoofing risk in a printed message that html.escape()
     # closes in the rendered table. It does NOT escape a combining mark
     # (category M) - Python treats one attached to its base character as
-    # printable (verified: `repr('e' + chr(0x301))` == "'é'", not an
-    # escape sequence) - so a Zalgo-stacked value can still visually
+    # printable (verified: `chr(0x301) in repr('e' + chr(0x301))` is
+    # True - the combining mark itself passes through repr() unescaped,
+    # merely rendering merged with the "e" wherever displayed) - so a
+    # Zalgo-stacked value can still visually
     # distort a printed message even after `!r`; accepted as a narrower
     # residual, the same disposition already given to combining marks in
     # the rendered table.
