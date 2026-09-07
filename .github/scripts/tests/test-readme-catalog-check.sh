@@ -674,6 +674,52 @@ assert_eq "assert_readme_catalog_complete: a lone dash in one cell of an otherwi
 assert_contains "assert_readme_catalog_complete: a lone dash in one cell of an otherwise blank row names the real defect" \
     "${output}" "::error::" "not a single backtick-quoted name"
 
+# The separator regex's outer `+` (one-or-more cells) is load-bearing on
+# its own: a bare `|` right after the header has zero cells, so weakening
+# `+` to `*` (zero-or-more) would let it match as an empty separator -
+# every existing fixture stays green under that weakening, since none of
+# them exercises a zero-cell line.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+|
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a bare pipe with zero cells right after the header fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a bare pipe with zero cells names the real defect" \
+    "${output}" "::error::" "not a single backtick-quoted name"
+
+# The regex's `^`/`$` anchors are the only guard against a substring
+# match, since bash's `[[ =~ ]]` has no implicit anchoring: a separator
+# preceded or followed by extra content on the same line must still fail
+# closed rather than being accepted as furniture with the garbage
+# silently ignored.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+x| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a separator with leading garbage right after the header fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a separator with leading garbage names the real defect" \
+    "${output}" "::error::" "not a single backtick-quoted name"
+
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |x
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a separator with trailing garbage right after the header fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a separator with trailing garbage names the real defect" \
+    "${output}" "::error::" "not a single backtick-quoted name"
+
 # The mandatory single space between the leading pipe and the opening
 # backtick (matching the forward loop's own `"| \`${name}\` |"*` literal)
 # is deliberately strict, not merely untested: a row missing it is not a
