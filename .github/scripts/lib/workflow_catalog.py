@@ -182,12 +182,20 @@ def _render_purpose(text):
     simplification of CommonMark's own rule: real CommonMark matches
     same-length backtick RUNS as a single delimiter, precisely so a
     longer run (e.g. "``") can wrap a span that itself contains a lone
-    backtick. A "purpose" value with a doubled backtick is not handled
-    that way here - it does not wrap the intended content in one span at
-    all; each backtick is still paired individually, which produces one
-    or more EMPTY `<code>` elements and leaves the text that was meant
-    to be styled as escaped plain content between them, still fully
-    escaped either way.
+    backtick. A "purpose" value with a run of 2+ consecutive backticks is
+    not handled that way here - the backticks inside the run pair up
+    with EACH OTHER first (each such pair becomes an empty `<code>`
+    element), so the run never acts as one delimiter around the
+    surrounding text the way CommonMark would use it. The result is not
+    a single fixed shape: "``code``" alone yields two empty `<code>`
+    elements with "code" falling out as plain text between them, while a
+    run adjacent to an extra lone backtick (e.g. "``foo`bar``") can still
+    end up pairing that lone backtick with a run backtick and produce a
+    real, non-empty `<code>` element for part of the text - exactly which
+    substrings land inside a span depends on the exact backtick count and
+    position, not on where the author intended the span to start and end.
+    Every substring is still escaped exactly like the rest of the cell
+    either way, whichever side of a `<code>` boundary it ends up on.
     """
     parts = text.split("`")
     escaped = [html.escape(part, quote=False) for part in parts]

@@ -370,6 +370,17 @@ class RenderTableTest(unittest.TestCase):
         self.assertIn("<td>Uses <code>&lt;script&gt;</code></td>", table)
         self.assertNotIn("<code><script>", table)
 
+    def test_purpose_doubled_backtick_produces_empty_code_elements(self):
+        # A run of 2+ consecutive backticks pairs with itself rather than
+        # acting as one CommonMark-style delimiter around the surrounding
+        # text (see _render_purpose()'s own docstring): each internal
+        # pair becomes an EMPTY <code> element, and the text the author
+        # meant to style falls out as plain (still escaped) content
+        # between them, rather than staying styled.
+        catalog = {"real.yml": {"purpose": "a ``code`` b", "permissions": ["contents: read"]}}
+        table = workflow_catalog.render_table(catalog)
+        self.assertIn("<td>a <code></code>code<code></code> b</td>", table)
+
     def test_apostrophe_is_not_escaped_since_quote_is_false(self):
         catalog = {"real.yml": {"purpose": "Uses the caller's own token", "permissions": ["contents: read"]}}
         table = workflow_catalog.render_table(catalog)
@@ -476,6 +487,20 @@ class CheckFreshnessTest(_TempRepoTestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("exactly one", errors[0])
 
+    def test_a_duplicated_begin_marker_alone_is_never_silently_ignored(self):
+        # Mirror of the END-alone case above: the begin count is checked
+        # independently of the end count, so a second, attacker-controlled
+        # begin marker paired with a single legitimate end marker must not
+        # slip through either.
+        self._write_readme(
+            "<!-- workflow-catalog:start -->\n\n<!-- workflow-catalog:start -->\n"
+            + workflow_catalog.render_table(_ONE_ENTRY_CATALOG)
+            + "\n<!-- workflow-catalog:end -->\n"
+        )
+        errors = workflow_catalog.check_freshness(self.readme_path, _ONE_ENTRY_CATALOG)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("exactly one", errors[0])
+
 
 class WriteGeneratedBlockTest(_TempRepoTestCase):
     def test_regenerates_the_block_in_place(self):
@@ -565,6 +590,46 @@ class CheckTest(_TempRepoTestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("could not be read", errors[0])
 
+    def test_catalog_with_invalid_utf8_bytes_reports_could_not_be_read(self):
+        # load_catalog() opens the catalog with encoding="utf-8" - a byte
+        # sequence that isn't valid UTF-8 raises UnicodeDecodeError, which
+        # check() catches alongside OSError/JSONDecodeError/ValueError so
+        # this reports the same clean message instead of an unhandled
+        # traceback.
+        self._add_target("real.yml")
+        with open(self.catalog_path, "wb") as handle:
+            handle.write(b"{\"real.yml\": \"\xff\xfe\"}")
+        self._write_readme("<!-- workflow-catalog:start -->\n<!-- workflow-catalog:end -->\n")
+        errors = self._check()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("could not be read", errors[0])
+
+    def test_readme_with_invalid_utf8_bytes_reports_could_not_be_read(self):
+        # Mirror of the catalog case above for check_freshness()'s own
+        # open(readme_path, encoding="utf-8") call.
+        self._add_target("real.yml")
+        self._write_catalog(_ONE_ENTRY_CATALOG)
+        with open(self.readme_path, "wb") as handle:
+            handle.write(b"<!-- workflow-catalog:start -->\xff\xfe<!-- workflow-catalog:end -->")
+        errors = self._check()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("could not be read", errors[0])
+
+    def test_independent_failures_in_different_directions_all_accumulate(self):
+        # check()'s own docstring says it fails closed in three
+        # independent directions - this pins that they actually
+        # ACCUMULATE into one list rather than short-circuiting after the
+        # first one found, which every other test here (each with exactly
+        # one failure) cannot distinguish from a fail-fast implementation.
+        self._add_target("real.yml")  # undocumented: not in the catalog below
+        stale_catalog = {"removed.yml": {"purpose": "Does the real thing", "permissions": ["contents: read"]}}
+        self._write_catalog(stale_catalog)
+        self._write_fresh_readme(stale_catalog)
+        errors = self._check()
+        self.assertEqual(len(errors), 2)
+        self.assertTrue(any("real.yml" in e and "issue #101" in e for e in errors))
+        self.assertTrue(any("removed.yml" in e and "is missing" in e for e in errors))
+
     def test_catalog_and_targets_agree_but_readme_is_stale(self):
         self._add_target("real.yml")
         self._write_catalog(_ONE_ENTRY_CATALOG)
@@ -646,13 +711,25 @@ class MainTest(_TempRepoTestCase):
         # Mirrors readme_catalog_check.py's identical regression test: a
         # workflow filename decoded from raw POSIX bytes via glob()'s
         # surrogateescape can carry a lone surrogate codepoint into an
-        # ::error:: annotation.
+        # ::error:: annotation. main() protects the print() with an
+        # encode/decode round-trip specifically because the real stdout
+        # GitHub Actions gives the job is strictly UTF-8 - an io.StringIO()
+        # capture (what _run_main() uses for every other test here) never
+        # encodes to bytes at all, so it cannot exercise that crash path;
+        # this test needs its own real UTF-8-strict encoding boundary.
         bad_name = os.fsencode("real-\udcff.yml")
         with open(os.path.join(self.workflows_dir, os.fsdecode(bad_name)), "w", encoding="utf-8", errors="surrogateescape") as handle:
             handle.write("on:\n    workflow_call:\n")
         self._write_catalog({})
         self._write_fresh_readme({})
-        code, out = self._run_main([self.workflows_dir, self.readme_path, self.catalog_path])
+        buf = io.BytesIO()
+        wrapper = io.TextIOWrapper(buf, encoding="utf-8", errors="strict")
+        with contextlib.redirect_stdout(wrapper):
+            code = workflow_catalog.main(
+                ["workflow_catalog.py", self.workflows_dir, self.readme_path, self.catalog_path]
+            )
+            wrapper.flush()
+        out = buf.getvalue().decode("utf-8")
         self.assertEqual(code, 1)
         self.assertIn("::error::", out)
 
