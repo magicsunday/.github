@@ -172,59 +172,45 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   workflow checks out via `job.workflow_repository`/`job.workflow_sha`).
   `lint.yml`'s own `semgrep-smoke` job follows the same pattern
   (`semgrep-smoke-helpers.sh`, split out of `semgrep-report-check.sh` per the
-  scan-report-completeness bullet above). `lint.yml`'s `readme-catalog-fresh`
-  job takes a related but different shape: `readme_catalog_check.py` —
+  scan-report-completeness bullet above). `lint.yml`'s `workflow-catalog-fresh`
+  job takes a related but different shape: `workflow_catalog.py` —
   cross-checking every `workflow_call`-declaring file under
-  `.github/workflows/` against README's catalog table, issue #101, and
-  every catalog row back against those files, issue #116 — is a plain
-  Python module invoked directly from `lint.yml`, not a bash wrapper
-  sourced the way the examples above are. An earlier, bash/`sed`/regex
-  version of the reverse direction went through many review rounds and a
-  handful of shipped regressions (positional vs. content-based
-  table-furniture detection, a cell-count binding, and a target filename
-  interpolated into a live shell glob/regex pattern) before the mechanism
-  was replaced with a real per-row tokenizer, the same structural-parse
-  shift `find_targets()` (`.github/scripts/lib/find_workflow_call_targets.py`)
-  already made for YAML-trigger detection instead of pattern-matching the
-  raw text (issue #118) — and that tokenizer itself went through two more
-  designs before landing on the current one: a line-oriented state
-  machine that tried to hand-replicate GFM's block-precedence rules
-  (what an indented/fenced code block or an HTML comment absorbs) one
-  construct at a time, then a lighter check that only counted
-  header-shaped lines, each still findably bypassable because a
-  hand-rolled text-level check can only approximate what actually renders
-  as a live GFM table. `readme_catalog_check.py` now renders README.md
-  through `cmarkgfm` — Python bindings to cmark-gfm, the C library
-  GitHub's own public Markdown API is confirmed to run in production as of
-  2026-09-07 (re-derive: `curl -s -D - -X POST
-  https://api.github.com/markdown -d '{"text":"test","mode":"gfm"}' -o
-  /dev/null | grep -i x-commonmarker-version` returns a version header
-  below `1.0` — `commonmarker` versions `<1.0` are cmark-gfm's Ruby
-  binding, but `>=1.0` rewrote it on Rust's `comrak` instead, so a bare
-  header alone stops being evidence for this claim once GitHub's pin
-  crosses that boundary) — pinned via
-  `.github/requirements/cmarkgfm.in`/`cmarkgfm.txt` the same way
-  `pyyaml.in`/`.txt` is, called with `CMARK_OPT_UNSAFE` so raw HTML (a
-  `<table>`, a `<details>` section) renders the same way GitHub's own
-  sanitiser lets it through instead of being omitted the way cmark-gfm's
-  default options would — and reads the catalog back out of the real
-  `<table>` elements in the resulting HTML, so content GitHub would never
-  render as a table (an indented/fenced code block, the inside of an HTML
-  comment, still one opaque token to any compliant HTML parser even with
-  raw HTML otherwise allowed through) never becomes a `<table>` element
-  there either, closing the whole bug category structurally instead of
-  one construct at a time. It still
-  imports `find_workflow_call_targets.py` directly into the same process
-  (no subprocess/temp-file handoff, since both halves are Python) —
-  pinned via `.github/requirements/pyyaml.in`/`pyyaml.txt` the same way
+  `.github/workflows/` against the catalog, issue #101, every catalog
+  entry back against those files, issue #116, and README.md's rendered
+  table against the catalog — is a plain Python module invoked directly
+  from `lint.yml`, not a bash wrapper sourced the way the examples above
+  are. Getting the reverse direction right took many review rounds and
+  several full rewrites — bash/`sed`/regex, then a real per-row Python
+  tokenizer, then two GFM-block-precedence-aware designs, then rendering
+  README.md through cmark-gfm and reading a real `<table>` element back
+  out of the HTML — each closing one bypass class while a PR-controlled
+  README.md's markdown/HTML kept offering a new one to exploit, because a
+  human-editable document has no structure the checker can trust without
+  re-deriving it every time. `workflow_catalog.py` instead moves the
+  source of truth to `.github/workflow-catalog.json` — a plain JSON object
+  mapping each workflow filename to its `purpose`/`permissions` — and
+  generates README.md's catalog table from it. README.md's `<!--
+  workflow-catalog:start -->`/`<!-- workflow-catalog:end -->` markers wrap
+  the exact text `render_table()` must produce; the freshness check
+  (`check_freshness()`) is a byte-for-byte string comparison against that
+  markdown, never a parse of it, and its error message names the
+  `--write` command to regenerate it (`python3
+  .github/scripts/lib/workflow_catalog.py --write README.md
+  .github/workflow-catalog.json`). This removes the entire "does the
+  automated check see the same table a human does" question the earlier
+  designs kept re-litigating: there is no longer a table for the checker
+  to interpret, only a string it can compare. It still imports
+  `find_workflow_call_targets.py` directly into the same process (no
+  subprocess/temp-file handoff, since both halves are Python) — pinned
+  via `.github/requirements/pyyaml.in`/`pyyaml.txt` the same way
   `semgrep.in`/`yamllint.in` are, and unit-tested directly by
-  `test_readme_catalog_check.py` and `test_find_workflow_call_targets.py`
+  `test_workflow_catalog.py` and `test_find_workflow_call_targets.py`
   (each run through its own `test-*.sh` wrapper, since `run-tests.sh`'s own
   glob only picks up `test-*.sh`, not `test_*.py`). `find_workflow_call_targets.py`'s
   own stderr-diagnostic sanitizer is a second, Python-side transcription of
   `annotation-sanitize.sh`'s escape-then-fold algorithm (a Python process
   cannot import a bash `readonly` constant the way `semgrep-report-check.sh`
-  does) — `readme_catalog_check.py` reuses that same function directly
+  does) — `workflow_catalog.py` reuses that same function directly
   rather than carrying a third copy, kept from silently drifting apart by
   `test-sanitize-stderr-parity.sh`, a value-based drift guard run over a
   shared fixture list, mirroring `test-annotation-sanitize-jq-parity.sh`'s
