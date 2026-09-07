@@ -146,14 +146,18 @@ assert_readme_catalog_complete() {
     # table-wide position count), and only when every cell matches genuine
     # GFM alignment syntax (`:?-+:?` - at least one contiguous dash per
     # cell, optionally colon-bounded), not merely "made up of |, -, : and
-    # whitespace somewhere in the line". Neither position alone, nor table
-    # position alone, nor a looser punctuation-only shape check, is
-    # sufficient on its own: each, tried in turn, let some malformed row
-    # (a missing separator, a blanked-out `| | | |` row, or punctuation
-    # that contains a dash without forming a real alignment cell) silently
-    # pass as furniture instead of failing closed as malformed - see this
-    # file's git history and issue #116 for the exact shapes that broke
-    # each earlier attempt.
+    # whitespace somewhere in the line", and only when there are EXACTLY
+    # three such cells - the same fixed column count as the header literal
+    # this file already anchors on everywhere else, so a 1-, 2- or 4+-cell
+    # line is a malformed row, not a genuine (if oddly-shaped) separator.
+    # Neither position alone, nor table position alone, nor a looser
+    # punctuation-only or cell-count-agnostic shape check, is sufficient on
+    # its own: each, tried in turn, let some malformed row (a missing
+    # separator, a blanked-out `| | | |` row, punctuation that contains a
+    # dash without forming a real alignment cell, or a separator with the
+    # wrong number of columns) silently pass as furniture instead of
+    # failing closed as malformed - see this file's git history and issue
+    # #116 for the exact shapes that broke each earlier attempt.
     #
     # A well-formed data row is matched in one step: the leading pipe and
     # exactly one space (matching the forward loop's own `"| \`${name}\` |"*`
@@ -189,7 +193,7 @@ assert_readme_catalog_complete() {
         esac
         if [ "${after_header}" -eq 1 ]; then
             after_header=0
-            if [[ "${line}" =~ ^\|([[:space:]]*:?-+:?[[:space:]]*\|)+$ ]]; then
+            if [[ "${line}" =~ ^\|([[:space:]]*:?-+:?[[:space:]]*\|){3}$ ]]; then
                 continue
             fi
         fi

@@ -642,6 +642,35 @@ assert_eq "assert_readme_catalog_complete: a second separator-shaped line right 
 assert_contains "assert_readme_catalog_complete: a second separator-shaped line right after the first names the real defect" \
     "${output}" "::error::" "not a single backtick-quoted name"
 
+# The separator's cell count must match the header's fixed three columns:
+# a 2-cell or 4-cell separator-shaped line right after the header is not a
+# genuine GFM alignment row for THIS table (a column added or removed from
+# the header but not the separator, a plausible partial edit) and must
+# fail closed as malformed rather than being accepted on shape alone.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a 2-cell separator right after the header fails, not a silent skip" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a 2-cell separator names the real defect" \
+    "${output}" "::error::" "not a single backtick-quoted name"
+
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a 4-cell separator right after the header fails, not a silent skip" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a 4-cell separator names the real defect" \
+    "${output}" "::error::" "not a single backtick-quoted name"
+
 # A separator-shaped line WITHOUT a single dash (a blanked-out row that
 # kept only its pipe skeleton) must fail closed even in the one slot -
 # immediately after the header - where a genuine separator IS recognised:
@@ -879,6 +908,126 @@ assert_contains "assert_readme_catalog_complete: with zero targets a row for a t
     "${output}" "plain.yml" "declares no workflow_call"
 assert_eq "assert_readme_catalog_complete: zero targets, two bad rows, exactly two ::error:: lines" \
     "2" "$(printf '%s\n' "${output}" | grep -c '::error::')"
+
+# The forward loop's own empty-name guard ([ -n "${name}" ] || continue) is
+# otherwise masked: with zero targets, `names` is one empty line (a `<<<`
+# here-string always feeds at least one line), and the zero-targets fixture
+# above also happens to carry its own empty-backtick README row, whose
+# REVERSE-walk guard would mask a missing guard here too. Isolate it: zero
+# targets, and a catalog table with no data rows at all, so neither guard
+# has anything to coincidentally share.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+
+EOF
+
+output="$(assert_readme_catalog_complete "${zero_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: zero targets and an empty catalog table pass cleanly" "0" "${rc}"
+assert_eq "assert_readme_catalog_complete: zero targets and an empty catalog table print nothing" "" "${output}"
+
+# The malformed-row branch's own `continue` is otherwise masked: every
+# other malformed-row fixture in this file places the malformed row after
+# a WELL-DOCUMENTED target, so `row` (declared once, not reset between
+# loop iterations) already holds a name the membership check accepts
+# silently if the `continue` were dropped. Place it after a genuinely
+# STALE row instead: if `continue` were dropped, execution would fall
+# through using that same stale name and re-report it a second time,
+# rather than diagnosing the malformed row's own defect - an observable
+# extra ::error:: line, not a crash and not a silent pass.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `gone.yml` | Removed long ago | `contents: read` |
+| malformed row with no backticks at all | text | here |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a malformed row after a stale one fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a malformed row after a stale one names its own defect" \
+    "${output}" "::error::" "not a single backtick-quoted name"
+assert_eq "assert_readme_catalog_complete: a malformed row after a stale one produces exactly two ::error:: lines, not a duplicated stale-row report" \
+    "2" "$(printf '%s\n' "${output}" | grep -c '::error::')"
+
+# The sed extraction's `^` start anchor is otherwise unproven: a prose
+# sentence quoting the header text as a MID-LINE substring, before the
+# real table, must not be swept into catalog_table - only a line that
+# actually STARTS with the header text may begin the range.
+cat > "${readme_file}" <<'EOF'
+See the catalog below (a decoy: | Workflow | Purpose | Permissions | is not a real header here).
+
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a header-text substring in prose before the real table is excluded, passes cleanly" "0" "${rc}"
+assert_eq "assert_readme_catalog_complete: a header-text substring in prose before the real table prints nothing" "" "${output}"
+
+# The sed extraction's end-of-range pattern requires a TRUE empty line, not
+# merely a whitespace-only one: a line of only spaces inside the table must
+# not terminate catalog_table early, or every row after it - including a
+# stale one - would silently drop out of both directions' analysis.
+printf '%s\n' \
+    '| Workflow | Purpose | Permissions |' \
+    '| --- | --- | --- |' \
+    '| `real.yml` | Does the real thing | `contents: read` |' \
+    '   ' \
+    '| `gone.yml` | Removed long ago | `contents: read` |' \
+    '' \
+    > "${readme_file}"
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a whitespace-only line inside the table does not truncate it" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a stale row after a whitespace-only line still names itself" \
+    "${output}" "gone.yml" "is missing"
+
+# The reverse walk's header recognition requires the FULL literal header
+# text, not merely a shared prefix: a near-miss decoy row sharing only
+# "| Workflow | Purpose |" (the same prefix a plausible partial-rename
+# typo could leave behind) must still fail closed as a malformed row
+# rather than being silently treated as furniture.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| Workflow | Purpose | Permission Level |
+| `gone.yml` | Removed long ago | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a near-miss header-prefix decoy row fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a near-miss header-prefix decoy row names the real defect" \
+    "${output}" "::error::" "not a single backtick-quoted name"
+assert_contains "assert_readme_catalog_complete: the stale row after the decoy still names itself" \
+    "${output}" "gone.yml" "is missing"
+assert_eq "assert_readme_catalog_complete: a near-miss header-prefix decoy row produces exactly two ::error:: lines" \
+    "2" "$(printf '%s\n' "${output}" | grep -c '::error::')"
+
+# The row-match regex's trailing-space leniency (documented in prose at
+# this file's own comment above, "optional spaces and the column pipe")
+# is otherwise unpinned: a row with ZERO spaces between the name's closing
+# backtick and the column pipe must still be recognised as a well-formed
+# row - reported as stale, not as "not a single backtick-quoted name".
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+| `stale.yml`| Removed long ago | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: zero spaces before the column pipe still fails, but as a stale row" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: zero spaces before the column pipe is recognised as well-formed, reported as stale" \
+    "${output}" "stale.yml" "is missing"
 
 # The empty-cell guard's `continue` matters even when it is NOT masked by
 # an empty names list: with a real target present, a missing `continue`
