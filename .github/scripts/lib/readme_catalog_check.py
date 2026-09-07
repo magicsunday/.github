@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # Replaces readme-catalog-check.sh's bash/regex mechanism (issue #101,
 # issue #116) with a real tokenizer, the same shift find_workflow_call_targets.py
-# already made on the YAML side (issue #118): every bug the bash version
-# accumulated - position-vs-content table-furniture confusion, a
-# cell-count binding, exact-one-space rigidity, and a target filename
-# interpolated into a live shell glob/regex pattern - traces back to the
-# same root cause: building a shell glob/regex pattern FROM one piece of
-# caller-controlled text to compare against another. A real per-row split
-# removes the pattern-construction step entirely: a table cell is compared
-# to a filename with plain string equality, which has no
-# metacharacter-interpretation hazard by construction.
+# already made on the YAML side (issue #118): the bash version accumulated
+# several distinct failure modes - position-vs-content table-furniture
+# confusion, a cell-count binding, exact-one-space rigidity, and (its most
+# severe) a target filename interpolated into a live shell glob/regex
+# pattern - all traceable to matching table structure and filenames with
+# ad hoc string/pattern operations instead of a real per-row parse. A real
+# per-row split removes every one of these at once: cells are classified
+# by content and position in the token stream rather than by text search,
+# and a table cell is compared to a filename with plain string equality,
+# which has no metacharacter-interpretation hazard by construction.
 #
 # find_targets() is imported directly rather than invoked as a subprocess:
 # the two-language split that used to exist here (this file now does BOTH
@@ -57,21 +58,30 @@ def _sanitize(text):
 def split_table_row(line):
     """Splits one GFM table row into its pipe-delimited, stripped cells.
 
-    Returns None for a line that is not table-row-shaped at all (does not
-    start with `|`). Every `|` is a column boundary, full stop - no
+    Returns None for a line that is not table-row-shaped at all: does not
+    start with `|`, or carries 4+ leading spaces (or a leading tab) - GFM
+    gives an indented code block precedence over table recognition, so a
+    README example wrapped in one must never be mistaken for the real
+    catalog (issue #116; a decoy header/separator/row block indented this
+    way would otherwise open the table early and make the real one
+    unreachable, since the table span ends for good at the first blank
+    line). Every `|` is a column boundary, full stop - no
     backslash-escaping is recognised. GFM itself lets a cell escape a
     literal pipe with `\\|`, but adding that here would solve a problem
     this repository does not have: no workflow file under
-    `.github/workflows/` uses `|` in its name (Known limitation, issue
-    #116, unchanged from the bash predecessor's own accepted residual) - a
-    name that did would still fail closed via the malformed-row branch
-    below, just with a generic diagnosis rather than a specific one,
-    exactly as before.
-    Recognising an escape sequence that never fires in practice only adds
-    a second, untested code path with its own edge cases (an escaped
-    escape character, a trailing backslash at end of cell) for no real
-    gain - the KISS/YAGNI call this rewrite exists to make, not avoid.
+    `.github/workflows/` currently uses `|` in its name (Known
+    limitation, issue #116; re-derive: `ls .github/workflows | grep -c '|'`
+    should print 0) - a name that did would still fail closed via the
+    malformed-row branch below, just with a generic diagnosis rather than
+    a specific one. Recognising an escape sequence that never fires in
+    practice only adds a second, untested code path with its own edge
+    cases (an escaped escape character, a trailing backslash at end of
+    cell) for no real gain - the KISS/YAGNI call this rewrite exists to
+    make, not avoid.
     """
+    if line[:4].isspace() or line.startswith("\t"):
+        return None
+
     stripped = line.strip()
     if not stripped.startswith("|"):
         return None
@@ -121,6 +131,16 @@ def parse_catalog_table(readme_path):
     separator-shaped line elsewhere in the table is never mistaken for
     furniture just because of its shape.
     """
+    if os.path.islink(readme_path):
+        # Mirrors find_targets()'s own symlink guard on workflow files, for
+        # the identical reason: README.md's content (including its git
+        # blob mode) is fully attacker-controlled via a PR, so a symlink
+        # committed in its place would otherwise be followed transparently
+        # into whatever it points at on the runner - an existence/shape
+        # oracle about an arbitrary path, the same narrow hazard
+        # find_targets()'s comment already documents for workflow files.
+        raise OSError(f"{readme_path} is a symlink, refusing to follow it")
+
     with open(readme_path, encoding="utf-8") as handle:
         lines = handle.read().splitlines()
 
@@ -170,11 +190,6 @@ def check(workflows_dir, readme_path):
     targets (issue #116, the reverse direction this file's predecessor was
     originally created to add).
     """
-    errors = []
-
-    targets = list(find_workflow_call_targets.find_targets(workflows_dir))
-    row_names = []
-
     try:
         rows = list(parse_catalog_table(readme_path))
     except (OSError, UnicodeDecodeError) as exc:
@@ -183,9 +198,17 @@ def check(workflows_dir, readme_path):
         # same way: there is no sibling file to fall back to, so a decode
         # or read failure here becomes one clear ::error:: instead of
         # propagating as an uncaught traceback (which would still fail
-        # the CI job, just with no actionable diagnosis).
-        errors.append(f"README.md could not be read: {_sanitize(str(exc))} - fix the file (see issue #116).")
-        rows = []
+        # the CI job, just with no actionable diagnosis). Returns
+        # immediately rather than falling through to the target/row-name
+        # comparisons below: with no real row_names extracted, every
+        # single target would otherwise ALSO be reported as undocumented,
+        # burying the one actionable message (the unreadable file) in a
+        # misleading cascade of unrelated-looking errors.
+        return [f"README.md could not be read: {_sanitize(str(exc))} - fix the file (see issue #116)."]
+
+    errors = []
+    targets = list(find_workflow_call_targets.find_targets(workflows_dir))
+    row_names = []
 
     for kind, payload in rows:
         if kind == "row":

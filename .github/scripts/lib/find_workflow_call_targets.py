@@ -12,16 +12,7 @@
 # find_targets() itself yields plain, unsanitised basenames - sanitising a
 # printed name for CI-annotation forgery is the CALLER's job, which
 # readme_catalog_check.py does via this same module's
-# _sanitize_for_stderr(). This file is also directly runnable as its own
-# CLI (`python3 <this file> <workflows_dir>`, see main() below): that path
-# prints one NUL-terminated basename per line to stdout instead - NUL
-# rather than newline, because a git-tracked filename may itself contain
-# an embedded raw newline that a newline-based split would otherwise
-# consume before a caller extracting names from that stdout stream ever
-# saw it whole (see annotation-sanitize.sh's own header for why the same
-# raw-newline hazard matters there too). readme_catalog_check.py imports
-# find_targets() directly and never exercises this CLI path at all - no
-# process boundary, no newline hazard to cross in the first place.
+# _sanitize_for_stderr().
 #
 # Known limitation: a file with TWO top-level `on:` keys resolves via
 # YAML's own last-key-wins rule, so a workflow_call trigger under the FIRST
@@ -50,18 +41,16 @@ import yaml
 # (its readonly ANNOTATION_SANITIZE_JQ_FILTER constant - re-derive: `grep -n
 # 'readonly ANNOTATION_SANITIZE_JQ_FILTER=' .github/scripts/lib/annotation-sanitize.sh`;
 # test-sanitize-stderr-parity.sh is the drift guard that actually enforces
-# this, not this comment) exactly, in Python: this script's own stderr
-# diagnostic below is a SECOND CI-annotation producer in this repo that
-# has nothing to route through the bash function - readme_catalog_check.py
-# imports find_targets() directly and never sees this module's stderr at
-# all, but this file's own standalone CLI path (`python3
-# find_workflow_call_targets.py <dir>`, see main() below) still runs
-# stdout-piped/stderr-unredirected the same way a bare GitHub Actions
-# `run:` step would, so a real, git-trackable filename or PyYAML exception
-# message containing a raw newline would otherwise forge a second,
-# attacker-authored `::error::` line the same way annotation-sanitize.sh's
-# own header documents, for whoever DOES invoke it that way. Order
-# matters: percent-escape first, or a literal `%0D`/`%0A` in the source
+# this, not this comment) exactly, in Python: this module's own stderr
+# diagnostic below (_warn()) is a SECOND CI-annotation producer in this
+# repo that has nothing to route through the bash function. GitHub
+# Actions' annotation parser scans a step's combined stdout AND stderr for
+# `::` command syntax, so a real, git-trackable filename or PyYAML
+# exception message containing a raw newline would otherwise forge a
+# second, attacker-authored `::error::` line the same way
+# annotation-sanitize.sh's own header documents - regardless of whether
+# find_targets() runs via readme_catalog_check.py's direct import or any
+# other caller. Order matters: percent-escape first, or a literal `%0D`/`%0A` in the source
 # text would be indistinguishable from an already-escaped sequence once
 # the runner decodes it back. `[:cntrl:]` in jq is Unicode-aware (C0
 # controls, DEL, and C1 controls such as U+0085 NEL) - re.sub() operates on
@@ -193,24 +182,3 @@ def find_targets(workflows_dir):
 
         if _has_workflow_call_trigger(doc):
             yield os.path.basename(path)
-
-
-def main(argv):
-    if len(argv) != 2:
-        print("usage: find_workflow_call_targets.py <workflows_dir>", file=sys.stderr)
-        return 2
-
-    out = sys.stdout.buffer
-    for name in find_targets(argv[1]):
-        # fsencode, not a plain UTF-8 .encode(): a filename is an arbitrary
-        # byte sequence on a POSIX filesystem, and glob() already decoded it
-        # with surrogateescape - fsencode reverses that losslessly, while a
-        # plain .encode() would raise on a name that round-trips through
-        # surrogateescape.
-        out.write(os.fsencode(name))
-        out.write(b"\0")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv))
