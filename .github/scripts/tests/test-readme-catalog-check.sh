@@ -623,6 +623,25 @@ assert_eq "assert_readme_catalog_complete: a mid-table duplicate of the separato
 assert_contains "assert_readme_catalog_complete: a mid-table duplicate of the separator line names the real defect" \
     "${output}" "::error::" "not a single backtick-quoted name"
 
+# TWO separator-shaped lines directly after the header, with no data row
+# between them, must not both be silently skipped: after_header is reset
+# unconditionally on the first one, so the second no longer sits in the
+# one slot where the shape check runs - it falls through and is rejected
+# like any other malformed row. A reset deferred to only the non-match
+# branch would instead leave the flag set and swallow the second line too.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| --- | --- | --- |
+| --- | --- | --- |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a second separator-shaped line right after the first fails, not a silent skip" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a second separator-shaped line right after the first names the real defect" \
+    "${output}" "::error::" "not a single backtick-quoted name"
+
 # A separator-shaped line WITHOUT a single dash (a blanked-out row that
 # kept only its pipe skeleton) must fail closed even in the one slot -
 # immediately after the header - where a genuine separator IS recognised:
