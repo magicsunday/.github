@@ -59,7 +59,22 @@ _END_MARKER = "<!-- workflow-catalog:end -->"
 def _sanitize(text):
     # See readme_catalog_check.py's own _sanitize() history (git log) for
     # why this reuses find_workflow_call_targets._sanitize_for_stderr()
-    # rather than a second copy.
+    # rather than a second copy. This only strips C0/C1 control characters
+    # and escapes "%" - it does NOT touch the wider Cf/Cs/Co/Cn/Zl/Zp
+    # categories _reject_unsafe_cell_text() rejects (bidi overrides among
+    # them), so a caller embedding a value that HASN'T been proven clean
+    # by that check yet (e.g. the value's own rejection message, or a raw
+    # workflow filename from disk) must additionally wrap the sanitized
+    # result in `!r` before printing it - repr() escapes every category-C
+    # and Zl/Zp character into a literal "\uXXXX" escape sequence instead
+    # of the raw codepoint (verified directly against Python's repr()),
+    # closing the same directional-spoofing risk in a printed message
+    # that html.escape() closes in the rendered table. It does NOT escape
+    # a combining mark (category M) - Python
+    # treats one attached to its base character as printable - so a
+    # Zalgo-stacked value can still visually distort a printed message
+    # even after `!r`; accepted as a narrower residual, the same
+    # disposition already given to combining marks in the rendered table.
     return find_workflow_call_targets._sanitize_for_stderr(text)
 
 
@@ -100,7 +115,7 @@ def _reject_unsafe_cell_text(catalog_path, name, field, value):
         unicodedata.category(ch) in ("Zl", "Zp") or unicodedata.category(ch)[0] in ("C", "M") for ch in value
     ):
         raise ValueError(
-            f"{catalog_path}: the entry for {_sanitize(name)}'s {field!r} must not contain a Unicode "
+            f"{catalog_path}: the entry for {_sanitize(name)!r}'s {field!r} must not contain a Unicode "
             "control, format, separator, or combining-mark character - none of those render safely "
             "in the generated table (see issue #116)."
         )
@@ -339,7 +354,7 @@ def check(workflows_dir, readme_path, catalog_path):
     for target in targets:
         if target not in catalog:
             errors.append(
-                f"{_sanitize(target)} declares workflow_call: but is not listed in "
+                f"{_sanitize(target)!r} declares workflow_call: but is not listed in "
                 f"{catalog_path} - add it (see issue #101)."
             )
 

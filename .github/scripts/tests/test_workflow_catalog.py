@@ -155,6 +155,21 @@ class LoadCatalogTest(_TempRepoTestCase):
         with self.assertRaises(ValueError):
             workflow_catalog.load_catalog(self.catalog_path)
 
+    def test_bidi_override_character_in_the_catalog_key_does_not_reach_the_message_raw(self):
+        # _reject_unsafe_cell_text()'s own rejection message used to embed
+        # the still-unvalidated `name` via plain _sanitize(), which only
+        # strips C0/C1 control characters - the bidi override this test
+        # rejects would otherwise ride along raw into the printed message
+        # (and from there into a CI ::error:: annotation), reopening the
+        # same directional-spoofing risk the rejection itself exists to
+        # close. `!r` forces it through Python's own escaping instead.
+        bad_name = "workflow‮name.yml"
+        self._write_catalog({bad_name: {"purpose": "x", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError) as ctx:
+            workflow_catalog.load_catalog(self.catalog_path)
+        self.assertNotIn("‮", str(ctx.exception))
+        self.assertIn("\\u202e", str(ctx.exception))
+
     def test_single_combining_mark_in_purpose_is_rejected(self):
         # The guard rejects ANY occurrence of a combining mark, not only a
         # long "Zalgo" run - a single one (e.g. from NFD-normalized "é"
@@ -405,6 +420,21 @@ class RenderTableTest(unittest.TestCase):
         self.assertIn("the caller's own token", table)
         self.assertNotIn("&#x27;", table)
 
+    def test_apostrophe_in_the_catalog_key_is_not_escaped_since_quote_is_false(self):
+        # Only the "purpose" path was pinned above - render_table() calls
+        # html.escape(quote=False) on name/permissions too, but nothing
+        # proved it before this test.
+        catalog = {"caller's.yml": {"purpose": "p", "permissions": ["contents: read"]}}
+        table = workflow_catalog.render_table(catalog)
+        self.assertIn("caller's.yml", table)
+        self.assertNotIn("&#x27;", table)
+
+    def test_apostrophe_in_a_permission_entry_is_not_escaped_since_quote_is_false(self):
+        catalog = {"real.yml": {"purpose": "p", "permissions": ["contents: read", "caller's-token: write"]}}
+        table = workflow_catalog.render_table(catalog)
+        self.assertIn("caller's-token: write", table)
+        self.assertNotIn("&#x27;", table)
+
     def test_catalog_key_angle_brackets_are_escaped(self):
         catalog = {"x</td><td>y.yml": {"purpose": "p", "permissions": ["contents: read"]}}
         table = workflow_catalog.render_table(catalog)
@@ -576,6 +606,21 @@ class CheckTest(_TempRepoTestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("real.yml", errors[0])
         self.assertIn("issue #101", errors[0])
+
+    def test_undocumented_target_with_a_bidi_override_filename_does_not_reach_the_message_raw(self):
+        # Mirror of the catalog-key case above, for the other call site
+        # that embeds an as-yet-unvalidated string: a workflow FILENAME
+        # from disk is never run through _reject_unsafe_cell_text() at
+        # all (only catalog values are), so this message is the only
+        # place a bidi override in a real filename ever gets caught.
+        bad_name = "workflow‮name.yml"
+        self._add_target(bad_name)
+        self._write_catalog({})
+        self._write_fresh_readme({})
+        errors = self._check()
+        self.assertEqual(len(errors), 1)
+        self.assertNotIn("‮", errors[0])
+        self.assertIn("\\u202e", errors[0])
 
     def test_stale_entry_for_removed_file_fails(self):
         self._write_catalog(_ONE_ENTRY_CATALOG)
@@ -770,10 +815,10 @@ class MainTest(_TempRepoTestCase):
         self.assertIn(self.catalog_path, stderr.getvalue())
 
     def test_write_mode_reports_a_pathologically_nested_catalog_on_stderr_and_returns_one(self):
-        # main()'s --write branch has its OWN except tuple (line 374),
-        # duplicated from check()'s (line 324) rather than shared - the
-        # RecursionError case above only drives check(), so it cannot
-        # prove the --write branch's copy of the same fix actually works.
+        # main()'s --write branch has its OWN except tuple, duplicated
+        # from check()'s rather than shared - the RecursionError case
+        # above only drives check(), so it cannot prove the --write
+        # branch's copy of the same fix actually works.
         self._write_readme("<!-- workflow-catalog:start -->\n<!-- workflow-catalog:end -->\n")
         with open(self.catalog_path, "w", encoding="utf-8") as handle:
             handle.write("[" * 200000 + "0" + "]" * 200000)
