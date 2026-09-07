@@ -67,14 +67,16 @@ def _sanitize(text):
     # workflow filename from disk) must additionally wrap the sanitized
     # result in `!r` before printing it - repr() escapes every category-C
     # and Zl/Zp character into a literal "\uXXXX" escape sequence instead
-    # of the raw codepoint (verified directly against Python's repr()),
-    # closing the same directional-spoofing risk in a printed message
-    # that html.escape() closes in the rendered table. It does NOT escape
-    # a combining mark (category M) - Python
-    # treats one attached to its base character as printable - so a
-    # Zalgo-stacked value can still visually distort a printed message
-    # even after `!r`; accepted as a narrower residual, the same
-    # disposition already given to combining marks in the rendered table.
+    # of the raw codepoint (verified: `repr(chr(0x202e))` == "'\\u202e'",
+    # `repr(chr(0x2028))` == "'\\u2028'"), closing the same
+    # directional-spoofing risk in a printed message that html.escape()
+    # closes in the rendered table. It does NOT escape a combining mark
+    # (category M) - Python treats one attached to its base character as
+    # printable (verified: `repr('e' + chr(0x301))` == "'é'", not an
+    # escape sequence) - so a Zalgo-stacked value can still visually
+    # distort a printed message even after `!r`; accepted as a narrower
+    # residual, the same disposition already given to combining marks in
+    # the rendered table.
     return find_workflow_call_targets._sanitize_for_stderr(text)
 
 

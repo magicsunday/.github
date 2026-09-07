@@ -67,8 +67,14 @@ def _sanitize_for_stderr(text):
 
 
 def _warn(path, message):
+    # _sanitize_for_stderr() only closes the newline-forgery class above -
+    # it does not touch a Unicode bidi-override/format/separator
+    # character, which would otherwise ride raw into this printed
+    # diagnostic from an attacker-controlled, never-elsewhere-validated
+    # filename. `!r` closes that the same way workflow_catalog.py's own
+    # _sanitize() callers do, for the identical reason (see its docstring).
     print(
-        f"find_workflow_call_targets.py: {_sanitize_for_stderr(os.path.basename(path))} {message}",
+        f"find_workflow_call_targets.py: {_sanitize_for_stderr(os.path.basename(path))!r} {message}",
         file=sys.stderr,
     )
 
@@ -179,8 +185,11 @@ def find_targets(workflows_dir):
             # PyYAML's own exception message re-embeds the full raw path
             # in its "in '<path>', line N, column M" context, so `exc`
             # needs the same treatment as the bare filename, not just
-            # os.path.basename(path) alone.
-            _warn(path, f"could not be processed, skipping: {_sanitize_for_stderr(str(exc))}")
+            # os.path.basename(path) alone. `!r` here too, for the same
+            # bidi-override reason _warn() wraps the basename itself -
+            # the full path re-embedded by PyYAML is exactly as
+            # unvalidated as the basename is.
+            _warn(path, f"could not be processed, skipping: {_sanitize_for_stderr(str(exc))!r}")
             continue
 
         if _has_workflow_call_trigger(doc):

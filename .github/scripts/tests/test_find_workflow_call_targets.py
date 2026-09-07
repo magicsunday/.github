@@ -230,6 +230,43 @@ class FindTargetsTest(unittest.TestCase):
 
             self.assertEqual(targets, ["real.yml"])
 
+    def test_bidi_override_filename_does_not_reach_the_symlink_warning_raw(self):
+        # _warn() wraps the sanitized basename in `!r` specifically because
+        # _sanitize_for_stderr() only closes the newline-forgery class, not
+        # a Unicode bidi-override character - this is the same defect class
+        # workflow_catalog.py's _sanitize() docstring documents, on the one
+        # call site here that embeds a filename never validated by anything
+        # else (find_targets() never runs catalog-value validation).
+        bad_name = "workflow‮name.yml"
+        with tempfile.TemporaryDirectory() as base_dir:
+            workflows_dir = os.path.join(base_dir, "workflows")
+            os.mkdir(workflows_dir)
+            target_path = os.path.join(base_dir, "target.txt")
+            with open(target_path, "w", encoding="utf-8") as handle:
+                handle.write("irrelevant")
+            try:
+                os.symlink(target_path, os.path.join(workflows_dir, bad_name))
+            except OSError:
+                self.skipTest("this filesystem rejects filenames containing this character")
+
+            _, stderr_text = _find_targets_and_capture_stderr(workflows_dir)
+
+            self.assertNotIn("‮", stderr_text)
+            self.assertIn("\\u202e", stderr_text)
+
+    def test_bidi_override_filename_does_not_reach_the_parse_failure_warning_raw(self):
+        # Mirror of the symlink case above, for the OTHER _warn() call site
+        # - a filename that fails YAML parsing instead of being a symlink.
+        bad_name = "workflow‮name.yml"
+        with tempfile.TemporaryDirectory() as workflows_dir:
+            with open(os.path.join(workflows_dir, bad_name), "w", encoding="utf-8") as handle:
+                handle.write("on: {workflow_call:\n")
+
+            _, stderr_text = _find_targets_and_capture_stderr(workflows_dir)
+
+            self.assertNotIn("‮", stderr_text)
+            self.assertIn("\\u202e", stderr_text)
+
     def test_symlinked_workflow_file_is_skipped_without_leaking_target_content(self):
         # A git-tracked symlink pointing outside workflows_dir must never
         # be opened at all. PyYAML's exception message never embeds a
@@ -258,7 +295,7 @@ class FindTargetsTest(unittest.TestCase):
             targets, stderr_text = _find_targets_and_capture_stderr(workflows_dir)
 
             self.assertEqual(targets, [])
-            self.assertIn("evil.yml is a symlink, skipping", stderr_text)
+            self.assertIn("'evil.yml' is a symlink, skipping", stderr_text)
             self.assertNotIn(secret_marker, stderr_text)
 
     def test_empty_directory_yields_nothing(self):
