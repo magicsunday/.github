@@ -170,13 +170,88 @@ class LoadCatalogTest(_TempRepoTestCase):
         with self.assertRaises(ValueError):
             workflow_catalog.load_catalog(self.catalog_path)
 
+    def test_embedded_begin_marker_string_in_purpose_is_rejected(self):
+        # The begin marker specifically - a prior test only tried the end
+        # marker, and the two are checked by separate `or` clauses.
+        self._write_catalog(
+            {"real.yml": {"purpose": "x <!-- workflow-catalog:start --> y", "permissions": ["contents: read"]}}
+        )
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_raw_html_tag_in_purpose_is_rejected(self):
+        # `<`/`>` let a value construct raw HTML tags (e.g. </td><td>) that
+        # a spec-compliant renderer implicitly closes the current
+        # cell/row for, forging a sibling row or column with no `|`
+        # needed at all - live-demonstrated, round 29.
+        self._write_catalog(
+            {"real.yml": {"purpose": "x</td><td>forged</td><td>y", "permissions": ["contents: read"]}}
+        )
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_raw_html_tag_in_a_permission_entry_is_rejected(self):
+        self._write_catalog({"real.yml": {"purpose": "x", "permissions": ["contents: read</td><td>forged"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_raw_html_tag_in_the_catalog_key_is_rejected(self):
+        self._write_catalog({"real.yml<td>": {"purpose": "x", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_backtick_in_the_catalog_key_is_rejected(self):
+        # render_table() wraps the name in its OWN backticks - an embedded
+        # one closes that code span early and lets ordinary markdown in
+        # between render live instead of staying literal text.
+        self._write_catalog({"x` **BREAKOUT** `y.yml": {"purpose": "x", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_backtick_in_a_permission_entry_is_rejected(self):
+        self._write_catalog(
+            {"real.yml": {"purpose": "x", "permissions": ["contents: read` **BREAKOUT** `still-read"]}}
+        )
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_backtick_in_purpose_is_still_allowed(self):
+        # "purpose" is never backtick-wrapped by the template, so an
+        # embedded backtick there is just literal prose, not a breakout
+        # vector - covered here explicitly since the rejection above is
+        # conditional on the field.
+        self._write_catalog({"real.yml": {"purpose": "Uses `make lang`", "permissions": ["contents: read"]}})
+        workflow_catalog.load_catalog(self.catalog_path)  # must not raise
+
+    def test_line_separator_character_in_purpose_is_rejected(self):
+        # U+2028 LINE SEPARATOR - Unicode category "Zl", not covered by
+        # the category-C check alone.
+        self._write_catalog({"real.yml": {"purpose": "Normal separated", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
     def test_slash_in_the_catalog_key_is_rejected(self):
         self._write_catalog({"../../etc/passwd": {"purpose": "x", "permissions": ["contents: read"]}})
         with self.assertRaises(ValueError):
             workflow_catalog.load_catalog(self.catalog_path)
 
+    def test_backslash_in_the_catalog_key_is_rejected(self):
+        self._write_catalog({"sub\\real.yml": {"purpose": "x", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_empty_string_catalog_key_is_rejected(self):
+        self._write_catalog({"": {"purpose": "x", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
     def test_dot_dot_as_the_catalog_key_is_rejected(self):
         self._write_catalog({"..": {"purpose": "x", "permissions": ["contents: read"]}})
+        with self.assertRaises(ValueError):
+            workflow_catalog.load_catalog(self.catalog_path)
+
+    def test_single_dot_as_the_catalog_key_is_rejected(self):
+        self._write_catalog({".": {"purpose": "x", "permissions": ["contents: read"]}})
         with self.assertRaises(ValueError):
             workflow_catalog.load_catalog(self.catalog_path)
 
@@ -284,6 +359,19 @@ class CheckFreshnessTest(_TempRepoTestCase):
             "| --- | --- | --- |\n"
             "| `real.yml` | Forged | `contents: write` |\n"
             "\n<!-- workflow-catalog:end -->\n"
+        )
+        errors = workflow_catalog.check_freshness(self.readme_path, _ONE_ENTRY_CATALOG)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("exactly one", errors[0])
+
+    def test_a_duplicated_end_marker_alone_is_never_silently_ignored(self):
+        # The begin/end counts are two independent `!= 1` checks - a
+        # duplicate on the END side alone is a distinct branch from the
+        # "both markers duplicated together" case above.
+        self._write_readme(
+            "<!-- workflow-catalog:start -->\n"
+            + workflow_catalog.render_table(_ONE_ENTRY_CATALOG)
+            + "\n<!-- workflow-catalog:end -->\n\n<!-- workflow-catalog:end -->\n"
         )
         errors = workflow_catalog.check_freshness(self.readme_path, _ONE_ENTRY_CATALOG)
         self.assertEqual(len(errors), 1)

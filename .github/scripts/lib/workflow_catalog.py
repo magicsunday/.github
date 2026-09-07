@@ -7,12 +7,12 @@
 # at README.md's content. That freshness check is a byte-for-byte string
 # comparison, never a markdown/HTML parse.
 #
-# This retires 27 rounds of hardening a hand-rolled extractor against every
-# way GitHub-flavoured Markdown/HTML can be nested, unbalanced or spoofed
-# (see readme_catalog_check.py's own git history:
-# `git log -- .github/scripts/lib/readme_catalog_check.py`) - each fix
-# closed one construct and left the next one for the following round,
-# because the fundamental problem was re-deriving a live rendering
+# This retires a long run of hand-rolled extractor hardening against
+# every way GitHub-flavoured Markdown/HTML can be nested, unbalanced or
+# spoofed (see readme_catalog_check.py's own git history for the sequence
+# of fixes: `git log -- .github/scripts/lib/readme_catalog_check.py`) -
+# each fix closed one construct and left the next one for the following
+# round, because the fundamental problem was re-deriving a live rendering
 # engine's structure from PR-controlled markdown by hand. Moving the
 # source of truth to JSON and the README to a generated artefact removes
 # that problem for README.md's own committed bytes: a decoy row can no
@@ -21,13 +21,11 @@
 # byte-for-byte to render_table()'s output. It does NOT make catalog
 # VALUES trustworthy content, though - .github/workflow-catalog.json is
 # exactly as PR-controlled as README.md ever was, and render_table()
-# splices its strings into the generated markdown unescaped. `|`, a
-# newline, or a Unicode control/format character in a "purpose" or
-# "permissions" entry would corrupt or misrepresent the generated table
-# once GitHub renders it - a decoy row hidden in a JSON string value
-# instead of raw README markdown (round 28, live-demonstrated) - so
-# load_catalog() rejects all of those outright rather than passing them
-# through to render_table().
+# splices its strings into the generated markdown - see
+# _reject_unsafe_cell_text()'s own comment for the concrete constructs
+# (table-splicing punctuation, raw HTML tags, backtick break-out, control
+# and separator characters) that a name/purpose/permission string is
+# rejected for rather than passed through unescaped.
 #
 # find_targets() is imported directly, not invoked as a subprocess - same
 # rationale as the file this replaces: producer and consumer are plain
@@ -62,27 +60,50 @@ def _sanitize(text):
     return find_workflow_call_targets._sanitize_for_stderr(text)
 
 
-def _reject_unsafe_cell_text(catalog_path, name, field, value):
+def _reject_unsafe_cell_text(catalog_path, name, field, value, *, allow_backtick):
     # `|` would splice an extra column into render_table()'s markdown row
-    # (GFM silently drops the excess or a neighbouring cell instead of
-    # erroring); a Unicode category-C character (Cc/Cf/Cs/Co/Cn - control,
-    # format incl. bidi overrides, surrogate, private-use, unassigned)
-    # covers both a literal newline (ends the table early, pushing the
-    # real remaining cells into unrelated rendered prose) and a
-    # Trojan-Source-style bidi override with none of those needing their
-    # own hand-picked entry - live-demonstrated for both classes, round
-    # 28. Embedding either marker string would let a later --write lock
-    # onto the wrong occurrence instead of the real one.
+    # (GFM's table-cell grammar splits on every unescaped `|` regardless of
+    # code-span/backtick state - checked against cmark-gfm's own
+    # table_cell rule, 2026-09-07); `<`/`>` let a value construct raw HTML tags
+    # (`</td><td>...`) that a spec-compliant renderer implicitly closes
+    # the current cell/row for, forging a sibling table row or column with
+    # no `|` needed at all - live-demonstrated end to end through a real
+    # renderer, round 29 (round 28's fix covered only the `|`/newline
+    # mechanism, not this class). Embedding either marker string would let
+    # a later --write lock onto the wrong occurrence instead of the real
+    # one. A Unicode category-C character (Cc/Cf/Cs/Co/Cn - control,
+    # format incl. bidi overrides, surrogate, private-use, unassigned) or
+    # a Zl/Zp separator covers a literal newline or line/paragraph
+    # separator (ends the table early, pushing the real remaining cells
+    # into unrelated rendered prose) and a Trojan-Source-style bidi
+    # override with no hand-picked list of individual characters.
     if (
         "|" in value
+        or "<" in value
+        or ">" in value
         or _BEGIN_MARKER in value
         or _END_MARKER in value
-        or any(unicodedata.category(ch)[0] == "C" for ch in value)
+        or any(unicodedata.category(ch) in ("Zl", "Zp") or unicodedata.category(ch)[0] == "C" for ch in value)
     ):
         raise ValueError(
             f"{catalog_path}: the entry for {_sanitize(name)}'s {field!r} must not contain a `|`, "
-            "a generated-block marker, or a Unicode control/format character - any of those "
-            "would corrupt or misrepresent the generated table (see issue #116)."
+            "a `<`/`>`, a generated-block marker, or a Unicode control/format/separator character "
+            "- any of those would corrupt or misrepresent the generated table (see issue #116)."
+        )
+    # render_table() wraps `name` and each `permissions` entry in its OWN
+    # literal backticks (`` `{value}` ``); an embedded backtick there
+    # closes that code span early and reopens a second one, letting
+    # ordinary markdown in between (bold, a link) render live instead of
+    # staying literal text - live-demonstrated, round 29. "purpose" is
+    # never backtick-wrapped by the template, so an embedded backtick
+    # there is just literal prose (CommonMark's code-span rule requires a
+    # matching same-length backtick run, so an unpaired one renders as a
+    # literal backtick, not an unterminated span swallowing later cells).
+    if not allow_backtick and "`" in value:
+        raise ValueError(
+            f"{catalog_path}: the entry for {_sanitize(name)}'s {field!r} must not contain a backtick "
+            "- render_table() wraps this field in its own backticks, and an embedded one would break "
+            "out of that code span (see issue #116)."
         )
 
 
@@ -113,7 +134,7 @@ def load_catalog(catalog_path):
             raise ValueError(
                 f"{catalog_path}: {_sanitize(name)!r} is not a valid workflow filename to use as a catalog key."
             )
-        _reject_unsafe_cell_text(catalog_path, name, "name", name)
+        _reject_unsafe_cell_text(catalog_path, name, "name", name, allow_backtick=False)
 
         if not isinstance(entry, dict) or set(entry) != {"purpose", "permissions"}:
             raise ValueError(
@@ -122,7 +143,7 @@ def load_catalog(catalog_path):
             )
         if not isinstance(entry["purpose"], str) or not entry["purpose"]:
             raise ValueError(f"{catalog_path}: the entry for {_sanitize(name)} needs a non-empty string \"purpose\".")
-        _reject_unsafe_cell_text(catalog_path, name, "purpose", entry["purpose"])
+        _reject_unsafe_cell_text(catalog_path, name, "purpose", entry["purpose"], allow_backtick=True)
 
         permissions = entry["permissions"]
         if not isinstance(permissions, list) or not permissions or not all(
@@ -133,7 +154,7 @@ def load_catalog(catalog_path):
                 "list of non-empty strings."
             )
         for permission in permissions:
-            _reject_unsafe_cell_text(catalog_path, name, "permissions", permission)
+            _reject_unsafe_cell_text(catalog_path, name, "permissions", permission, allow_backtick=False)
 
     return data
 
@@ -168,28 +189,18 @@ def _find_marker_span(readme_text):
     return begin + len(_BEGIN_MARKER), end
 
 
-def _extract_generated_block(readme_text):
-    """Returns the text strictly between the markers, or `None` if the
-    markers are missing, out of order, or duplicated (see
-    `_find_marker_span()`).
-    """
-    span = _find_marker_span(readme_text)
-    if span is None:
-        return None
-    return readme_text[span[0] : span[1]]
-
-
 def check_freshness(readme_path, catalog):
     with open(readme_path, encoding="utf-8") as handle:
         readme_text = handle.read()
 
-    current = _extract_generated_block(readme_text)
-    if current is None:
+    span = _find_marker_span(readme_text)
+    if span is None:
         return [
             f"{readme_path} must contain exactly one {_BEGIN_MARKER!r}/{_END_MARKER!r} pair "
             "around the workflow catalog table, in that order - restore or de-duplicate them "
             "(see issue #116)."
         ]
+    current = readme_text[span[0] : span[1]]
 
     expected = "\n" + render_table(catalog) + "\n"
     if current != expected:
