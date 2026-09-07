@@ -194,15 +194,23 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   header-shaped lines, each still findably bypassable because a
   hand-rolled text-level check can only approximate what actually renders
   as a live GFM table. `readme_catalog_check.py` now renders README.md
-  through `cmarkgfm` — Python bindings to GitHub's own cmark-gfm C
-  library, the SAME renderer GitHub's servers use, pinned via
+  through `cmarkgfm` — Python bindings to cmark-gfm, the C library
+  GitHub's own public Markdown API is independently confirmed to run in
+  production (re-derive: `curl -s -D - -X POST
+  https://api.github.com/markdown -d '{"text":"test","mode":"gfm"}' -o
+  /dev/null | grep -i x-commonmarker-version` returns a version header;
+  commonmarker is cmark-gfm's Ruby binding) — pinned via
   `.github/requirements/cmarkgfm.in`/`cmarkgfm.txt` the same way
-  `pyyaml.in`/`.txt` is — and reads the catalog back out of the real
+  `pyyaml.in`/`.txt` is, called with `CMARK_OPT_UNSAFE` so raw HTML (a
+  `<table>`, a `<details>` section) renders the same way GitHub's own
+  sanitiser lets it through instead of being omitted the way cmark-gfm's
+  default options would — and reads the catalog back out of the real
   `<table>` elements in the resulting HTML, so content GitHub would never
   render as a table (an indented/fenced code block, the inside of an HTML
-  comment, which cmark-gfm's safe mode omits from its output entirely)
-  never becomes a `<table>` element there either, closing the whole bug
-  category structurally instead of one construct at a time. It still
+  comment, still one opaque token to any compliant HTML parser even with
+  raw HTML otherwise allowed through) never becomes a `<table>` element
+  there either, closing the whole bug category structurally instead of
+  one construct at a time. It still
   imports `find_workflow_call_targets.py` directly into the same process
   (no subprocess/temp-file handoff, since both halves are Python) —
   pinned via `.github/requirements/pyyaml.in`/`pyyaml.txt` the same way

@@ -235,6 +235,16 @@ jobs:
                   set -euo pipefail
                   pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/pyyaml.txt
 
+            # readme_catalog_check.py (issue #116, round 24) imports
+            # cmarkgfm at module load time - test-readme-catalog-check.sh
+            # exercises it via run-tests.sh's glob the same way it does
+            # PyYAML above, so this job needs it too, not only
+            # readme-catalog-fresh below.
+            - name: Install cmarkgfm
+              run: |
+                  set -euo pipefail
+                  pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/cmarkgfm.txt
+
             - name: Run shell-logic tests
               run: bash .github/scripts/tests/run-tests.sh
 

@@ -110,6 +110,15 @@ class ParseCatalogTableTest(_TempRepoTestCase):
         kinds = self._kinds("| Workflow | NotPurpose | Permissions |\n| --- | --- | --- |\n")
         self.assertEqual(kinds, [])
 
+    def test_header_first_cell_must_equal_not_merely_start_with_workflow(self):
+        # "NotWorkflow" (used above) doesn't start with "Workflow" either,
+        # so it can't discriminate == from .startswith() - "Workflows"
+        # does (mutation-confirmed: replacing header[0][0] == "Workflow"
+        # with .startswith("Workflow") lets this input through
+        # undetected).
+        kinds = self._kinds("| Workflows | Purpose | Permissions |\n| --- | --- | --- |\n")
+        self.assertEqual(kinds, [])
+
     def test_missing_separator_row_is_not_a_table_at_all(self):
         # Without a GFM alignment row, cmark-gfm never recognises this as
         # a table at all (renders as a plain paragraph) - correctly "no
@@ -123,14 +132,42 @@ class ParseCatalogTableTest(_TempRepoTestCase):
         )
         self.assertEqual(kinds, [])
 
-    def test_2_cell_separator_is_not_a_table_at_all(self):
+    def test_mismatched_cell_count_separator_is_not_a_table_at_all(self):
         # A delimiter row must have the same cell count as the header;
-        # cmark-gfm does not recognise a mismatched one as a table.
-        kinds = self._kinds("| Workflow | Purpose | Permissions |\n| --- | --- |\n")
+        # cmark-gfm does not recognise a mismatched one as a table - a
+        # 2-cell and a 4-cell separator both land on the exact same
+        # "no <table> at all" branch in this module (neither is special-
+        # cased), so one parametrized test covers both shapes without
+        # duplicating the same assertion twice.
+        for separator in ("| --- | --- |", "| --- | --- | --- | --- |"):
+            with self.subTest(separator=separator):
+                kinds = self._kinds(f"| Workflow | Purpose | Permissions |\n{separator}\n")
+                self.assertEqual(kinds, [])
+
+    def test_header_with_more_than_three_cells_is_not_a_catalog(self):
+        # _is_catalog_header()'s len(header) == 3 check, pinned against a
+        # genuinely rendered 4-column header whose first three cells
+        # otherwise match exactly (mutation-confirmed: loosening this to
+        # `&gt;= 3` lets this input through undetected).
+        kinds = self._kinds(
+            "| Workflow | Purpose | Permissions | Owner |\n"
+            "| --- | --- | --- | --- |\n"
+            "| `real.yml` | Does the real thing | `contents: read` | `alice` |\n"
+        )
         self.assertEqual(kinds, [])
 
-    def test_4_cell_separator_is_not_a_table_at_all(self):
-        kinds = self._kinds("| Workflow | Purpose | Permissions |\n| --- | --- | --- | --- |\n")
+    def test_header_third_cell_must_start_with_not_merely_contain_permissions(self):
+        # header[2][0].startswith("Permissions"), pinned against a third
+        # cell that CONTAINS "Permissions" without it being a prefix
+        # (mutation-confirmed: replacing startswith with `in` lets this
+        # input through undetected - the existing near-miss test's third
+        # cell, "Permission Level", doesn't contain the word "Permissions"
+        # either way, so it can't discriminate startswith from `in`).
+        kinds = self._kinds(
+            "| Workflow | Purpose | Required Permissions |\n"
+            "| --- | --- | --- |\n"
+            "| `real.yml` | Does the real thing | `contents: read` |\n"
+        )
         self.assertEqual(kinds, [])
 
     def test_name_cell_without_its_own_closing_backtick_is_malformed(self):
@@ -151,6 +188,34 @@ class ParseCatalogTableTest(_TempRepoTestCase):
             + "| `real.yml` | Does the real thing | `contents: read`, `security-events: write` |\n"
         )
         self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
+
+    def test_name_cell_with_prose_around_the_code_span_is_malformed(self):
+        # The single-code-span invariant, pinned specifically in the NAME
+        # column (every other fixture testing it targets Purpose/
+        # Permissions instead, where is_code is never evaluated -
+        # mutation-confirmed: dropping the "no other text" check accepts
+        # this as a documented row instead of failing closed).
+        kinds = self._kinds(_HEADER + "| Consolidated `sneaky.yml` | Does the real thing | `contents: read` |\n")
+        self.assertEqual(kinds, [("header", None), ("malformed", None)])
+
+    def test_name_cell_with_two_code_spans_is_malformed(self):
+        # Same invariant, the "exactly one span" half (mutation-confirmed:
+        # loosening `== 1` to `&gt;= 1` concatenates both spans' text into an
+        # accepted row instead of failing closed).
+        kinds = self._kinds(_HEADER + "| `a.yml` `b.yml` | Does the real thing | `contents: read` |\n")
+        self.assertEqual(kinds, [("header", None), ("malformed", None)])
+
+    def test_name_cell_wrapped_in_a_hyperlink_is_malformed(self):
+        # A hyperlink around the code span contributes no plain text of
+        # its own, so a text-only "is this cell just one code span" check
+        # would accept it - letting a catalog row's name carry an
+        # attacker-controlled link while still passing as "well-formed"
+        # (round 25, live-demonstrated). _other_tag_seen closes this: any
+        # element other than the span itself disqualifies the cell.
+        kinds = self._kinds(
+            _HEADER + "| [`real.yml`](https://example.com/evil) | Does the real thing | `contents: read` |\n"
+        )
+        self.assertEqual(kinds, [("header", None), ("malformed", None)])
 
     def test_name_cell_with_embedded_pipe_is_malformed(self):
         # No backslash-escaping is written for the pipe, so cmark-gfm
@@ -196,11 +261,15 @@ class ParseCatalogTableTest(_TempRepoTestCase):
         )
         self.assertEqual(kinds, [("header", None), ("row", "real.yml")])
 
-    def test_html_comment_decoy_is_omitted_from_rendered_output_entirely(self):
-        # cmark-gfm's safe rendering mode omits raw HTML block content -
-        # comments included - from the output entirely (verified live,
-        # 2026-09-07: the rendered HTML contains no trace of the comment's
-        # text at all, not even literally), so a decoy hidden inside one
+    def test_html_comment_decoy_never_produces_a_table_element(self):
+        # Even with CMARK_OPT_UNSAFE (raw HTML rendered rather than
+        # omitted, see parse_catalog_table()'s own comment on that
+        # option), an HTML comment's content is still ONE opaque token to
+        # any compliant HTML parser - including html.parser.HTMLParser,
+        # used here - the same way it is to GFM's own block-level parser
+        # (verified live, 2026-09-07: the comment's raw text appears
+        # literally in the rendered HTML, but html.parser never re-parses
+        # tags inside a `<!-- ... -->` span), so a decoy hidden inside one
         # never produces a `<table>` element to find in the first place.
         kinds = self._kinds(
             "<!--\n"
@@ -260,13 +329,54 @@ class ParseCatalogTableTest(_TempRepoTestCase):
             )
         self.assertIn("2 tables that look like the workflow catalog", str(ctx.exception))
 
+    def test_raw_html_table_decoy_triggers_the_ambiguity_error_not_silent_acceptance(self):
+        # cmark-gfm's DEFAULT render options omit every raw HTML block
+        # from the output entirely - which is stricter than GitHub's own
+        # rendering (GitHub renders raw HTML, including a literal <table>
+        # written as HTML tags, through its own sanitiser). Without
+        # CMARK_OPT_UNSAFE, a decoy catalog written as raw HTML tags
+        # (rather than pipe-table syntax) was invisible to this checker
+        # while fully visible to a human on the rendered page - the exact
+        # "decoy defeats the automated check but not the human reviewer"
+        # gap this whole rewrite exists to close, just via one more
+        # construct (round 25, live-demonstrated by two independent
+        # lanes). With CMARK_OPT_UNSAFE, the raw HTML table renders as a
+        # genuine second <table>, correctly tripping the ambiguity error
+        # instead of passing silently.
+        with self.assertRaises(ValueError) as ctx:
+            self._kinds(
+                "<table>\n"
+                "<thead><tr><th>Workflow</th><th>Purpose</th><th>Permissions</th></tr></thead>\n"
+                "<tbody><tr><td><code>evil.yml</code></td><td>Legacy</td>"
+                "<td><code>contents: write</code></td></tr></tbody>\n"
+                "</table>\n"
+                "\n"
+                + _HEADER
+                + "| `real.yml` | Does the real thing | `contents: read` |\n"
+            )
+        self.assertIn("2 tables that look like the workflow catalog", str(ctx.exception))
+
+    def test_malformed_unbalanced_raw_html_does_not_crash_the_extractor(self):
+        # CMARK_OPT_UNSAFE passes raw HTML through verbatim rather than
+        # neutralising it, so unlike cmark-gfm's own table-extension
+        # output (always well-formed), attacker-supplied raw HTML tags
+        # can be unbalanced - here a <tr> that never closes before its
+        # enclosing <table> does. _TableExtractor used to assert this
+        # couldn't happen and crashed with an uncaught AssertionError
+        # instead of the intended ::error:: (round 25, live-demonstrated).
+        # The orphaned row is now discarded and the malformed table
+        # simply doesn't count as a catalog match - fails closed, never
+        # crashes.
+        kinds = self._kinds("<table><tr><td>x</td></table></tr>\n")
+        self.assertEqual(kinds, [])
+
     def test_disguised_real_header_with_a_hidden_comment_decoy_is_not_documented(self):
         # A zero-width space in the real, visible header's text (renders
         # pixel-identical to "Workflow" in any browser) makes this
         # checker's exact-text match fail to recognise it, while a
-        # byte-exact decoy hidden in a comment vanishes entirely from the
-        # rendered output (see the comment-omission test above) rather
-        # than being promoted to "the" catalog - fails closed (nothing
+        # byte-exact decoy hidden in a comment stays one opaque token (see
+        # the comment test above) rather than being promoted to "the"
+        # catalog - fails closed (nothing
         # recognised as the catalog) rather than trusting the hidden
         # decoy, unlike the round-23 security-lane finding against the
         # ambiguity-only design, where exactly this input made the hidden
