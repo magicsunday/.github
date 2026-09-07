@@ -2,15 +2,15 @@
 # Exercises find_workflow_call_targets.py directly (issue #118) - the unit
 # layer that pins _has_workflow_call_trigger()'s per-shape behaviour and the
 # YAML-parse-error skip path, complementing rather than duplicating
-# test-readme-catalog-check.sh's end-to-end coverage of the bash wrapper
-# (sanitisation, NUL-record framing, the temp-file exit-code capture). Run
-# via run-tests.sh through the test-find-workflow-call-targets.sh wrapper -
-# this file has no bash logic of its own to test, so it is a plain stdlib
-# unittest module rather than a test-*.sh script.
+# test_workflow_catalog.py's end-to-end coverage of workflow_catalog.py
+# (which imports find_targets() directly - see find_workflow_call_targets.py's
+# own header). Run via run-tests.sh through the test-find-workflow-call-targets.sh
+# wrapper - this file has no bash logic of its own to test, so it is a plain
+# stdlib unittest module rather than a test-*.sh script.
+import contextlib
 import importlib.util
+import io
 import os
-import subprocess
-import sys
 import tempfile
 import unittest
 
@@ -28,13 +28,18 @@ find_workflow_call_targets = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(find_workflow_call_targets)
 
 
-def _run_script(workflows_dir):
-    return subprocess.run(
-        [sys.executable, _MODULE_PATH, workflows_dir],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+def _find_targets_and_capture_stderr(workflows_dir):
+    # In-process rather than a subprocess: find_targets() opens every
+    # workflow file as a real file handle either way (that is what makes
+    # PyYAML's Mark.get_snippet() return None on a parse error - see the
+    # symlink test below), so a subprocess boundary adds nothing here, and
+    # _warn()'s stderr write lands on the real process stderr regardless of
+    # caller, which redirect_stderr() captures the same way a piped
+    # subprocess's stderr would.
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        targets = list(find_workflow_call_targets.find_targets(workflows_dir))
+    return targets, err.getvalue()
 
 
 class HasWorkflowCallTriggerTest(unittest.TestCase):
@@ -119,9 +124,10 @@ class HasWorkflowCallTriggerTest(unittest.TestCase):
 class SanitizeForStderrTest(unittest.TestCase):
     def test_embedded_newline_and_carriage_return_are_folded(self):
         # A git-tracked filename could carry a raw newline into the
-        # per-file skip diagnostic on stderr, which readme-catalog-check.sh
-        # never redirects - unlike sanitize_for_annotation()'s other
-        # callers, nothing downstream would have caught this.
+        # per-file skip diagnostic on stderr, which lint.yml's bare
+        # `run: python3 ...` step never redirects - unlike
+        # sanitize_for_annotation()'s other callers, nothing downstream
+        # would have caught this.
         self.assertEqual(
             find_workflow_call_targets._sanitize_for_stderr("legit\n::error::INJECTED"),
             "legit ::error::INJECTED",
@@ -149,8 +155,7 @@ class SanitizeForStderrTest(unittest.TestCase):
 class FindTargetsExceptionDiagnosticTest(unittest.TestCase):
     def _assert_forged_name_does_not_split_stderr(self, forged_name):
         # Skips (rather than fails) on a filesystem that rejects the given
-        # control byte in a filename, mirroring
-        # test-readme-catalog-check.sh's own newline-filename test.
+        # control byte in a filename.
         with tempfile.TemporaryDirectory() as workflows_dir:
             try:
                 with open(os.path.join(workflows_dir, forged_name), "w", encoding="utf-8") as handle:
@@ -158,15 +163,15 @@ class FindTargetsExceptionDiagnosticTest(unittest.TestCase):
             except OSError:
                 self.skipTest("this filesystem rejects filenames containing this control byte")
 
-            result = _run_script(workflows_dir)
+            targets, stderr_text = _find_targets_and_capture_stderr(workflows_dir)
 
-            self.assertEqual(result.stdout, b"")
+            self.assertEqual(targets, [])
             # splitlines() itself treats a bare CR as a line boundary the
             # same way it treats LF, so this one assertion discriminates
             # both forgery channels - a separate literal "\n::error::"
             # substring check would be non-discriminating for the CR
             # variant, whose injected marker contains no "\n" at all.
-            stderr_lines = result.stderr.decode("utf-8").splitlines()
+            stderr_lines = stderr_text.splitlines()
             self.assertEqual(len(stderr_lines), 1)
 
     def test_stderr_diagnostic_does_not_forge_a_second_annotation_line(self):
@@ -225,6 +230,43 @@ class FindTargetsTest(unittest.TestCase):
 
             self.assertEqual(targets, ["real.yml"])
 
+    def test_bidi_override_filename_does_not_reach_the_symlink_warning_raw(self):
+        # _warn() wraps the sanitized basename in `!r` specifically because
+        # _sanitize_for_stderr() only closes the newline-forgery class, not
+        # a Unicode bidi-override character - this is the same defect class
+        # workflow_catalog.py's _sanitize() docstring documents, on the one
+        # call site here that embeds a filename never validated by anything
+        # else (find_targets() never runs catalog-value validation).
+        bad_name = "workflow‮name.yml"
+        with tempfile.TemporaryDirectory() as base_dir:
+            workflows_dir = os.path.join(base_dir, "workflows")
+            os.mkdir(workflows_dir)
+            target_path = os.path.join(base_dir, "target.txt")
+            with open(target_path, "w", encoding="utf-8") as handle:
+                handle.write("irrelevant")
+            try:
+                os.symlink(target_path, os.path.join(workflows_dir, bad_name))
+            except OSError:
+                self.skipTest("this filesystem rejects filenames containing this character")
+
+            _, stderr_text = _find_targets_and_capture_stderr(workflows_dir)
+
+            self.assertNotIn("‮", stderr_text)
+            self.assertIn("\\u202e", stderr_text)
+
+    def test_bidi_override_filename_does_not_reach_the_parse_failure_warning_raw(self):
+        # Mirror of the symlink case above, for the OTHER _warn() call site
+        # - a filename that fails YAML parsing instead of being a symlink.
+        bad_name = "workflow‮name.yml"
+        with tempfile.TemporaryDirectory() as workflows_dir:
+            with open(os.path.join(workflows_dir, bad_name), "w", encoding="utf-8") as handle:
+                handle.write("on: {workflow_call:\n")
+
+            _, stderr_text = _find_targets_and_capture_stderr(workflows_dir)
+
+            self.assertNotIn("‮", stderr_text)
+            self.assertIn("\\u202e", stderr_text)
+
     def test_symlinked_workflow_file_is_skipped_without_leaking_target_content(self):
         # A git-tracked symlink pointing outside workflows_dir must never
         # be opened at all. PyYAML's exception message never embeds a
@@ -250,12 +292,10 @@ class FindTargetsTest(unittest.TestCase):
             except OSError:
                 self.skipTest("this filesystem does not support symlinks")
 
-            result = _run_script(workflows_dir)
+            targets, stderr_text = _find_targets_and_capture_stderr(workflows_dir)
 
-            self.assertEqual(result.returncode, 0)
-            self.assertEqual(result.stdout, b"")
-            stderr_text = result.stderr.decode("utf-8")
-            self.assertIn("evil.yml is a symlink, skipping", stderr_text)
+            self.assertEqual(targets, [])
+            self.assertIn("'evil.yml' is a symlink, skipping", stderr_text)
             self.assertNotIn(secret_marker, stderr_text)
 
     def test_empty_directory_yields_nothing(self):
@@ -278,62 +318,6 @@ class FindTargetsTest(unittest.TestCase):
             targets = list(find_workflow_call_targets.find_targets(workflows_dir))
 
             self.assertEqual(targets, ["z-real.yml"])
-
-
-class MainTest(unittest.TestCase):
-    def test_wrong_argument_count_returns_2(self):
-        for argv in (["prog"], ["prog", "a", "b"]):
-            with self.subTest(argv=argv):
-                self.assertEqual(find_workflow_call_targets.main(argv), 2)
-
-    def test_success_writes_nul_terminated_records_and_returns_0(self):
-        # Run as a real subprocess rather than calling main() in-process:
-        # this is the actual invocation shape readme-catalog-check.sh uses
-        # (`python3 find_workflow_call_targets.py <dir>`), and it exercises
-        # the real sys.stdout.buffer rather than a substitute object.
-        with tempfile.TemporaryDirectory() as workflows_dir:
-            with open(os.path.join(workflows_dir, "real.yml"), "w", encoding="utf-8") as handle:
-                handle.write("on:\n    workflow_call:\n")
-            with open(os.path.join(workflows_dir, "other.yml"), "w", encoding="utf-8") as handle:
-                handle.write("on:\n    push:\n")
-
-            result = _run_script(workflows_dir)
-
-            self.assertEqual(result.returncode, 0)
-            self.assertEqual(result.stdout, b"real.yml\x00")
-
-    def test_non_utf8_filename_round_trips_via_fsencode(self):
-        # main() writes os.fsencode(name), not name.encode() - the latter
-        # raises UnicodeEncodeError uncaught for a surrogateescape-decoded
-        # non-UTF-8 byte, since find_targets()'s own try/except only wraps
-        # the yaml.safe_load() READ side, not this write loop (verified
-        # live: reverting to name.encode() crashes main() for exactly this
-        # case instead of producing a NUL-terminated record). The file's
-        # CONTENT is valid UTF-8 with a real trigger, isolating this to the
-        # filename-encoding path alone.
-        with tempfile.TemporaryDirectory() as workflows_dir:
-            forged_name = b"bad-\xffname.yml"
-            path = os.path.join(os.fsencode(workflows_dir), forged_name)
-            try:
-                with open(path, "wb") as handle:
-                    handle.write(b"on:\n    workflow_call:\n")
-            except OSError:
-                self.skipTest("this filesystem rejects filenames containing this byte")
-
-            result = _run_script(workflows_dir)
-
-            self.assertEqual(result.returncode, 0)
-            self.assertEqual(result.stdout, forged_name + b"\x00")
-
-    def test_no_targets_writes_empty_stdout_and_returns_0(self):
-        with tempfile.TemporaryDirectory() as workflows_dir:
-            with open(os.path.join(workflows_dir, "other.yml"), "w", encoding="utf-8") as handle:
-                handle.write("on:\n    push:\n")
-
-            result = _run_script(workflows_dir)
-
-            self.assertEqual(result.returncode, 0)
-            self.assertEqual(result.stdout, b"")
 
 
 if __name__ == "__main__":

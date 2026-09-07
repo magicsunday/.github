@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Sourced by semgrepignore-guard.sh, semgrep-report-check.sh,
-# semgrep-smoke-helpers.sh and readme-catalog-check.sh (re-derive:
+# Sourced by semgrepignore-guard.sh, semgrep-report-check.sh and
+# semgrep-smoke-helpers.sh (re-derive:
 # `grep -rl '^source ".*annotation-sanitize\.sh"' .github/scripts/lib`) and
 # by commit-convention.yml out of its own checkout of this repository
 # (re-derive: `grep -n '^ *\. ".*annotation-sanitize\.sh"' .github/workflows/commit-convention.yml`),

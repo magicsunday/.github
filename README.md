@@ -19,20 +19,33 @@ job-level block replaces the caller's top-level one instead of merging with it,
 so an omitted scope is dropped to `none` and the run is rejected before any step
 runs.
 
-| Workflow | Purpose | Permissions the caller must grant |
-| --- | --- | --- |
-| `code-scanning.yml` | Semgrep scan, results uploaded as code-scanning alerts; fails when the scan does not complete | `contents: read`, `security-events: write` |
-| `zizmor.yml` | Audit of the caller's workflow YAML (injection, permissions, pins) | `contents: read`, `security-events: write` |
-| `scorecard.yml` | OSSF Scorecard supply-chain analysis (public repositories) | `security-events: write`, `id-token: write` |
-| `dependency-review.yml` | Blocks vulnerable dependencies in a pull request | `contents: read`, `pull-requests: write` |
-| `label-sync.yml` | Applies the canonical label set from `labels.yml` | `contents: read`, `issues: write` |
-| `commit-convention.yml` | Enforces the commit-subject convention | `contents: read`, `pull-requests: read` |
-| `yamllint.yml` | Lints YAML against the house style (4-space indent) | `contents: read` |
-| `i18n.yml` | Enforces the catalogue layout; optional `make lang` freshness gate | `contents: read` |
-| `bundle-freshness.yml` | Verifies committed build artefacts match a clean rebuild | `contents: read` |
-| `auto-merge-deps.yml` | Auto-merges passing dependency bumps (patch and minor only; `pip` is excluded — see below) | `contents: write`, `pull-requests: write` |
-| `ai-issue-labeler.yml` | Classifies a newly opened issue against the caller's own live label set via the Anthropic API and applies the labels it is confident about — see below | `issues: write` |
-| `php-quality.yml` | Runs the granular `composer ci:test:php:*` PHP quality gate across a version matrix | `contents: read` |
+<!-- workflow-catalog:start -->
+<table>
+<thead>
+<tr><th>Workflow</th><th>Purpose</th><th>Permissions the caller must grant</th></tr>
+</thead>
+<tbody>
+<tr><td><code>code-scanning.yml</code></td><td>Semgrep scan, results uploaded as code-scanning alerts; fails when the scan does not complete</td><td><code>contents: read</code>, <code>security-events: write</code></td></tr>
+<tr><td><code>zizmor.yml</code></td><td>Audit of the caller's workflow YAML (injection, permissions, pins)</td><td><code>contents: read</code>, <code>security-events: write</code></td></tr>
+<tr><td><code>scorecard.yml</code></td><td>OSSF Scorecard supply-chain analysis (public repositories)</td><td><code>security-events: write</code>, <code>id-token: write</code></td></tr>
+<tr><td><code>dependency-review.yml</code></td><td>Blocks vulnerable dependencies in a pull request</td><td><code>contents: read</code>, <code>pull-requests: write</code></td></tr>
+<tr><td><code>label-sync.yml</code></td><td>Applies the canonical label set from <code>labels.yml</code></td><td><code>contents: read</code>, <code>issues: write</code></td></tr>
+<tr><td><code>commit-convention.yml</code></td><td>Enforces the commit-subject convention</td><td><code>contents: read</code>, <code>pull-requests: read</code></td></tr>
+<tr><td><code>yamllint.yml</code></td><td>Lints YAML against the house style (4-space indent)</td><td><code>contents: read</code></td></tr>
+<tr><td><code>i18n.yml</code></td><td>Enforces the catalogue layout; optional <code>make lang</code> freshness gate</td><td><code>contents: read</code></td></tr>
+<tr><td><code>bundle-freshness.yml</code></td><td>Verifies committed build artefacts match a clean rebuild</td><td><code>contents: read</code></td></tr>
+<tr><td><code>auto-merge-deps.yml</code></td><td>Auto-merges passing dependency bumps (patch and minor only; <code>pip</code> is excluded — see below)</td><td><code>contents: write</code>, <code>pull-requests: write</code></td></tr>
+<tr><td><code>ai-issue-labeler.yml</code></td><td>Classifies a newly opened issue against the caller's own live label set via the Anthropic API and applies the labels it is confident about — see below</td><td><code>issues: write</code></td></tr>
+<tr><td><code>php-quality.yml</code></td><td>Runs the granular <code>composer ci:test:php:*</code> PHP quality gate across a version matrix</td><td><code>contents: read</code></td></tr>
+</tbody>
+</table>
+
+<!-- workflow-catalog:end -->
+
+This table is generated from `.github/workflow-catalog.json` - edit that
+file, then run `python3 .github/scripts/lib/workflow_catalog.py --write
+README.md .github/workflow-catalog.json` and commit the result. A CI check
+fails the build if the two drift apart.
 
 `ai-issue-labeler.yml` also requires a `secrets: anthropic_api_key` passthrough, so every calling repository must provision its own `ANTHROPIC_API_KEY` secret. See the workflow's own header comment for why and the exact caller shape.
 

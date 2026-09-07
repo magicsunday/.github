@@ -1,0 +1,50 @@
+{
+    "code-scanning.yml": {
+        "purpose": "Semgrep scan, results uploaded as code-scanning alerts; fails when the scan does not complete",
+        "permissions": ["contents: read", "security-events: write"]
+    },
+    "zizmor.yml": {
+        "purpose": "Audit of the caller's workflow YAML (injection, permissions, pins)",
+        "permissions": ["contents: read", "security-events: write"]
+    },
+    "scorecard.yml": {
+        "purpose": "OSSF Scorecard supply-chain analysis (public repositories)",
+        "permissions": ["security-events: write", "id-token: write"]
+    },
+    "dependency-review.yml": {
+        "purpose": "Blocks vulnerable dependencies in a pull request",
+        "permissions": ["contents: read", "pull-requests: write"]
+    },
+    "label-sync.yml": {
+        "purpose": "Applies the canonical label set from `labels.yml`",
+        "permissions": ["contents: read", "issues: write"]
+    },
+    "commit-convention.yml": {
+        "purpose": "Enforces the commit-subject convention",
+        "permissions": ["contents: read", "pull-requests: read"]
+    },
+    "yamllint.yml": {
+        "purpose": "Lints YAML against the house style (4-space indent)",
+        "permissions": ["contents: read"]
+    },
+    "i18n.yml": {
+        "purpose": "Enforces the catalogue layout; optional `make lang` freshness gate",
+        "permissions": ["contents: read"]
+    },
+    "bundle-freshness.yml": {
+        "purpose": "Verifies committed build artefacts match a clean rebuild",
+        "permissions": ["contents: read"]
+    },
+    "auto-merge-deps.yml": {
+        "purpose": "Auto-merges passing dependency bumps (patch and minor only; `pip` is excluded — see below)",
+        "permissions": ["contents: write", "pull-requests: write"]
+    },
+    "ai-issue-labeler.yml": {
+        "purpose": "Classifies a newly opened issue against the caller's own live label set via the Anthropic API and applies the labels it is confident about — see below",
+        "permissions": ["issues: write"]
+    },
+    "php-quality.yml": {
+        "purpose": "Runs the granular `composer ci:test:php:*` PHP quality gate across a version matrix",
+        "permissions": ["contents: read"]
+    }
+}
