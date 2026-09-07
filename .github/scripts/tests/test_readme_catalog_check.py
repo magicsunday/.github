@@ -77,28 +77,20 @@ class SplitTableRowTest(unittest.TestCase):
         # full stop (see split_table_row's own docstring for why).
         self.assertEqual(readme_catalog_check.split_table_row(r"| a\ | b |"), ["a\\", "b"])
 
-    def test_four_space_indented_line_is_not_a_row(self):
-        self.assertIsNone(readme_catalog_check.split_table_row("    | a | b | c |"))
+    def test_tab_indented_line_is_still_a_row(self):
+        self.assertEqual(readme_catalog_check.split_table_row("\t| a | b | c |"), ["a", "b", "c"])
 
-    def test_tab_indented_line_is_not_a_row(self):
-        self.assertIsNone(readme_catalog_check.split_table_row("\t| a | b | c |"))
-
-    def test_three_space_indent_is_still_a_row(self):
-        self.assertEqual(readme_catalog_check.split_table_row("   | a | b | c |"), ["a", "b", "c"])
-
-    def test_one_space_then_tab_reaches_column_four_and_is_not_a_row(self):
-        # 1 space (column 1) + a tab (jumps to the next multiple of 4,
-        # i.e. column 4) reaches the same indented-code-block threshold as
-        # 4 literal spaces or a leading tab alone - a raw whitespace-BYTE
-        # count misses this (round 20's fail-open reopened via this exact
-        # shape).
-        self.assertIsNone(readme_catalog_check.split_table_row(" \t| a | b | c |"))
-
-    def test_two_spaces_then_tab_reaches_column_four_and_is_not_a_row(self):
-        self.assertIsNone(readme_catalog_check.split_table_row("  \t| a | b | c |"))
-
-    def test_three_spaces_then_tab_reaches_column_four_and_is_not_a_row(self):
-        self.assertIsNone(readme_catalog_check.split_table_row("   \t| a | b | c |"))
+    def test_four_space_indented_line_is_still_a_row(self):
+        # Indentation no longer excludes a line from row recognition at
+        # all (round 22): parse_catalog_table() closes the whole
+        # "decoy hidden in some GFM construct" bug class structurally, by
+        # treating ANY second header-shaped line anywhere in the file as
+        # an ambiguity error, rather than by trying to tell a real header
+        # apart from one hidden in an indented/fenced/commented block one
+        # construct at a time - see readme_catalog_check.py's own header
+        # comment for why. split_table_row() itself is back to a pure,
+        # indentation-agnostic pipe splitter.
+        self.assertEqual(readme_catalog_check.split_table_row("    | a | b | c |"), ["a", "b", "c"])
 
 
 class ParseCatalogTableTest(_TempRepoTestCase):
@@ -154,21 +146,20 @@ class ParseCatalogTableTest(_TempRepoTestCase):
             [("header", None), ("separator", None), ("row", "gone.yml")],
         )
 
-    def test_table_ends_at_first_blank_line_for_good(self):
+    def test_two_real_headers_anywhere_in_the_file_is_an_ambiguity_error(self):
         # A second, later occurrence of the real header text (e.g. two
-        # catalog-shaped tables separated by a blank line) must never
-        # reopen the table - there is exactly one catalog table.
-        kinds = self._kinds(
-            _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-            "\n"
-            + _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "real.yml")],
-        )
+        # catalog-shaped tables separated by a blank line) is no longer
+        # silently ignored - with no way to tell which one is real, this
+        # refuses to guess (issue #116, round 22).
+        with self.assertRaises(ValueError) as ctx:
+            self._kinds(
+                _HEADER
+                + "| `real.yml` | Does the real thing | `contents: read` |\n"
+                "\n"
+                + _HEADER
+                + "| `real.yml` | Does the real thing | `contents: read` |\n"
+            )
+        self.assertIn("2 lines that look like the workflow catalog header", str(ctx.exception))
 
     def test_header_text_substring_in_prose_before_the_table_is_excluded(self):
         kinds = self._kinds(
@@ -183,23 +174,14 @@ class ParseCatalogTableTest(_TempRepoTestCase):
             [("header", None), ("separator", None), ("row", "real.yml")],
         )
 
-    def test_duplicated_header_line_inside_the_table_body(self):
-        kinds = self._kinds(
-            _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-            "| Workflow | Purpose | Permissions |\n"
-            "| `gone.yml` | Removed long ago | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [
-                ("header", None),
-                ("separator", None),
-                ("row", "real.yml"),
-                ("header", None),
-                ("row", "gone.yml"),
-            ],
-        )
+    def test_duplicated_header_line_inside_the_table_body_is_an_ambiguity_error(self):
+        with self.assertRaises(ValueError):
+            self._kinds(
+                _HEADER
+                + "| `real.yml` | Does the real thing | `contents: read` |\n"
+                "| Workflow | Purpose | Permissions |\n"
+                "| `gone.yml` | Removed long ago | `contents: read` |\n"
+            )
 
     def test_missing_separator_row_still_validates_the_next_row(self):
         kinds = self._kinds(
@@ -386,149 +368,49 @@ class ParseCatalogTableTest(_TempRepoTestCase):
         )
         self.assertEqual(kinds, [("header", None), ("separator", None), ("row", "real.yml")])
 
-    def test_indented_code_block_lines_are_never_mistaken_for_the_real_table(self):
-        # GFM gives an indented code block precedence over table
-        # recognition (4+ leading spaces) - a decoy header/separator/row
-        # block wrapped in one must never open the table early, or the
-        # real catalog after it becomes unreachable (the table span ends
-        # for good at the first blank line).
-        kinds = self._kinds(
-            "    | Workflow | Purpose | Permissions |\n"
-            "    | --- | --- | --- |\n"
-            "    | `decoy.yml` | example only | `contents: read` |\n"
-            "\n"
-            + _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "real.yml")],
-        )
+    def test_decoy_header_in_an_indented_code_block_is_an_ambiguity_error(self):
+        # Rounds 20-21 tried to tell a real header apart from one hidden
+        # in an indented code block, a fenced code block, or an HTML
+        # comment - one construct at a time, and every round found
+        # another way to hide one (see readme_catalog_check.py's own
+        # header comment). Round 22 stopped enumerating GFM constructs:
+        # ANY second header-shaped line, wherever it is, is now an
+        # ambiguity error - this is the representative case for an
+        # indented decoy; the fenced and HTML-comment cases below are the
+        # same mechanism, not separate code paths anymore.
+        with self.assertRaises(ValueError):
+            self._kinds(
+                "    | Workflow | Purpose | Permissions |\n"
+                "    | --- | --- | --- |\n"
+                "    | `decoy.yml` | example only | `contents: read` |\n"
+                "\n"
+                + _HEADER
+                + "| `real.yml` | Does the real thing | `contents: read` |\n"
+            )
 
-    def test_mixed_space_and_tab_indented_decoy_is_never_mistaken_for_the_real_table(self):
-        # 1-3 leading spaces followed by a tab reaches the same effective
-        # column-4 indentation as 4 literal spaces (round 20's fail-open
-        # reopened via this exact shape, closed by _leading_indent_columns()
-        # replacing a raw whitespace-character count).
-        kinds = self._kinds(
-            " \t| Workflow | Purpose | Permissions |\n"
-            " \t| --- | --- | --- |\n"
-            " \t| `decoy.yml` | example only | `contents: read` |\n"
-            "\n"
-            + _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "real.yml")],
-        )
+    def test_decoy_header_in_a_fenced_code_block_is_an_ambiguity_error(self):
+        with self.assertRaises(ValueError):
+            self._kinds(
+                "```\n"
+                + _HEADER
+                + "| `decoy.yml` | example only | `contents: read` |\n"
+                "```\n"
+                "\n"
+                + _HEADER
+                + "| `real.yml` | Does the real thing | `contents: read` |\n"
+            )
 
-    def test_unindented_fenced_code_block_is_never_mistaken_for_the_real_table(self):
-        # A bare, UNindented ``` fence needs no indentation trick at all -
-        # GFM gives it the same block-level precedence as an indented code
-        # block, so a decoy wrapped in one is just as invisible on the
-        # rendered page and must be just as invisible to this parser.
-        kinds = self._kinds(
-            "```\n"
-            + _HEADER
-            + "| `decoy.yml` | example only | `contents: read` |\n"
-            "```\n"
-            "\n"
-            + _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "real.yml")],
-        )
-
-    def test_tilde_fenced_code_block_is_never_mistaken_for_the_real_table(self):
-        kinds = self._kinds(
-            "~~~\n"
-            + _HEADER
-            + "| `decoy.yml` | example only | `contents: read` |\n"
-            "~~~\n"
-            "\n"
-            + _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "real.yml")],
-        )
-
-    def test_html_comment_is_never_mistaken_for_the_real_table(self):
-        # GFM renders an HTML comment as nothing at all - a decoy inside
-        # one is invisible to a human reviewer but would otherwise be
-        # plain text to this line-oriented parser.
-        kinds = self._kinds(
-            "<!--\n"
-            + _HEADER
-            + "| `decoy.yml` | example only | `contents: read` |\n"
-            "-->\n"
-            "\n"
-            + _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "real.yml")],
-        )
-
-    def test_single_line_html_comment_is_never_mistaken_for_the_real_table(self):
-        kinds = self._kinds(
-            "<!-- | Workflow | Purpose | Permissions | -->\n"
-            "\n"
-            + _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "real.yml")],
-        )
-
-    def test_fence_content_with_an_unclosed_comment_opener_does_not_blind_the_parser(self):
-        # Fence state must take absolute priority over comment detection:
-        # fence content that happens to contain a bare "<!--" (with no
-        # "-->" later in the same line) must never set in_comment, or the
-        # fence's own closing delimiter gets swallowed by the in_comment
-        # branch instead of ever being seen - leaving BOTH flags stuck and
-        # the parser silently blind to everything after (round 20).
-        kinds = self._kinds(
-            "```\n"
-            "some fence content containing <!-- unclosed\n"
-            "```\n"
-            + _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [("header", None), ("separator", None), ("row", "real.yml")],
-        )
-
-    def test_after_header_flag_resets_on_a_second_header_too(self):
-        # The mid-table branch (a second, real header inside the body)
-        # re-arms after_header independently of the initial-header branch
-        # above - without it, a separator immediately following the
-        # SECOND header would wrongly fail closed as malformed instead of
-        # being recognised as furniture.
-        kinds = self._kinds(
-            _HEADER
-            + "| `real.yml` | Does the real thing | `contents: read` |\n"
-            + _HEADER
-            + "| `gone.yml` | Removed long ago | `contents: read` |\n"
-        )
-        self.assertEqual(
-            kinds,
-            [
-                ("header", None),
-                ("separator", None),
-                ("row", "real.yml"),
-                ("header", None),
-                ("separator", None),
-                ("row", "gone.yml"),
-            ],
-        )
+    def test_decoy_header_in_an_html_comment_is_an_ambiguity_error(self):
+        with self.assertRaises(ValueError):
+            self._kinds(
+                "<!--\n"
+                + _HEADER
+                + "| `decoy.yml` | example only | `contents: read` |\n"
+                "-->\n"
+                "\n"
+                + _HEADER
+                + "| `real.yml` | Does the real thing | `contents: read` |\n"
+            )
 
 
 class CheckTest(_TempRepoTestCase):
@@ -759,6 +641,23 @@ class CheckTest(_TempRepoTestCase):
         self.assertTrue(len(errors) >= 1)
         self.assertTrue(all("not a single backtick-quoted name" in e or "is not listed" in e for e in errors))
 
+    def test_ambiguous_catalog_reports_one_clear_error_not_a_cascade(self):
+        # Same early-return rationale as the read-failure case: with no
+        # trustworthy row_names extracted, every declared target would
+        # otherwise ALSO be reported as undocumented, burying the one
+        # actionable message.
+        self._add_target("real.yml")
+        self._write_readme(
+            _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+            "\n"
+            + _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+        )
+        errors = self._check()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("2 lines that look like the workflow catalog header", errors[0])
+
 
 class MainTest(_TempRepoTestCase):
     # main() prints its ::error:: annotations (and usage errors) straight
@@ -817,6 +716,18 @@ class MainTest(_TempRepoTestCase):
         rc, _, err = self._run_main(["prog", "onlyone"])
         self.assertEqual(rc, 2)
         self.assertIn("usage:", err)
+
+    def test_ambiguous_catalog_prints_one_clear_annotation(self):
+        self._write_readme(
+            _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+            "\n"
+            + _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+        )
+        rc, out, _ = self._run_main(["prog", self.workflows_dir, self.readme_path])
+        self.assertEqual(rc, 1)
+        self.assertIn("::error::README.md contains 2 lines", out)
 
 
 if __name__ == "__main__":

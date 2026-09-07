@@ -18,6 +18,28 @@
 # to survive an embedded raw newline in a filename crossing a process
 # boundary - a hazard that does not exist when the producer and consumer
 # are plain Python objects in the same interpreter.
+#
+# parse_catalog_table() does not try to tell a real catalog header apart
+# from a decoy one hidden inside some GFM construct that renders as
+# opaque/invisible on GitHub (an indented or fenced code block, an HTML
+# comment, a raw HTML block, YAML front matter, ...). An earlier design
+# tried exactly that, enumerating one such construct at a time as each
+# was found to hide a decoy well enough to defeat this check while
+# staying invisible to a human reviewer - and every round of review
+# found another way to hide one, because GFM has many block types with
+# precedence over table parsing and hand-replicating all of them (plus
+# every one of their own closing-delimiter edge cases: matching
+# character, matching-or-greater run length, no trailing content after
+# the run, ...) is an open-ended chase, not a fixable bug. Instead: scan
+# the WHOLE file for every line that looks like the catalog header (by
+# content, the same way it always has), and treat finding MORE THAN ONE
+# such line anywhere in the file as itself a hard, fail-closed error -
+# regardless of what construct a second one might be hiding inside. A
+# decoy header hidden in a fence/comment/wherever is exactly as visible
+# to this content-based scan as the real one, so it can no longer be
+# silently trusted OR silently ignored; the file is simply ambiguous and
+# a human has to remove the extra occurrence. This closes the entire bug
+# class in one property instead of one construct at a time (issue #116).
 import importlib.util
 import os
 import re
@@ -38,7 +60,6 @@ _spec.loader.exec_module(find_workflow_call_targets)
 
 _HEADER_CELLS = ("Workflow", "Purpose")
 _SEPARATOR_CELL = re.compile(r"^:?-+:?$")
-_FENCE_LINE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 
 
 def _sanitize(text):
@@ -56,45 +77,15 @@ def _sanitize(text):
     return find_workflow_call_targets._sanitize_for_stderr(text)
 
 
-def _leading_indent_columns(line):
-    """Returns `line`'s leading indentation in CommonMark/GFM columns: a
-    space advances one column, a tab advances to the next multiple of 4 -
-    matching GFM's own tab-stop expansion, so this agrees with what GitHub
-    actually renders. A raw whitespace-CHARACTER count does not: `" \\t"`,
-    `"  \\t"` and `"   \\t"` are all 4 effective columns (the same
-    code-block threshold as 4 literal spaces or a leading tab) despite
-    being 2, 3 and 4 raw characters respectively - a fixed-width character
-    slice missed exactly that range (issue #116, round 20).
-    """
-    column = 0
-    for char in line:
-        if char == " ":
-            column += 1
-        elif char == "\t":
-            column += 4 - (column % 4)
-        else:
-            break
-    return column
-
-
 def split_table_row(line):
     """Splits one GFM table row into its pipe-delimited, stripped cells.
 
-    Returns None for a line that is not table-row-shaped at all: does not
-    start with `|`, or has 4+ columns of leading indentation (see
-    `_leading_indent_columns()`) - GFM gives an indented code block
-    precedence over table recognition, so a README example wrapped in one
-    must never be mistaken for the real catalog (issue #116; a decoy
-    header/separator/row block indented this way would otherwise open the
-    table early and make the real one unreachable, since the table span
-    ends for good at the first blank line). A FENCED code block (`` ``` ``
-    or `~~~`) is excluded the same way, but at the `parse_catalog_table()`
-    level instead, since recognising a fence means tracking state across
-    lines rather than judging one line in isolation. Every `|` is a column
-    boundary, full stop - no backslash-escaping is recognised. GFM itself
-    lets a cell escape a literal pipe with `\\|`, but adding that here
-    would solve a problem this repository does not have: no workflow file
-    under `.github/workflows/` currently uses `|` in its name (Known
+    Returns None for a line that is not table-row-shaped at all (does not
+    start with `|`). Every `|` is a column boundary, full stop - no
+    backslash-escaping is recognised. GFM itself lets a cell escape a
+    literal pipe with `\\|`, but adding that here would solve a problem
+    this repository does not have: no workflow file under
+    `.github/workflows/` currently uses `|` in its name (Known
     limitation, issue #116; re-derive: `ls .github/workflows | grep -c '|'`
     should print 0) - a name that did would still fail closed via the
     malformed-row branch below, just with a generic diagnosis rather than
@@ -104,9 +95,6 @@ def split_table_row(line):
     cell) for no real gain - the KISS/YAGNI call this rewrite exists to
     make, not avoid.
     """
-    if _leading_indent_columns(line) >= 4:
-        return None
-
     stripped = line.strip()
     if not stripped.startswith("|"):
         return None
@@ -138,44 +126,25 @@ def parse_catalog_table(readme_path):
     a well-formed `` | `name` | ... | `` data row, or `("malformed", line)`
     for anything else inside the table's span.
 
-    The table's span is the first header line (recognised by content: the
-    exact literal cells "Workflow"/"Purpose" and a "Permissions"-prefixed
-    third cell, tolerating real-world trailing text like this repo's own
-    "...Permissions the caller must grant" - never by position) through
-    the next blank line, and stops there for good: a single linear pass
-    that returns unconditionally at the first blank line makes restarting
-    on a later, unrelated header-shaped line (e.g. two catalog-shaped
-    tables in one README) structurally impossible rather than merely
-    guarded against - there is exactly one catalog table this function
-    will ever look at, by construction.
+    The header is recognised by content (the exact literal cells
+    "Workflow"/"Purpose" and a "Permissions"-prefixed third cell,
+    tolerating real-world trailing text like this repo's own
+    "...Permissions the caller must grant") wherever it occurs in the
+    file - including inside a fenced/indented code block, an HTML
+    comment, or any other GFM construct that would render it as
+    invisible/opaque on GitHub. This function does not try to tell such a
+    decoy apart from the real header (see this module's header comment
+    for why that chase doesn't end): it raises ValueError instead if MORE
+    THAN ONE header-shaped line exists anywhere in the file, refusing to
+    guess which one is real. With exactly one, the table's span runs from
+    there through the next blank line.
 
     The separator (a GFM alignment row) is recognised only on the line
-    immediately after a just-recognised header - never by table-wide
-    position, never by shape alone at any position - so a missing
-    separator never shifts a real row into a skipped slot, and a
-    separator-shaped line elsewhere in the table is never mistaken for
-    furniture just because of its shape.
-
-    A fenced code block (a line starting with 0-3 spaces then `` ``` `` or
-    `~~~`, closed by a later line of the same kind) is skipped in its
-    entirety, fence delimiters included: GFM gives it precedence over
-    every other block type the same way it does an indented code block,
-    so a decoy catalog wrapped in a bare, UNindented fence (` ``` `, no
-    leading whitespace at all) is just as invisible on the rendered page
-    as an indented one, and must be exactly as invisible to this parser -
-    a decoy inside a fence needs no indentation trick at all to open the
-    table early and hide the real one, unlike the indentation guard
-    `split_table_row()` applies line-by-line (issue #116, round 20).
-
-    An HTML comment (`<!--` through `-->`, on one line or spanning
-    several) is skipped the same way, for the same reason: GFM renders it
-    as nothing at all, so a decoy catalog hidden inside one is invisible
-    to a human reviewer but would otherwise be plain text to this
-    line-oriented parser (issue #116, round 20). A line that opens a
-    comment without also closing it on the same line is treated as
-    commented through to the line that closes it, inclusive - the
-    conservative direction for a security gate whenever a same-line
-    close/reopen would otherwise need to be judged exactly.
+    immediately after the header - never by table-wide position, never
+    by shape alone at any position - so a missing separator never shifts
+    a real row into a skipped slot, and a separator-shaped line elsewhere
+    in the table is never mistaken for furniture just because of its
+    shape.
     """
     if os.path.islink(readme_path):
         # Mirrors find_targets()'s own symlink guard on workflow files, for
@@ -190,53 +159,23 @@ def parse_catalog_table(readme_path):
     with open(readme_path, encoding="utf-8") as handle:
         lines = handle.read().splitlines()
 
-    started = False
-    after_header = False
-    in_fence = False
-    in_comment = False
-    for line in lines:
-        # Fence state takes absolute priority over comment detection: GFM
-        # treats a fenced block's content as opaque plain text, so a
-        # fence line containing an unclosed `<!--` (e.g. fence content
-        # that just happens to include that byte sequence) must never be
-        # allowed to set in_comment - doing so let the fence's own closing
-        # delimiter be swallowed by the in_comment branch below instead of
-        # ever being seen, leaving BOTH flags stuck for the rest of the
-        # file (round 20, live-demonstrated: the parser silently yielded
-        # nothing at all past such a line, hiding the real catalog).
-        if _FENCE_LINE.match(line):
-            in_fence = not in_fence
-            continue
+    header_indexes = [i for i, line in enumerate(lines) if _is_header(split_table_row(line))]
+    if len(header_indexes) > 1:
+        raise ValueError(
+            f"README.md contains {len(header_indexes)} lines that look like the workflow "
+            "catalog header - remove the extra one(s) so the real catalog is unambiguous "
+            "(see issue #116)."
+        )
+    if not header_indexes:
+        return
 
-        if in_fence:
-            continue
-
-        if in_comment:
-            if "-->" in line:
-                in_comment = False
-            continue
-
-        if "<!--" in line:
-            in_comment = "-->" not in line[line.index("<!--") :]
-            continue
-
-        cells = split_table_row(line)
-        is_header = _is_header(cells)
-
-        if not started:
-            if is_header:
-                started = True
-                after_header = True
-                yield ("header", None)
-            continue
-
+    yield ("header", None)
+    after_header = True
+    for line in lines[header_indexes[0] + 1 :]:
         if line.strip() == "":
             return
 
-        if is_header:
-            after_header = True
-            yield ("header", None)
-            continue
+        cells = split_table_row(line)
 
         if after_header:
             after_header = False
@@ -278,6 +217,13 @@ def check(workflows_dir, readme_path):
         # burying the one actionable message (the unreadable file) in a
         # misleading cascade of unrelated-looking errors.
         return [f"README.md could not be read: {_sanitize(str(exc))} - fix the file (see issue #116)."]
+    except ValueError as exc:
+        # Ambiguous header count - see parse_catalog_table()'s own
+        # docstring and this module's header comment for why this is a
+        # hard error rather than a best-effort guess. Same early-return
+        # rationale as the read-failure branch above: no row_names exist
+        # to compare against either.
+        return [str(exc)]
 
     errors = []
     targets = list(find_workflow_call_targets.find_targets(workflows_dir))
