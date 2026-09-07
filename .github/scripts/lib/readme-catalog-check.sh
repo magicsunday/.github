@@ -141,33 +141,19 @@ assert_readme_catalog_complete() {
     # colon-alignment variants). The header is recognised by its own exact
     # text, at ANY position - a duplicated header line inside the table body
     # can never be mistaken for a data row, since a real catalog row always
-    # needs a backtick-quoted name. The separator is different: it is
-    # recognised by content SCOPED TO the line immediately after a
-    # recognised header, not by content alone. Two earlier designs each
-    # traded one silent pass for another:
-    # - Skipping exactly the first two lines of catalog_table by POSITION
-    #   assumed the separator is always there - a README table missing that
-    #   line (a plausible manual-edit slip: GFM tables render as plain text
-    #   without it, so the mistake is not always visually obvious) shifts
-    #   the first real data row into the skipped slot, silently
-    #   un-validating it regardless of whether that row was stale.
-    # - Recognising ANY line made only of `|`, `-`, `:` and whitespace as a
-    #   separator, anywhere in the table, assumed no real catalog row can
-    #   produce that shape - true only for a WELL-FORMED row. A malformed
-    #   or degenerate one (a blanked-out row like `| | | |`, or an
-    #   accidental mid-table duplicate of the separator line itself)
-    #   produces that exact shape too, and four independent review lanes
-    #   reproduced the resulting silent pass live (rc=0, no ::error::) for
-    #   both variants.
-    # Gating the shape check on "immediately after a recognised header"
-    # closes both at once: a missing separator means the line right after
-    # the header does not have the shape, so it falls through and gets
-    # validated as an ordinary data row; a shape-matching line anywhere
-    # else never reaches the furniture branch at all, so it too falls
-    # through and is rejected as malformed like any other non-conforming
-    # row. The shape itself also now requires at least one literal `-` (a
-    # real GFM alignment cell always has one; `| | | |` has none), closing
-    # the narrower case that still reached the header-adjacent slot.
+    # needs a backtick-quoted name. The separator is recognised only on the
+    # line immediately after a recognised header (a state flag, not a
+    # table-wide position count), and only when every cell matches genuine
+    # GFM alignment syntax (`:?-+:?` - at least one contiguous dash per
+    # cell, optionally colon-bounded), not merely "made up of |, -, : and
+    # whitespace somewhere in the line". Neither position alone, nor table
+    # position alone, nor a looser punctuation-only shape check, is
+    # sufficient on its own: each, tried in turn, let some malformed row
+    # (a missing separator, a blanked-out `| | | |` row, or punctuation
+    # that contains a dash without forming a real alignment cell) silently
+    # pass as furniture instead of failing closed as malformed - see this
+    # file's git history and issue #116 for the exact shapes that broke
+    # each earlier attempt.
     #
     # A well-formed data row is matched in one step: the leading pipe and
     # exactly one space (matching the forward loop's own `"| \`${name}\` |"*`
@@ -203,7 +189,7 @@ assert_readme_catalog_complete() {
         esac
         if [ "${after_header}" -eq 1 ]; then
             after_header=0
-            if [[ "${line}" =~ ^\|[\|:[:space:]-]*-[\|:[:space:]-]*$ ]]; then
+            if [[ "${line}" =~ ^\|([[:space:]]*:?-+:?[[:space:]]*\|)+$ ]]; then
                 continue
             fi
         fi

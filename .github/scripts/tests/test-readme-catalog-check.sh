@@ -628,7 +628,7 @@ assert_contains "assert_readme_catalog_complete: a mid-table duplicate of the se
 # immediately after the header - where a genuine separator IS recognised:
 # real GFM alignment cells always carry at least one dash, so a dashless
 # line there is not a separator, it is a malformed row with no separator
-# present at all (adversarial-reviewer, confidence 100, reproduced live).
+# present at all.
 cat > "${readme_file}" <<'EOF'
 | Workflow | Purpose | Permissions |
 | | | |
@@ -642,6 +642,37 @@ assert_contains "assert_readme_catalog_complete: a dashless pipe/whitespace row 
     "${output}" "::error::" "not a single backtick-quoted name"
 assert_eq "assert_readme_catalog_complete: real.yml is still validated normally right after the dashless row" \
     "1" "$(printf '%s\n' "${output}" | grep -c '::error::')"
+
+# A dash present ANYWHERE in the line is not enough: a single-cell line
+# whose dash sits with whitespace around it, not forming a contiguous
+# per-cell alignment run, must still fail closed right after the header.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| : - - : |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a dash-containing but non-cell-shaped row right after the header fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a dash-containing but non-cell-shaped row names the real defect" \
+    "${output}" "::error::" "not a single backtick-quoted name"
+
+# A dash present in only ONE cell of a multi-cell line, with the other
+# cells blank, must also fail closed right after the header - the dash
+# has to belong to a real alignment cell, not merely appear somewhere in
+# the line's punctuation.
+cat > "${readme_file}" <<'EOF'
+| Workflow | Purpose | Permissions |
+| | - | |
+| `real.yml` | Does the real thing | `contents: read` |
+EOF
+
+output="$(assert_readme_catalog_complete "${workflows_dir}" "${readme_file}")"
+rc=$?
+assert_eq "assert_readme_catalog_complete: a lone dash in one cell of an otherwise blank row right after the header fails" "1" "${rc}"
+assert_contains "assert_readme_catalog_complete: a lone dash in one cell of an otherwise blank row names the real defect" \
+    "${output}" "::error::" "not a single backtick-quoted name"
 
 # The mandatory single space between the leading pipe and the opening
 # backtick (matching the forward loop's own `"| \`${name}\` |"*` literal)
@@ -669,7 +700,7 @@ assert_eq "assert_readme_catalog_complete: a name cell with no leading space pro
 # regex "any character" wildcard under `grep`'s own BRE, matching a real
 # target that merely has a DIFFERENT character in that position - a false
 # negative that would let a genuinely stale, differently-named row escape
-# detection (test-quality-reviewer, round 9).
+# detection.
 cat > "${workflows_dir}/v1X0.yml" <<'EOF'
 on:
     workflow_call:
