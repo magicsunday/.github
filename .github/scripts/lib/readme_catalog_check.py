@@ -38,6 +38,7 @@ _spec.loader.exec_module(find_workflow_call_targets)
 
 _HEADER_CELLS = ("Workflow", "Purpose")
 _SEPARATOR_CELL = re.compile(r"^:?-+:?$")
+_FENCE_LINE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 
 
 def _sanitize(text):
@@ -55,21 +56,45 @@ def _sanitize(text):
     return find_workflow_call_targets._sanitize_for_stderr(text)
 
 
+def _leading_indent_columns(line):
+    """Returns `line`'s leading indentation in CommonMark/GFM columns: a
+    space advances one column, a tab advances to the next multiple of 4 -
+    matching GFM's own tab-stop expansion, so this agrees with what GitHub
+    actually renders. A raw whitespace-CHARACTER count does not: `" \\t"`,
+    `"  \\t"` and `"   \\t"` are all 4 effective columns (the same
+    code-block threshold as 4 literal spaces or a leading tab) despite
+    being 2, 3 and 4 raw characters respectively - a fixed-width character
+    slice missed exactly that range (issue #116, round 20).
+    """
+    column = 0
+    for char in line:
+        if char == " ":
+            column += 1
+        elif char == "\t":
+            column += 4 - (column % 4)
+        else:
+            break
+    return column
+
+
 def split_table_row(line):
     """Splits one GFM table row into its pipe-delimited, stripped cells.
 
     Returns None for a line that is not table-row-shaped at all: does not
-    start with `|`, or carries 4+ leading spaces (or a leading tab) - GFM
-    gives an indented code block precedence over table recognition, so a
-    README example wrapped in one must never be mistaken for the real
-    catalog (issue #116; a decoy header/separator/row block indented this
-    way would otherwise open the table early and make the real one
-    unreachable, since the table span ends for good at the first blank
-    line). Every `|` is a column boundary, full stop - no
-    backslash-escaping is recognised. GFM itself lets a cell escape a
-    literal pipe with `\\|`, but adding that here would solve a problem
-    this repository does not have: no workflow file under
-    `.github/workflows/` currently uses `|` in its name (Known
+    start with `|`, or has 4+ columns of leading indentation (see
+    `_leading_indent_columns()`) - GFM gives an indented code block
+    precedence over table recognition, so a README example wrapped in one
+    must never be mistaken for the real catalog (issue #116; a decoy
+    header/separator/row block indented this way would otherwise open the
+    table early and make the real one unreachable, since the table span
+    ends for good at the first blank line). A FENCED code block (`` ``` ``
+    or `~~~`) is excluded the same way, but at the `parse_catalog_table()`
+    level instead, since recognising a fence means tracking state across
+    lines rather than judging one line in isolation. Every `|` is a column
+    boundary, full stop - no backslash-escaping is recognised. GFM itself
+    lets a cell escape a literal pipe with `\\|`, but adding that here
+    would solve a problem this repository does not have: no workflow file
+    under `.github/workflows/` currently uses `|` in its name (Known
     limitation, issue #116; re-derive: `ls .github/workflows | grep -c '|'`
     should print 0) - a name that did would still fail closed via the
     malformed-row branch below, just with a generic diagnosis rather than
@@ -79,7 +104,7 @@ def split_table_row(line):
     cell) for no real gain - the KISS/YAGNI call this rewrite exists to
     make, not avoid.
     """
-    if line[:4].isspace() or line.startswith("\t"):
+    if _leading_indent_columns(line) >= 4:
         return None
 
     stripped = line.strip()
@@ -130,6 +155,27 @@ def parse_catalog_table(readme_path):
     separator never shifts a real row into a skipped slot, and a
     separator-shaped line elsewhere in the table is never mistaken for
     furniture just because of its shape.
+
+    A fenced code block (a line starting with 0-3 spaces then `` ``` `` or
+    `~~~`, closed by a later line of the same kind) is skipped in its
+    entirety, fence delimiters included: GFM gives it precedence over
+    every other block type the same way it does an indented code block,
+    so a decoy catalog wrapped in a bare, UNindented fence (` ``` `, no
+    leading whitespace at all) is just as invisible on the rendered page
+    as an indented one, and must be exactly as invisible to this parser -
+    a decoy inside a fence needs no indentation trick at all to open the
+    table early and hide the real one, unlike the indentation guard
+    `split_table_row()` applies line-by-line (issue #116, round 20).
+
+    An HTML comment (`<!--` through `-->`, on one line or spanning
+    several) is skipped the same way, for the same reason: GFM renders it
+    as nothing at all, so a decoy catalog hidden inside one is invisible
+    to a human reviewer but would otherwise be plain text to this
+    line-oriented parser (issue #116, round 20). A line that opens a
+    comment without also closing it on the same line is treated as
+    commented through to the line that closes it, inclusive - the
+    conservative direction for a security gate whenever a same-line
+    close/reopen would otherwise need to be judged exactly.
     """
     if os.path.islink(readme_path):
         # Mirrors find_targets()'s own symlink guard on workflow files, for
@@ -146,7 +192,34 @@ def parse_catalog_table(readme_path):
 
     started = False
     after_header = False
+    in_fence = False
+    in_comment = False
     for line in lines:
+        # Fence state takes absolute priority over comment detection: GFM
+        # treats a fenced block's content as opaque plain text, so a
+        # fence line containing an unclosed `<!--` (e.g. fence content
+        # that just happens to include that byte sequence) must never be
+        # allowed to set in_comment - doing so let the fence's own closing
+        # delimiter be swallowed by the in_comment branch below instead of
+        # ever being seen, leaving BOTH flags stuck for the rest of the
+        # file (round 20, live-demonstrated: the parser silently yielded
+        # nothing at all past such a line, hiding the real catalog).
+        if _FENCE_LINE.match(line):
+            in_fence = not in_fence
+            continue
+
+        if in_fence:
+            continue
+
+        if in_comment:
+            if "-->" in line:
+                in_comment = False
+            continue
+
+        if "<!--" in line:
+            in_comment = "-->" not in line[line.index("<!--") :]
+            continue
+
         cells = split_table_row(line)
         is_header = _is_header(cells)
 
@@ -254,7 +327,22 @@ def main(argv):
 
     errors = check(argv[1], argv[2])
     for message in errors:
-        print(f"::error::{message}")
+        annotation = f"::error::{message}"
+        # A workflow filename is decoded from raw POSIX bytes via glob()'s
+        # surrogateescape (see find_workflow_call_targets.py's own comment
+        # on this), so a non-UTF-8 byte in one survives as a lone
+        # surrogate codepoint all the way into `message` - _sanitize()
+        # folds control characters and escapes `%`, but does not touch
+        # surrogates, and printing one to a real UTF-8 stdout raises
+        # UnicodeEncodeError uncaught (verified live) instead of the
+        # intended ::error:: exiting cleanly. Round-tripping through
+        # encode/decode with backslashreplace turns it into readable
+        # escaped text instead of crashing, without depending on the
+        # concrete stdout object supporting reconfigure() (a test's
+        # io.StringIO redirect does not) - this is a diagnostic message,
+        # not a byte-exact data channel, so losing round-trip fidelity
+        # here costs nothing.
+        print(annotation.encode("utf-8", "backslashreplace").decode("utf-8"))
     return 1 if errors else 0
 
 

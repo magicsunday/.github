@@ -9,6 +9,8 @@ import contextlib
 import importlib.util
 import io
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -83,6 +85,20 @@ class SplitTableRowTest(unittest.TestCase):
 
     def test_three_space_indent_is_still_a_row(self):
         self.assertEqual(readme_catalog_check.split_table_row("   | a | b | c |"), ["a", "b", "c"])
+
+    def test_one_space_then_tab_reaches_column_four_and_is_not_a_row(self):
+        # 1 space (column 1) + a tab (jumps to the next multiple of 4,
+        # i.e. column 4) reaches the same indented-code-block threshold as
+        # 4 literal spaces or a leading tab alone - a raw whitespace-BYTE
+        # count misses this (round 20's fail-open reopened via this exact
+        # shape).
+        self.assertIsNone(readme_catalog_check.split_table_row(" \t| a | b | c |"))
+
+    def test_two_spaces_then_tab_reaches_column_four_and_is_not_a_row(self):
+        self.assertIsNone(readme_catalog_check.split_table_row("  \t| a | b | c |"))
+
+    def test_three_spaces_then_tab_reaches_column_four_and_is_not_a_row(self):
+        self.assertIsNone(readme_catalog_check.split_table_row("   \t| a | b | c |"))
 
 
 class ParseCatalogTableTest(_TempRepoTestCase):
@@ -389,6 +405,107 @@ class ParseCatalogTableTest(_TempRepoTestCase):
             [("header", None), ("separator", None), ("row", "real.yml")],
         )
 
+    def test_mixed_space_and_tab_indented_decoy_is_never_mistaken_for_the_real_table(self):
+        # 1-3 leading spaces followed by a tab reaches the same effective
+        # column-4 indentation as 4 literal spaces (round 20's fail-open
+        # reopened via this exact shape, closed by _leading_indent_columns()
+        # replacing a raw whitespace-character count).
+        kinds = self._kinds(
+            " \t| Workflow | Purpose | Permissions |\n"
+            " \t| --- | --- | --- |\n"
+            " \t| `decoy.yml` | example only | `contents: read` |\n"
+            "\n"
+            + _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+        )
+        self.assertEqual(
+            kinds,
+            [("header", None), ("separator", None), ("row", "real.yml")],
+        )
+
+    def test_unindented_fenced_code_block_is_never_mistaken_for_the_real_table(self):
+        # A bare, UNindented ``` fence needs no indentation trick at all -
+        # GFM gives it the same block-level precedence as an indented code
+        # block, so a decoy wrapped in one is just as invisible on the
+        # rendered page and must be just as invisible to this parser.
+        kinds = self._kinds(
+            "```\n"
+            + _HEADER
+            + "| `decoy.yml` | example only | `contents: read` |\n"
+            "```\n"
+            "\n"
+            + _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+        )
+        self.assertEqual(
+            kinds,
+            [("header", None), ("separator", None), ("row", "real.yml")],
+        )
+
+    def test_tilde_fenced_code_block_is_never_mistaken_for_the_real_table(self):
+        kinds = self._kinds(
+            "~~~\n"
+            + _HEADER
+            + "| `decoy.yml` | example only | `contents: read` |\n"
+            "~~~\n"
+            "\n"
+            + _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+        )
+        self.assertEqual(
+            kinds,
+            [("header", None), ("separator", None), ("row", "real.yml")],
+        )
+
+    def test_html_comment_is_never_mistaken_for_the_real_table(self):
+        # GFM renders an HTML comment as nothing at all - a decoy inside
+        # one is invisible to a human reviewer but would otherwise be
+        # plain text to this line-oriented parser.
+        kinds = self._kinds(
+            "<!--\n"
+            + _HEADER
+            + "| `decoy.yml` | example only | `contents: read` |\n"
+            "-->\n"
+            "\n"
+            + _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+        )
+        self.assertEqual(
+            kinds,
+            [("header", None), ("separator", None), ("row", "real.yml")],
+        )
+
+    def test_single_line_html_comment_is_never_mistaken_for_the_real_table(self):
+        kinds = self._kinds(
+            "<!-- | Workflow | Purpose | Permissions | -->\n"
+            "\n"
+            + _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+        )
+        self.assertEqual(
+            kinds,
+            [("header", None), ("separator", None), ("row", "real.yml")],
+        )
+
+    def test_fence_content_with_an_unclosed_comment_opener_does_not_blind_the_parser(self):
+        # Fence state must take absolute priority over comment detection:
+        # fence content that happens to contain a bare "<!--" (with no
+        # "-->" later in the same line) must never set in_comment, or the
+        # fence's own closing delimiter gets swallowed by the in_comment
+        # branch instead of ever being seen - leaving BOTH flags stuck and
+        # the parser silently blind to everything after (round 20).
+        kinds = self._kinds(
+            "```\n"
+            "some fence content containing <!-- unclosed\n"
+            "```\n"
+            + _HEADER
+            + "| `real.yml` | Does the real thing | `contents: read` |\n"
+        )
+        self.assertEqual(
+            kinds,
+            [("header", None), ("separator", None), ("row", "real.yml")],
+        )
+
     def test_after_header_flag_resets_on_a_second_header_too(self):
         # The mid-table branch (a second, real header inside the body)
         # re-arms after_header independently of the initial-header branch
@@ -425,7 +542,7 @@ class CheckTest(_TempRepoTestCase):
 
     def test_undocumented_target_fails(self):
         self._add_target("real.yml")
-        self._write_readme("| Workflow | Purpose | Permissions |\n| --- | --- | --- |\n")
+        self._write_readme(_HEADER)
         errors = self._check()
         self.assertEqual(len(errors), 1)
         self.assertIn("real.yml", errors[0])
@@ -550,7 +667,7 @@ class CheckTest(_TempRepoTestCase):
     def test_forward_direction_sanitizes_a_target_filename_with_an_embedded_newline(self):
         name = "evil\n::error::forged.yml"
         self._add_target(name)
-        self._write_readme("| Workflow | Purpose | Permissions |\n| --- | --- | --- |\n")
+        self._write_readme(_HEADER)
         errors = self._check()
         self.assertEqual(len(errors), 1)
         self.assertNotIn("\n", errors[0])
@@ -594,8 +711,23 @@ class CheckTest(_TempRepoTestCase):
         self.assertIn("could not be read", errors[0])
 
     def test_read_failure_message_is_sanitized(self):
-        hazardous_path = os.path.join(self.work_dir, "evil\n::error::forged.md")
-        errors = readme_catalog_check.check(self.workflows_dir, hazardous_path)
+        # A FileNotFoundError's str() already backslash-escapes an
+        # embedded newline in its filename via repr() before _sanitize()
+        # ever sees it, so that path cannot discriminate whether
+        # _sanitize() is actually applied here. The symlink guard's own
+        # OSError(f"{readme_path} is a symlink, ...") is a plain
+        # f-string, NOT repr-escaped, so a hazardous README path combined
+        # with a real symlink is the one input that actually exercises
+        # this call site's sanitize() call (mutation-confirmed: removing
+        # it makes exactly this case leak a raw newline).
+        hazardous_readme_path = os.path.join(self.work_dir, "evil\n::error::forged.md")
+        target_path = os.path.join(self.work_dir, "secret.txt")
+        with open(target_path, "w", encoding="utf-8") as handle:
+            handle.write("placeholder")
+        os.symlink(target_path, hazardous_readme_path)
+
+        errors = readme_catalog_check.check(self.workflows_dir, hazardous_readme_path)
+
         self.assertEqual(len(errors), 1)
         self.assertNotIn("\n", errors[0])
 
@@ -651,10 +783,35 @@ class MainTest(_TempRepoTestCase):
 
     def test_returns_one_and_prints_annotations_for_an_incomplete_catalog(self):
         self._add_target("real.yml")
-        self._write_readme("| Workflow | Purpose | Permissions |\n| --- | --- | --- |\n")
+        self._write_readme(_HEADER)
         rc, out, _ = self._run_main(["prog", self.workflows_dir, self.readme_path])
         self.assertEqual(rc, 1)
         self.assertIn("::error::real.yml", out)
+
+    def test_non_utf8_workflow_filename_does_not_crash_the_annotation_print(self):
+        # print(f"::error::{message}") encodes to the real stdout stream,
+        # unlike _run_main()'s io.StringIO() redirect above (a text buffer
+        # that never encodes at all) - reproducing the encode-boundary
+        # crash needs the real encode step, so this test runs the script
+        # as a subprocess rather than calling main() in-process.
+        self._add_target("real.yml")
+        forged_name = b"bad-\xffname.yml"
+        path = os.path.join(os.fsencode(self.workflows_dir), forged_name)
+        try:
+            with open(path, "wb") as handle:
+                handle.write(b"on:\n    workflow_call:\n")
+        except OSError:
+            self.skipTest("this filesystem rejects filenames containing this byte")
+        self._write_readme(_HEADER)
+
+        result = subprocess.run(
+            [sys.executable, _MODULE_PATH, self.workflows_dir, self.readme_path],
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(b"::error::", result.stdout)
 
     def test_usage_error_on_wrong_argc(self):
         rc, _, err = self._run_main(["prog", "onlyone"])

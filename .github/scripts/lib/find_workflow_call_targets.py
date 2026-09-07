@@ -43,14 +43,17 @@ import yaml
 # test-sanitize-stderr-parity.sh is the drift guard that actually enforces
 # this, not this comment) exactly, in Python: this module's own stderr
 # diagnostic below (_warn()) is a SECOND CI-annotation producer in this
-# repo that has nothing to route through the bash function. GitHub
-# Actions' annotation parser scans a step's combined stdout AND stderr for
-# `::` command syntax, so a real, git-trackable filename or PyYAML
-# exception message containing a raw newline would otherwise forge a
-# second, attacker-authored `::error::` line the same way
-# annotation-sanitize.sh's own header documents - regardless of whether
-# find_targets() runs via readme_catalog_check.py's direct import or any
-# other caller. Order matters: percent-escape first, or a literal `%0D`/`%0A` in the source
+# repo that has nothing to route through the bash function. Whether
+# GitHub Actions' runner parses `::` command syntax from stderr the same
+# way it does from stdout is not something this repo can re-derive (a
+# closed-source runner internal, unlike the jq filter above) - but stderr
+# still lands in the same job log stdout does, so a real, git-trackable
+# filename or PyYAML exception message containing a raw newline would at
+# minimum forge a second, attacker-authored-looking `::error::` line in
+# that log the same way annotation-sanitize.sh's own header documents,
+# regardless of whether find_targets() runs via readme_catalog_check.py's
+# direct import or any other caller - reason enough to sanitize here
+# either way. Order matters: percent-escape first, or a literal `%0D`/`%0A` in the source
 # text would be indistinguishable from an already-escaped sequence once
 # the runner decodes it back. `[:cntrl:]` in jq is Unicode-aware (C0
 # controls, DEL, and C1 controls such as U+0085 NEL) - re.sub() operates on
