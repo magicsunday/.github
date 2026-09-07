@@ -192,24 +192,26 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   generates README.md's catalog table from it. README.md's `<!--
   workflow-catalog:start -->`/`<!-- workflow-catalog:end -->` markers wrap
   the exact text `render_table()` must produce; the freshness check
-  (`check_freshness()`) is a byte-for-byte string comparison against that
-  markdown, never a parse of it, and its error message names the
-  `--write` command to regenerate it (`python3
-  .github/scripts/lib/workflow_catalog.py --write README.md
-  .github/workflow-catalog.json`). This removes the "does the automated
-  check see the same table a human does" question the earlier designs
-  kept re-litigating for README.md's own committed bytes — there is no
-  longer a table for the checker to interpret there, only a string it can
-  compare — but it does not make `.github/workflow-catalog.json`'s VALUES
-  trustworthy content: that file is exactly as PR-controlled as README.md
-  ever was, so `load_catalog()` rejects a `|`, a generated-block marker,
-  or a Unicode control/format character in any name/purpose/permission
-  string before `render_table()` ever sees it, closing the equivalent
-  "decoy row hidden in a value instead of raw markdown" bypass a live
-  round of review found here (round 28) — and `_find_marker_span()`
-  requires exactly one marker pair, closing a second bypass where a
-  duplicated pair elsewhere in the file was never compared to anything.
-  It still imports
+  (`check_freshness()`) is a plain string comparison against that text,
+  never a parse of it, and its error message names the `--write` command
+  to regenerate it (`python3 .github/scripts/lib/workflow_catalog.py
+  --write README.md .github/workflow-catalog.json`). This removes the
+  "does the automated check see the same table a human does" question the
+  earlier designs kept re-litigating for README.md's own committed bytes
+  — there is no longer a table for the checker to interpret there, only a
+  string it can compare — but it does not make
+  `.github/workflow-catalog.json`'s VALUES trustworthy content: that file
+  is exactly as PR-controlled as README.md ever was. `render_table()`
+  therefore renders a raw HTML `<table>` with every value passed through
+  `html.escape()`, rather than markdown pipe-table syntax with a
+  hand-picked list of forbidden characters (successive review rounds each
+  found one more markdown/HTML metacharacter the previous round's
+  denylist missed) — see `_reject_unsafe_cell_text()`'s own comment for
+  what escaping does and does not cover, and why a Unicode control,
+  format, separator, or combining-mark character stays a hard rejection
+  regardless. `_find_marker_span()` requires exactly one marker pair,
+  closing a bypass where a duplicated pair elsewhere in the file was
+  never compared to anything. It still imports
   `find_workflow_call_targets.py` directly into the same process (no
   subprocess/temp-file handoff, since both halves are Python) — pinned
   via `.github/requirements/pyyaml.in`/`pyyaml.txt` the same way

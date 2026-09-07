@@ -4,8 +4,10 @@
 # is the source of truth a PR author edits, README.md's catalog table is
 # GENERATED from it, and a freshness check (render_table() vs. what is
 # actually committed between the markers) is the only thing that ever looks
-# at README.md's content. That freshness check is a byte-for-byte string
-# comparison, never a markdown/HTML parse.
+# at README.md's content. That freshness check is a plain string
+# comparison (Python's text-mode file read normalizes line endings, so
+# not literally byte-for-byte, but never a markdown/HTML parse either
+# way).
 #
 # This retires a long run of hand-rolled extractor hardening against
 # every way GitHub-flavoured Markdown/HTML can be nested, unbalanced or
@@ -18,18 +20,21 @@
 # that problem for README.md's own committed bytes: a decoy row can no
 # longer "look real to a human but not match the checker" there, because
 # the checker never interprets README.md's markdown - only compares it
-# byte-for-byte to render_table()'s output. It does NOT make catalog
-# VALUES trustworthy content, though - .github/workflow-catalog.json is
-# exactly as PR-controlled as README.md ever was, and render_table()
-# splices its strings into the generated markdown - see
-# _reject_unsafe_cell_text()'s own comment for the concrete constructs
-# (table-splicing punctuation, raw HTML tags, backtick break-out, control
-# and separator characters) that a name/purpose/permission string is
-# rejected for rather than passed through unescaped.
+# as plain text to render_table()'s output. .github/workflow-catalog.json
+# is exactly as PR-controlled as README.md ever was, though, so three
+# rounds of catalog-VALUE injection findings (a `|`, then raw HTML tags
+# and a backtick break-out, one markdown/HTML metacharacter at a time)
+# went the same way the old README parser did before it. render_table()
+# now renders a raw HTML `<table>` with every value passed through
+# `html.escape()`, instead of markdown pipe-table syntax with a
+# hand-picked list of forbidden characters - see _reject_unsafe_cell_text()'s
+# own comment for why that closes the whole class rather than the one
+# construct each prior round was demonstrated with.
 #
 # find_targets() is imported directly, not invoked as a subprocess - same
 # rationale as the file this replaces: producer and consumer are plain
 # Python objects in one process, so no NUL-delimited handoff is needed.
+import html
 import importlib.util
 import json
 import os
@@ -50,8 +55,6 @@ _spec.loader.exec_module(find_workflow_call_targets)
 _BEGIN_MARKER = "<!-- workflow-catalog:start -->"
 _END_MARKER = "<!-- workflow-catalog:end -->"
 
-_TABLE_HEADER = "| Workflow | Purpose | Permissions the caller must grant |\n| --- | --- | --- |\n"
-
 
 def _sanitize(text):
     # See readme_catalog_check.py's own _sanitize() history (git log) for
@@ -60,50 +63,35 @@ def _sanitize(text):
     return find_workflow_call_targets._sanitize_for_stderr(text)
 
 
-def _reject_unsafe_cell_text(catalog_path, name, field, value, *, allow_backtick):
-    # `|` would splice an extra column into render_table()'s markdown row
-    # (GFM's table-cell grammar splits on every unescaped `|` regardless of
-    # code-span/backtick state - checked against cmark-gfm's own
-    # table_cell rule, 2026-09-07); `<`/`>` let a value construct raw HTML tags
-    # (`</td><td>...`) that a spec-compliant renderer implicitly closes
-    # the current cell/row for, forging a sibling table row or column with
-    # no `|` needed at all - live-demonstrated end to end through a real
-    # renderer, round 29 (round 28's fix covered only the `|`/newline
-    # mechanism, not this class). Embedding either marker string would let
-    # a later --write lock onto the wrong occurrence instead of the real
-    # one. A Unicode category-C character (Cc/Cf/Cs/Co/Cn - control,
-    # format incl. bidi overrides, surrogate, private-use, unassigned) or
-    # a Zl/Zp separator covers a literal newline or line/paragraph
-    # separator (ends the table early, pushing the real remaining cells
-    # into unrelated rendered prose) and a Trojan-Source-style bidi
-    # override with no hand-picked list of individual characters.
-    if (
-        "|" in value
-        or "<" in value
-        or ">" in value
-        or _BEGIN_MARKER in value
-        or _END_MARKER in value
-        or any(unicodedata.category(ch) in ("Zl", "Zp") or unicodedata.category(ch)[0] == "C" for ch in value)
+def _reject_unsafe_cell_text(catalog_path, name, field, value):
+    # render_table() renders a raw HTML <table>, and GitHub's own renderer
+    # treats a raw HTML block's content as opaque - never re-parsed as
+    # markdown (verified live against GitHub's public Markdown API,
+    # 2026-09-07: a markdown link/emphasis/strikethrough/autolink placed
+    # inside a raw <table> renders as inert literal text, not the
+    # construct it would be outside one). html.escape() below neutralises
+    # `<`, `>` and `&` structurally, so no hand-picked list of dangerous
+    # markdown/HTML punctuation (`|`, backtick, the marker strings - each
+    # added in its own review round, one construct at a time) is needed
+    # here any more; escaping closes the whole class instead of the one
+    # construct each prior round was demonstrated with.
+    #
+    # What HTML-escaping does NOT fix is anything that isn't a markdown/
+    # HTML syntax question in the first place: a Unicode category-C
+    # character (Cc/Cf/Cs/Co/Cn - control, format incl. Trojan-Source bidi
+    # overrides, surrogate, private-use, unassigned) or a Zl/Zp separator
+    # can still end the raw HTML block early at what the parser reads as
+    # a blank line, and a long run of combining marks (Mn/Mc/Me -
+    # "Zalgo" text, live-demonstrated: GitHub's renderer applies no cap)
+    # visually distorts or obscures the cell regardless of escaping. All
+    # three stay a hard rejection.
+    if any(
+        unicodedata.category(ch) in ("Zl", "Zp") or unicodedata.category(ch)[0] in ("C", "M") for ch in value
     ):
         raise ValueError(
-            f"{catalog_path}: the entry for {_sanitize(name)}'s {field!r} must not contain a `|`, "
-            "a `<`/`>`, a generated-block marker, or a Unicode control/format/separator character "
-            "- any of those would corrupt or misrepresent the generated table (see issue #116)."
-        )
-    # render_table() wraps `name` and each `permissions` entry in its OWN
-    # literal backticks (`` `{value}` ``); an embedded backtick there
-    # closes that code span early and reopens a second one, letting
-    # ordinary markdown in between (bold, a link) render live instead of
-    # staying literal text - live-demonstrated, round 29. "purpose" is
-    # never backtick-wrapped by the template, so an embedded backtick
-    # there is just literal prose (CommonMark's code-span rule requires a
-    # matching same-length backtick run, so an unpaired one renders as a
-    # literal backtick, not an unterminated span swallowing later cells).
-    if not allow_backtick and "`" in value:
-        raise ValueError(
-            f"{catalog_path}: the entry for {_sanitize(name)}'s {field!r} must not contain a backtick "
-            "- render_table() wraps this field in its own backticks, and an embedded one would break "
-            "out of that code span (see issue #116)."
+            f"{catalog_path}: the entry for {_sanitize(name)}'s {field!r} must not contain a Unicode "
+            "control, format, separator, or combining-mark character - none of those render safely "
+            "in the generated table (see issue #116)."
         )
 
 
@@ -134,7 +122,7 @@ def load_catalog(catalog_path):
             raise ValueError(
                 f"{catalog_path}: {_sanitize(name)!r} is not a valid workflow filename to use as a catalog key."
             )
-        _reject_unsafe_cell_text(catalog_path, name, "name", name, allow_backtick=False)
+        _reject_unsafe_cell_text(catalog_path, name, "name", name)
 
         if not isinstance(entry, dict) or set(entry) != {"purpose", "permissions"}:
             raise ValueError(
@@ -143,7 +131,7 @@ def load_catalog(catalog_path):
             )
         if not isinstance(entry["purpose"], str) or not entry["purpose"]:
             raise ValueError(f"{catalog_path}: the entry for {_sanitize(name)} needs a non-empty string \"purpose\".")
-        _reject_unsafe_cell_text(catalog_path, name, "purpose", entry["purpose"], allow_backtick=True)
+        _reject_unsafe_cell_text(catalog_path, name, "purpose", entry["purpose"])
 
         permissions = entry["permissions"]
         if not isinstance(permissions, list) or not permissions or not all(
@@ -154,19 +142,39 @@ def load_catalog(catalog_path):
                 "list of non-empty strings."
             )
         for permission in permissions:
-            _reject_unsafe_cell_text(catalog_path, name, "permissions", permission, allow_backtick=False)
+            _reject_unsafe_cell_text(catalog_path, name, "permissions", permission)
 
     return data
 
 
 def render_table(catalog):
-    """Renders the catalog as the exact markdown table text README.md must
-    contain between the generated-block markers.
+    """Renders the catalog as the exact HTML table text README.md must
+    contain between the generated-block markers. A raw HTML table, not
+    markdown pipe-table syntax - see _reject_unsafe_cell_text()'s own
+    comment for why that is what makes html.escape() sufficient here
+    instead of a hand-picked list of forbidden markdown characters.
     """
-    lines = [_TABLE_HEADER.rstrip("\n")]
+    lines = [
+        "<table>",
+        "<thead>",
+        "<tr><th>Workflow</th><th>Purpose</th><th>Permissions the caller must grant</th></tr>",
+        "</thead>",
+        "<tbody>",
+    ]
     for name, entry in catalog.items():
-        permissions = ", ".join(f"`{p}`" for p in entry["permissions"])
-        lines.append(f"| `{name}` | {entry['purpose']} | {permissions} |")
+        # quote=False: every value lands in element TEXT CONTENT, never in
+        # an HTML attribute, so a literal quote character needs no
+        # escaping - only <, >, and & do, and leaving quotes alone keeps
+        # the committed source (e.g. "the caller's own") readable instead
+        # of turning every apostrophe into `&#x27;`.
+        permissions = ", ".join(f"<code>{html.escape(p, quote=False)}</code>" for p in entry["permissions"])
+        lines.append(
+            f"<tr><td><code>{html.escape(name, quote=False)}</code></td>"
+            f"<td>{html.escape(entry['purpose'], quote=False)}</td>"
+            f"<td>{permissions}</td></tr>"
+        )
+    lines.append("</tbody>")
+    lines.append("</table>")
     return "\n".join(lines) + "\n"
 
 
@@ -178,7 +186,7 @@ def _find_marker_span(readme_text):
     fully attacker-controlled marker-delimited block elsewhere in the
     file used to never be compared to anything, so it passed
     check_freshness() with zero errors while looking just as legitimate
-    as the real one (round 28, live-demonstrated).
+    as the real one, live-demonstrated.
     """
     if readme_text.count(_BEGIN_MARKER) != 1 or readme_text.count(_END_MARKER) != 1:
         return None
