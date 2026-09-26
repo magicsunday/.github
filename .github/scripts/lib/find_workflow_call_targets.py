@@ -1,22 +1,18 @@
 #!/usr/bin/env python3
-# Sourced (via `python3 <this file> <workflows_dir>`) by
-# readme-catalog-check.sh's find_workflow_call_targets() to detect a
-# workflow_call trigger via a real YAML parse instead of pattern-matching
-# the raw text. Evaluating the trigger's actual YAML shape and value, not
-# the literal bytes of the line that introduces it, closes gaps a
-# line-oriented match cannot by construction: the scalar/flow-sequence
-# trigger shorthand (`on: workflow_call` / `on: [push, workflow_call]`) and
-# a byte-inexact `on:` line (a quoted `'on':` key) - see
-# _has_workflow_call_trigger() below for the exact shapes handled.
+# find_targets() is imported directly by workflow_catalog.py's own
+# check() to detect a workflow_call trigger via a real YAML parse instead
+# of pattern-matching the raw text. Evaluating the trigger's actual YAML
+# shape and value, not the literal bytes of the line that introduces it,
+# closes gaps a line-oriented match cannot by construction: the
+# scalar/flow-sequence trigger shorthand (`on: workflow_call` /
+# `on: [push, workflow_call]`) and a byte-inexact `on:` line (a quoted
+# `'on':` key) - see _has_workflow_call_trigger() below for the exact
+# shapes handled.
 #
-# Prints one NUL-terminated, unsanitised basename per matching file to
-# stdout - NUL rather than newline, because a git-tracked filename may
-# itself contain an embedded raw newline (see annotation-sanitize.sh's own
-# header for why that must survive intact into sanitize_for_annotation()
-# rather than being consumed by a newline-based split first). Sanitising
-# the printed name for CI-annotation forgery is the CALLER's job:
-# readme-catalog-check.sh already has sanitize_for_annotation() for
-# exactly this.
+# find_targets() itself yields plain, unsanitised basenames - sanitising a
+# printed name for CI-annotation forgery is the CALLER's job, which
+# workflow_catalog.py does via this same module's
+# _sanitize_for_stderr().
 #
 # Known limitation: a file with TWO top-level `on:` keys resolves via
 # YAML's own last-key-wins rule, so a workflow_call trigger under the FIRST
@@ -45,16 +41,19 @@ import yaml
 # (its readonly ANNOTATION_SANITIZE_JQ_FILTER constant - re-derive: `grep -n
 # 'readonly ANNOTATION_SANITIZE_JQ_FILTER=' .github/scripts/lib/annotation-sanitize.sh`;
 # test-sanitize-stderr-parity.sh is the drift guard that actually enforces
-# this, not this comment) exactly, in Python: this
-# script's own stderr diagnostic below is a SECOND CI-annotation producer
-# in this repo that has nothing to route through the bash function, since
-# it runs in a separate process the bash caller only pipes stdout from
-# (readme-catalog-check.sh's `python3 ... > "${tmp_file}"` never touches
-# stderr, which flows straight into the Actions job log unfiltered) - a
-# real, git-trackable filename or PyYAML exception message containing a
-# raw newline would otherwise forge a second, attacker-authored `::error::`
-# line the same way annotation-sanitize.sh's own header documents. Order
-# matters: percent-escape first, or a literal `%0D`/`%0A` in the source
+# this, not this comment) exactly, in Python: this module's own stderr
+# diagnostic below (_warn()) is a SECOND CI-annotation producer in this
+# repo that has nothing to route through the bash function. Whether
+# GitHub Actions' runner parses `::` command syntax from stderr the same
+# way it does from stdout is not something this repo can re-derive (a
+# closed-source runner internal, unlike the jq filter above) - but stderr
+# still lands in the same job log stdout does, so a real, git-trackable
+# filename or PyYAML exception message containing a raw newline would at
+# minimum forge a second, attacker-authored-looking `::error::` line in
+# that log the same way annotation-sanitize.sh's own header documents,
+# regardless of whether find_targets() runs via workflow_catalog.py's
+# direct import or any other caller - reason enough to sanitize here
+# either way. Order matters: percent-escape first, or a literal `%0D`/`%0A` in the source
 # text would be indistinguishable from an already-escaped sequence once
 # the runner decodes it back. `[:cntrl:]` in jq is Unicode-aware (C0
 # controls, DEL, and C1 controls such as U+0085 NEL) - re.sub() operates on
@@ -68,8 +67,14 @@ def _sanitize_for_stderr(text):
 
 
 def _warn(path, message):
+    # _sanitize_for_stderr() only closes the newline-forgery class above -
+    # it does not touch a Unicode bidi-override/format/separator
+    # character, which would otherwise ride raw into this printed
+    # diagnostic from an attacker-controlled, never-elsewhere-validated
+    # filename. `!r` closes that the same way workflow_catalog.py's own
+    # _sanitize() callers do, for the identical reason (see its docstring).
     print(
-        f"find_workflow_call_targets.py: {_sanitize_for_stderr(os.path.basename(path))} {message}",
+        f"find_workflow_call_targets.py: {_sanitize_for_stderr(os.path.basename(path))!r} {message}",
         file=sys.stderr,
     )
 
@@ -180,30 +185,12 @@ def find_targets(workflows_dir):
             # PyYAML's own exception message re-embeds the full raw path
             # in its "in '<path>', line N, column M" context, so `exc`
             # needs the same treatment as the bare filename, not just
-            # os.path.basename(path) alone.
-            _warn(path, f"could not be processed, skipping: {_sanitize_for_stderr(str(exc))}")
+            # os.path.basename(path) alone. `!r` here too, for the same
+            # bidi-override reason _warn() wraps the basename itself -
+            # the full path re-embedded by PyYAML is exactly as
+            # unvalidated as the basename is.
+            _warn(path, f"could not be processed, skipping: {_sanitize_for_stderr(str(exc))!r}")
             continue
 
         if _has_workflow_call_trigger(doc):
             yield os.path.basename(path)
-
-
-def main(argv):
-    if len(argv) != 2:
-        print("usage: find_workflow_call_targets.py <workflows_dir>", file=sys.stderr)
-        return 2
-
-    out = sys.stdout.buffer
-    for name in find_targets(argv[1]):
-        # fsencode, not a plain UTF-8 .encode(): a filename is an arbitrary
-        # byte sequence on a POSIX filesystem, and glob() already decoded it
-        # with surrogateescape - fsencode reverses that losslessly, while a
-        # plain .encode() would raise on a name that round-trips through
-        # surrogateescape.
-        out.write(os.fsencode(name))
-        out.write(b"\0")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv))

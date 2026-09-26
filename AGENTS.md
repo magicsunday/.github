@@ -172,24 +172,61 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   workflow checks out via `job.workflow_repository`/`job.workflow_sha`).
   `lint.yml`'s own `semgrep-smoke` job follows the same pattern
   (`semgrep-smoke-helpers.sh`, split out of `semgrep-report-check.sh` per the
-  scan-report-completeness bullet above), as does `lint.yml`'s
-  `readme-catalog-fresh` job (`readme-catalog-check.sh` — cross-checking
-  every `workflow_call`-declaring file under `.github/workflows/` against
-  README's catalog table, issue #101). The trigger-detection half of that
-  check (`find_workflow_call_targets()`) shells out to a real YAML parser,
-  `.github/scripts/lib/find_workflow_call_targets.py`, rather than pattern-
-  matching the raw text (issue #118) — pinned via `.github/requirements/
-  pyyaml.in`/`pyyaml.txt` the same way `semgrep.in`/`yamllint.in` are, and
-  unit-tested directly by `test_find_workflow_call_targets.py` (run through
-  `test-find-workflow-call-targets.sh`, since `run-tests.sh`'s own glob only
-  picks up `test-*.sh`), separately from `test-readme-catalog-check.sh`'s
-  end-to-end coverage of the bash wrapper. Its own stderr-diagnostic
-  sanitizer is a second, Python-side transcription of `annotation-sanitize.sh`'s
-  escape-then-fold algorithm (a Python subprocess cannot import a bash
-  `readonly` constant the way `semgrep-report-check.sh` does) — kept from
-  silently drifting apart by `test-sanitize-stderr-parity.sh`, a value-based
-  drift guard run over a shared fixture list, mirroring
-  `test-annotation-sanitize-jq-parity.sh`'s role for the bash-only call sites.
+  scan-report-completeness bullet above). `lint.yml`'s `workflow-catalog-fresh`
+  job takes a related but different shape: `workflow_catalog.py` —
+  cross-checking every `workflow_call`-declaring file under
+  `.github/workflows/` against the catalog, issue #101, every catalog
+  entry back against those files, issue #116, and README.md's committed
+  text against `render_table()`'s output — is a plain Python module invoked directly
+  from `lint.yml`, not a bash wrapper sourced the way the examples above
+  are. Getting the reverse direction right took many review rounds and
+  several full rewrites — bash/`sed`/regex, then a real per-row Python
+  tokenizer, then two GFM-block-precedence-aware designs, then rendering
+  README.md through cmark-gfm and reading a real `<table>` element back
+  out of the HTML — each closing one bypass class while a PR-controlled
+  README.md's markdown/HTML kept offering a new one to exploit, because a
+  human-editable document has no structure the checker can trust without
+  re-deriving it every time. `workflow_catalog.py` instead moves the
+  source of truth to `.github/workflow-catalog.json` — a plain JSON object
+  mapping each workflow filename to its `purpose`/`permissions` — and
+  generates README.md's catalog table from it. README.md's `<!--
+  workflow-catalog:start -->`/`<!-- workflow-catalog:end -->` markers wrap
+  the exact text `render_table()` must produce; the freshness check
+  (`check_freshness()`) is a plain string comparison against that text,
+  never a parse of it, and its error message names the `--write` command
+  to regenerate it (`python3 .github/scripts/lib/workflow_catalog.py
+  --write README.md .github/workflow-catalog.json`). This removes the
+  "does the automated check see the same table a human does" question the
+  earlier designs kept re-litigating for README.md's own committed bytes
+  — there is no longer a table for the checker to interpret there, only a
+  string it can compare — but it does not make
+  `.github/workflow-catalog.json`'s VALUES trustworthy content: that file
+  is exactly as PR-controlled as README.md ever was. `render_table()`
+  therefore renders a raw HTML `<table>` with every value passed through
+  `html.escape()`, rather than markdown pipe-table syntax with a
+  hand-picked list of forbidden characters (successive review rounds each
+  found one more markdown/HTML metacharacter the previous round's
+  denylist missed) — see `_reject_unsafe_cell_text()`'s own comment for
+  what escaping does and does not cover, and why a Unicode control,
+  format, separator, or combining-mark character stays a hard rejection
+  regardless. `_find_marker_span()` requires exactly one marker pair,
+  closing a bypass where a duplicated pair elsewhere in the file was
+  never compared to anything. It still imports
+  `find_workflow_call_targets.py` directly into the same process (no
+  subprocess/temp-file handoff, since both halves are Python) — pinned
+  via `.github/requirements/pyyaml.in`/`pyyaml.txt` the same way
+  `semgrep.in`/`yamllint.in` are, and unit-tested directly by
+  `test_workflow_catalog.py` and `test_find_workflow_call_targets.py`
+  (each run through its own `test-*.sh` wrapper, since `run-tests.sh`'s own
+  glob only picks up `test-*.sh`, not `test_*.py`). `find_workflow_call_targets.py`'s
+  own stderr-diagnostic sanitizer is a second, Python-side transcription of
+  `annotation-sanitize.sh`'s escape-then-fold algorithm (a Python process
+  cannot import a bash `readonly` constant the way `semgrep-report-check.sh`
+  does) — `workflow_catalog.py` reuses that same function directly
+  rather than carrying a third copy, kept from silently drifting apart by
+  `test-sanitize-stderr-parity.sh`, a value-based drift guard run over a
+  shared fixture list, mirroring `test-annotation-sanitize-jq-parity.sh`'s
+  role for the bash-only call sites.
   `yamllint.yml` and `i18n.yml` carry comparable inline
   `run:` logic that was deliberately left un-migrated when this convention was
   introduced (GH-47) — extending it to those is a separate decision, not something

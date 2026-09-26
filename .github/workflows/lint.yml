@@ -226,9 +226,10 @@ jobs:
 
             # find_workflow_call_targets.py (issue #118) needs PyYAML on the
             # runner - test-find-workflow-call-targets.sh and
-            # test-readme-catalog-check.sh both exercise it, directly and via
-            # the bash wrapper respectively, so run-tests.sh itself now has
-            # this dependency, not only the readme-catalog-fresh job below.
+            # test-workflow-catalog.sh both exercise it (the latter via
+            # workflow_catalog.py's own direct import), so run-tests.sh
+            # itself now has this dependency, not only the
+            # workflow-catalog-fresh job below.
             - name: Install PyYAML
               run: |
                   set -euo pipefail
@@ -237,7 +238,16 @@ jobs:
             - name: Run shell-logic tests
               run: bash .github/scripts/tests/run-tests.sh
 
-    readme-catalog-fresh:
+    workflow-catalog-fresh:
+        # The required-status-check context branch protection matches on is
+        # built from this display NAME, not the job id above (verified live
+        # via `gh api repos/magicsunday/.github/branches/main/protection
+        # --jq '.required_status_checks.contexts[]?'`) - renaming
+        # it here without also updating that setting would leave every
+        # future PR permanently BLOCKED, since no job would ever report the
+        # context branch protection still waits on. Keeping the string
+        # unchanged from the job this replaced avoids needing that
+        # coordinated settings change at all.
         name: Verify README's workflow catalog lists every workflow_call target
         runs-on: ubuntu-latest
 
@@ -255,22 +265,19 @@ jobs:
               with:
                   python-version: '3.12'
 
-            # find_workflow_call_targets() (readme-catalog-check.sh) shells
-            # out to find_workflow_call_targets.py for a real YAML parse
-            # (issue #118), which needs PyYAML installed on the runner.
+            # workflow_catalog.py imports find_workflow_call_targets.py
+            # directly (issue #118's real YAML parse) into the same
+            # process, which needs PyYAML installed on the runner.
             - name: Install PyYAML
               run: |
                   set -euo pipefail
                   pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/pyyaml.txt
 
-            # assert_readme_catalog_complete() (readme-catalog-check.sh)
-            # carries the complete assertion - the workflow_call detection,
-            # the table-row-start match, and the filename sanitising - so
-            # test-readme-catalog-check.sh exercises the exact wiring this
+            # check() (workflow_catalog.py) carries the complete assertion -
+            # the workflow_call detection, .github/workflow-catalog.json's
+            # own schema, the reverse walk of its entries (issue #116), the
+            # filename sanitising, and README.md's generated-block freshness
+            # - so test_workflow_catalog.py exercises the exact wiring this
             # step relies on, not just its parts (issue #101).
-            - name: Compare workflow_call targets against README.md
-              run: |
-                  set -euo pipefail
-                  # shellcheck source=scripts/lib/readme-catalog-check.sh
-                  source .github/scripts/lib/readme-catalog-check.sh
-                  assert_readme_catalog_complete .github/workflows README.md
+            - name: Compare workflow_call targets against the catalog and README.md
+              run: python3 .github/scripts/lib/workflow_catalog.py .github/workflows README.md .github/workflow-catalog.json
