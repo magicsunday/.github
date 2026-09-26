@@ -178,6 +178,21 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
     words; close it with a pointer to the check that already holds it.
   This is a rule for this gate only, because of that blast radius; everywhere else
   the general "reproduce first" default stands.
+  A single-language (Python) rewrite of the gate was evaluated and **deferred**
+  (issue #108). The bug class it targeted — the same escaping written twice, in
+  bash and in jq, kept in parity by hand (#78, #80, #83) — was already closed
+  structurally by #91: `sanitize_for_annotation()` itself runs jq, and every
+  bash/jq site interpolates the one `ANNOTATION_SANITIZE_JQ_FILTER` constant, so
+  those sites are identical by construction. The remaining second copy is
+  Python-side (`find_workflow_call_targets.py`, pinned by
+  `test-sanitize-stderr-parity.sh`), and a rewrite would not remove it, because
+  `commit-convention.yml` would still need the bash sanitizer. Against that, a
+  rewrite means replacing ~1000 lines of gate code and ~2200 lines of tests that
+  have no known open defect. Revisit it when one of these happens: a divergence
+  between two sanitizer implementations reaches `main` despite the parity tests;
+  a pinned-engine bump needs the gate's jq report filters re-derived anyway; or
+  the gate needs a new code branch (per the rule above) that bash cannot express
+  without a second escaping path.
 - **When a reusable workflow's `run:` block grows real logic (argument
   construction, report assertions — a bare exit-code check is usually too small to
   be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
