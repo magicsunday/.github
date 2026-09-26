@@ -193,6 +193,11 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   response parsing) and `zizmor.yml` (`canonical-file-guard.sh` — the
   caller's `.github/zizmor.yml` against the canonical copy this reusable
   workflow checks out via `job.workflow_repository`/`job.workflow_sha`).
+  `canonical-drift.yml` — this repository's own scheduled, account-wide
+  sweep for canonical files listed in `.github/canonical-files.json`, not a
+  reusable workflow (issue #87) — keeps its logic in `canonical-drift.sh`
+  the same way, with `gh` replaced by a fixture-serving function in
+  `test-canonical-drift.sh`.
   `lint.yml`'s own `semgrep-smoke` job follows the same pattern
   (`semgrep-smoke-helpers.sh`, split out of `semgrep-report-check.sh` per the
   scan-report-completeness bullet above). `lint.yml`'s `workflow-catalog-fresh`

@@ -1,0 +1,9 @@
+{
+    "files": [
+        {
+            "path": ".github/zizmor.yml",
+            "applies_when_present": ".github/workflows",
+            "exempt": []
+        }
+    ]
+}
