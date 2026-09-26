@@ -155,6 +155,44 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   the job (issue #90). Unlike the completeness check above, it has no
   `excludes`-based way to quiet a specific path; the notice recurs on every
   run for as long as the archive stays tracked.
+- **When to harden the scan-completeness gate further — the stopping rule.** The
+  gate (`semgrep-report-check.sh` and the libs it sources) has been hardened through
+  a long run of issues, several of them follow-ons that an earlier round introduced
+  (#65's stderr suppression caused #69's swallowed diagnostic). The threshold those
+  issues actually applied, written down so the next "this could theoretically fail
+  too" report is a lookup rather than a fresh debate (issue #105):
+  - A new defensive check on an **existing** code path may land on a plausible but
+    unreproduced theory. This is the deliberate exception to the general default of
+    verifying that a concern manifests before hardening against it, and it holds
+    because a gap here is fleet-wide: every consumer repository uploads through this
+    one gate, and a report that silently covered less retires real alerts (see the
+    bullet above). #65 is the precedent — fixed although its own text says the
+    crash is "currently **not reachable through Semgrep's real output**".
+  - A **new** code branch — a new skip reason tolerated, a new parser path, a new
+    fallback — needs a reproduction against the pinned engine first, recorded in the
+    issue or the code comment together with the command that re-derives it. #92 is the
+    precedent — closed `wontfix`, unimplemented, because its fix would have added a
+    `.errors`-based branch for a state that "could not be reproduced" against the
+    pinned engine.
+  - Neither rule covers a report that only restates an existing guarantee in new
+    words; close it with a pointer to the check that already holds it.
+  This is a rule for this gate only, because of that blast radius; everywhere else
+  the general "reproduce first" default stands.
+  A single-language (Python) rewrite of the gate was evaluated and **deferred**
+  (issue #108). The bug class it targeted — the same escaping written twice, in
+  bash and in jq, kept in parity by hand (#78, #80, #83) — was already closed
+  structurally by #91: `sanitize_for_annotation()` itself runs jq, and every
+  bash/jq site interpolates the one `ANNOTATION_SANITIZE_JQ_FILTER` constant, so
+  those sites are identical by construction. The remaining second copy is
+  Python-side (`find_workflow_call_targets.py`, pinned by
+  `test-sanitize-stderr-parity.sh`), and a rewrite would not remove it, because
+  `commit-convention.yml` would still need the bash sanitizer. Against that, a
+  rewrite means replacing ~1000 lines of gate code and ~2200 lines of tests that
+  have no known open defect. Revisit it when one of these happens: a divergence
+  between two sanitizer implementations reaches `main` despite the parity tests;
+  a pinned-engine bump needs the gate's jq report filters re-derived anyway; or
+  the gate needs a new code branch (per the rule above) that bash cannot express
+  without a second escaping path.
 - **When a reusable workflow's `run:` block grows real logic (argument
   construction, report assertions — a bare exit-code check is usually too small to
   be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
@@ -170,6 +208,11 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   response parsing) and `zizmor.yml` (`canonical-file-guard.sh` — the
   caller's `.github/zizmor.yml` against the canonical copy this reusable
   workflow checks out via `job.workflow_repository`/`job.workflow_sha`).
+  `canonical-drift.yml` — this repository's own scheduled, account-wide
+  sweep for canonical files listed in `.github/canonical-files.json`, not a
+  reusable workflow (issue #87) — keeps its logic in `canonical-drift.sh`
+  the same way, with `gh` replaced by a fixture-serving function in
+  `test-canonical-drift.sh`.
   `lint.yml`'s own `semgrep-smoke` job follows the same pattern
   (`semgrep-smoke-helpers.sh`, split out of `semgrep-report-check.sh` per the
   scan-report-completeness bullet above). `lint.yml`'s `workflow-catalog-fresh`

@@ -23,11 +23,12 @@
 # a newly created repository was the only one of 22 without the file, and
 # it surfaced only through manual alert triage.
 #
-# Checked at the GATE that actually depends on the file, not via a separate
-# cross-repo sweep: the canonical FILE this function compares against is its
-# own manifest - no separate list of "which files are canonical" to keep in
-# sync, and no extra token/cross-repo read scope beyond the checkout this
-# workflow already performs.
+# Checked at the GATE that actually depends on the file: the canonical FILE
+# this function compares against is its own manifest, and it needs no token
+# or cross-repo read scope beyond the checkout this workflow already
+# performs. It only ever sees a repository that calls zizmor.yml, though;
+# canonical-drift.sh is the scheduled, account-wide sweep that also covers
+# the ones that never do (issue #87).
 assert_canonical_zizmor_config() {
     local canonical_dir="$1"
     local canonical_url="https://github.com/magicsunday/.github/blob/main/.github/zizmor.yml"

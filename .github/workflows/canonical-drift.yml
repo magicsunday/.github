@@ -1,0 +1,66 @@
+name: Canonical-file drift
+
+# Weekly, account-wide sweep for canonical files that are missing from, or
+# have drifted in, any of this account's repositories (issue #87). The
+# reactive half - zizmor.yml's own gate-time comparison of .github/zizmor.yml
+# (canonical-file-guard.sh) - only ever sees a repository that already calls
+# that gate; this sweep also covers the ones that never do.
+#
+# Which files are canonical is declared in .github/canonical-files.json; the
+# canonical content of each is this repository's own copy at the same path.
+# The comparison itself, its scoping rules and its limits are documented in
+# .github/scripts/lib/canonical-drift.sh, which this workflow sources and
+# test-canonical-drift.sh pins.
+#
+# Report-only: a drift fails this run and is listed in the job summary, but
+# nothing is written to the drifted repository. A scheduled run that fails is
+# what notifies the account owner.
+#
+# Not a reusable workflow and not triggered by pull requests on purpose: its
+# verdict is about OTHER repositories, so running it on a pull request here
+# would fail an unrelated change on drift it cannot fix. The logic is still
+# exercised on every pull request, through test-canonical-drift.sh in
+# lint.yml's shell-tests job.
+on:
+    schedule:
+        - cron: '41 4 * * 1'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    canonical-drift:
+        name: Check every repository for canonical-file drift
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            # The token reads other repositories only while they are public,
+            # which is also this sweep's coverage limit (see the lib's
+            # header). Values reach the script through the environment,
+            # never interpolated into the shell.
+            - name: Check every repository for canonical-file drift
+              shell: bash
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  OWNER: ${{ github.repository_owner }}
+                  REPOSITORY: ${{ github.repository }}
+              run: |
+                  set -euo pipefail
+
+                  # shellcheck source=../scripts/lib/canonical-drift.sh
+                  . .github/scripts/lib/canonical-drift.sh
+
+                  check_canonical_drift \
+                      .github/canonical-files.json \
+                      "${GITHUB_WORKSPACE}" \
+                      "${OWNER}" \
+                      "${REPOSITORY#*/}"
