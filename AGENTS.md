@@ -155,6 +155,29 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   the job (issue #90). Unlike the completeness check above, it has no
   `excludes`-based way to quiet a specific path; the notice recurs on every
   run for as long as the archive stays tracked.
+- **When to harden the scan-completeness gate further — the stopping rule.** The
+  gate (`semgrep-report-check.sh` and the libs it sources) has been hardened through
+  a long run of issues, several of them follow-ons that an earlier round introduced
+  (#65's stderr suppression caused #69's swallowed diagnostic). The threshold those
+  issues actually applied, written down so the next "this could theoretically fail
+  too" report is a lookup rather than a fresh debate (issue #105):
+  - A new defensive check on an **existing** code path may land on a plausible but
+    unreproduced theory. This is the deliberate exception to the general default of
+    verifying that a concern manifests before hardening against it, and it holds
+    because a gap here is fleet-wide: every consumer repository uploads through this
+    one gate, and a report that silently covered less retires real alerts (see the
+    bullet above). #65 is the precedent — fixed although its own text says the
+    crash is "currently **not reachable through Semgrep's real output**".
+  - A **new** code branch — a new skip reason tolerated, a new parser path, a new
+    fallback — needs a reproduction against the pinned engine first, recorded in the
+    issue or the code comment together with the command that re-derives it. #92 is the
+    precedent — closed `wontfix`, unimplemented, because its fix would have added a
+    `.errors`-based branch for a state that "could not be reproduced" against the
+    pinned engine.
+  - Neither rule covers a report that only restates an existing guarantee in new
+    words; close it with a pointer to the check that already holds it.
+  This is a rule for this gate only, because of that blast radius; everywhere else
+  the general "reproduce first" default stands.
 - **When a reusable workflow's `run:` block grows real logic (argument
   construction, report assertions — a bare exit-code check is usually too small to
   be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
