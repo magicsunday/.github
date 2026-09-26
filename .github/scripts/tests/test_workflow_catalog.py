@@ -151,7 +151,7 @@ class LoadCatalogTest(_TempRepoTestCase):
         # U+202E RIGHT-TO-LEFT OVERRIDE - a Trojan-Source-style character
         # that is not a `|` and not a C0/C1 control character, but is
         # still Unicode category "Cf" (format).
-        self._write_catalog({"real.yml": {"purpose": "Normal ‮reversed", "permissions": ["contents: read"]}})
+        self._write_catalog({"real.yml": {"purpose": "Normal \u202ereversed", "permissions": ["contents: read"]}})
         with self.assertRaises(ValueError):
             workflow_catalog.load_catalog(self.catalog_path)
 
@@ -163,11 +163,11 @@ class LoadCatalogTest(_TempRepoTestCase):
         # (and from there into a CI ::error:: annotation), reopening the
         # same directional-spoofing risk the rejection itself exists to
         # close. `!r` forces it through Python's own escaping instead.
-        bad_name = "workflow‮name.yml"
+        bad_name = "workflow\u202ename.yml"
         self._write_catalog({bad_name: {"purpose": "x", "permissions": ["contents: read"]}})
         with self.assertRaises(ValueError) as ctx:
             workflow_catalog.load_catalog(self.catalog_path)
-        self.assertNotIn("‮", str(ctx.exception))
+        self.assertNotIn("\u202e", str(ctx.exception))
         self.assertIn("\\u202e", str(ctx.exception))
 
     def test_single_combining_mark_in_purpose_is_rejected(self):
@@ -248,7 +248,7 @@ class LoadCatalogTest(_TempRepoTestCase):
         # The Unicode-category guard runs on every field load_catalog()
         # passes through it, not only "purpose" - a catalog key is just as
         # capable of carrying a Trojan-Source-style override character.
-        self._write_catalog({"real‮.yml": {"purpose": "x", "permissions": ["contents: read"]}})
+        self._write_catalog({"real\u202e.yml": {"purpose": "x", "permissions": ["contents: read"]}})
         with self.assertRaises(ValueError):
             workflow_catalog.load_catalog(self.catalog_path)
 
@@ -257,7 +257,7 @@ class LoadCatalogTest(_TempRepoTestCase):
         # a permission string is rendered via plain html.escape() (never
         # _render_purpose()'s backtick handling), so it relies entirely on
         # this rejection to keep a bidi override out of the table.
-        self._write_catalog({"real.yml": {"purpose": "x", "permissions": ["contents: ‮read"]}})
+        self._write_catalog({"real.yml": {"purpose": "x", "permissions": ["contents: \u202eread"]}})
         with self.assertRaises(ValueError):
             workflow_catalog.load_catalog(self.catalog_path)
 
@@ -613,13 +613,13 @@ class CheckTest(_TempRepoTestCase):
         # from disk is never run through _reject_unsafe_cell_text() at
         # all (only catalog values are), so this message is the only
         # place a bidi override in a real filename ever gets caught.
-        bad_name = "workflow‮name.yml"
+        bad_name = "workflow\u202ename.yml"
         self._add_target(bad_name)
         self._write_catalog({})
         self._write_fresh_readme({})
         errors = self._check()
         self.assertEqual(len(errors), 1)
-        self.assertNotIn("‮", errors[0])
+        self.assertNotIn("\u202e", errors[0])
         self.assertIn("\\u202e", errors[0])
 
     def test_stale_entry_for_removed_file_fails(self):

@@ -237,7 +237,7 @@ class FindTargetsTest(unittest.TestCase):
         # workflow_catalog.py's _sanitize() docstring documents, on the one
         # call site here that embeds a filename never validated by anything
         # else (find_targets() never runs catalog-value validation).
-        bad_name = "workflow‮name.yml"
+        bad_name = "workflow\u202ename.yml"
         with tempfile.TemporaryDirectory() as base_dir:
             workflows_dir = os.path.join(base_dir, "workflows")
             os.mkdir(workflows_dir)
@@ -251,20 +251,20 @@ class FindTargetsTest(unittest.TestCase):
 
             _, stderr_text = _find_targets_and_capture_stderr(workflows_dir)
 
-            self.assertNotIn("‮", stderr_text)
+            self.assertNotIn("\u202e", stderr_text)
             self.assertIn("\\u202e", stderr_text)
 
     def test_bidi_override_filename_does_not_reach_the_parse_failure_warning_raw(self):
         # Mirror of the symlink case above, for the OTHER _warn() call site
         # - a filename that fails YAML parsing instead of being a symlink.
-        bad_name = "workflow‮name.yml"
+        bad_name = "workflow\u202ename.yml"
         with tempfile.TemporaryDirectory() as workflows_dir:
             with open(os.path.join(workflows_dir, bad_name), "w", encoding="utf-8") as handle:
                 handle.write("on: {workflow_call:\n")
 
             _, stderr_text = _find_targets_and_capture_stderr(workflows_dir)
 
-            self.assertNotIn("‮", stderr_text)
+            self.assertNotIn("\u202e", stderr_text)
             self.assertIn("\\u202e", stderr_text)
 
     def test_symlinked_workflow_file_is_skipped_without_leaking_target_content(self):
