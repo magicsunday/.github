@@ -43,7 +43,8 @@ name: Commit convention (reusable)
 #     Unicode capital as far as this gate is concerned, while the convention
 #     asks for an ASCII `[A-Z]`, commit subjects being English. The gate does
 #     not enforce that narrowing — `Ändern der Regel` passes it — which is the
-#     price of the width explained at the predicate below.
+#     price of the width explained in the predicate's own header
+#     (`.github/scripts/lib/commit-subject-predicate.sh`).
 #   - Conventional-commit prefixes are banned whatever their case: `feat:`,
 #     `Feat:`, `fix(scope):` alike.
 #   - Path-like starts are banned whatever their case: `src/Module.php: …`.
@@ -59,10 +60,14 @@ name: Commit convention (reusable)
 # ends up on the default branch. Existing history is never re-judged — subjects
 # predating the convention would otherwise turn every pull request red.
 #
-# The predicate is written to a file and self-tested against a decision table
-# before it is applied. Every counting loop asserts how much it actually
-# inspected, because the failure mode this gate must not have is passing without
-# having checked anything.
+# The predicate lives in `.github/scripts/lib/commit-subject-predicate.sh` and
+# is self-tested against its decision table
+# (`.github/scripts/tests/test-commit-subject-predicate.sh`) before it is
+# applied — both read from this repository at the revision of this workflow, so
+# the table that ran in this repository's own CI is the one that runs here.
+# Every counting loop asserts how much it actually inspected, because the
+# failure mode this gate must not have is passing without having checked
+# anything.
 on:
     workflow_call:
 
@@ -78,216 +83,31 @@ jobs:
             contents: read
             pull-requests: read
 
-        # Commit subjects are written in English, so in practice the leading
-        # capital is always A-Z and the documented convention says so. This one
-        # character class stays deliberately wider here: the capital *match* sits only
-        # in accept positions (the byte-based `tr` below uses the class
-        # too, but on ASCII only), so widening it can only add PASSes and cannot
-        # produce a false block. Narrowing it to `[A-Z]` would buy nothing —
-        # no subject in this repository's history starts with a non-ASCII
-        # capital — while turning a documentation change into a behaviour one.
-        #
-        # That is a claim about the capital class ALONE, not about the gate. The
-        # gate is not a superset of `^[A-Z]` — the `GH-` routing, the
-        # conventional-commit ban and the path-like ban below each reject
-        # subjects that do start with a capital, on purpose, and the convention
-        # states every one of them too.
-        #
-        # `[[:upper:]]` is locale-dependent: under LC_ALL=C a subject starting
-        # with `Ä` is NOT considered uppercase and would be rejected. Pinning a
-        # UTF-8 locale is load-bearing for that width. The two umlaut rows in
-        # the decision table detect a non-UTF-8 effective locale, but they
-        # cannot detect this pin being DROPPED — a runner whose ambient LANG is
-        # already UTF-8 keeps them green — so the pin is asserted outright
-        # below. The pin buys that width for the bash regex only: `tr` is
-        # byte-based here and lowercases ASCII alone, which suffices because
-        # every banned prefix is ASCII.
+        # The predicate's `[[:upper:]]` is locale-dependent, and deliberately
+        # accepts any Unicode capital (the predicate's own header explains
+        # why): under LC_ALL=C a subject starting with `Ä` is NOT considered
+        # uppercase and would be rejected. Pinning a UTF-8 locale is
+        # load-bearing for that width. The two umlaut rows in the decision
+        # table detect a non-UTF-8 effective locale, but they cannot detect
+        # this pin being DROPPED — a runner whose ambient LANG is already
+        # UTF-8 keeps them green, and the test script defaults an unset
+        # LC_ALL to UTF-8 for local runs — so the pin is asserted outright in
+        # the self-test step.
         env:
             LC_ALL: C.UTF-8
-            # Lower bound on the decision table's size, and the ONLY thing that
-            # detects rows going missing — the per-row shape assertion can only
-            # judge rows it actually read. Raise it in lockstep when adding a
-            # case, or each new row buys back one row of undetectable truncation.
-            MIN_CASES: '25'
 
         steps:
-            - name: Write and self-test the subject predicate
-              shell: bash
-              run: |
-                  set -euo pipefail
-
-                  cat > "${RUNNER_TEMP}/subject-lint.sh" <<'PREDICATE'
-                  # Returns 0 when the subject satisfies the convention.
-                  subject_is_valid() {
-                      local subject="$1"
-                      local lowered
-
-                      # An absent subject is never acceptable.
-                      [ -n "$subject" ] || return 1
-
-                      # Subjects git generates itself keep their own wording. This
-                      # is checked BEFORE the prefix ban on purpose, so reverting
-                      # someone else's conventional-commit subject does not fail —
-                      # a table row pins that order.
-                      case "$subject" in
-                          "Merge "*|"Revert "*) return 0 ;;
-                      esac
-
-                      # Conventional-commit prefixes, any case, with or without
-                      # a scope. Matched against the finite set of types rather
-                      # than "any word followed by a colon", so an ordinary
-                      # subject that happens to contain a colon is unaffected.
-                      # One expression rather than a `case` arm per spelling: the
-                      # type, the optional scope and the optional breaking-change
-                      # `!` combine, and enumerating the combinations left the
-                      # unscoped bang form (`Feat!:`) accepted while the scoped
-                      # one was blocked.
-                      lowered=$(printf '%s' "$subject" | tr '[:upper:]' '[:lower:]')
-                      if [[ "$lowered" =~ ^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^\)]*\))?!?: ]]; then
-                          return 1
-                      fi
-
-                      # A path-like start: a slash before the first colon. No
-                      # whitespace is required after it — `Src/Module.php:fix`
-                      # is the same mistake as `Src/Module.php: fix`, and the
-                      # character class cannot cross a colon, so an ordinary
-                      # subject containing a later path is unaffected.
-                      if [[ "$subject" =~ ^[^:[:space:]]*/[^:[:space:]]*: ]]; then
-                          return 1
-                      fi
-
-                      # Keyed on the subject, not on the branch, so the rule stays
-                      # decidable for commits already on the default branch.
-                      if [[ "$subject" == GH-* ]]; then
-                          [[ "$subject" =~ ^GH-[0-9]+:\ [[:upper:]] ]]
-                      else
-                          [[ "$subject" =~ ^[[:upper:]] ]]
-                      fi
-                  }
-                  PREDICATE
-
-                  # shellcheck source=/dev/null
-                  . "${RUNNER_TEMP}/subject-lint.sh"
-
-                  # The one variable whose job is to make a mangled table loud
-                  # must not be able to fail quietly: `[ x -lt "" ]` exits 2,
-                  # which an `if` reads as false and the assertion is skipped.
-                  if ! [[ "${MIN_CASES}" =~ ^[0-9]+$ ]]; then
-                      echo "::error::MIN_CASES must be an integer, got \"${MIN_CASES}\""
-                      exit 1
-                  fi
-
-                  # The umlaut rows below fail on a non-UTF-8 locale, but stay
-                  # green when the pin is simply deleted on a runner whose
-                  # ambient LANG is already UTF-8. Assert a UTF-8 codeset so that
-                  # drop is loud — matching the property the rows depend on, not
-                  # one spelling, so a re-pin to `C.utf8`/`en_US.UTF-8` is fine.
-                  case "${LC_ALL:-}" in
-                      *.[Uu][Tt][Ff]-8|*.[Uu][Tt][Ff]8|*.[Uu][Tt][Ff]-8@*|*.[Uu][Tt][Ff]8@*) : ;;
-                      *)
-                          echo "::error::LC_ALL is \"${LC_ALL:-unset}\", not a UTF-8 locale (pin C.UTF-8)"
-                          exit 1
-                          ;;
-                  esac
-
-                  failures=0
-                  cases=0
-
-                  # The table pins what this GATE does. On the capital class
-                  # alone the gate is deliberately wider than the convention
-                  # (see the note above) — that is why the two umlaut rows
-                  # assert PASS, and they are what keeps the effective locale
-                  # honest. Elsewhere the gate is the NARROWER of the two: the
-                  # `|BLOCK` rows starting with a capital (a bad `GH-` shape, a
-                  # conventional-commit type, a path) reject a subject the bare
-                  # `^[A-Z]` convention would pass.
-                  #
-                  # No skip-guard on the row: a row that arrives empty is a
-                  # mangled table, and the case counter below turns that into a
-                  # failure rather than a silent omission.
-                  while IFS='|' read -r subject expected; do
-                      cases=$((cases + 1))
-
-                      # A row that lost its verdict column would otherwise be
-                      # compared against an empty string and merely look like a
-                      # mismatch, hiding the real cause.
-                      case "$expected" in
-                          PASS|BLOCK) ;;
-                          *)
-                              echo "::error::malformed table row: \"${subject}|${expected}\""
-                              failures=$((failures + 1))
-                              continue
-                              ;;
-                      esac
-
-                      if subject_is_valid "$subject"; then
-                          actual=PASS
-                      else
-                          actual=BLOCK
-                      fi
-
-                      if [ "$actual" != "$expected" ]; then
-                          echo "::error::self-test: \"${subject}\" gave ${actual}, expected ${expected}"
-                          failures=$((failures + 1))
-                      fi
-                  done <<'TABLE'
-                  GH-123: Fix it|PASS
-                  GH-123: fix it|BLOCK
-                  GH-123: Über die Regel|PASS
-                  Fix it|PASS
-                  fix it|BLOCK
-                  GH-Actions cleanup|BLOCK
-                  GH-: Fix it|BLOCK
-                  feat: add thing|BLOCK
-                  Feat: add thing|BLOCK
-                  fix(scope): add thing|BLOCK
-                  Feat!: add thing|BLOCK
-                  Feat(api)!: add thing|BLOCK
-                  src/Module.php: fix|BLOCK
-                  Src/Module.php: fix|BLOCK
-                  Src/Module.php:fix|BLOCK
-                  GH-1: Fix a/b: thing|PASS
-                  Merge pull request #216 from magicsunday/GH-77|PASS
-                  Merge branch 'main' into GH-77|PASS
-                  Revert "Center silhouette assets on canvas"|PASS
-                  Revert "feat: add thing"|PASS
-                  Bump foo from 1.0 to 1.1|PASS
-                  Ändern der Regel|PASS
-                  ändern der Regel|BLOCK
-                  Release 3.7.1|PASS
-                   |BLOCK
-                  TABLE
-
-                  # The table cannot express the empty subject — a blank row is
-                  # indistinguishable from a mangled one — so it is asserted here.
-                  if subject_is_valid ""; then
-                      echo "::error::self-test: an empty subject must not be accepted"
-                      failures=$((failures + 1))
-                  fi
-
-                  if [ "$cases" -lt "${MIN_CASES}" ]; then
-                      echo "::error::self-test read ${cases} table rows, expected at least ${MIN_CASES} — the decision table did not survive the heredoc"
-                      exit 1
-                  fi
-
-                  if [ "$failures" -gt 0 ]; then
-                      echo "::error::the subject predicate disagrees with its decision table in ${failures} case(s)"
-                      exit 1
-                  fi
-
-                  echo "  ✔ predicate agrees with all ${cases} cases"
-
             # This job never checks out the caller, so the workspace holds no
             # copy of this repository's own scripts: checked out here at the
             # revision of the workflow being executed (`job` context, per
             # AGENTS.md "Read a reusable workflow's own files with the `job`
             # context"). No reserved-path guard and no removal afterwards:
             # nothing of the caller's is in the workspace to collide with, and
-            # no later step inspects it. Gated on the same pull-request number
-            # the check step keys on, so a run that skips there (merge_group, a
-            # PR-less trigger) never depends on a network fetch it would not
-            # use — a checkout hiccup must not red the merge queue (see the
-            # header).
+            # no later step inspects it. Gated, like every step after it, on
+            # the same pull-request number the check step keys on, so a run
+            # that has nothing to judge (merge_group, a PR-less trigger) never
+            # depends on a network fetch it would not use — a checkout hiccup
+            # must not red the merge queue (see the header).
             - name: Check the shared-checkout preconditions
               if: github.event.pull_request.number != ''
               shell: bash
@@ -299,7 +119,7 @@ jobs:
                   test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
                   test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
 
-            - name: Check out the canonical annotation sanitizer
+            - name: Check out the shared predicate and sanitizer
               if: github.event.pull_request.number != ''
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -307,6 +127,27 @@ jobs:
                   ref: ${{ job.workflow_sha }}
                   path: .magicsunday-shared
                   persist-credentials: false
+
+            - name: Self-test the subject predicate
+              if: github.event.pull_request.number != ''
+              shell: bash
+              run: |
+                  set -euo pipefail
+
+                  # shellcheck source=/dev/null
+                  . ".magicsunday-shared/.github/scripts/lib/commit-subject-predicate.sh"
+
+                  # The test script keeps an LC_ALL that is set but falls back
+                  # to UTF-8 when it is not, so it cannot notice the job-level
+                  # pin being deleted. Assert the pin here, matching the
+                  # property the umlaut rows depend on rather than one
+                  # spelling, so a re-pin to `C.utf8`/`en_US.UTF-8` is fine.
+                  if ! locale_is_utf8 "${LC_ALL:-}"; then
+                      echo "::error::LC_ALL is \"${LC_ALL:-unset}\", not a UTF-8 locale (pin C.UTF-8)"
+                      exit 1
+                  fi
+
+                  bash ".magicsunday-shared/.github/scripts/tests/test-commit-subject-predicate.sh"
 
             # The title is checked because these repositories squash-merge, so it
             # becomes the subject on the default branch. Values reach the script
@@ -351,7 +192,7 @@ jobs:
                   fi
 
                   # shellcheck source=/dev/null
-                  . "${RUNNER_TEMP}/subject-lint.sh"
+                  . ".magicsunday-shared/.github/scripts/lib/commit-subject-predicate.sh"
                   # shellcheck source=/dev/null
                   . ".magicsunday-shared/.github/scripts/lib/annotation-sanitize.sh"
 
@@ -369,7 +210,7 @@ jobs:
                   # Asserts the full string, not just the line count. A broken
                   # harness is not a subject violation, so it exits here rather
                   # than counting into `failures` — the same shape as the
-                  # MIN_CASES and LC_ALL guards in the predicate step. The
+                  # MIN_CASES and LC_ALL guards in the self-test step. The
                   # `$(...)` runs report() in a subshell, so its own increment
                   # never reaches this shell's `failures`.
                   _report_self_test_expected='::error::self-test: "100%25evil forged ::error::"'

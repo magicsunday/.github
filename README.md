@@ -66,9 +66,11 @@ at the revision of the workflow being executed, to read the pinned tool
 versions in `.github/requirements/`. `zizmor.yml` does the same second checkout
 for a different reason: to compare the caller's `.github/zizmor.yml` against
 the canonical copy in this repository, rather than to read a pinned tool
-version. `commit-convention.yml` does it to source the shared annotation
-sanitizer (`.github/scripts/lib/annotation-sanitize.sh`) its `::error::` lines
-route through, and `ai-issue-labeler.yml` to stage its own
+version. `commit-convention.yml` does it to source its subject predicate
+(`.github/scripts/lib/commit-subject-predicate.sh`), self-test it against its
+decision table, and source the shared annotation sanitizer
+(`.github/scripts/lib/annotation-sanitize.sh`) its `::error::` lines route
+through, and `ai-issue-labeler.yml` to stage its own
 `ai-issue-labeler.sh`.
 That works with the caller's own `GITHUB_TOKEN` because this repository is
 public, and it is the reason it has to stay public: making it private would red

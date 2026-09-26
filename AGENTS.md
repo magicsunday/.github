@@ -237,7 +237,12 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   (the `job.workflow_repository`/`job.workflow_sha` shape the "Read a reusable
   workflow's own files with the `job` context" bullet below prescribes) and
   sources `annotation-sanitize.sh` from that checkout, rather than duplicating
-  the sanitizer inline (GH-127).
+  the sanitizer inline (GH-127). Its subject predicate follows the same route
+  (`commit-subject-predicate.sh`, issue #107): the decision table that pins it,
+  `test-commit-subject-predicate.sh`, runs in `shell-tests` like every other
+  test here AND is run again by `commit-convention.yml` from that same
+  checkout on the consumer's runner, so the one table also guards the
+  consumer's effective locale — a single code path, not an inline copy.
 - **The `p/*` Semgrep rule packs `code-scanning.yml` scans with cannot be pinned or
   vendored.** The Semgrep Rules License v. 1.0 forbids distributing the rules or
   making them available to others as a service, which a commit to this public,
