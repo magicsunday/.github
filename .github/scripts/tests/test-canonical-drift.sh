@@ -286,11 +286,21 @@ validate
 assert_eq "valid manifest: accepted" 0 "${rc}"
 
 # --- an invalid manifest stops the sweep before any request ---
-write_manifest '{"files":[]}'
+# The manifest is invalid only in a field the rest of the sweep would
+# silently tolerate, and the fixtures would let that sweep pass, so only the
+# early stop can make this case fail.
+write_manifest '{"files":[{"path":".github/zizmor.yml","applies_when_present":false}]}'
 new_fixtures
+repo_list '[{"name":"one","archived":false,"fork":false}]'
+zizmor_file one "${canonical_sha}"
 run_sweep
 assert_eq "invalid manifest: sweep exits 1" 1 "${rc}"
-assert_contains "invalid manifest: sweep names the problem" "${output}" "lists no canonical files"
+assert_contains "invalid manifest: sweep names the problem" "${output}" "applies_when_present must be a non-empty string"
+case "${output}" in
+    *"canonical file(s)"*) r=swept ;;
+    *) r=stopped ;;
+esac
+assert_eq "invalid manifest: sweep never reaches its result line" stopped "${r}"
 
 # --- every manifest entry is checked, not only the first ---
 printf 'other: true\n' >"${canonical}/.github/other.yml"
