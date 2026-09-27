@@ -333,7 +333,7 @@ summary="${work_dir}/summary.md"
 GITHUB_STEP_SUMMARY="${summary}" run_sweep
 summary_text="$(cat "${summary}")"
 assert_eq "summary run: exit 1" 1 "${rc}"
-assert_contains "summary: counts only fetched files as checked" "${summary_text}" "4 file(s) checked, 3 drifted or missing, 2 unchecked"
+assert_contains "summary: counts answered requests (found or missing) as checked, failed ones as unchecked" "${summary_text}" "4 file(s) checked, 3 failed (drifted, missing or not a regular file), 2 unchecked"
 assert_contains "summary: table header" "${summary_text}" "| Repository | File | Result |"
 assert_contains "summary: ok row" "${summary_text}" "| ok-repo | \`.github/zizmor.yml\` | ok |"
 assert_contains "summary: drifted row" "${summary_text}" "| drift | \`.github/zizmor.yml\` | **drifted** |"

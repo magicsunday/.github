@@ -157,9 +157,9 @@ classify_canonical_entry() {
 # repository's checkout), the account that owns the repositories, and this
 # repository's own name (the source of the canonical copies, so never
 # checked against itself). Appends a Markdown report to $GITHUB_STEP_SUMMARY
-# when it is set. Returns 1 when any file is missing, drifted or could not be
-# checked, and when nothing at all was checked - the failure mode this sweep
-# must not have is passing without having looked.
+# when it is set. Returns 1 when any file is missing, drifted, not a regular
+# file or could not be checked, and when nothing at all was checked - the
+# failure mode this sweep must not have is passing without having looked.
 check_canonical_drift() {
     local manifest="$1"
     local canonical_root="$2"
@@ -252,7 +252,7 @@ check_canonical_drift() {
         {
             echo "## Canonical-file drift"
             echo
-            echo "Compared against \`${owner}/${self_repo}\` - ${checked} file(s) checked, ${failures} drifted or missing, ${unchecked} unchecked."
+            echo "Compared against \`${owner}/${self_repo}\` - ${checked} file(s) checked, ${failures} failed (drifted, missing or not a regular file), ${unchecked} unchecked."
             echo
             if [ -n "${rows}" ]; then
                 echo "| Repository | File | Result |"
@@ -268,7 +268,7 @@ check_canonical_drift() {
     fi
 
     if [ "${failures}" -gt 0 ] || [ "${unchecked}" -gt 0 ]; then
-        echo "::error::${failures} canonical file(s) drifted or missing, ${unchecked} unchecked - see the job summary."
+        echo "::error::${failures} canonical file(s) failed (drifted, missing or not a regular file), ${unchecked} unchecked - see the job summary."
         return 1
     fi
 
