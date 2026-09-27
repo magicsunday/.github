@@ -23,6 +23,11 @@ trap 'rm -rf "${work_dir}"' EXIT
 # contents API's answer for an absent path.
 fixtures=""
 
+# Only the summary cases below may write a job summary. On a runner the
+# variable is already set, and every other sweep here would append a fake
+# report to the real shell-tests job summary.
+unset GITHUB_STEP_SUMMARY
+
 gh() {
     [ "$1" = "api" ] || return 99
     shift
@@ -113,7 +118,7 @@ crlf_repo="${work_dir}/crlf"
 git init -q "${crlf_repo}"
 printf 'a\nb\n' >"${crlf_repo}/f.yml"
 git -C "${crlf_repo}" add f.yml
-git -C "${crlf_repo}" -c user.email=test@example.invalid -c user.name=test commit -qm Init
+git -C "${crlf_repo}" -c user.email=test@example.invalid -c user.name=test -c commit.gpgsign=false commit -qm Init
 echo '*.yml text eol=crlf' >"${crlf_repo}/.gitattributes"
 rm -f "${crlf_repo}/f.yml"
 git -C "${crlf_repo}" checkout -- f.yml
