@@ -42,6 +42,19 @@ jobs:
               with:
                   persist-credentials: false
 
+            - name: Set up Python
+              uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+              with:
+                  python-version: '3.12'
+
+            # The `dependabot-commit-prefix` check parses each repository's
+            # dependabot.yml with PyYAML, pinned like every tool a workflow
+            # here installs.
+            - name: Install PyYAML
+              run: |
+                  set -euo pipefail
+                  pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/pyyaml.txt
+
             # The token reads other repositories only while they are public,
             # which is also this sweep's coverage limit (see the lib's
             # header). Values reach the script through the environment,

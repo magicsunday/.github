@@ -156,13 +156,22 @@ Some files must be byte-identical in every repository that needs them —
 workflows track `@main` by policy. `.github/canonical-files.json` lists them,
 and this repository's own copy at the same path is the canonical content.
 
+Other files differ per repository by design but must follow a rule. An entry
+with `"check": "dependabot-commit-prefix"` does not compare bytes: it requires
+every `updates` entry of `.github/dependabot.yml` to set a
+`commit-message.prefix` that `commit-convention.yml` accepts, such as
+`Update dependencies`. Without one, Dependabot copies the style of the
+repository's history and writes `chore(deps): …` subjects the gate rejects.
+
 `canonical-drift.yml` checks every non-archived, non-fork repository of the
 account once a week (and on demand via *Run workflow*) and fails, with a table
-in the job summary, when a listed file is missing or differs. It only reports:
-fix a drifted repository by copying the file from here. Each manifest entry can
-narrow its scope with `applies_when_present` (a path the repository must have
-for the file to matter — `.github/workflows` for `zizmor.yml`). It runs on this
-repository's own token, so it sees public repositories only.
+in the job summary, when a listed file is missing, differs or breaks its rule.
+It only reports: fix a drifted repository by copying the file from here, or
+by adding the prefix. Each manifest entry can narrow its scope with
+`applies_when_present` (a path the repository must have for the file to
+matter — `.github/workflows` for `zizmor.yml`, the file itself for
+`dependabot.yml`, so a repository without Dependabot is not flagged). It runs
+on this repository's own token, so it sees public repositories only.
 
 ## Contributing to this repository
 
