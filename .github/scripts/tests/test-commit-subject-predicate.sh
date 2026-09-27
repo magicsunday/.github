@@ -18,7 +18,7 @@ source "${SCRIPT_DIR}/../lib/commit-subject-predicate.sh"
 # rows going missing — the per-row shape assertion can only judge rows it
 # actually read. Raise it in lockstep when adding a case, or each new row buys
 # back one row of undetectable truncation.
-readonly MIN_CASES=25
+readonly MIN_CASES=28
 
 # An LC_ALL that is already set — commit-convention.yml's job-level pin — is
 # kept, so the table is judged under the locale the gate will actually run
@@ -89,6 +89,9 @@ src/Module.php: fix|BLOCK
 Src/Module.php: fix|BLOCK
 Src/Module.php:fix|BLOCK
 GH-1: Fix a/b: thing|PASS
+Fix a/b: thing|PASS
+Note: see the changelog|PASS
+GH-123:Fix it|BLOCK
 Merge pull request #216 from magicsunday/GH-77|PASS
 Merge branch 'main' into GH-77|PASS
 Revert "Center silhouette assets on canvas"|PASS
@@ -122,7 +125,7 @@ echo "  ✔ predicate agrees with all ${cases} cases"
 # locale_is_utf8() itself: the spellings a re-pin may legitimately use, and
 # the ones the umlaut rows would fail under. After the table, so a failure
 # here is not reported as the predicate disagreeing with it.
-for locale in C.UTF-8 C.utf8 en_US.UTF-8 de_DE.utf8@euro; do
+for locale in C.UTF-8 C.utf8 en_US.UTF-8 de_DE.UTF-8@euro de_DE.utf8@euro; do
     if locale_is_utf8 "${locale}"; then actual=PASS; else actual=BLOCK; fi
     assert_eq "locale_is_utf8 accepts ${locale}" PASS "${actual}"
 done
