@@ -48,11 +48,12 @@ readonly CANONICAL_DRIFT_REPO_FILTER='.[] | select((.archived | not) and (.fork 
 readonly CANONICAL_DRIFT_NAME_RE='^[A-Za-z0-9._-]+$'
 readonly CANONICAL_DRIFT_PATH_RE='^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$'
 
-# Prints the git blob hash of file "$1" as stored - `--no-filters` so a
-# .gitattributes line-ending rule in the checkout cannot make the local hash
-# differ from the blob the contents API reports for the same bytes.
+# Prints the git blob hash of file "$2" (relative to repository root "$1")
+# as git stores it: hashed from inside that repository, so a .gitattributes
+# line-ending rule is applied the way `git add` would and a CRLF checkout
+# still yields the LF blob the contents API reports.
 canonical_blob_sha() {
-    git hash-object --no-filters -- "$1"
+    git -C "$1" hash-object -- "$2"
 }
 
 # Validates manifest "$1" against canonical root "$2": a non-empty `files`
@@ -242,7 +243,7 @@ check_canonical_drift() {
                 fi
             fi
 
-            canonical_sha="$(canonical_blob_sha "${canonical_root}/${path}")" || {
+            canonical_sha="$(canonical_blob_sha "${canonical_root}" "${path}")" || {
                 echo "::error::Could not hash the canonical ${path}."
                 return 1
             }

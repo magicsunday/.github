@@ -57,7 +57,7 @@ gh() {
 canonical="${work_dir}/canonical"
 mkdir -p "${canonical}/.github"
 printf 'rules:\n  unpinned-uses: {}\n' >"${canonical}/.github/zizmor.yml"
-canonical_sha="$(canonical_blob_sha "${canonical}/.github/zizmor.yml")"
+canonical_sha="$(canonical_blob_sha "${canonical}" .github/zizmor.yml)"
 
 manifest="${work_dir}/manifest.json"
 write_manifest() {
@@ -105,8 +105,20 @@ run_sweep() {
 expected_blob="$(git -C "${REPO_ROOT}" rev-parse HEAD:.github/zizmor.yml 2>/dev/null || true)"
 if [ -n "${expected_blob}" ] && git -C "${REPO_ROOT}" diff --quiet HEAD -- .github/zizmor.yml; then
     assert_eq "canonical_blob_sha equals git's own blob id for .github/zizmor.yml" \
-        "${expected_blob}" "$(canonical_blob_sha "${REPO_ROOT}/.github/zizmor.yml")"
+        "${expected_blob}" "$(canonical_blob_sha "${REPO_ROOT}" .github/zizmor.yml)"
 fi
+
+# --- a CRLF checkout still hashes to the LF blob git stores ---
+crlf_repo="${work_dir}/crlf"
+git init -q "${crlf_repo}"
+printf 'a\nb\n' >"${crlf_repo}/f.yml"
+git -C "${crlf_repo}" add f.yml
+git -C "${crlf_repo}" -c user.email=test@example.invalid -c user.name=test commit -qm Init
+echo '*.yml text eol=crlf' >"${crlf_repo}/.gitattributes"
+rm -f "${crlf_repo}/f.yml"
+git -C "${crlf_repo}" checkout -- f.yml
+assert_eq "CRLF checkout: canonical_blob_sha equals the stored LF blob" \
+    "$(git -C "${crlf_repo}" rev-parse HEAD:f.yml)" "$(canonical_blob_sha "${crlf_repo}" f.yml)"
 
 # --- the repository filter drops archived repositories and forks ---
 filtered="$(jq -r "${CANONICAL_DRIFT_REPO_FILTER}" <<<'[{"name":"a","archived":false,"fork":false},{"name":"b","archived":true,"fork":false},{"name":"c","archived":false,"fork":true}]')"
