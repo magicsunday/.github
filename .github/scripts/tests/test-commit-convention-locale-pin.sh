@@ -107,11 +107,9 @@ write_step_fixture() {
     shift
     {
         printf 'jobs:\n    commit-convention:\n        steps:\n            - name: Self-test the subject predicate\n'
-        if [ -n "${extra}" ]; then
-            while IFS= read -r key; do
-                printf '              %s\n' "${key}"
-            done <<<"${extra}"
-        fi
+        [ -z "${extra}" ] || while IFS= read -r key; do
+            printf '              %s\n' "${key}"
+        done <<<"${extra}"
         printf '              run: |\n'
         printf '                  %s\n' "$@"
     } >"${fixture_dir}/wf.yml"
