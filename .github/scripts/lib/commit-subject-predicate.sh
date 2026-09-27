@@ -39,9 +39,10 @@ subject_is_valid() {
     # Subjects git generates itself keep their own wording. This
     # is checked BEFORE the prefix ban on purpose, so reverting
     # someone else's conventional-commit subject does not fail.
-    # Today the anchored ban and the capital check already pass
-    # every `Revert "..."` subject, so no table row can tell this
-    # exemption apart. It guards against a later, looser ban.
+    # Today the anchored ban, the path check and the capital check
+    # already pass every `Merge ...` and `Revert "..."` subject, so
+    # no table row can tell this exemption apart. It guards against
+    # a later, looser ban.
     case "$subject" in
         "Merge "*|"Revert "*) return 0 ;;
     esac
