@@ -142,7 +142,7 @@ echo "  ✔ predicate agrees with all ${cases} cases"
 # locale_is_utf8() itself: the spellings a re-pin may legitimately use, and
 # the ones the umlaut rows would fail under. After the table, so a failure
 # here is not reported as the predicate disagreeing with it.
-for locale in C.UTF-8 C.utf-8 C.utf8 C.UTF8 en_US.UTF-8 \
+for locale in C.UTF-8 C.utf-8 C.utf8 C.UTF8 en_US.UTF-8 en_US.utf8 \
     de_DE.UTF-8@euro de_DE.utf-8@euro de_DE.utf8@euro de_DE.UTF8@euro; do
     if locale_is_utf8 "${locale}"; then actual=PASS; else actual=BLOCK; fi
     assert_eq "locale_is_utf8 accepts ${locale}" PASS "${actual}"
