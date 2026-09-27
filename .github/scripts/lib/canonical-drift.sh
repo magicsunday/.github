@@ -27,12 +27,14 @@
 # checked.
 #
 # No lib-to-lib `source` here on purpose: every value this file prints into
-# an annotation is a path from this repository's own manifest or an account or
-# repository name GitHub itself restricts to [A-Za-z0-9._-], so there is
-# nothing annotation-sanitize.sh would need to escape.
+# an annotation is a path from this repository's own manifest or an account
+# or repository name, and GitHub allows only ASCII letters, digits, `.`, `-`
+# and `_` in a repository name ("Creating a new repository", GitHub docs), so
+# there is nothing annotation-sanitize.sh would need to escape.
 #
-# check_canonical_drift captures every call whose non-zero status is an
-# expected answer with `|| rc=$?`: canonical-drift.yml calls it under
+# check_canonical_drift runs every call whose non-zero status is an expected
+# answer in a tested context (`|| rc=$?`, `|| true` where the printed answer
+# carries the result, `if !`): canonical-drift.yml calls it under
 # `set -euo pipefail`, where a bare failing call would end the sweep before
 # it reports anything.
 
