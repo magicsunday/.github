@@ -20,31 +20,27 @@ WORKFLOW_FILE="${REPO_ROOT}/.github/workflows/commit-convention.yml"
 
 require_files_or_bail "commit-convention locale-pin test" "${WORKFLOW_FILE}"
 
-# Prints jobs.commit-convention.env.LC_ALL, or nothing when that key is absent.
-job_locale() {
-    python3 - "$1" <<'PY'
+# Prints one field of the commit-convention job from workflow "$1": with
+# "$2" = locale, env.LC_ALL (nothing when absent); with "$2" = script, the
+# self-test step's run script, one statement per line, stripped of
+# surrounding whitespace, with comment lines dropped.
+workflow_field() {
+    python3 - "$1" "$2" <<'PY'
 import sys
 import yaml
 
 job = (yaml.safe_load(open(sys.argv[1], encoding="utf-8")).get("jobs") or {}).get("commit-convention") or {}
-value = (job.get("env") or {}).get("LC_ALL")
-if value is not None:
-    print(value)
-PY
-}
-
-# Prints the non-comment lines of the self-test step's run script.
-self_test_script() {
-    python3 - "$1" <<'PY'
-import sys
-import yaml
-
-job = (yaml.safe_load(open(sys.argv[1], encoding="utf-8")).get("jobs") or {}).get("commit-convention") or {}
-for step in job.get("steps") or []:
-    if step.get("name") == "Self-test the subject predicate":
-        for line in (step.get("run") or "").splitlines():
-            if not line.lstrip().startswith("#"):
-                print(line)
+if sys.argv[2] == "locale":
+    value = (job.get("env") or {}).get("LC_ALL")
+    if value is not None:
+        print(value)
+else:
+    for step in job.get("steps") or []:
+        if step.get("name") == "Self-test the subject predicate":
+            for line in (step.get("run") or "").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    print(line)
 PY
 }
 
@@ -59,13 +55,23 @@ check_locale() {
     assert_eq "the job-level LC_ALL (\"${locale}\") is a UTF-8 locale" utf8 "${actual}"
 }
 
+# Whole lines, not substrings: a statement that only mentions the call (an
+# inline comment, `if false; then ...`, a trailing `|| true`) does not count.
+# This matches statements line by line, it does not parse the shell, so text
+# inside a heredoc would still count.
 check_order() {
-    assert_contains_in_order "the self-test step asserts the locale before it runs the table" \
-        "$1" "${ASSERT_LINE}" "${TABLE_LINE}"
+    local script="$1" assert_at table_at
+    assert_at="$(grep -nxF -- "${ASSERT_LINE}" <<<"${script}" | head -n 1 | cut -d: -f1)"
+    table_at="$(grep -nxF -- "${TABLE_LINE}" <<<"${script}" | head -n 1 | cut -d: -f1)"
+    if [ -n "${assert_at}" ] && [ -n "${table_at}" ] && [ "${assert_at}" -lt "${table_at}" ]; then
+        echo "PASS: the self-test step asserts the locale before it runs the table"
+    else
+        _harness_fail "the self-test step asserts the locale before it runs the table" "${script}"
+    fi
 }
 
-check_locale "$(job_locale "${WORKFLOW_FILE}")"
-check_order "$(self_test_script "${WORKFLOW_FILE}")"
+check_locale "$(workflow_field "${WORKFLOW_FILE}" locale)"
+check_order "$(workflow_field "${WORKFLOW_FILE}" script)"
 
 # Negative controls on fixture workflows: each must make the check it
 # targets fail, or that check would pass for the wrong reason.
@@ -85,17 +91,8 @@ jobs:
         outputs:
             LC_ALL: C.UTF-8
 YAML
-output="$(check_locale "$(job_locale "${fixture_dir}/wf.yml")")"
+output="$(check_locale "$(workflow_field "${fixture_dir}/wf.yml" locale)")"
 assert_starts_with_fail "a pin under another job or key does not count" "${output}"
-
-write_fixture <<'YAML'
-jobs:
-    commit-convention:
-        env:
-            LC_ALL: "C.UTF-8" # pinned
-YAML
-if [ "$(job_locale "${fixture_dir}/wf.yml")" = "C.UTF-8" ]; then r=read; else r=misread; fi
-assert_eq "a quoted pin with a trailing comment reads as its value" read "${r}"
 
 write_fixture <<'YAML'
 jobs:
@@ -106,7 +103,7 @@ jobs:
                   # assert_utf8_locale "${LC_ALL:-}" || exit 1
                   bash ".magicsunday-shared/.github/scripts/tests/test-commit-subject-predicate.sh"
 YAML
-output="$(check_order "$(self_test_script "${fixture_dir}/wf.yml")")"
+output="$(check_order "$(workflow_field "${fixture_dir}/wf.yml" script)")"
 assert_starts_with_fail "a commented-out assertion does not count" "${output}"
 
 write_fixture <<'YAML'
@@ -118,7 +115,21 @@ jobs:
                   bash ".magicsunday-shared/.github/scripts/tests/test-commit-subject-predicate.sh"
                   assert_utf8_locale "${LC_ALL:-}" || exit 1
 YAML
-output="$(check_order "$(self_test_script "${fixture_dir}/wf.yml")")"
+output="$(check_order "$(workflow_field "${fixture_dir}/wf.yml" script)")"
 assert_starts_with_fail "an assertion after the table does not count" "${output}"
+
+for variant in \
+    ': # assert_utf8_locale "${LC_ALL:-}" || exit 1' \
+    'if false; then assert_utf8_locale "${LC_ALL:-}" || exit 1; fi'; do
+    printf 'jobs:\n    commit-convention:\n        steps:\n            - name: Self-test the subject predicate\n              run: |\n                  %s\n                  %s\n' \
+        "${variant}" "${TABLE_LINE}" >"${fixture_dir}/wf.yml"
+    output="$(check_order "$(workflow_field "${fixture_dir}/wf.yml" script)")"
+    assert_starts_with_fail "an assertion written as \"${variant}\" does not count" "${output}"
+done
+
+printf 'jobs:\n    commit-convention:\n        steps:\n            - name: Self-test the subject predicate\n              run: |\n                  %s\n                  %s || true\n' \
+    "${ASSERT_LINE}" "${TABLE_LINE}" >"${fixture_dir}/wf.yml"
+output="$(check_order "$(workflow_field "${fixture_dir}/wf.yml" script)")"
+assert_starts_with_fail "a table run whose failure is ignored does not count" "${output}"
 
 report_and_exit "commit-convention locale-pin test"
