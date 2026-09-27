@@ -18,7 +18,7 @@ source "${SCRIPT_DIR}/../lib/commit-subject-predicate.sh"
 # rows going missing — the per-row shape assertion can only judge rows it
 # actually read. Raise it in lockstep when adding a case, or each new row buys
 # back one row of undetectable truncation.
-readonly MIN_CASES=41
+readonly MIN_CASES=44
 
 # An LC_ALL that is already set — commit-convention.yml's job-level pin — is
 # kept, so the table is judged under the locale the gate will actually run
@@ -84,6 +84,7 @@ Feat: add thing|BLOCK
 fix(scope): add thing|BLOCK
 Feat!: add thing|BLOCK
 Feat(api)!: add thing|BLOCK
+Feat(): add thing|BLOCK
 Build: bump the toolchain|BLOCK
 Chore(deps-dev): bump x|BLOCK
 Ci: pin the runner|BLOCK
@@ -97,6 +98,7 @@ Test: cover the edge|BLOCK
 src/Module.php: fix|BLOCK
 Src/Module.php: fix|BLOCK
 Src/Module.php:fix|BLOCK
+Src/: fix|BLOCK
 GH-1: Fix a/b: thing|PASS
 Fix a/b: thing|PASS
 Read/write the cache: done|PASS
@@ -104,6 +106,7 @@ Note: see the changelog|PASS
 Add the test: case|PASS
 GH-123:Fix it|BLOCK
 GH-1 GH-2: Fix it|BLOCK
+GHSA-1234: Patch the parser|PASS
 Merge pull request #216 from magicsunday/GH-77|PASS
 Merge branch 'main' into GH-77|PASS
 Revert "Center silhouette assets on canvas"|PASS
