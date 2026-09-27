@@ -13,8 +13,7 @@ name: Canonical-file drift
 # test-canonical-drift.sh pins.
 #
 # Report-only: a drift fails this run and is listed in the job summary, but
-# nothing is written to the drifted repository. A scheduled run that fails is
-# what notifies the account owner.
+# nothing is written to the drifted repository.
 #
 # Not a reusable workflow and not triggered by pull requests on purpose: its
 # verdict is about OTHER repositories, so running it on a pull request here
