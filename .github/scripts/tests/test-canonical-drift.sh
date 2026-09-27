@@ -219,6 +219,28 @@ run_sweep
 assert_eq "empty repo list: exit 1" 1 "${rc}"
 assert_contains "empty repo list: says the sweep checked nothing" "${output}" "the sweep checked nothing"
 
+# Without applies_when_present an empty listing line would be fetched as the
+# repository "", so the empty-line skip is what keeps this at "checked nothing".
+write_manifest '{"files":[{"path":".github/zizmor.yml"}]}'
+summary="${work_dir}/summary-empty.md"
+: >"${summary}"
+export GITHUB_STEP_SUMMARY="${summary}"
+run_sweep
+unset GITHUB_STEP_SUMMARY
+assert_eq "empty repo list, no applicability: exit 1" 1 "${rc}"
+assert_contains "empty repo list, no applicability: says the sweep checked nothing" "${output}" "the sweep checked nothing"
+case "${output}" in
+    *"acme/:"*) r=fetched ;;
+    *) r=skipped ;;
+esac
+assert_eq "empty repo list: no request for an empty repository name" skipped "${r}"
+case "$(cat "${summary}")" in
+    *"| Repository | File | Result |"*) r=table ;;
+    *) r=no-table ;;
+esac
+assert_eq "empty repo list: summary has no empty table" no-table "${r}"
+write_manifest "${default_manifest}"
+
 # --- manifest validation: each problem is named by its own message ---
 validate() {
     output="$(assert_canonical_manifest_valid "${manifest}" "${canonical}" 2>&1)"
@@ -290,11 +312,13 @@ rm -f "${canonical}/.github/other.yml"
 # --- the summary names every outcome and counts only what was checked ---
 write_manifest "${default_manifest}"
 new_fixtures
-repo_list '[{"name":"ok-repo","archived":false,"fork":false},{"name":"drift","archived":false,"fork":false},{"name":"gone","archived":false,"fork":false},{"name":"flaky","archived":false,"fork":false},{"name":"docs","archived":false,"fork":false}]'
+repo_list '[{"name":"ok-repo","archived":false,"fork":false},{"name":"drift","archived":false,"fork":false},{"name":"gone","archived":false,"fork":false},{"name":"flaky","archived":false,"fork":false},{"name":"docs","archived":false,"fork":false},{"name":"probe-error","archived":false,"fork":false},{"name":"link","archived":false,"fork":false}]'
 has_workflows ok-repo; zizmor_file ok-repo "${canonical_sha}"
 has_workflows drift; zizmor_file drift "0000000000000000000000000000000000000000"
 has_workflows gone
 has_workflows flaky; fixture_error "repos/acme/flaky/contents/.github/zizmor.yml"
+fixture_error "repos/acme/probe-error/contents/.github/workflows"
+has_workflows link; fixture "repos/acme/link/contents/.github/zizmor.yml" "{\"type\":\"symlink\",\"sha\":\"${canonical_sha}\"}"
 summary="${work_dir}/summary.md"
 : >"${summary}"
 export GITHUB_STEP_SUMMARY="${summary}"
@@ -302,12 +326,14 @@ run_sweep
 unset GITHUB_STEP_SUMMARY
 summary_text="$(cat "${summary}")"
 assert_eq "summary run: exit 1" 1 "${rc}"
-assert_contains "summary: counts only fetched files as checked" "${summary_text}" "3 file(s) checked, 2 drifted or missing, 1 unchecked"
+assert_contains "summary: counts only fetched files as checked" "${summary_text}" "4 file(s) checked, 3 drifted or missing, 2 unchecked"
 assert_contains "summary: table header" "${summary_text}" "| Repository | File | Result |"
 assert_contains "summary: ok row" "${summary_text}" "| ok-repo | \`.github/zizmor.yml\` | ok |"
 assert_contains "summary: drifted row" "${summary_text}" "| drift | \`.github/zizmor.yml\` | **drifted** |"
 assert_contains "summary: missing row" "${summary_text}" "| gone | \`.github/zizmor.yml\` | **missing** |"
 assert_contains "summary: unchecked row" "${summary_text}" "| flaky | \`.github/zizmor.yml\` | **unchecked** (API error) |"
+assert_contains "summary: not-a-file row" "${summary_text}" "| link | \`.github/zizmor.yml\` | **not a regular file** |"
+assert_contains "summary: applicability error row" "${summary_text}" "| probe-error | \`.github/zizmor.yml\` | **unchecked** (API error) |"
 assert_contains "summary: not-applicable row" "${summary_text}" "| docs | \`.github/zizmor.yml\` | not applicable (no \`.github/workflows\`) |"
 
 report_and_exit "canonical-drift tests"
