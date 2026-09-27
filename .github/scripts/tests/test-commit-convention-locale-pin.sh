@@ -55,8 +55,8 @@ PY
 
 readonly ASSERT_LINE='assert_utf8_locale "${LC_ALL:-}" || exit 1'
 readonly TABLE_LINE='bash ".magicsunday-shared/.github/scripts/tests/test-commit-subject-predicate.sh"'
-# The gate every shared-checkout step carries. The self-test must run on it
-# without continue-on-error.
+# The gate the preconditions, checkout and self-test steps carry. The
+# self-test must run on it without continue-on-error.
 readonly EXPECTED_GATE=$'if=github.event.pull_request.number != \'\'\ncoe=false'
 
 check_locale() {
@@ -72,7 +72,8 @@ check_locale() {
 # does not count. This matches statements line by line and does not follow
 # the shell's control flow, so it misses anything that skips the table or
 # ignores its result on other lines: a multi-line block that never runs, a
-# heredoc, an `exit` in between, or `set +e` before it.
+# heredoc, an `exit` in between, or `set +e` before it with a statement after
+# it.
 check_order() {
     local script="$1" assert_at table_at
     assert_at="$(grep -nxF -- "${ASSERT_LINE}" <<<"${script}" | head -n 1 | cut -d: -f1)"
