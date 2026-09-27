@@ -18,7 +18,7 @@ source "${SCRIPT_DIR}/../lib/commit-subject-predicate.sh"
 # rows going missing — the per-row shape assertion can only judge rows it
 # actually read. Raise it in lockstep when adding a case, or each new row buys
 # back one row of undetectable truncation.
-readonly MIN_CASES=25
+readonly MIN_CASES=47
 
 # An LC_ALL that is already set — commit-convention.yml's job-level pin — is
 # kept, so the table is judged under the locale the gate will actually run
@@ -30,10 +30,7 @@ export LC_ALL="${LC_ALL:-C.UTF-8}"
 
 # The umlaut rows below fail on a non-UTF-8 locale, which would look like a
 # predicate bug. Name the real cause instead.
-if ! locale_is_utf8 "${LC_ALL}"; then
-    echo "::error::LC_ALL is \"${LC_ALL}\", not a UTF-8 locale (pin C.UTF-8)"
-    exit 1
-fi
+assert_utf8_locale "${LC_ALL}" || exit 1
 
 cases=0
 
@@ -43,7 +40,9 @@ cases=0
 # effective locale honest. Elsewhere the gate is the NARROWER of the two: the
 # `|BLOCK` rows starting with a capital (a bad `GH-` shape, a
 # conventional-commit type, a path) reject a subject the bare `^[A-Z]`
-# convention would pass.
+# convention would pass. The one-per-type rows start with a capital for that
+# reason: a lowercase type row is blocked by the capital check anyway, so it
+# could not show a type missing from the ban.
 #
 # No skip-guard on the row: a row that arrives empty is a mangled table, and
 # the case counter below turns that into a failure rather than a silent
@@ -85,12 +84,34 @@ Feat: add thing|BLOCK
 fix(scope): add thing|BLOCK
 Feat!: add thing|BLOCK
 Feat(api)!: add thing|BLOCK
+Feat(): add thing|BLOCK
+Build: bump the toolchain|BLOCK
+Chore(deps-dev): bump x|BLOCK
+Ci: pin the runner|BLOCK
+Docs: fix a typo|BLOCK
+Perf: cache the lookup|BLOCK
+Refactor: split the helper|BLOCK
+Revert: undo the change|BLOCK
+Style: reformat|BLOCK
+Fix: handle the edge|BLOCK
+Test: cover the edge|BLOCK
 src/Module.php: fix|BLOCK
 Src/Module.php: fix|BLOCK
 Src/Module.php:fix|BLOCK
+Src/: fix|BLOCK
 GH-1: Fix a/b: thing|PASS
+Fix a/b: thing|PASS
+Read/write the cache: done|PASS
+Note:see/docs: x|PASS
+Note: see the changelog|PASS
+Add the test: case|PASS
+GH-123:Fix it|BLOCK
+GH-1 GH-2: Fix it|BLOCK
+GHSA-1234: Patch the parser|PASS
+Fix the GH-12 regression|PASS
 Merge pull request #216 from magicsunday/GH-77|PASS
 Merge branch 'main' into GH-77|PASS
+Mergesort/Foo.php: fix|BLOCK
 Revert "Center silhouette assets on canvas"|PASS
 Revert "feat: add thing"|PASS
 Bump foo from 1.0 to 1.1|PASS
@@ -122,7 +143,8 @@ echo "  ✔ predicate agrees with all ${cases} cases"
 # locale_is_utf8() itself: the spellings a re-pin may legitimately use, and
 # the ones the umlaut rows would fail under. After the table, so a failure
 # here is not reported as the predicate disagreeing with it.
-for locale in C.UTF-8 C.utf8 en_US.UTF-8 de_DE.utf8@euro; do
+for locale in C.UTF-8 C.utf-8 C.utf8 C.UTF8 en_US.UTF-8 en_US.utf8 \
+    de_DE.UTF-8@euro de_DE.utf-8@euro de_DE.utf8@euro de_DE.UTF8@euro; do
     if locale_is_utf8 "${locale}"; then actual=PASS; else actual=BLOCK; fi
     assert_eq "locale_is_utf8 accepts ${locale}" PASS "${actual}"
 done
@@ -130,5 +152,19 @@ for locale in C POSIX "" en_US.ISO-8859-1 UTF-8; do
     if locale_is_utf8 "${locale}"; then actual=PASS; else actual=BLOCK; fi
     assert_eq "locale_is_utf8 rejects \"${locale}\"" BLOCK "${actual}"
 done
+
+# assert_utf8_locale(): silent and 0 on a UTF-8 locale, otherwise the one
+# ::error:: both the workflow and this script print, and 1.
+output="$(assert_utf8_locale C.UTF-8 2>&1)"; rc=$?
+assert_eq "assert_utf8_locale accepts C.UTF-8" 0 "${rc}"
+assert_eq "assert_utf8_locale is silent on a UTF-8 locale" "" "${output}"
+output="$(assert_utf8_locale C 2>&1)"; rc=$?
+assert_eq "assert_utf8_locale rejects C" 1 "${rc}"
+assert_eq "assert_utf8_locale names the locale it rejected" \
+    '::error::LC_ALL is "C", not a UTF-8 locale (pin C.UTF-8)' "${output}"
+output="$(assert_utf8_locale "" 2>&1)"; rc=$?
+assert_eq "assert_utf8_locale rejects an unset LC_ALL" 1 "${rc}"
+assert_eq "assert_utf8_locale calls an empty locale unset" \
+    '::error::LC_ALL is "unset", not a UTF-8 locale (pin C.UTF-8)' "${output}"
 
 report_and_exit "commit-subject predicate tests"
