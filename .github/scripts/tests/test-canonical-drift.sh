@@ -224,9 +224,7 @@ assert_contains "empty repo list: says the sweep checked nothing" "${output}" "t
 write_manifest '{"files":[{"path":".github/zizmor.yml"}]}'
 summary="${work_dir}/summary-empty.md"
 : >"${summary}"
-export GITHUB_STEP_SUMMARY="${summary}"
-run_sweep
-unset GITHUB_STEP_SUMMARY
+GITHUB_STEP_SUMMARY="${summary}" run_sweep
 assert_eq "empty repo list, no applicability: exit 1" 1 "${rc}"
 assert_contains "empty repo list, no applicability: says the sweep checked nothing" "${output}" "the sweep checked nothing"
 case "${output}" in
@@ -331,9 +329,7 @@ fixture_error "repos/acme/probe-error/contents/.github/workflows"
 has_workflows link; fixture "repos/acme/link/contents/.github/zizmor.yml" "{\"type\":\"symlink\",\"sha\":\"${canonical_sha}\"}"
 summary="${work_dir}/summary.md"
 : >"${summary}"
-export GITHUB_STEP_SUMMARY="${summary}"
-run_sweep
-unset GITHUB_STEP_SUMMARY
+GITHUB_STEP_SUMMARY="${summary}" run_sweep
 summary_text="$(cat "${summary}")"
 assert_eq "summary run: exit 1" 1 "${rc}"
 assert_contains "summary: counts only fetched files as checked" "${summary_text}" "4 file(s) checked, 3 drifted or missing, 2 unchecked"
