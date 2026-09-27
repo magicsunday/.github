@@ -151,19 +151,25 @@ assert_starts_with_fail "a table run whose failure is ignored does not count" "$
 
 gate_if="if: github.event.pull_request.number != ''"
 write_step_fixture "${gate_if}" "${ASSERT_LINE}" "${TABLE_LINE}"
-if [ "$(workflow_field "${fixture_dir}/wf.yml" gate)" = "${EXPECTED_GATE}" ]; then r=matched; else r=missed; fi
-assert_eq "the fixture writer produces the expected gate" matched "${r}"
+assert_eq "the fixture writer produces the expected gate" \
+    "${EXPECTED_GATE}" "$(workflow_field "${fixture_dir}/wf.yml" gate)"
 output="$(check_order "$(workflow_field "${fixture_dir}/wf.yml" script)")"
 assert_eq "the fixture writer produces a step script check_order accepts" PASS "${output%%:*}"
 
-# Each fixture differs from the expected gate in one line only, so each
-# control fails on the half it names.
+# Each fixture must read back as the expected gate with one line changed,
+# so each control fails on the half it names and not on a fixture that did
+# not parse.
 write_step_fixture "if: false" "${ASSERT_LINE}" "${TABLE_LINE}"
-output="$(check_gate "$(workflow_field "${fixture_dir}/wf.yml" gate)")"
+gate="$(workflow_field "${fixture_dir}/wf.yml" gate)"
+assert_eq "the \"if: false\" fixture changes only the if line" $'if=False\ncoe=false' "${gate}"
+output="$(check_gate "${gate}")"
 assert_starts_with_fail "a self-test step with \"if: false\" does not count" "${output}"
 
 write_step_fixture "${gate_if}"$'\n'"continue-on-error: true" "${ASSERT_LINE}" "${TABLE_LINE}"
-output="$(check_gate "$(workflow_field "${fixture_dir}/wf.yml" gate)")"
+gate="$(workflow_field "${fixture_dir}/wf.yml" gate)"
+assert_eq "the continue-on-error fixture changes only the coe line" \
+    "${EXPECTED_GATE%coe=false}coe=true" "${gate}"
+output="$(check_gate "${gate}")"
 assert_starts_with_fail "a self-test step with \"continue-on-error: true\" does not count" "${output}"
 
 report_and_exit "commit-convention locale-pin test"
