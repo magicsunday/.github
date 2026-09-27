@@ -88,8 +88,16 @@ zizmor_file() {
     fixture "repos/acme/$1/contents/.github/zizmor.yml" "{\"type\":\"file\",\"sha\":\"$2\"}"
 }
 
+# Runs the sweep the way canonical-drift.yml does: a fresh shell under
+# `set -euo pipefail` that sources the lib and calls the function as a plain
+# command. Calling it inside `$(...)` from this file would clear errexit and
+# hide every abort the workflow would hit.
+lib="${SCRIPT_DIR}/../lib/canonical-drift.sh"
+export -f gh
+export fixtures
 run_sweep() {
-    output="$(check_canonical_drift "${manifest}" "${canonical}" acme .github 2>&1)"
+    output="$(bash -c 'set -euo pipefail; . "$1"; shift; check_canonical_drift "$@"' _ \
+        "${lib}" "${manifest}" "${canonical}" acme .github 2>&1)"
     rc=$?
 }
 
@@ -129,6 +137,16 @@ has_workflows two
 run_sweep
 assert_eq "missing file: exit 1" 1 "${rc}"
 assert_contains "missing file: names repository and path" "${output}" "acme/two: .github/zizmor.yml is missing"
+
+# --- every failing repository is reported, not only the first ---
+new_fixtures
+repo_list '[{"name":"one","archived":false,"fork":false},{"name":"two","archived":false,"fork":false}]'
+has_workflows one; zizmor_file one "0000000000000000000000000000000000000000"
+has_workflows two
+run_sweep
+assert_eq "two failures: exit 1" 1 "${rc}"
+assert_contains "two failures: first repository reported" "${output}" "acme/one: .github/zizmor.yml differs from the canonical copy"
+assert_contains "two failures: second repository reported" "${output}" "acme/two: .github/zizmor.yml is missing"
 
 # --- a drifted file fails ---
 new_fixtures

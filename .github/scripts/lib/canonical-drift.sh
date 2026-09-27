@@ -30,6 +30,11 @@
 # validated against a fixed character set before use (a repository name that
 # fails it is reported as unchecked, never echoed raw), so there is nothing
 # annotation-sanitize.sh would need to escape.
+#
+# check_canonical_drift captures every call whose non-zero status is an
+# expected answer with `|| rc=$?`: canonical-drift.yml calls it under
+# `set -euo pipefail`, where a bare failing call would end the sweep before
+# it reports anything.
 
 # Per page of `GET /users/{owner}/repos`: the repositories worth checking.
 # Archived repositories are frozen and forks mirror an upstream, so neither is
@@ -223,8 +228,8 @@ check_canonical_drift() {
             fi
 
             if [ -n "${applies}" ]; then
-                _canonical_drift_fetch "repos/${owner}/${repo}/contents/${applies}" >/dev/null
-                rc=$?
+                rc=0
+                _canonical_drift_fetch "repos/${owner}/${repo}/contents/${applies}" >/dev/null || rc=$?
                 if [ "${rc}" -eq 1 ]; then
                     rows+="| ${repo} | \`${path}\` | not applicable (no \`${applies}\`) |"$'\n'
                     continue
@@ -242,13 +247,13 @@ check_canonical_drift() {
                 return 1
             }
 
-            body="$(_canonical_drift_fetch "repos/${owner}/${repo}/contents/${path}")"
-            rc=$?
+            rc=0
+            body="$(_canonical_drift_fetch "repos/${owner}/${repo}/contents/${path}")" || rc=$?
             checked=$((checked + 1))
 
             case "${rc}" in
                 0)
-                    status="$(classify_canonical_entry "${body}" "${canonical_sha}")"
+                    status="$(classify_canonical_entry "${body}" "${canonical_sha}")" || true
                     case "${status}" in
                         ok)
                             rows+="| ${repo} | \`${path}\` | ok |"$'\n'
