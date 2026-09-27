@@ -33,10 +33,10 @@
 # there is nothing annotation-sanitize.sh would need to escape.
 #
 # check_canonical_drift runs every call whose non-zero status is an expected
-# answer in a tested context (`|| rc=$?`, `|| true` where the printed answer
-# carries the result, `if !`): canonical-drift.yml calls it under
-# `set -euo pipefail`, where a bare failing call would end the sweep before
-# it reports anything.
+# answer in a tested context (`|| rc=$?`, `|| return 1`, `if !`), and
+# classify_canonical_entry answers through what it prints rather than its
+# status: canonical-drift.yml calls the sweep under `set -euo pipefail`,
+# where a bare failing call would end it before it reports anything.
 
 # Per page of `GET /users/{owner}/repos`: the repositories worth checking.
 # Archived repositories are frozen and forks mirror an upstream, so neither is
@@ -124,9 +124,10 @@ _canonical_drift_fetch() {
 # Classifies one contents-API response body "$1" against canonical blob hash
 # "$2": prints `ok`, `drifted` (a regular file with other bytes) or
 # `not-a-file` (a directory listing, a submodule, a symlink whose target is
-# not a regular file - anything the canonical file cannot be), and returns 0
-# only for `ok`. A symlink to a regular file in the same repository comes
-# back as that file, so it is judged by its content.
+# not a regular file - anything the canonical file cannot be). The printed
+# word is the whole answer, so it always returns 0. A symlink to a regular
+# file in the same repository comes back as that file, so it is judged by its
+# content.
 classify_canonical_entry() {
     local body="$1"
     local canonical_sha="$2"
@@ -136,7 +137,7 @@ classify_canonical_entry() {
 
     if [ "${kind}" != "file" ]; then
         printf 'not-a-file'
-        return 1
+        return 0
     fi
 
     remote_sha="$(jq -r '.sha // ""' <<<"${body}" 2>/dev/null)" || remote_sha=""
@@ -147,7 +148,6 @@ classify_canonical_entry() {
     fi
 
     printf 'drifted'
-    return 1
 }
 
 # Runs the sweep. Arguments: the manifest, the canonical root (this
@@ -213,7 +213,7 @@ check_canonical_drift() {
 
             case "${rc}" in
                 0)
-                    status="$(classify_canonical_entry "${body}" "${canonical_sha}")" || true
+                    status="$(classify_canonical_entry "${body}" "${canonical_sha}")"
                     case "${status}" in
                         ok)
                             rows+="| ${repo} | \`${path}\` | ok |"$'\n'
