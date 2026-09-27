@@ -20,7 +20,8 @@ trap 'rm -rf "${work_dir}"' EXIT
 # Fixture store: one file per endpoint, named after the endpoint with every
 # `/`, `?`, `&` and `=` turned into `_`. `<key>.json` answers 200 with that
 # body, `<key>.500` fails the request, and no file at all answers 404 - the
-# contents API's answer for an absent path.
+# contents API's answer for an absent path. Every request is also appended
+# to `requests.log` in the store, so a case can assert that none was made.
 fixtures=""
 
 # Only the summary cases below may write a job summary. On a runner the
@@ -40,6 +41,7 @@ gh() {
         esac
     done
     key="$(printf '%s' "${endpoint}" | tr '/?&=' '____')"
+    printf '%s\n' "${endpoint}" >>"${fixtures}/requests.log"
 
     if [ -f "${fixtures}/${key}.500" ]; then
         echo "gh: Server Error (HTTP 500)" >&2
@@ -300,6 +302,8 @@ case "${output}" in
     *) r=stopped ;;
 esac
 assert_eq "invalid manifest: sweep never reaches its result line" stopped "${r}"
+if [ -e "${fixtures}/requests.log" ]; then r=requested; else r=none; fi
+assert_eq "invalid manifest: no API request is made" none "${r}"
 
 # --- every manifest entry is checked, not only the first ---
 printf 'other: true\n' >"${canonical}/.github/other.yml"
