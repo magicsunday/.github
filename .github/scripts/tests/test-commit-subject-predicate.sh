@@ -18,7 +18,7 @@ source "${SCRIPT_DIR}/../lib/commit-subject-predicate.sh"
 # rows going missing — the per-row shape assertion can only judge rows it
 # actually read. Raise it in lockstep when adding a case, or each new row buys
 # back one row of undetectable truncation.
-readonly MIN_CASES=28
+readonly MIN_CASES=39
 
 # An LC_ALL that is already set — commit-convention.yml's job-level pin — is
 # kept, so the table is judged under the locale the gate will actually run
@@ -40,7 +40,9 @@ cases=0
 # effective locale honest. Elsewhere the gate is the NARROWER of the two: the
 # `|BLOCK` rows starting with a capital (a bad `GH-` shape, a
 # conventional-commit type, a path) reject a subject the bare `^[A-Z]`
-# convention would pass.
+# convention would pass. The one-per-type rows start with a capital for that
+# reason: a lowercase type row is blocked by the capital check anyway, so it
+# could not show a type missing from the ban.
 #
 # No skip-guard on the row: a row that arrives empty is a mangled table, and
 # the case counter below turns that into a failure rather than a silent
@@ -82,11 +84,22 @@ Feat: add thing|BLOCK
 fix(scope): add thing|BLOCK
 Feat!: add thing|BLOCK
 Feat(api)!: add thing|BLOCK
+Build: bump the toolchain|BLOCK
+Chore(deps-dev): bump x|BLOCK
+Ci: pin the runner|BLOCK
+Docs: fix a typo|BLOCK
+Perf: cache the lookup|BLOCK
+Refactor: split the helper|BLOCK
+Revert: undo the change|BLOCK
+Style: reformat|BLOCK
+Fix: handle the edge|BLOCK
+Test: cover the edge|BLOCK
 src/Module.php: fix|BLOCK
 Src/Module.php: fix|BLOCK
 Src/Module.php:fix|BLOCK
 GH-1: Fix a/b: thing|PASS
 Fix a/b: thing|PASS
+Read/write the cache: done|PASS
 Note: see the changelog|PASS
 GH-123:Fix it|BLOCK
 Merge pull request #216 from magicsunday/GH-77|PASS
