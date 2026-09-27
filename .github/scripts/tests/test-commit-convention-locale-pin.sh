@@ -100,13 +100,18 @@ fixture_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${fixture_dir}"' EXIT
 
 # Writes a workflow whose commit-convention job holds only the self-test
-# step: "$1" is one extra step key (or empty), the rest are its script lines.
+# step: "$1" holds its extra step keys, one per line (or is empty), the rest
+# are its script lines.
 write_step_fixture() {
-    local extra="$1"
+    local extra="$1" key
     shift
     {
         printf 'jobs:\n    commit-convention:\n        steps:\n            - name: Self-test the subject predicate\n'
-        [ -z "${extra}" ] || printf '              %s\n' "${extra}"
+        if [ -n "${extra}" ]; then
+            while IFS= read -r key; do
+                printf '              %s\n' "${key}"
+            done <<<"${extra}"
+        fi
         printf '              run: |\n'
         printf '                  %s\n' "$@"
     } >"${fixture_dir}/wf.yml"
@@ -146,16 +151,21 @@ write_step_fixture "" "${ASSERT_LINE}" "${TABLE_LINE} || true"
 output="$(check_order "$(workflow_field "${fixture_dir}/wf.yml" script)")"
 assert_starts_with_fail "a table run whose failure is ignored does not count" "${output}"
 
-write_step_fixture "if: github.event.pull_request.number != ''" "${ASSERT_LINE}" "${TABLE_LINE}"
+gate_if="if: github.event.pull_request.number != ''"
+write_step_fixture "${gate_if}" "${ASSERT_LINE}" "${TABLE_LINE}"
 if [ "$(workflow_field "${fixture_dir}/wf.yml" gate)" = "${EXPECTED_GATE}" ]; then r=matched; else r=missed; fi
 assert_eq "the fixture writer produces the expected gate" matched "${r}"
 output="$(check_order "$(workflow_field "${fixture_dir}/wf.yml" script)")"
 assert_eq "the fixture writer produces a step script check_order accepts" PASS "${output%%:*}"
 
-for extra in "if: false" "continue-on-error: true"; do
-    write_step_fixture "${extra}" "${ASSERT_LINE}" "${TABLE_LINE}"
-    output="$(check_gate "$(workflow_field "${fixture_dir}/wf.yml" gate)")"
-    assert_starts_with_fail "a self-test step with \"${extra}\" does not count" "${output}"
-done
+# Each fixture differs from the expected gate in one line only, so each
+# control fails on the half it names.
+write_step_fixture "if: false" "${ASSERT_LINE}" "${TABLE_LINE}"
+output="$(check_gate "$(workflow_field "${fixture_dir}/wf.yml" gate)")"
+assert_starts_with_fail "a self-test step with \"if: false\" does not count" "${output}"
+
+write_step_fixture "${gate_if}"$'\n'"continue-on-error: true" "${ASSERT_LINE}" "${TABLE_LINE}"
+output="$(check_gate "$(workflow_field "${fixture_dir}/wf.yml" gate)")"
+assert_starts_with_fail "a self-test step with \"continue-on-error: true\" does not count" "${output}"
 
 report_and_exit "commit-convention locale-pin test"
