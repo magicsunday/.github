@@ -337,7 +337,7 @@ summary="${work_dir}/summary.md"
 GITHUB_STEP_SUMMARY="${summary}" run_sweep
 summary_text="$(cat "${summary}")"
 assert_eq "summary run: exit 1" 1 "${rc}"
-assert_contains "summary: counts answered requests (found or missing) as checked, failed ones as unchecked" "${summary_text}" "4 file(s) checked, 3 failed (drifted, missing or not a regular file), 2 unchecked"
+assert_contains "summary: counts answered requests (found or missing) as checked, failed ones as unchecked" "${summary_text}" "4 file(s) checked, 3 failed (drifted, missing, not a regular file or without a valid Dependabot prefix), 2 unchecked"
 assert_contains "summary: table header" "${summary_text}" "| Repository | File | Result |"
 assert_contains "summary: ok row" "${summary_text}" "| ok-repo | \`.github/zizmor.yml\` | ok |"
 assert_contains "summary: drifted row" "${summary_text}" "| drift | \`.github/zizmor.yml\` | **drifted** |"
@@ -346,5 +346,97 @@ assert_contains "summary: unchecked row" "${summary_text}" "| flaky | \`.github/
 assert_contains "summary: not-a-file row" "${summary_text}" "| link | \`.github/zizmor.yml\` | **not a regular file** |"
 assert_contains "summary: applicability error row" "${summary_text}" "| probe-error | \`.github/zizmor.yml\` | **unchecked** (API error) |"
 assert_contains "summary: not-applicable row" "${summary_text}" "| docs | \`.github/zizmor.yml\` | not applicable (no \`.github/workflows\`) |"
+
+# --- dependabot-commit-prefix: a rule on the content, not a byte comparison ---
+# A contents-API body for a file with content "$1", base64-wrapped at 60
+# columns the way the API wraps it.
+dependabot_body() {
+    jq -n --arg c "$(printf '%s' "$1" | base64 -w 60)" '{type: "file", encoding: "base64", sha: "irrelevant", content: $c}'
+}
+classify_yaml() {
+    classify_dependabot_prefix "$(dependabot_body "$1")"
+}
+
+prefixed_entry() {
+    printf '    - package-ecosystem: %s\n      directory: /\n      commit-message:\n          prefix: "%s"\n' "$1" "$2"
+}
+bare_entry() {
+    printf '    - package-ecosystem: %s\n      directory: /\n' "$1"
+}
+
+assert_eq "dependabot: every entry prefixed is ok" ok \
+    "$(classify_yaml "$(printf 'version: 2\nupdates:\n%s\n%s\n' "$(prefixed_entry composer 'Update dependencies')" "$(prefixed_entry npm 'Update dependencies')")")"
+assert_eq "dependabot: one entry without a prefix is counted" "missing-prefix 1" \
+    "$(classify_yaml "$(printf 'version: 2\nupdates:\n%s\n%s\n' "$(prefixed_entry composer 'Update dependencies')" "$(bare_entry npm)")")"
+assert_eq "dependabot: every entry without a prefix is counted" "missing-prefix 2" \
+    "$(classify_yaml "$(printf 'version: 2\nupdates:\n%s\n%s\n' "$(bare_entry composer)" "$(bare_entry npm)")")"
+assert_eq "dependabot: a conventional-commit prefix fails the convention" "missing-prefix 1" \
+    "$(classify_yaml "$(printf 'version: 2\nupdates:\n%s\n' "$(prefixed_entry composer 'chore(deps)')")")"
+assert_eq "dependabot: a lowercase prefix fails the convention" "missing-prefix 1" \
+    "$(classify_yaml "$(printf 'version: 2\nupdates:\n%s\n' "$(prefixed_entry composer 'update dependencies')")")"
+assert_eq "dependabot: a whitespace-only prefix counts as none" "missing-prefix 1" \
+    "$(classify_yaml "$(printf 'version: 2\nupdates:\n%s\n' "$(prefixed_entry composer '  ')")")"
+assert_eq "dependabot: commit-message without prefix counts as none" "missing-prefix 1" \
+    "$(classify_yaml "$(printf 'version: 2\nupdates:\n    - package-ecosystem: npm\n      commit-message:\n          include: scope\n')")"
+assert_eq "dependabot: a multi-line prefix counts as none" "missing-prefix 1" \
+    "$(classify_yaml "$(printf 'version: 2\nupdates:\n    - package-ecosystem: npm\n      commit-message:\n          prefix: |\n              Update\n              dependencies\n')")"
+assert_eq "dependabot: no updates list is invalid" invalid \
+    "$(classify_yaml "$(printf 'version: 2\n')")"
+assert_eq "dependabot: an empty updates list is invalid" invalid \
+    "$(classify_yaml "$(printf 'version: 2\nupdates: []\n')")"
+assert_eq "dependabot: not YAML is invalid" invalid \
+    "$(classify_yaml "$(printf 'updates: [unclosed\n')")"
+assert_eq "dependabot: a body that is not base64 content is invalid" invalid \
+    "$(classify_dependabot_prefix '{"type":"file","encoding":"none","content":""}')"
+assert_eq "dependabot: a directory is not a file" not-a-file \
+    "$(classify_dependabot_prefix '[{"name":"x","type":"file"}]')"
+
+# This repository's own dependabot.yml passes the rule it enforces.
+assert_eq "dependabot: this repository's own .github/dependabot.yml passes" ok \
+    "$(classify_yaml "$(cat "${REPO_ROOT}/.github/dependabot.yml")")"
+
+# ...and every committed manifest entry names a known check.
+assert_eq "the committed manifest checks .github/dependabot.yml for its prefix" dependabot-commit-prefix \
+    "$(jq -r '.files[] | select(.path == ".github/dependabot.yml") | .check' "${REPO_ROOT}/.github/canonical-files.json")"
+
+# The sweep: no file is not applicable, a prefixed file passes, a bare one
+# fails without its content reaching the output.
+printf 'version: 2\nupdates: []\n' >"${canonical}/.github/dependabot.yml"
+write_manifest '{"files":[{"path":".github/dependabot.yml","check":"dependabot-commit-prefix","applies_when_present":".github/dependabot.yml"}]}'
+dependabot_fixture() {
+    fixture "repos/acme/$1/contents/.github/dependabot.yml" "$(dependabot_body "$2")"
+}
+new_fixtures
+repo_list '[{"name":"good","archived":false,"fork":false},{"name":"none","archived":false,"fork":false}]'
+dependabot_fixture good "$(printf 'version: 2\nupdates:\n%s\n' "$(prefixed_entry composer 'Update dependencies')")"
+summary="${work_dir}/summary-dependabot.md"
+: >"${summary}"
+GITHUB_STEP_SUMMARY="${summary}" run_sweep
+assert_eq "dependabot sweep, prefixed or absent: exit 0" 0 "${rc}"
+assert_contains "dependabot sweep: counts the one file present" "${output}" "1 canonical file(s)"
+assert_contains "dependabot sweep: absent file is not applicable" "$(cat "${summary}")" "| none | \`.github/dependabot.yml\` | not applicable (no \`.github/dependabot.yml\`) |"
+
+new_fixtures
+repo_list '[{"name":"bare","archived":false,"fork":false},{"name":"broken","archived":false,"fork":false}]'
+dependabot_fixture bare "$(printf 'version: 2\nupdates:\n%s\n%s\n' "$(prefixed_entry composer 'chore(deps)')" "$(bare_entry npm)")"
+dependabot_fixture broken "$(printf 'version: 2\n')"
+summary="${work_dir}/summary-dependabot-bad.md"
+: >"${summary}"
+GITHUB_STEP_SUMMARY="${summary}" run_sweep
+assert_eq "dependabot sweep, bad prefixes: exit 1" 1 "${rc}"
+assert_contains "dependabot sweep: names the repository and the count" "${output}" "acme/bare: .github/dependabot.yml has updates entries without a commit-message prefix the commit convention accepts (2 of them)"
+assert_contains "dependabot sweep: an unusable file fails" "${output}" "acme/broken: .github/dependabot.yml is not a Dependabot configuration"
+assert_contains "dependabot sweep: summary row" "$(cat "${summary}")" "| bare | \`.github/dependabot.yml\` | **no valid commit-message prefix** (2 updates entries) |"
+case "${output}" in
+    *"chore(deps)"*) r=echoed ;;
+    *) r=withheld ;;
+esac
+assert_eq "dependabot sweep: the remote prefix never reaches the output" withheld "${r}"
+
+write_manifest '{"files":[{"path":".github/dependabot.yml","check":"byte-equal"}]}'
+validate
+assert_eq "manifest check unknown: rejected" 1 "${rc}"
+assert_contains "manifest check unknown: says so" "${output}" "check must be one of"
+rm -f "${canonical}/.github/dependabot.yml"
 
 report_and_exit "canonical-drift tests"

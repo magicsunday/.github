@@ -30,14 +30,6 @@ WORKFLOW_FILE="${REPO_ROOT}/.github/workflows/code-scanning.yml"
 
 require_files_or_bail "lib source/cp drift-guard test" "${WORKFLOW_FILE}"
 
-# Every BASH_SOURCE-relative `source ".../<file>.sh"` dependency named across
-# all lib files, deduplicated. This pattern (not a plain `source "X.sh"`)
-# is what code-scanning.yml's runner-temp $SCRIPT_LIB copy actually needs to
-# satisfy - a lib file sourcing a fixed repo-relative path would resolve
-# differently and is out of scope for this check.
-sourced_deps="$(grep -ho 'source "\$(cd "\$(dirname "\${BASH_SOURCE\[0\]}")" && pwd)/[A-Za-z0-9_-]*\.sh"' "${LIB_DIR}"/*.sh \
-    | grep -o '[A-Za-z0-9_-]*\.sh"$' | tr -d '"' | sort -u)"
-
 # Every file the "Install Semgrep" step copies into $SCRIPT_LIB, scoped to
 # that step's own body so a `cp` line elsewhere in the workflow (there is
 # none today) cannot be mistaken for this step's copy list.
@@ -45,8 +37,27 @@ install_step_body="$(extract_block '- name: Install Semgrep' '- name:' "${WORKFL
 copied_files="$(printf '%s' "${install_step_body}" | grep -oE 'cp \.magicsunday-shared/\.github/scripts/lib/[A-Za-z0-9_-]+\.sh' \
     | grep -o '[A-Za-z0-9_-]*\.sh$' | sort -u)"
 
+# Every BASH_SOURCE-relative `source ".../<file>.sh"` dependency named in a
+# lib file that step copies, deduplicated. Only a copied lib resolves its
+# siblings inside $SCRIPT_LIB; a lib the step never stages - canonical-drift.sh,
+# sourced from its own repository checkout by canonical-drift.yml - finds its
+# dependencies next to it in that checkout and is out of scope here. This
+# pattern (not a plain `source "X.sh"`) is what the runner-temp copy actually
+# needs to satisfy - a lib file sourcing a fixed repo-relative path would
+# resolve differently and is out of scope as well.
+copied_paths=()
+copied=""
+for copied in ${copied_files}; do
+    [ -f "${LIB_DIR}/${copied}" ] && copied_paths+=("${LIB_DIR}/${copied}")
+done
+sourced_deps=""
+if [ "${#copied_paths[@]}" -gt 0 ]; then
+    sourced_deps="$(grep -ho 'source "\$(cd "\$(dirname "\${BASH_SOURCE\[0\]}")" && pwd)/[A-Za-z0-9_-]*\.sh"' "${copied_paths[@]}" \
+        | grep -o '[A-Za-z0-9_-]*\.sh"$' | tr -d '"' | sort -u)"
+fi
+
 assert_nonempty "${sourced_deps}" \
-    "extracted no lib-to-lib source dependencies from ${LIB_DIR}/*.sh - regex or sourcing shape changed"
+    "extracted no lib-to-lib source dependencies from the libs the Install Semgrep step copies - regex or sourcing shape changed"
 assert_nonempty "${copied_files}" \
     "extracted no cp lines from the Install Semgrep step in ${WORKFLOW_FILE} - regex or step shape changed"
 
