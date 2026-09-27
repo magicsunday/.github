@@ -149,6 +149,8 @@ assert_starts_with_fail "a table run whose failure is ignored does not count" "$
 write_step_fixture "if: github.event.pull_request.number != ''" "${ASSERT_LINE}" "${TABLE_LINE}"
 if [ "$(workflow_field "${fixture_dir}/wf.yml" gate)" = "${EXPECTED_GATE}" ]; then r=matched; else r=missed; fi
 assert_eq "the fixture writer produces the expected gate" matched "${r}"
+output="$(check_order "$(workflow_field "${fixture_dir}/wf.yml" script)")"
+assert_eq "the fixture writer produces a step script check_order accepts" PASS "${output%%:*}"
 
 for extra in "if: false" "continue-on-error: true"; do
     write_step_fixture "${extra}" "${ASSERT_LINE}" "${TABLE_LINE}"
