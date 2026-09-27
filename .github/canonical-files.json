@@ -2,8 +2,7 @@
     "files": [
         {
             "path": ".github/zizmor.yml",
-            "applies_when_present": ".github/workflows",
-            "exempt": []
+            "applies_when_present": ".github/workflows"
         }
     ]
 }

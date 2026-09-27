@@ -161,9 +161,8 @@ account once a week (and on demand via *Run workflow*) and fails, with a table
 in the job summary, when a listed file is missing or differs. It only reports:
 fix a drifted repository by copying the file from here. Each manifest entry can
 narrow its scope with `applies_when_present` (a path the repository must have
-for the file to matter — `.github/workflows` for `zizmor.yml`) and exclude
-repositories by name with `exempt`. It runs on this repository's own token, so
-it sees public repositories only.
+for the file to matter — `.github/workflows` for `zizmor.yml`). It runs on this
+repository's own token, so it sees public repositories only.
 
 ## Contributing to this repository
 

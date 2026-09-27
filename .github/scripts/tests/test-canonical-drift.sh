@@ -63,7 +63,7 @@ manifest="${work_dir}/manifest.json"
 write_manifest() {
     printf '%s' "$1" >"${manifest}"
 }
-default_manifest='{"files":[{"path":".github/zizmor.yml","applies_when_present":".github/workflows","exempt":["legacy"]}]}'
+default_manifest='{"files":[{"path":".github/zizmor.yml","applies_when_present":".github/workflows"}]}'
 
 new_fixtures() {
     fixtures="$(mktemp -d "${work_dir}/fx.XXXXXX")"
@@ -186,14 +186,6 @@ run_sweep
 assert_eq "no workflows: not applicable, exit 0" 0 "${rc}"
 assert_contains "no workflows: one file checked" "${output}" "1 canonical file(s)"
 
-# --- an exempt repository is skipped even when drifted ---
-new_fixtures
-repo_list '[{"name":"one","archived":false,"fork":false},{"name":"legacy","archived":false,"fork":false}]'
-has_workflows one; zizmor_file one "${canonical_sha}"
-has_workflows legacy; zizmor_file legacy "0000000000000000000000000000000000000000"
-run_sweep
-assert_eq "exempt repository: exit 0" 0 "${rc}"
-
 # --- a failed request is unchecked, never missing and never fine ---
 new_fixtures
 repo_list '[{"name":"one","archived":false,"fork":false}]'
@@ -222,50 +214,95 @@ run_sweep
 assert_eq "empty repo list: exit 1" 1 "${rc}"
 assert_contains "empty repo list: says the sweep checked nothing" "${output}" "the sweep checked nothing"
 
-# --- a repository name outside the allowed set is unchecked, not echoed ---
-new_fixtures
-repo_list '[{"name":"one","archived":false,"fork":false},{"name":"bad name::error::x","archived":false,"fork":false}]'
-has_workflows one; zizmor_file one "${canonical_sha}"
-run_sweep
-assert_eq "invalid repo name: exit 1" 1 "${rc}"
-case "${output}" in
-    *"bad name"*) r=echoed ;;
-    *) r=withheld ;;
-esac
-assert_eq "invalid repo name: the raw name never reaches the output" withheld "${r}"
-
-# --- manifest validation ---
-new_fixtures
-repo_list '[{"name":"one","archived":false,"fork":false}]'
+# --- manifest validation: each problem is named by its own message ---
+validate() {
+    output="$(assert_canonical_manifest_valid "${manifest}" "${canonical}" 2>&1)"
+    rc=$?
+}
 
 write_manifest '{"files":[]}'
-run_sweep
-assert_eq "empty manifest: exit 1" 1 "${rc}"
-
-write_manifest '{"files":[{"path":".github/absent.yml"}]}'
-run_sweep
-assert_eq "manifest path absent here: exit 1" 1 "${rc}"
-assert_contains "manifest path absent here: says so" "${output}" "is not a regular file in this repository"
-
-write_manifest '{"files":[{"path":"../etc/passwd"}]}'
-run_sweep
-assert_eq "manifest path traversal: exit 1" 1 "${rc}"
-
-write_manifest '{"files":[{"path":".github/zizmor.yml","exempt":"legacy"}]}'
-run_sweep
-assert_eq "manifest exempt not an array: exit 1" 1 "${rc}"
+validate
+assert_eq "empty manifest: rejected" 1 "${rc}"
+assert_contains "empty manifest: says so" "${output}" "lists no canonical files"
 
 write_manifest 'not json'
-run_sweep
-assert_eq "manifest not JSON: exit 1" 1 "${rc}"
+validate
+assert_eq "manifest not JSON: rejected" 1 "${rc}"
+assert_contains "manifest not JSON: says so" "${output}" "is not valid JSON"
 
-# --- the summary is written when GITHUB_STEP_SUMMARY is set ---
+write_manifest '{"files":[{"path":5}]}'
+validate
+assert_eq "manifest path not a string: rejected" 1 "${rc}"
+assert_contains "manifest path not a string: says so" "${output}" 'has no string "path"'
+
+write_manifest '{"files":[{"path":".github/absent.yml"}]}'
+validate
+assert_eq "manifest path absent here: rejected" 1 "${rc}"
+assert_contains "manifest path absent here: says so" "${output}" "is not a regular file in this repository"
+
+ln -s zizmor.yml "${canonical}/.github/link.yml"
+write_manifest '{"files":[{"path":".github/link.yml"}]}'
+validate
+assert_eq "manifest path is a symlink: rejected" 1 "${rc}"
+assert_contains "manifest path is a symlink: says so" "${output}" "is not a regular file in this repository"
+rm -f "${canonical}/.github/link.yml"
+
+for applies in false 5 '""'; do
+    write_manifest "{\"files\":[{\"path\":\".github/zizmor.yml\",\"applies_when_present\":${applies}}]}"
+    validate
+    assert_eq "applies_when_present ${applies}: rejected" 1 "${rc}"
+    assert_contains "applies_when_present ${applies}: says so" "${output}" "applies_when_present must be a non-empty string"
+done
+
 write_manifest "${default_manifest}"
+validate
+assert_eq "valid manifest: accepted" 0 "${rc}"
+
+# --- an invalid manifest stops the sweep before any request ---
+write_manifest '{"files":[]}'
+new_fixtures
+run_sweep
+assert_eq "invalid manifest: sweep exits 1" 1 "${rc}"
+assert_contains "invalid manifest: sweep names the problem" "${output}" "lists no canonical files"
+
+# --- every manifest entry is checked, not only the first ---
+printf 'other: true\n' >"${canonical}/.github/other.yml"
+other_sha="$(canonical_blob_sha "${canonical}" .github/other.yml)"
+write_manifest '{"files":[{"path":".github/zizmor.yml"},{"path":".github/other.yml"}]}'
 new_fixtures
 repo_list '[{"name":"one","archived":false,"fork":false}]'
-has_workflows one; zizmor_file one "0000000000000000000000000000000000000000"
+zizmor_file one "${canonical_sha}"
+fixture "repos/acme/one/contents/.github/other.yml" "{\"type\":\"file\",\"sha\":\"0000000000000000000000000000000000000000\"}"
+run_sweep
+assert_eq "two manifest entries, second drifted: exit 1" 1 "${rc}"
+assert_contains "two manifest entries: second entry reported" "${output}" "acme/one: .github/other.yml differs from the canonical copy"
+fixture "repos/acme/one/contents/.github/other.yml" "{\"type\":\"file\",\"sha\":\"${other_sha}\"}"
+run_sweep
+assert_eq "two manifest entries, both matching: exit 0" 0 "${rc}"
+assert_contains "two manifest entries: both counted" "${output}" "2 canonical file(s)"
+rm -f "${canonical}/.github/other.yml"
+
+# --- the summary names every outcome and counts only what was checked ---
+write_manifest "${default_manifest}"
+new_fixtures
+repo_list '[{"name":"ok-repo","archived":false,"fork":false},{"name":"drift","archived":false,"fork":false},{"name":"gone","archived":false,"fork":false},{"name":"flaky","archived":false,"fork":false},{"name":"docs","archived":false,"fork":false}]'
+has_workflows ok-repo; zizmor_file ok-repo "${canonical_sha}"
+has_workflows drift; zizmor_file drift "0000000000000000000000000000000000000000"
+has_workflows gone
+has_workflows flaky; fixture_error "repos/acme/flaky/contents/.github/zizmor.yml"
 summary="${work_dir}/summary.md"
-GITHUB_STEP_SUMMARY="${summary}" check_canonical_drift "${manifest}" "${canonical}" acme .github >/dev/null 2>&1
-assert_contains "summary: lists the drifted repository" "$(cat "${summary}")" "| one | \`.github/zizmor.yml\` | **drifted** |"
+: >"${summary}"
+export GITHUB_STEP_SUMMARY="${summary}"
+run_sweep
+unset GITHUB_STEP_SUMMARY
+summary_text="$(cat "${summary}")"
+assert_eq "summary run: exit 1" 1 "${rc}"
+assert_contains "summary: counts only fetched files as checked" "${summary_text}" "3 file(s) checked, 2 drifted or missing, 1 unchecked"
+assert_contains "summary: table header" "${summary_text}" "| Repository | File | Result |"
+assert_contains "summary: ok row" "${summary_text}" "| ok-repo | \`.github/zizmor.yml\` | ok |"
+assert_contains "summary: drifted row" "${summary_text}" "| drift | \`.github/zizmor.yml\` | **drifted** |"
+assert_contains "summary: missing row" "${summary_text}" "| gone | \`.github/zizmor.yml\` | **missing** |"
+assert_contains "summary: unchecked row" "${summary_text}" "| flaky | \`.github/zizmor.yml\` | **unchecked** (API error) |"
+assert_contains "summary: not-applicable row" "${summary_text}" "| docs | \`.github/zizmor.yml\` | not applicable (no \`.github/workflows\`) |"
 
 report_and_exit "canonical-drift tests"

@@ -9,9 +9,10 @@
 # it only ever sees a repository that already calls that gate. This sweep
 # enumerates every non-archived, non-fork repository the account owns and
 # compares each canonical file by git blob hash, which is one contents-API
-# call per file and needs no download: identical bytes give an identical blob
-# hash. It reports and never writes - opening a pull request per drifted
-# repository is the obvious follow-up once the canonical set is stable.
+# call per file (plus one per repository for an `applies_when_present` path)
+# and needs no download: identical bytes give an identical blob hash. It
+# reports and never writes - opening a pull request per drifted repository is
+# the obvious follow-up once the canonical set is stable.
 #
 # Which files are canonical is declared in .github/canonical-files.json, and
 # the canonical CONTENT of each is this repository's own copy at the same
@@ -26,10 +27,9 @@
 # checked.
 #
 # No lib-to-lib `source` here on purpose: every value this file prints into
-# an annotation is either a manifest path or a repository name, and both are
-# validated against a fixed character set before use (a repository name that
-# fails it is reported as unchecked, never echoed raw), so there is nothing
-# annotation-sanitize.sh would need to escape.
+# an annotation is a path from this repository's own manifest or an account or
+# repository name GitHub itself restricts to [A-Za-z0-9._-], so there is
+# nothing annotation-sanitize.sh would need to escape.
 #
 # check_canonical_drift captures every call whose non-zero status is an
 # expected answer with `|| rc=$?`: canonical-drift.yml calls it under
@@ -42,12 +42,6 @@
 # on membership, settled here).
 readonly CANONICAL_DRIFT_REPO_FILTER='.[] | select((.archived | not) and (.fork | not)) | .name'
 
-# The only shapes a manifest path or a repository name may take. GitHub
-# restricts repository names to this set already; enforcing it here keeps an
-# unexpected API value out of annotations and out of the request path.
-readonly CANONICAL_DRIFT_NAME_RE='^[A-Za-z0-9._-]+$'
-readonly CANONICAL_DRIFT_PATH_RE='^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$'
-
 # Prints the git blob hash of file "$2" (relative to repository root "$1")
 # as git stores it: hashed from inside that repository, so a .gitattributes
 # line-ending rule is applied the way `git add` would and a CRLF checkout
@@ -57,15 +51,14 @@ canonical_blob_sha() {
 }
 
 # Validates manifest "$1" against canonical root "$2": a non-empty `files`
-# array, every `path` (and `applies_when_present`, when given) of the allowed
-# shape and free of `..` segments, every `path` a regular file under the root,
-# and every `exempt` entry a valid repository name. Returns 1 with an
-# ::error:: per problem.
+# array, every `path` a string naming a regular (non-symlink) file under the
+# root, and `applies_when_present`, when given, a non-empty string. Returns 1
+# with an ::error:: per problem.
 assert_canonical_manifest_valid() {
     local manifest="$1"
     local canonical_root="$2"
     local problems=0
-    local count path applies exempt_names name
+    local count path
 
     if ! count="$(jq -er '.files | if type == "array" then length else error("files is not an array") end' "${manifest}" 2>/dev/null)"; then
         echo "::error::${manifest} is not valid JSON with a \"files\" array."
@@ -85,37 +78,15 @@ assert_canonical_manifest_valid() {
             continue
         fi
 
-        if ! [[ "${path}" =~ ${CANONICAL_DRIFT_PATH_RE} ]] || [[ "/${path}/" == */../* ]]; then
-            echo "::error::${manifest}: files[${i}].path is not a plain repository-relative path."
-            problems=$((problems + 1))
-            continue
-        fi
-
         if [ ! -f "${canonical_root}/${path}" ] || [ -L "${canonical_root}/${path}" ]; then
             echo "::error::${manifest}: ${path} is not a regular file in this repository, so it has no canonical content to compare against."
             problems=$((problems + 1))
         fi
 
-        applies="$(jq -r ".files[${i}].applies_when_present // \"\"" "${manifest}")"
-        if [ -n "${applies}" ] && { ! [[ "${applies}" =~ ${CANONICAL_DRIFT_PATH_RE} ]] || [[ "/${applies}/" == */../* ]]; }; then
-            echo "::error::${manifest}: files[${i}].applies_when_present is not a plain repository-relative path."
+        if ! jq -e ".files[${i}] | (has(\"applies_when_present\") | not) or (.applies_when_present | type == \"string\" and length > 0)" "${manifest}" >/dev/null 2>&1; then
+            echo "::error::${manifest}: files[${i}].applies_when_present must be a non-empty string when given."
             problems=$((problems + 1))
         fi
-
-        if ! jq -e ".files[${i}].exempt // [] | type == \"array\" and all(type == \"string\")" "${manifest}" >/dev/null 2>&1; then
-            echo "::error::${manifest}: files[${i}].exempt must be an array of repository names."
-            problems=$((problems + 1))
-            continue
-        fi
-        exempt_names="$(jq -r ".files[${i}].exempt // [] | .[]" "${manifest}")"
-
-        while IFS= read -r name; do
-            [ -n "${name}" ] || continue
-            if ! [[ "${name}" =~ ${CANONICAL_DRIFT_NAME_RE} ]]; then
-                echo "::error::${manifest}: files[${i}].exempt holds an invalid repository name."
-                problems=$((problems + 1))
-            fi
-        done <<<"${exempt_names}"
     done
 
     [ "${problems}" -eq 0 ]
@@ -150,8 +121,10 @@ _canonical_drift_fetch() {
 
 # Classifies one contents-API response body "$1" against canonical blob hash
 # "$2": prints `ok`, `drifted` (a regular file with other bytes) or
-# `not-a-file` (a directory listing, a symlink, a submodule - anything the
-# canonical file cannot be), and returns 0 only for `ok`.
+# `not-a-file` (a directory listing, a submodule, a symlink whose target is
+# not a regular file - anything the canonical file cannot be), and returns 0
+# only for `ok`. A symlink to a regular file in the same repository comes
+# back as that file, so it is judged by its content.
 classify_canonical_entry() {
     local body="$1"
     local canonical_sha="$2"
@@ -190,11 +163,6 @@ check_canonical_drift() {
 
     assert_canonical_manifest_valid "${manifest}" "${canonical_root}" || return 1
 
-    if ! [[ "${owner}" =~ ${CANONICAL_DRIFT_NAME_RE} ]]; then
-        echo "::error::The owner name is not a valid account name."
-        return 1
-    fi
-
     local repos
     if ! repos="$(gh api --paginate "users/${owner}/repos?type=owner&per_page=100" --jq "${CANONICAL_DRIFT_REPO_FILTER}" 2>/dev/null)"; then
         echo "::error::Could not list the repositories of ${owner} - nothing was checked."
@@ -206,27 +174,16 @@ check_canonical_drift() {
 
     local checked=0 failures=0 unchecked=0
     local rows=""
-    local repo i path applies exempt canonical_sha body rc status
+    local repo i path applies canonical_sha body rc status
 
     while IFS= read -r repo; do
         [ -n "${repo}" ] || continue
-
-        if ! [[ "${repo}" =~ ${CANONICAL_DRIFT_NAME_RE} ]]; then
-            echo "::error::The repository listing returned a name outside the allowed character set - that entry was not checked."
-            unchecked=$((unchecked + 1))
-            continue
-        fi
 
         [ "${repo}" != "${self_repo}" ] || continue
 
         for ((i = 0; i < count; i++)); do
             path="$(jq -r ".files[${i}].path" "${manifest}")"
             applies="$(jq -r ".files[${i}].applies_when_present // \"\"" "${manifest}")"
-
-            if jq -e --arg repo "${repo}" ".files[${i}].exempt // [] | index(\$repo)" "${manifest}" >/dev/null 2>&1; then
-                rows+="| ${repo} | \`${path}\` | exempt |"$'\n'
-                continue
-            fi
 
             if [ -n "${applies}" ]; then
                 rc=0
