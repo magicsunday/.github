@@ -157,7 +157,9 @@ classify_canonical_entry() {
 # repository's checkout), the account that owns the repositories, and this
 # repository's own name (the source of the canonical copies, so never
 # checked against itself). Appends a Markdown report to $GITHUB_STEP_SUMMARY
-# when it is set. Returns 1 when any file is missing, drifted, not a regular
+# when it is set and the sweep runs to its end. An invalid manifest, a
+# failed repository listing or a failed hash stops it early, reported by its
+# ::error:: alone. Returns 1 when any file is missing, drifted, not a regular
 # file or could not be checked, and when nothing at all was checked - the
 # failure mode this sweep must not have is passing without having looked.
 check_canonical_drift() {
