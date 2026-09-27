@@ -128,9 +128,9 @@ _canonical_drift_fetch() {
 # "$2": prints `ok`, `drifted` (a regular file with other bytes) or
 # `not-a-file` (a directory listing, a submodule, a symlink whose target is
 # not a regular file - anything the canonical file cannot be). The printed
-# word is the whole answer, so it always returns 0. A symlink to a regular
-# file in the same repository comes back as that file, so it is judged by its
-# content.
+# word is the whole answer, so it always returns 0. As GitHub's docs stated
+# on 2026-09-27 ("Get repository content"), a symlink to a regular file in
+# the same repository comes back as that file, so it is judged by its content.
 classify_canonical_entry() {
     local body="$1"
     local canonical_sha="$2"
