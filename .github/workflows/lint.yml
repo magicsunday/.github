@@ -224,12 +224,10 @@ jobs:
               with:
                   python-version: '3.12'
 
-            # find_workflow_call_targets.py (issue #118) needs PyYAML on the
-            # runner - test-find-workflow-call-targets.sh and
-            # test-workflow-catalog.sh both exercise it (the latter via
-            # workflow_catalog.py's own direct import), so run-tests.sh
-            # itself now has this dependency, not only the
-            # workflow-catalog-fresh job below.
+            # Tests run by run-tests.sh import PyYAML, directly or through
+            # find_workflow_call_targets.py (issue #118), so the suite itself
+            # has this dependency, not only the workflow-catalog-fresh job
+            # below.
             - name: Install PyYAML
               run: |
                   set -euo pipefail
