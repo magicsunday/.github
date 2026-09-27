@@ -83,16 +83,9 @@ jobs:
             contents: read
             pull-requests: read
 
-        # The predicate's `[[:upper:]]` is locale-dependent, and deliberately
-        # accepts any Unicode capital (the predicate's own header explains
-        # why): under LC_ALL=C a subject starting with `Ä` is NOT considered
-        # uppercase and would be rejected. Pinning a UTF-8 locale is
-        # load-bearing for that width. The two umlaut rows in the decision
-        # table detect a non-UTF-8 effective locale, but they cannot detect
-        # this pin being DROPPED — a runner whose ambient LANG is already
-        # UTF-8 keeps them green, and the test script defaults an unset
-        # LC_ALL to UTF-8 for local runs — so the pin is asserted outright in
-        # the self-test step.
+        # Load-bearing for the predicate's `[[:upper:]]` (see its header),
+        # asserted in the self-test step and pinned by
+        # test-commit-convention-locale-pin.sh.
         env:
             LC_ALL: C.UTF-8
 
@@ -103,8 +96,8 @@ jobs:
             # AGENTS.md "Read a reusable workflow's own files with the `job`
             # context"). No reserved-path guard and no removal afterwards:
             # nothing of the caller's is in the workspace to collide with, and
-            # no later step inspects it. Gated, like every step after it, on
-            # the same pull-request number the check step keys on, so a run
+            # no later step inspects it. Gated, like the self-test after it,
+            # on the same pull-request number the check step keys on, so a run
             # that has nothing to judge (merge_group, a PR-less trigger) never
             # depends on a network fetch it would not use — a checkout hiccup
             # must not red the merge queue (see the header).
@@ -142,10 +135,7 @@ jobs:
                   # pin being deleted. Assert the pin here, matching the
                   # property the umlaut rows depend on rather than one
                   # spelling, so a re-pin to `C.utf8`/`en_US.UTF-8` is fine.
-                  if ! locale_is_utf8 "${LC_ALL:-}"; then
-                      echo "::error::LC_ALL is \"${LC_ALL:-unset}\", not a UTF-8 locale (pin C.UTF-8)"
-                      exit 1
-                  fi
+                  assert_utf8_locale "${LC_ALL:-}" || exit 1
 
                   bash ".magicsunday-shared/.github/scripts/tests/test-commit-subject-predicate.sh"
 
