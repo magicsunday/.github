@@ -142,10 +142,7 @@ jobs:
                   # pin being deleted. Assert the pin here, matching the
                   # property the umlaut rows depend on rather than one
                   # spelling, so a re-pin to `C.utf8`/`en_US.UTF-8` is fine.
-                  if ! locale_is_utf8 "${LC_ALL:-}"; then
-                      echo "::error::LC_ALL is \"${LC_ALL:-unset}\", not a UTF-8 locale (pin C.UTF-8)"
-                      exit 1
-                  fi
+                  assert_utf8_locale "${LC_ALL:-}" || exit 1
 
                   bash ".magicsunday-shared/.github/scripts/tests/test-commit-subject-predicate.sh"
 

@@ -85,3 +85,12 @@ locale_is_utf8() {
         *) return 1 ;;
     esac
 }
+
+# Returns 0 silently when locale name "$1" is UTF-8, otherwise prints the
+# one ::error:: that names it and returns 1. commit-convention.yml and the
+# decision-table test both call it, so the two checks cannot drift apart.
+assert_utf8_locale() {
+    locale_is_utf8 "$1" && return 0
+    echo "::error::LC_ALL is \"${1:-unset}\", not a UTF-8 locale (pin C.UTF-8)"
+    return 1
+}

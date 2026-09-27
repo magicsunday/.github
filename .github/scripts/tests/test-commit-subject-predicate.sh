@@ -30,10 +30,7 @@ export LC_ALL="${LC_ALL:-C.UTF-8}"
 
 # The umlaut rows below fail on a non-UTF-8 locale, which would look like a
 # predicate bug. Name the real cause instead.
-if ! locale_is_utf8 "${LC_ALL}"; then
-    echo "::error::LC_ALL is \"${LC_ALL}\", not a UTF-8 locale (pin C.UTF-8)"
-    exit 1
-fi
+assert_utf8_locale "${LC_ALL}" || exit 1
 
 cases=0
 
@@ -133,5 +130,19 @@ for locale in C POSIX "" en_US.ISO-8859-1 UTF-8; do
     if locale_is_utf8 "${locale}"; then actual=PASS; else actual=BLOCK; fi
     assert_eq "locale_is_utf8 rejects \"${locale}\"" BLOCK "${actual}"
 done
+
+# assert_utf8_locale(): silent and 0 on a UTF-8 locale, otherwise the one
+# ::error:: both the workflow and this script print, and 1.
+output="$(assert_utf8_locale C.UTF-8 2>&1)"; rc=$?
+assert_eq "assert_utf8_locale accepts C.UTF-8" 0 "${rc}"
+assert_eq "assert_utf8_locale is silent on a UTF-8 locale" "" "${output}"
+output="$(assert_utf8_locale C 2>&1)"; rc=$?
+assert_eq "assert_utf8_locale rejects C" 1 "${rc}"
+assert_eq "assert_utf8_locale names the locale it rejected" \
+    '::error::LC_ALL is "C", not a UTF-8 locale (pin C.UTF-8)' "${output}"
+output="$(assert_utf8_locale "" 2>&1)"; rc=$?
+assert_eq "assert_utf8_locale rejects an unset LC_ALL" 1 "${rc}"
+assert_eq "assert_utf8_locale calls an empty locale unset" \
+    '::error::LC_ALL is "unset", not a UTF-8 locale (pin C.UTF-8)' "${output}"
 
 report_and_exit "commit-subject predicate tests"
