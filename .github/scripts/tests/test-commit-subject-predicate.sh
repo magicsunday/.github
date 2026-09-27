@@ -18,7 +18,7 @@ source "${SCRIPT_DIR}/../lib/commit-subject-predicate.sh"
 # rows going missing — the per-row shape assertion can only judge rows it
 # actually read. Raise it in lockstep when adding a case, or each new row buys
 # back one row of undetectable truncation.
-readonly MIN_CASES=44
+readonly MIN_CASES=45
 
 # An LC_ALL that is already set — commit-convention.yml's job-level pin — is
 # kept, so the table is judged under the locale the gate will actually run
@@ -102,6 +102,7 @@ Src/: fix|BLOCK
 GH-1: Fix a/b: thing|PASS
 Fix a/b: thing|PASS
 Read/write the cache: done|PASS
+Note:see/docs: x|PASS
 Note: see the changelog|PASS
 Add the test: case|PASS
 GH-123:Fix it|BLOCK
