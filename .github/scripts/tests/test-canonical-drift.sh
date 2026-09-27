@@ -173,14 +173,15 @@ run_sweep
 assert_eq "drifted file: exit 1" 1 "${rc}"
 assert_contains "drifted file: says it differs" "${output}" "acme/one: .github/zizmor.yml differs from the canonical copy"
 
-# --- a symlink or directory at the path is not the canonical file ---
+# --- a path the contents API reports as a symlink (its target is not a
+# regular file) or as a directory is not the canonical file ---
 new_fixtures
 repo_list '[{"name":"one","archived":false,"fork":false},{"name":"two","archived":false,"fork":false}]'
 has_workflows one; fixture "repos/acme/one/contents/.github/zizmor.yml" "{\"type\":\"symlink\",\"sha\":\"${canonical_sha}\"}"
 has_workflows two; fixture "repos/acme/two/contents/.github/zizmor.yml" '[{"name":"x","type":"file"}]'
 run_sweep
 assert_eq "symlink/directory: exit 1" 1 "${rc}"
-assert_contains "symlink: reported as not a regular file" "${output}" "acme/one: .github/zizmor.yml exists but is not a regular file"
+assert_contains "symlink to a non-file: reported as not a regular file" "${output}" "acme/one: .github/zizmor.yml exists but is not a regular file"
 assert_contains "directory: reported as not a regular file" "${output}" "acme/two: .github/zizmor.yml exists but is not a regular file"
 
 # --- a repository without workflows is out of scope for zizmor.yml ---
