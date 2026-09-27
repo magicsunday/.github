@@ -18,7 +18,7 @@ source "${SCRIPT_DIR}/../lib/commit-subject-predicate.sh"
 # rows going missing — the per-row shape assertion can only judge rows it
 # actually read. Raise it in lockstep when adding a case, or each new row buys
 # back one row of undetectable truncation.
-readonly MIN_CASES=46
+readonly MIN_CASES=47
 
 # An LC_ALL that is already set — commit-convention.yml's job-level pin — is
 # kept, so the table is judged under the locale the gate will actually run
@@ -108,6 +108,7 @@ Add the test: case|PASS
 GH-123:Fix it|BLOCK
 GH-1 GH-2: Fix it|BLOCK
 GHSA-1234: Patch the parser|PASS
+Fix the GH-12 regression|PASS
 Merge pull request #216 from magicsunday/GH-77|PASS
 Merge branch 'main' into GH-77|PASS
 Mergesort/Foo.php: fix|BLOCK
