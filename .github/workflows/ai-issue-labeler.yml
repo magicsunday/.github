@@ -30,9 +30,11 @@ name: AI issue labeler (reusable)
 # those names - the model can never invent a label. A repository with zero
 # labels, or a classification Claude is not confident about, applies
 # `needs-triage` where that label exists and otherwise leaves the issue
-# unlabeled - it never guesses. An issue keeps one type label and one
-# `priority:` label: a kind the issue already carries is left alone, and a
-# kind the model answers with two labels is dropped.
+# unlabeled - it never guesses. The labeler never adds a second type label or
+# a second `priority:` label: a kind the issue already carries is left alone,
+# and a kind the model answers with two labels is dropped. The labels are read
+# shortly before they are added, so a label another actor adds in between is
+# not seen.
 #
 # The labeler script is read from this repository via the shared-checkout
 # pattern below, so a caller's job needs to be able to read it - which holds
@@ -243,7 +245,7 @@ jobs:
                   fi
 
                   if [ "${#selected_labels[@]}" -eq 0 ]; then
-                      echo "No label to apply for issue #${ISSUE_NUMBER} (no confident match and no needs-triage label, or the issue already carries every kind offered); leaving labels untouched."
+                      echo "No label to apply for issue #${ISSUE_NUMBER} after the classification and the type/priority guard; leaving labels untouched."
                       exit 0
                   fi
 
