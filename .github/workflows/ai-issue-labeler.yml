@@ -220,13 +220,6 @@ jobs:
                   tool_input=$(extract_tool_input "$response_body") \
                       || warn_and_skip "Anthropic response for issue #${ISSUE_NUMBER} carried no assign_labels tool call; leaving labels untouched."
 
-                  # Captured into a plain variable (not piped straight into
-                  # `mapfile < <(...)`) so resolve_labels_to_apply's own
-                  # `|| return 1` guards (see its definition) surface as a
-                  # checkable exit status here - `mapfile` reading from a
-                  # process substitution would instead see only whatever
-                  # partial output reached the dead subshell and report
-                  # success regardless.
                   # The issue's labels are read live here, after the model
                   # answered, rather than taken from the event payload: a label
                   # added right after the issue opened is then still seen, and
@@ -235,6 +228,13 @@ jobs:
                   existing_labels=$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}" --jq '[.labels[].name]') \
                       || warn_and_skip "Could not read the current labels of issue #${ISSUE_NUMBER}; leaving labels untouched."
 
+                  # Captured into a plain variable (not piped straight into
+                  # `mapfile < <(...)`) so resolve_labels_to_apply's own
+                  # `|| return 1` guards (see its definition) surface as a
+                  # checkable exit status here - `mapfile` reading from a
+                  # process substitution would instead see only whatever
+                  # partial output reached the dead subshell and report
+                  # success regardless.
                   selected_output=$(resolve_labels_to_apply "$tool_input" "$labels_json" "$existing_labels") \
                       || warn_and_skip "Could not resolve which labels to apply for issue #${ISSUE_NUMBER}; leaving labels untouched."
                   selected_labels=()
@@ -243,7 +243,7 @@ jobs:
                   fi
 
                   if [ "${#selected_labels[@]}" -eq 0 ]; then
-                      echo "No confident label match for issue #${ISSUE_NUMBER} and no needs-triage label exists; leaving unlabeled."
+                      echo "No label to apply for issue #${ISSUE_NUMBER} (no confident match and no needs-triage label, or the issue already carries every kind offered); leaving labels untouched."
                       exit 0
                   fi
 
