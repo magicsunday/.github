@@ -126,9 +126,20 @@ extract_tool_input() {
 # `--argjson known "not-json"` with and without the `||`, under `set -e`,
 # called as `x=$(that_function ...) || echo caught` - only the guarded
 # version reports `caught`.
+#
+# Type and priority are read as single values, so the selection is held to
+# one label per exclusive kind (GH-146): a `priority:` label, and one of the
+# type labels bug/enhancement/documentation. `existing_labels_json` is a JSON
+# array of the label names the issue already carries. A kind the issue has
+# is left alone, and a kind the model answered with two labels is dropped
+# entirely rather than guessed. Labels outside both kinds pass through. A
+# selection the guard empties applies nothing: the `needs-triage` fallback
+# below is for a model that was not confident, not for an issue that was
+# already labelled.
 resolve_labels_to_apply() {
     local tool_input_json="$1"
     local labels_json="$2"
+    local existing_labels_json="${3:-[]}"
 
     local confident
     confident=$(jq -r '.confident' <<<"${tool_input_json}") || return 1
@@ -141,7 +152,22 @@ resolve_labels_to_apply() {
     ' <<<"${tool_input_json}") || return 1
 
     if [ "${confident}" = "true" ] && [ -n "${selected}" ]; then
-        printf '%s\n' "${selected}"
+        local allowed
+        allowed=$(jq -Rr --argjson existing "${existing_labels_json}" '
+            def kind:
+                if startswith("priority:") then "priority"
+                elif . == "bug" or . == "enhancement" or . == "documentation" then "type"
+                else null end;
+            ($existing | map(kind)) as $taken
+            | [., inputs] | unique as $names
+            | ($names | map(select(kind != null) | kind) | group_by(.) | map(select(length > 1) | .[0])) as $conflicting
+            | $names[]
+            | select(kind as $kind | $kind == null or (($taken | index($kind)) == null and ($conflicting | index($kind)) == null))
+        ' <<<"${selected}") || return 1
+
+        if [ -n "${allowed}" ]; then
+            printf '%s\n' "${allowed}"
+        fi
         return 0
     fi
 
