@@ -30,7 +30,9 @@ name: AI issue labeler (reusable)
 # those names - the model can never invent a label. A repository with zero
 # labels, or a classification Claude is not confident about, applies
 # `needs-triage` where that label exists and otherwise leaves the issue
-# unlabeled - it never guesses.
+# unlabeled - it never guesses. An issue keeps one type label and one
+# `priority:` label: a kind the issue already carries is left alone, and a
+# kind the model answers with two labels is dropped.
 #
 # The labeler script is read from this repository via the shared-checkout
 # pattern below, so a caller's job needs to be able to read it - which holds
@@ -225,7 +227,15 @@ jobs:
                   # process substitution would instead see only whatever
                   # partial output reached the dead subshell and report
                   # success regardless.
-                  selected_output=$(resolve_labels_to_apply "$tool_input" "$labels_json") \
+                  # The issue's labels are read live here, after the model
+                  # answered, rather than taken from the event payload: a label
+                  # added right after the issue opened is then still seen, and
+                  # resolve_labels_to_apply leaves a type or priority the issue
+                  # already carries alone.
+                  existing_labels=$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}" --jq '[.labels[].name]') \
+                      || warn_and_skip "Could not read the current labels of issue #${ISSUE_NUMBER}; leaving labels untouched."
+
+                  selected_output=$(resolve_labels_to_apply "$tool_input" "$labels_json" "$existing_labels") \
                       || warn_and_skip "Could not resolve which labels to apply for issue #${ISSUE_NUMBER}; leaving labels untouched."
                   selected_labels=()
                   if [ -n "$selected_output" ]; then
