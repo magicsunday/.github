@@ -115,7 +115,7 @@ extract_tool_input() {
 # confidently, GH-57 asks for a `needs-triage` fallback where the repository
 # has one - never a guess.
 #
-# The two `|| return 1` below are load-bearing, not defensive noise: `set -e`
+# The `|| return 1` guards below are load-bearing, not defensive noise: `set -e`
 # does NOT propagate into a command substitution by default (and does not
 # even with `shopt -s inherit_errexit` once the substitution sits inside a
 # tested context like the caller's `x=$(resolve_labels_to_apply ...) ||
@@ -129,13 +129,13 @@ extract_tool_input() {
 #
 # Type and priority are read as single values, so the selection is held to
 # one label per exclusive kind (GH-146): a `priority:` label, and one of the
-# type labels bug/enhancement/documentation. `existing_labels_json` is a JSON
-# array of the label names the issue already carries. A kind the issue has
-# is left alone, and a kind the model answered with two labels is dropped
-# entirely rather than guessed. Labels outside both kinds pass through. A
-# selection the guard empties applies nothing: the `needs-triage` fallback
-# below is for a model that was not confident, not for an issue that was
-# already labelled.
+# type labels bug/enhancement/documentation, matched without regard to case.
+# `existing_labels_json` is a JSON array of the label names the issue already
+# carries. A kind the issue has is left alone, and a kind the model answered
+# with two labels is dropped entirely rather than guessed. Labels outside
+# both kinds pass through. A selection the guard empties applies nothing: the
+# `needs-triage` fallback below is for a model that was not confident, not
+# for an issue that was already labelled.
 resolve_labels_to_apply() {
     local tool_input_json="$1"
     local labels_json="$2"
@@ -155,8 +155,9 @@ resolve_labels_to_apply() {
         local allowed
         allowed=$(jq -Rr --argjson existing "${existing_labels_json}" '
             def kind:
-                if startswith("priority:") then "priority"
-                elif . == "bug" or . == "enhancement" or . == "documentation" then "type"
+                ascii_downcase as $lowered
+                | if ($lowered | startswith("priority:")) then "priority"
+                elif ($lowered == "bug" or $lowered == "enhancement" or $lowered == "documentation") then "type"
                 else null end;
             ($existing | map(kind)) as $taken
             | [., inputs] | unique as $names
