@@ -325,6 +325,56 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
 - **Validate a workflow-file change before merge.** A reusable workflow cannot be
   exercised from a PR on this repo alone. Point one consumer caller at
   `@<branch>`, let its real CI run, confirm green, then flip back to `@main`.
+  **That does not work for a caller triggered by an `issues` event**, nor for any other
+  event that GitHub documents as running the default branch's copy of the workflow
+  file (the `issues` row of its "Events that trigger workflows" page lists the last
+  commit on the default branch): a caller changed on a branch is never executed, and
+  changing a consumer's default branch is no way to try a change. Re-derive it by
+  checking that the `headSha` of the newest run from
+  `gh run list -R <owner>/<repo> --event issues --limit 1 --json headSha` is a commit
+  of the default branch and never one that exists only on the branch under test.
+  Validate such a caller this way instead, always on a commit pinned with
+  `git rev-parse <ref>`, and only for your own branch or for a commit whose `run:` text
+  and sourced library you have read in full (a fork PR must be fetched into a local ref
+  first), because step 2 runs that code with your own credentials:
+  1. Create a throwaway issue in this repository, which calls the AI issue labeler
+     through its own caller, with a unique title, a type label and a `priority:` label.
+     Its real run is only the baseline, because it uses the default branch's copy of the
+     workflow. Wait for the run whose `displayTitle` equals that title
+     (`gh run list --event issues --json databaseId,displayTitle,status` carries the
+     issue title for these events), because the real labeler runs on every issue created
+     and the run of another issue is no baseline. After that run has finished, note the
+     issue's labels as the starting set, and confirm with `gh issue view <n> --json title`
+     that the number you will use is this issue, since every later run and the label
+     removals act on it.
+  2. Read the step by its name (for the labeler, "Classify and label the issue") from
+     the workflow file at the pinned commit (`git show <commit>:<path>`, then the
+     matching entry under `jobs.<job>.steps`) and run its `run:` text with `bash`. Set
+     the variables its `env:` block names (`REPO`, `ISSUE_NUMBER`, `ISSUE_TITLE`,
+     `ISSUE_BODY`, `SCRIPT_LIB` pointing at a directory that holds the library copied
+     from the same commit, and `ANTHROPIC_API_KEY` set to any dummy value, because the
+     script runs under `set -u` and expands it before the stub is reached), and leave
+     `gh` on its own credentials. Replace only `curl` with an executable earlier on
+     `PATH` that prints the fixed model response and then the HTTP status line the step
+     reads. The response must offer a label that exercises the changed path (for a
+     change to the exclusive-kind guard, a different repository label of a kind the
+     starting set already carries, absent from the starting set), otherwise no run can
+     show a difference. Use the same stub for every run.
+  3. Run the same step from the base commit (`git merge-base origin/<default-branch>
+     <commit>` after `git fetch origin <default-branch>`, with the pinned commit from
+     step 2) as the control, with the library from the base commit as well. Before every
+     manual run, the first one included, repeat the title check from step 1 and restore
+     the issue's labels to the starting set by removing the labels the earlier run added,
+     one at a time through `DELETE repos/<owner>/<repo>/issues/<n>/labels/<name>` with
+     the name URL-encoded. Use this one issue for all runs, so every run starts from the
+     same labels. Compare the final labels and the step's log line of each run. The
+     control must reproduce the behaviour the change alters, otherwise the check proves
+     nothing.
+  4. Close the throwaway issue as not planned afterwards.
+
+  The check does not cover the outgoing request or the Actions plumbing (permissions,
+  secrets), so confirm once on a real event after the merge and note that confirmation
+  as an open item on the PR.
 - **Least privilege.** Every workflow declares the narrowest `permissions:` it needs.
   Do not widen a scope without a concrete reason.
 - **No secrets passing.** The workflows run on the caller's `GITHUB_TOKEN`. Do not
