@@ -206,6 +206,45 @@ else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
+# A label outside both kinds passes through even when the issue already
+# carries other labels outside both kinds, next to a kind it does have.
+offered=$(jq -n '{labels: ["help wanted", "enhancement"], confident: true}')
+result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '["good first issue","bug"]')
+if [ "${result}" = "help wanted" ]; then
+    pass "resolve_labels_to_apply: a label outside both kinds passes through next to unrelated existing labels"
+else
+    fail "resolve_labels_to_apply: expected only 'help wanted' - got '${result}'"
+fi
+
+# The same label twice in the model's own answer is one label, not a kind
+# answered twice.
+offered=$(jq -n '{labels: ["bug", "bug"], confident: true}')
+result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ "${result}" = "bug" ]; then
+    pass "resolve_labels_to_apply: a label repeated in the answer is applied once"
+else
+    fail "resolve_labels_to_apply: expected only 'bug' - got '${result}'"
+fi
+
+# Label names are compared without regard to case, so a repository that
+# capitalises them gets the same exclusivity.
+LABELS_JSON_CAPITALISED='[{"name":"Bug","description":"Something is broken"},{"name":"Enhancement","description":"New feature or request"},{"name":"Priority: Low","description":"Low"},{"name":"Priority: High","description":"High"}]'
+offered=$(jq -n '{labels: ["Enhancement", "Priority: High"], confident: true}')
+result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_CAPITALISED}" '["Bug","Priority: Low"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: capitalised label names hold their kind"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+offered=$(jq -n '{labels: ["Bug", "Priority: High"], confident: true}')
+result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_CAPITALISED}" '["bug"]')
+if [ "${result}" = "Priority: High" ]; then
+    pass "resolve_labels_to_apply: existing and offered labels match across different casing"
+else
+    fail "resolve_labels_to_apply: expected only 'Priority: High' - got '${result}'"
+fi
+
 # One label per kind is fine, and both kinds can be offered together.
 offered=$(jq -n '{labels: ["bug", "priority: high"], confident: true}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '[]')
