@@ -189,6 +189,23 @@ else
     fail "resolve_labels_to_apply: expected only 'priority: medium' - got '${result}'"
 fi
 
+# Every member of the type kind counts, not only bug and enhancement.
+offered=$(jq -n '{labels: ["documentation", "priority: medium"], confident: true}')
+result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '["documentation"]')
+if [ "${result}" = "priority: medium" ]; then
+    pass "resolve_labels_to_apply: a present documentation label holds the type kind"
+else
+    fail "resolve_labels_to_apply: expected only 'priority: medium' - got '${result}'"
+fi
+
+offered=$(jq -n '{labels: ["bug", "documentation"], confident: true}')
+result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: documentation next to bug is a type answered twice"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
 # One label per kind is fine, and both kinds can be offered together.
 offered=$(jq -n '{labels: ["bug", "priority: high"], confident: true}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '[]')
