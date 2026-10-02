@@ -22,6 +22,8 @@ fail() {
 LABELS_JSON='[{"name":"bug","description":"Something is broken"},{"name":"enhancement","description":"New feature or request"},{"name":"needs-triage","description":"Not yet classified"}]'
 LABELS_JSON_NO_TRIAGE='[{"name":"bug","description":"Something is broken"},{"name":"enhancement","description":"New feature or request"}]'
 
+LABELS_JSON_EXCLUSIVE='[{"name":"bug","description":"Something is broken"},{"name":"enhancement","description":"New feature or request"},{"name":"documentation","description":"Docs"},{"name":"help wanted","description":"Extra attention"},{"name":"priority: high","description":"High"},{"name":"priority: medium","description":"Medium"},{"name":"needs-triage","description":"Not yet classified"}]'
+
 # --- build_ai_labeler_request ---
 
 request=$(build_ai_labeler_request "magicsunday/example" "Crash on startup" "It throws a TypeError." "${LABELS_JSON}")
@@ -111,12 +113,12 @@ fi
 
 # --- resolve_labels_to_apply ---
 
-confident_known=$(jq -n '{labels: ["bug", "enhancement"], confident: true}')
-result=$(resolve_labels_to_apply "${confident_known}" "${LABELS_JSON}")
-if [ "$(printf '%s\n' "${result}" | sort | tr '\n' ',')" = "bug,enhancement," ]; then
+confident_known=$(jq -n '{labels: ["bug", "help wanted"], confident: true}')
+result=$(resolve_labels_to_apply "${confident_known}" "${LABELS_JSON_EXCLUSIVE}")
+if [ "$(printf '%s\n' "${result}" | sort | tr '\n' ',')" = "bug,help wanted," ]; then
     pass "resolve_labels_to_apply: applies a confident selection of known labels"
 else
-    fail "resolve_labels_to_apply: expected bug,enhancement - got ${result}"
+    fail "resolve_labels_to_apply: expected bug,help wanted - got ${result}"
 fi
 
 confident_with_unknown=$(jq -n '{labels: ["bug", "invented-label"], confident: true}')
@@ -162,6 +164,82 @@ if resolve_labels_to_apply "${valid_tool_input}" "not-json" >/dev/null 2>&1; the
     fail "resolve_labels_to_apply: returned success despite malformed labels_json"
 else
     pass "resolve_labels_to_apply: returns non-zero when labels_json is malformed"
+fi
+
+# Exclusive kinds (GH-146): an issue carries at most one type label and at
+# most one `priority:` label. The issue's own labels are the third argument,
+# a JSON array of names.
+# The reported case: the issue already has bug and priority: high, the model
+# offers enhancement and priority: medium on top. Only the label of a kind
+# the issue does not carry yet may be added.
+offered=$(jq -n '{labels: ["enhancement", "priority: medium", "help wanted"], confident: true}')
+result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '["bug","priority: high"]')
+if [ "${result}" = "help wanted" ]; then
+    pass "resolve_labels_to_apply: adds no second type or priority label to an issue that has both"
+else
+    fail "resolve_labels_to_apply: expected only 'help wanted' - got '${result}'"
+fi
+
+# A kind the issue lacks is still filled, one the issue has is left alone.
+offered=$(jq -n '{labels: ["enhancement", "priority: medium"], confident: true}')
+result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
+if [ "${result}" = "priority: medium" ]; then
+    pass "resolve_labels_to_apply: fills a missing kind and leaves a present one alone"
+else
+    fail "resolve_labels_to_apply: expected only 'priority: medium' - got '${result}'"
+fi
+
+# One label per kind is fine, and both kinds can be offered together.
+offered=$(jq -n '{labels: ["bug", "priority: high"], confident: true}')
+result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ "$(printf '%s\n' "${result}" | sort | tr '\n' ',')" = "bug,priority: high," ]; then
+    pass "resolve_labels_to_apply: keeps one type and one priority label on a bare issue"
+else
+    fail "resolve_labels_to_apply: expected bug and priority: high - got '${result}'"
+fi
+
+# Two labels of one kind in the model's own answer is a guess, so that kind
+# is dropped entirely while the other kinds survive.
+offered=$(jq -n '{labels: ["bug", "enhancement", "priority: medium", "help wanted"], confident: true}')
+result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ "$(printf '%s\n' "${result}" | sort | tr '\n' ',')" = "help wanted,priority: medium," ]; then
+    pass "resolve_labels_to_apply: drops a kind the model answered twice"
+else
+    fail "resolve_labels_to_apply: expected 'help wanted' and 'priority: medium' - got '${result}'"
+fi
+
+offered=$(jq -n '{labels: ["priority: high", "priority: medium"], confident: true}')
+result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: drops two conflicting priorities without a needs-triage fallback"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+# The guard must not turn an already labelled issue into a needs-triage one:
+# the fallback is for a model that was not confident, not for a selection the
+# guard emptied.
+offered=$(jq -n '{labels: ["enhancement"], confident: true}')
+result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: a selection emptied by the guard does not fall back to needs-triage"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+# A model that is not confident still gets the fallback, with or without
+# labels already on the issue.
+result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
+if [ "${result}" = "needs-triage" ]; then
+    pass "resolve_labels_to_apply: a not-confident answer still falls back with existing labels"
+else
+    fail "resolve_labels_to_apply: expected needs-triage fallback - got '${result}'"
+fi
+
+if resolve_labels_to_apply "${valid_tool_input}" "${LABELS_JSON_EXCLUSIVE}" "not-json" >/dev/null 2>&1; then
+    fail "resolve_labels_to_apply: returned success despite malformed existing labels"
+else
+    pass "resolve_labels_to_apply: returns non-zero when the existing labels are malformed"
 fi
 
 # --- build_labels_payload ---
