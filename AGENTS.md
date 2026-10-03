@@ -54,7 +54,7 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   - Read the release notes of the bumped tool, looking for a changed default or a
     removed option the gate relies on.
   - Check that the jobs installing the bumped closure passed on the pull request.
-    List them with `grep -ln "requirements/<name>.txt" .github/workflows/*.yml`.
+    List them with `grep -ln "<name>.txt" .github/workflows/*.yml`.
     A reusable workflow in that list runs under the job that calls it, and a
     scheduled one cannot have run on the pull request. A green `pip-closures-fresh`
     only shows that each `.txt` still matches its `.in`, unless the bump is
