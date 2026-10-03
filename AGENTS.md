@@ -194,7 +194,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
     comment names the invariant the gate already holds that the new failure
     enforces, and says why no previously rejected case can become accepted. A
     failure that rests on a new assumption about valid output or tree contents
-    does not qualify. #65 is the precedent. Its check only makes the function
+    does not qualify, and neither does a change that also changes what the
+    report covers. #65 is the precedent. Its check only makes the function
     itself fail on a report it could not evaluate, where a caller without active
     errexit saw success. It was fixed although its own text says the crash is
     "currently **not reachable through Semgrep's real output**".
