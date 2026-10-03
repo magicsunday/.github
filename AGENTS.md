@@ -54,18 +54,20 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   - Read the release notes of the bumped tool, looking for a changed default or a
     removed option the gate relies on.
   - Check that the jobs installing the bumped closure passed on the pull request.
-    List them with `grep -ln "<name>.txt" .github/workflows/*.yml`.
-    A reusable workflow in that list runs under the job that calls it, which
-    `grep -ln "<file>" .github/workflows/*.yml` finds. A workflow without a
-    `pull_request` trigger did not run on the pull request. A green
-    `pip-closures-fresh` only shows that each `.txt` still matches its `.in`,
-    unless the bump is `pip-tools` itself.
+    List the installing steps with `grep -n "<name>.txt" .github/workflows/*.yml`
+    and read the job each hit sits in. A reusable workflow in that list runs under
+    the job that calls it, which
+    `grep -n "uses: ./.github/workflows/<file>" .github/workflows/*.yml` finds.
+    A workflow without a `pull_request` trigger did not run on the pull request.
+    A green `pip-closures-fresh` only shows that each `.txt` still matches its
+    `.in`, unless the bump is `pip-tools` itself.
   - For a `semgrep` bump, also install the bumped `semgrep.txt` in a scratch
-    environment and run the `SkipReason` pipeline from the comment above the allow
-    list in `semgrep-report-check.sh` there. Compare its output with the allow
-    list and the denied reasons beside it, since a reason in neither needs a
-    decision before merging. `semgrep-smoke` asserts only a few skip-inventory
-    facts, and the pipeline reads the engine installed in the active environment.
+    environment with `--only-binary=:all: --require-hashes -r`, and run the
+    `SkipReason` pipeline from the comment above the allow list in
+    `semgrep-report-check.sh` there. Compare its output with the allow list. A
+    reason that is not on it fails the gate, so a new one needs a decision before
+    merging. `semgrep-smoke` asserts only a few skip-inventory facts, and the
+    pipeline reads the engine installed in the active environment.
 - **Each `.txt` here is a hash-locked closure, compiled from the matching `.in`.**
   Pinning only the direct requirement (the version line in `semgrep.in`) still
   lets `pip install -r` re-resolve every transitive dependency live on each
