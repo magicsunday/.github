@@ -150,8 +150,8 @@ AI_LABELER_KIND_JQ_DEF='def kind:
 # carries. A kind the issue has is left alone, and a kind the model answered
 # with two labels is dropped entirely rather than guessed. Labels outside
 # both kinds pass through. A selection the guard empties applies nothing: the
-# `needs-triage` fallback below is for a model that was not confident, not
-# for an issue that already carries a type or a priority label.
+# `needs-triage` fallback below is for an answer with no confident known label,
+# not for an issue that already carries a type or a priority label.
 resolve_labels_to_apply() {
     local tool_input_json="$1"
     local labels_json="$2"
