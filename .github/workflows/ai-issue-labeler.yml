@@ -233,11 +233,12 @@ jobs:
                       || warn_and_skip "Could not read the current labels of issue #${ISSUE_NUMBER}; leaving labels untouched."
 
                   # Logged so a run shows what the model chose and what the issue
-                  # already carried. The runner still recognises its older bracket
-                  # command syntax inside a line, so a label named like such a
-                  # command would act as one. Label names are set by whoever
-                  # manages the labels of the repository.
-                  echo "Model answer for issue #${ISSUE_NUMBER}: ${tool_input} | existing labels: ${existing_labels}"
+                  # already carried. The values are neutralised first, because the
+                  # runner still recognises its older bracket command syntax inside
+                  # a line.
+                  model_answer_log=$(neutralize_command_markers "$tool_input")
+                  existing_labels_log=$(neutralize_command_markers "$existing_labels")
+                  echo "Model answer for issue #${ISSUE_NUMBER}: ${model_answer_log} | existing labels: ${existing_labels_log}"
 
                   # Captured into a plain variable (not piped straight into
                   # `mapfile < <(...)`) so resolve_labels_to_apply's own

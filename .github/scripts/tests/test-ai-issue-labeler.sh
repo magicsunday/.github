@@ -446,6 +446,30 @@ else
     pass "resolve_labels_to_apply: the fallback path returns non-zero when the existing labels are malformed"
 fi
 
+# --- neutralize_command_markers ---
+
+plain_answer='{"labels":["bug","priority: low"],"confident":true}'
+result=$(neutralize_command_markers "${plain_answer}")
+if [ "${result}" = "${plain_answer}" ]; then
+    pass "neutralize_command_markers: leaves text without a command marker unchanged"
+else
+    fail "neutralize_command_markers: expected the text unchanged - got '${result}'"
+fi
+
+result=$(neutralize_command_markers '{"labels":["##[error]x"],"confident":true}')
+if [ "${result}" = '{"labels":["## [error]x"],"confident":true}' ]; then
+    pass "neutralize_command_markers: breaks up a bracket command marker"
+else
+    fail "neutralize_command_markers: expected the marker broken up - got '${result}'"
+fi
+
+result=$(neutralize_command_markers 'a ##[warning]b ##[stop-commands]c')
+if [ "${result}" = 'a ## [warning]b ## [stop-commands]c' ]; then
+    pass "neutralize_command_markers: breaks up every marker in the text"
+else
+    fail "neutralize_command_markers: expected every marker broken up - got '${result}'"
+fi
+
 # The library must stay sourceable more than once in one shell, so its shared
 # jq definition may not be a readonly variable.
 # The check runs in its own process, because errexit is ignored inside a

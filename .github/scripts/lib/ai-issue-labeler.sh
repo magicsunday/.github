@@ -104,6 +104,15 @@ extract_tool_input() {
     echo "${tool_input}"
 }
 
+# Prints its argument with every `##[` broken up into `## [`. The runner
+# recognises its older bracket workflow command syntax anywhere inside a log
+# line, so a value that is echoed to the log goes through this first.
+neutralize_command_markers() {
+    local text="$1"
+
+    printf '%s\n' "${text//##\[/## [}"
+}
+
 # jq definition shared by the exclusive-kind guard and the needs-triage
 # fallback in `resolve_labels_to_apply`, so a label counts as a type or a
 # priority label in one place only. `kind` is "priority" for a `priority:`
