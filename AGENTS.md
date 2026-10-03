@@ -358,15 +358,18 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   failure is silent, assert both values are non-empty before using them. This
   repository's own callers use GitHub's self-repository form,
   `uses: $/.github/workflows/...`, which GitHub documents as resolving to the
-  repository and commit of the running workflow. `job.workflow_*` is unavailable on
-  GitHub Enterprise Server.
+  repository and commit of the running workflow
+  (https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/).
+  `job.workflow_*` is unavailable on GitHub Enterprise Server.
   That is irrelevant for this account, which is github.com-hosted.
   The checkout runs on the **caller's** `GITHUB_TOKEN`, so it resolves only while this
   repository is public — making it private would red `yamllint`, a required check in
   several repositories.
 - **Validate a workflow-file change before merge.** A reusable workflow cannot be
-  exercised from a PR on this repo alone. Point one consumer caller at
-  `@<branch>`, let its real CI run, confirm green, then flip back to `@main`.
+  exercised as a consumer calls it from a PR on this repo alone, because this
+  repository's own PR-triggered callers use the self-repository form and so run the
+  PR's copy, not the `@main` ref. For a consumer-shaped check, point one consumer
+  caller at `@<branch>`, let its real CI run, confirm green, then flip back to `@main`.
   **That does not work for a caller triggered by an `issues` event**, nor for any other
   event that GitHub documents as running the default branch's copy of the workflow
   file (the `issues` row of its "Events that trigger workflows" page lists the last
