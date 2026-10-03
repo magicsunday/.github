@@ -354,8 +354,9 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   `github.job_workflow_sha` looks like the right property and is **not**: it exists
   only as an OIDC claim and interpolates to an empty string here, which
   `actions/checkout` silently treats as "default branch". Measured on the remote
-  call shape and on the workspace-relative `./` shape on 2026-07-28. Because that
-  failure is silent, assert both values are non-empty before using them. This
+  call shape and on the workspace-relative `./` shape on 2026-07-28, which did not
+  cover the self-repository form below. Because that failure is silent, assert both
+  values are non-empty before using them. This
   repository's own callers use GitHub's self-repository form,
   `uses: $/.github/workflows/...`, which GitHub documents as resolving to the
   repository and commit of the running workflow
