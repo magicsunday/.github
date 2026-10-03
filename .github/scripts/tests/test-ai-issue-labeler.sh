@@ -273,8 +273,8 @@ else
 fi
 
 # The guard must not turn an already labelled issue into a needs-triage one:
-# the fallback is for a model that was not confident, not for a selection the
-# guard emptied.
+# a selection the guard emptied after a confident answer does not re-enter the
+# fallback.
 offered=$(jq -n '{labels: ["enhancement"], confident: true}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
 if [ -z "${result}" ]; then
