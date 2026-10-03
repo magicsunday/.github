@@ -189,8 +189,9 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
     "currently **not reachable through Semgrep's real output**".
   - A change that reads a report field or state the gate does not read yet, or
     widens what passes (a new skip reason tolerated, or a parser path or fallback
-    that lets more reports pass), needs a reproduction against the pinned engine first, recorded in the
-    issue or the code comment together with the command that re-derives it. #92 is
+    that lets more reports pass), needs a reproduction against the pinned engine
+    first. Record it in the issue or the code comment, together with the command
+    that re-derives it. A change that fits both bullets belongs to this one. #92 is
     the precedent. It is labelled `wontfix` and was never implemented, because it
     would have read the `.errors` field for a state that "could not be reproduced"
     against the pinned engine.
