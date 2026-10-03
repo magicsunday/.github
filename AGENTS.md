@@ -178,19 +178,23 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   (#65's stderr suppression caused #69's swallowed diagnostic). The threshold those
   issues actually applied, written down so the next "this could theoretically fail
   too" report is a lookup rather than a fresh debate (issue #105):
-  - A new defensive check on an **existing** code path may land on a plausible but
-    unreproduced theory. This is the deliberate exception to the general default of
-    verifying that a concern manifests before hardening against it, and it holds
-    because a gap here is fleet-wide: every consumer repository uploads through this
-    one gate, and a report that silently covered less retires real alerts (see the
-    bullet above). #65 is the precedent — fixed although its own text says the
-    crash is "currently **not reachable through Semgrep's real output**".
-  - A **new** code branch — a new skip reason tolerated, a new parser path, a new
-    fallback — needs a reproduction against the pinned engine first, recorded in the
-    issue or the code comment together with the command that re-derives it. #92 is the
-    precedent — closed `wontfix`, unimplemented, because its fix would have added a
-    `.errors`-based branch for a state that "could not be reproduced" against the
-    pinned engine.
+  - A change that can only make the gate fail where it wrongly passes, on data the
+    gate already reads, may land on a plausible but unreproduced theory. This is the
+    deliberate exception to the general default of verifying that a concern
+    manifests before hardening against it, and it holds because a gap here is
+    fleet-wide: every consumer repository uploads through this one gate, and a
+    report that silently covered less retires real alerts (see the bullet above).
+    #65 is the precedent. Its check only turns a wrongly passing report into a
+    failing one, and it was fixed although its own text says the crash is
+    "currently **not reachable through Semgrep's real output**".
+  - A change that reads a report field or state the gate does not read yet, or
+    widens what passes (a new skip reason tolerated, or a parser path or fallback
+    that lets more reports pass), needs a reproduction against the pinned engine
+    first. Record it in the issue or the code comment, together with the command
+    that re-derives it. A change that fits both bullets belongs to this one. #92 is
+    the precedent. It is labelled `wontfix` and was never implemented, because it
+    would have read the `.errors` field for a state that "could not be reproduced"
+    against the pinned engine.
   - Neither rule covers a report that only restates an existing guarantee in new
     words; close it with a pointer to the check that already holds it.
   This is a rule for this gate only, because of that blast radius; everywhere else
@@ -204,12 +208,12 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   Python-side (`find_workflow_call_targets.py`, pinned by
   `test-sanitize-stderr-parity.sh`), and a rewrite would not remove it, because
   `commit-convention.yml` would still need the bash sanitizer. Against that, a
-  rewrite means replacing ~1000 lines of gate code and ~2200 lines of tests that
-  have no known open defect. Revisit it when one of these happens: a divergence
-  between two sanitizer implementations reaches `main` despite the parity tests;
-  a pinned-engine bump needs the gate's jq report filters re-derived anyway; or
-  the gate needs a new code branch (per the rule above) that bash cannot express
-  without a second escaping path.
+  rewrite means replacing the whole gate and its tests, which #108 judged to carry
+  real migration risk. Revisit it when one of these happens: a divergence between
+  two sanitizer implementations reaches `main` despite the parity tests; a
+  pinned-engine bump needs the gate's jq report filters re-derived anyway; or the
+  gate needs a change that reads a new report field or widens what passes and that
+  bash cannot express without a second escaping path.
 - **When a reusable workflow's `run:` block grows real logic (argument
   construction, report assertions — a bare exit-code check is usually too small to
   be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
