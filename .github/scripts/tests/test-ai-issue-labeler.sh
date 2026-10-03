@@ -272,6 +272,48 @@ else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
+# needs-triage is one of the labels the model may choose, so a confident answer
+# can select it. An issue that already carries a type or a priority label has
+# been triaged, so the selection path drops it just like the fallback does.
+picks_triage=$(jq -n '{labels: ["needs-triage"], confident: true}')
+result=$(resolve_labels_to_apply "${picks_triage}" "${LABELS_JSON_EXCLUSIVE}" '["documentation","priority: high"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage is dropped for an issue with a type and a priority label"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+result=$(resolve_labels_to_apply "${picks_triage}" "${LABELS_JSON_EXCLUSIVE}" '["priority: medium"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage is dropped for an issue with only a priority label"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+# Only needs-triage is dropped, the other selected labels still apply.
+picks_triage_and_other=$(jq -n '{labels: ["needs-triage", "help wanted"], confident: true}')
+result=$(resolve_labels_to_apply "${picks_triage_and_other}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
+if [ "${result}" = "help wanted" ]; then
+    pass "resolve_labels_to_apply: a dropped needs-triage leaves the other selected labels"
+else
+    fail "resolve_labels_to_apply: expected 'help wanted' - got '${result}'"
+fi
+
+# An issue with neither kind keeps a selected needs-triage.
+result=$(resolve_labels_to_apply "${picks_triage}" "${LABELS_JSON_EXCLUSIVE}" '["help wanted"]')
+if [ "${result}" = "needs-triage" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage stays for an issue with only an unrelated label"
+else
+    fail "resolve_labels_to_apply: expected needs-triage - got '${result}'"
+fi
+
+result=$(resolve_labels_to_apply "${picks_triage}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ "${result}" = "needs-triage" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage stays for an issue without labels"
+else
+    fail "resolve_labels_to_apply: expected needs-triage - got '${result}'"
+fi
+
 # The guard must not turn an already labelled issue into a needs-triage one:
 # a selection the guard emptied after a confident answer does not re-enter the
 # fallback.
