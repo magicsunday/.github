@@ -234,8 +234,9 @@ jobs:
 
                   # The model answer and the issue's existing labels go into the
                   # log, so a run shows what the model chose and what the issue
-                  # already carried. Both are compact JSON, so a label name cannot
-                  # start a workflow command at the beginning of a line.
+                  # already carried. Both are compact JSON on one line. The label
+                  # names in them come from the repository's own label set, the
+                  # same source as the labels printed further down.
                   echo "Model answer for issue #${ISSUE_NUMBER}: ${tool_input} | existing labels: ${existing_labels}"
 
                   # Captured into a plain variable (not piped straight into
