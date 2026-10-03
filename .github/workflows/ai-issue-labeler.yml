@@ -232,6 +232,14 @@ jobs:
                   existing_labels=$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}" --jq '[.labels[].name]') \
                       || warn_and_skip "Could not read the current labels of issue #${ISSUE_NUMBER}; leaving labels untouched."
 
+                  # Logged so a run shows what the model chose and what the issue
+                  # already carried. The values are neutralised first, because the
+                  # runner still recognises its older bracket command syntax inside
+                  # a line.
+                  model_answer_log=$(neutralize_command_markers "$tool_input")
+                  existing_labels_log=$(neutralize_command_markers "$existing_labels")
+                  echo "Model answer for issue #${ISSUE_NUMBER}: ${model_answer_log} | existing labels: ${existing_labels_log}"
+
                   # Captured into a plain variable (not piped straight into
                   # `mapfile < <(...)`) so resolve_labels_to_apply's own
                   # `|| return 1` guards (see its definition) surface as a
@@ -263,4 +271,5 @@ jobs:
                   # every misconfigured caller silently never getting
                   # labels applied.
                   gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/labels" -X POST --input - <<<"$labels_payload" > /dev/null
-                  echo "Applied labels to issue #${ISSUE_NUMBER}: ${selected_labels[*]}"
+                  applied_labels_log=$(neutralize_command_markers "${selected_labels[*]}")
+                  echo "Applied labels to issue #${ISSUE_NUMBER}: ${applied_labels_log}"

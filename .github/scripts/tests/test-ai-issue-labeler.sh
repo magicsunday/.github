@@ -272,6 +272,92 @@ else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
+# needs-triage is one of the labels the model may choose, so a confident answer
+# can select it. An issue that already carries a type or a priority label has
+# been triaged, so the selection path drops it just like the fallback does.
+picks_triage=$(jq -n '{labels: ["needs-triage"], confident: true}')
+result=$(resolve_labels_to_apply "${picks_triage}" "${LABELS_JSON_EXCLUSIVE}" '["documentation","priority: high"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage is dropped for an issue with a type and a priority label"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+result=$(resolve_labels_to_apply "${picks_triage}" "${LABELS_JSON_EXCLUSIVE}" '["priority: medium"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage is dropped for an issue with only a priority label"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+result=$(resolve_labels_to_apply "${picks_triage}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage is dropped for an issue with only a type label"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+# Only needs-triage is dropped, the other selected labels still apply.
+picks_triage_and_other=$(jq -n '{labels: ["needs-triage", "help wanted"], confident: true}')
+result=$(resolve_labels_to_apply "${picks_triage_and_other}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
+if [ "${result}" = "help wanted" ]; then
+    pass "resolve_labels_to_apply: a dropped needs-triage leaves the other selected labels"
+else
+    fail "resolve_labels_to_apply: expected 'help wanted' - got '${result}'"
+fi
+
+# A type or priority label that the same selection applies makes the issue
+# triaged as well, so a selected needs-triage is dropped next to it.
+picks_triage_and_type=$(jq -n '{labels: ["needs-triage", "bug"], confident: true}')
+result=$(resolve_labels_to_apply "${picks_triage_and_type}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ "${result}" = "bug" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage is dropped next to a type label of the same selection"
+else
+    fail "resolve_labels_to_apply: expected 'bug' - got '${result}'"
+fi
+
+# The guard drops the selected type that the issue already has, and the issue
+# stays triaged through the label it carries.
+result=$(resolve_labels_to_apply "${picks_triage_and_type}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage is dropped when the guard removes the type the issue already has"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+picks_triage_and_priority=$(jq -n '{labels: ["needs-triage", "priority: high"], confident: true}')
+result=$(resolve_labels_to_apply "${picks_triage_and_priority}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ "${result}" = "priority: high" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage is dropped next to a priority label of the same selection"
+else
+    fail "resolve_labels_to_apply: expected 'priority: high' - got '${result}'"
+fi
+
+# A kind the guard rejects leaves nothing that triages the issue, so the
+# selected needs-triage stays.
+picks_triage_and_two_types=$(jq -n '{labels: ["needs-triage", "bug", "enhancement"], confident: true}')
+result=$(resolve_labels_to_apply "${picks_triage_and_two_types}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ "${result}" = "needs-triage" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage stays when the guard rejects the selected types"
+else
+    fail "resolve_labels_to_apply: expected needs-triage - got '${result}'"
+fi
+
+# An issue with neither kind keeps a selected needs-triage.
+result=$(resolve_labels_to_apply "${picks_triage}" "${LABELS_JSON_EXCLUSIVE}" '["help wanted"]')
+if [ "${result}" = "needs-triage" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage stays for an issue with only an unrelated label"
+else
+    fail "resolve_labels_to_apply: expected needs-triage - got '${result}'"
+fi
+
+result=$(resolve_labels_to_apply "${picks_triage}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ "${result}" = "needs-triage" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage stays for an issue without labels"
+else
+    fail "resolve_labels_to_apply: expected needs-triage - got '${result}'"
+fi
+
 # The guard must not turn an already labelled issue into a needs-triage one:
 # a selection the guard emptied after a confident answer does not re-enter the
 # fallback.
@@ -358,6 +444,30 @@ if resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" "not-js
     fail "resolve_labels_to_apply: returned success on the fallback path despite malformed existing labels"
 else
     pass "resolve_labels_to_apply: the fallback path returns non-zero when the existing labels are malformed"
+fi
+
+# --- neutralize_command_markers ---
+
+plain_answer='{"labels":["bug","priority: low"],"confident":true}'
+result=$(neutralize_command_markers "${plain_answer}")
+if [ "${result}" = "${plain_answer}" ]; then
+    pass "neutralize_command_markers: leaves text without a command marker unchanged"
+else
+    fail "neutralize_command_markers: expected the text unchanged - got '${result}'"
+fi
+
+result=$(neutralize_command_markers '{"labels":["##[error]x"],"confident":true}')
+if [ "${result}" = '{"labels":["## [error]x"],"confident":true}' ]; then
+    pass "neutralize_command_markers: breaks up a bracket command marker"
+else
+    fail "neutralize_command_markers: expected the marker broken up - got '${result}'"
+fi
+
+result=$(neutralize_command_markers 'a ##[warning]b ##[stop-commands]c')
+if [ "${result}" = 'a ## [warning]b ## [stop-commands]c' ]; then
+    pass "neutralize_command_markers: breaks up every marker in the text"
+else
+    fail "neutralize_command_markers: expected every marker broken up - got '${result}'"
 fi
 
 # The library must stay sourceable more than once in one shell, so its shared
