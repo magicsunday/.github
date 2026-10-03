@@ -182,8 +182,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   that silently covered less retires real alerts (see the bullet above). So the
   default stays to reproduce a concern against the pinned engine first, with one
   exception. A case is a report together with the tree it is checked against. Its
-  verdict is what the check function itself returns, whatever shell options the
-  caller runs under.
+  verdict is the return value of the check function itself, read in a shell
+  without errexit.
   - A change that can only turn previously passing cases into failures, using
     information the gate already consults, may land on a plausible but unreproduced
     theory that those cases should fail. It must show the following. A regression
@@ -226,9 +226,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   real migration risk. Revisit it when one of these happens: a divergence between
   two sanitizer implementations reaches `main` despite the parity tests; a
   pinned-engine bump needs the gate's jq report filters re-derived anyway; or the
-  gate needs a change that consults new state in a way that changes which cases
-  pass, or lets more cases pass, and that bash cannot express without a second
-  escaping path.
+  gate needs a change that the second bullet above governs and that bash cannot
+  express without a second escaping path.
 - **When a reusable workflow's `run:` block grows real logic (argument
   construction, report assertions — a bare exit-code check is usually too small to
   be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
