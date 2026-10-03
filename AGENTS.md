@@ -192,9 +192,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
     gate already holds that the new failure enforces, and says why no previously
     rejected case can become accepted. A failure that rests on a new assumption
     about valid output or tree contents does not qualify. #65 is the precedent. Its
-    check only turns a wrongly passing report into a failing one, and it was fixed
-    although its own text says the crash is "currently **not reachable through
-    Semgrep's real output**".
+    check only makes the function itself fail on a report it could not evaluate,
+    where a caller without active errexit saw success, and it was fixed although its
+    own text says the crash is "currently **not reachable through Semgrep's real
+    output**".
   - A change that starts consulting report or repository state and thereby changes
     which cases pass, or lets any previously rejected case pass (a new skip reason
     tolerated, or a parser path or fallback that lets more cases pass), needs a
