@@ -357,9 +357,9 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   call shape and on the workspace-relative `./` shape on 2026-07-28. Because that
   failure is silent, assert both values are non-empty before using them. This
   repository's own callers use GitHub's self-repository form,
-  `uses: $/.github/workflows/...`. GitHub's changelog of 2026-07-30 documents it as
-  resolving to the repository and commit of the running workflow, and this file has
-  not measured that. `job.workflow_*` is unavailable on GitHub Enterprise Server.
+  `uses: $/.github/workflows/...`, which GitHub documents as resolving to the
+  repository and commit of the running workflow. `job.workflow_*` is unavailable on
+  GitHub Enterprise Server.
   That is irrelevant for this account, which is github.com-hosted.
   The checkout runs on the **caller's** `GITHUB_TOKEN`, so it resolves only while this
   repository is public — making it private would red `yamllint`, a required check in
