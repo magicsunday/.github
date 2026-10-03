@@ -50,21 +50,20 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   about what a workflow installs *itself*: a SHA-pinned action that brings its own
   binary, as `zizmor.yml` does, already has its version tracked by the
   `github-actions` ecosystem.)
-  The exclusion only protects anything if the merge step looks at something
-  concrete, so before merging such a pull request by hand:
+  Before merging such a pull request by hand:
   - Read the release notes of the bumped tool, looking for a changed default or a
     removed option the gate relies on.
   - Check that the jobs installing the bumped closure passed on the pull request.
-    In `lint.yml` these are `yamllint` for `yamllint`, `semgrep-smoke` for `semgrep`,
-    `shell-tests` and `workflow-catalog-fresh` for `pyyaml` and `pip-closures-fresh`
-    for `pip-tools`, and `code-scanning` in `security.yml` runs the bumped `semgrep`
-    as well. For any other tool a green `pip-closures-fresh` only shows that each
-    `.txt` still matches its `.in`.
+    List them with `grep -ln "requirements/<name>.txt" .github/workflows/*.yml`.
+    A reusable workflow in that list runs under the job that calls it, and a
+    scheduled one cannot have run on the pull request. A green `pip-closures-fresh`
+    only shows that each `.txt` still matches its `.in`, unless the bump is
+    `pip-tools` itself.
   - For a `semgrep` bump, also install the bumped `semgrep.txt` in a scratch
-    environment and re-derive the skip reasons of the new engine with the command in
-    `semgrep-report-check.sh` (the comment above its allow list of tolerated
-    reasons), because `semgrep-smoke` asserts only a few skip-inventory facts and
-    that command reads the engine installed in the active environment.
+    environment and run the `SkipReason` pipeline from the comment above the allow
+    list in `semgrep-report-check.sh` there. `semgrep-smoke` asserts only a few
+    skip-inventory facts, and the pipeline reads the engine installed in the active
+    environment.
 - **Each `.txt` here is a hash-locked closure, compiled from the matching `.in`.**
   Pinning only the direct requirement (the version line in `semgrep.in`) still
   lets `pip install -r` re-resolve every transitive dependency live on each
