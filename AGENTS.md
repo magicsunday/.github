@@ -208,12 +208,12 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   Python-side (`find_workflow_call_targets.py`, pinned by
   `test-sanitize-stderr-parity.sh`), and a rewrite would not remove it, because
   `commit-convention.yml` would still need the bash sanitizer. Against that, a
-  rewrite means replacing the whole gate and its tests, which had no known open
-  defect when #108 evaluated them. Revisit it when one of these happens: a
-  divergence between two sanitizer implementations reaches `main` despite the
-  parity tests; a pinned-engine bump needs the gate's jq report filters re-derived
-  anyway; or the gate needs a change that reads a new report field or widens what
-  passes and that bash cannot express without a second escaping path.
+  rewrite means replacing the whole gate and its tests, which had no found
+  fail-open or injection defects when #108 evaluated them. Revisit it when one of
+  these happens: a divergence between two sanitizer implementations reaches `main`
+  despite the parity tests; a pinned-engine bump needs the gate's jq report filters
+  re-derived anyway; or the gate needs a change that reads a new report field or
+  widens what passes and that bash cannot express without a second escaping path.
 - **When a reusable workflow's `run:` block grows real logic (argument
   construction, report assertions — a bare exit-code check is usually too small to
   be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
