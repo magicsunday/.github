@@ -179,24 +179,30 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   issues actually applied, written down so the next "this could theoretically fail
   too" report is a lookup rather than a fresh debate (issue #105):
   - A change that can only make the gate fail where it wrongly passes, on data the
-    gate already reads, may land on a plausible but unreproduced theory. This is the
-    deliberate exception to the general default of verifying that a concern
-    manifests before hardening against it, and it holds because a gap here is
-    fleet-wide: every consumer repository uploads through this one gate, and a
-    report that silently covered less retires real alerts (see the bullet above).
-    #65 is the precedent. Its check only turns a wrongly passing report into a
-    failing one, and it was fixed although its own text says the crash is
-    "currently **not reachable through Semgrep's real output**".
+    gate already reads, may land on a plausible but unreproduced theory, provided
+    it shows that claim. It ships a test that fails without the change and a report
+    that was accepted before and stays accepted, and its issue or code comment says
+    why it cannot let more reports pass. A change without that evidence is judged
+    by the next bullet. This is the deliberate exception to the general default of
+    verifying that a concern manifests before hardening against it, and it holds
+    because a gap here is fleet-wide: every consumer repository uploads through
+    this one gate, and a report that silently covered less retires real alerts (see
+    the bullet above). #65 is the precedent. Its check only turns a wrongly passing
+    report into a failing one, and it was fixed although its own text says the
+    crash is "currently **not reachable through Semgrep's real output**".
   - A change that reads a report field or state the gate does not read yet, or
     widens what passes (a new skip reason tolerated, or a parser path or fallback
     that lets more reports pass), needs a reproduction against the pinned engine
     first. Record it in the issue or the code comment, together with the command
-    that re-derives it. A change that fits both bullets belongs to this one. #92 is
-    the precedent. It is labelled `wontfix` and was never implemented, because it
-    would have read the `.errors` field for a state that "could not be reproduced"
+    that re-derives it. A change that fits both bullets, or that alters which
+    reports pass without fitting the first, belongs to this one. #92 is the
+    precedent. It is labelled `wontfix` and was never implemented, because it would
+    have read the `.errors` field for a state that "could not be reproduced"
     against the pinned engine.
-  - Neither rule covers a report that only restates an existing guarantee in new
-    words; close it with a pointer to the check that already holds it.
+  - Neither rule covers a change that keeps the set of passing reports the same,
+    since that is no hardening, nor a report that only restates an existing
+    guarantee in new words. Close the latter with a pointer to the check that
+    already holds it.
   This is a rule for this gate only, because of that blast radius; everywhere else
   the general "reproduce first" default stands.
   A single-language (Python) rewrite of the gate was evaluated and **deferred**
