@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
     sync:
-        uses: ./.github/workflows/label-sync.yml
+        uses: $/.github/workflows/label-sync.yml
         permissions:
             contents: read
             issues: write

@@ -36,4 +36,4 @@ concurrency:
 
 jobs:
     commit-convention:
-        uses: ./.github/workflows/commit-convention.yml
+        uses: $/.github/workflows/commit-convention.yml

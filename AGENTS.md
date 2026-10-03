@@ -353,9 +353,12 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   no later step there inspects the workspace.
   `github.job_workflow_sha` looks like the right property and is **not**: it exists
   only as an OIDC claim and interpolates to an empty string here, which
-  `actions/checkout` silently treats as "default branch". Measured on both call
-  shapes, remote and local `./`, on 2026-07-28. Because that failure is silent,
-  assert both values are non-empty before using them. `job.workflow_*` is unavailable
+  `actions/checkout` silently treats as "default branch". Measured on the remote
+  call shape and on the workspace-relative `./` shape on 2026-07-28. Because that
+  failure is silent, assert both values are non-empty before using them. This
+  repository's own callers use GitHub's self-repository form,
+  `uses: $/.github/workflows/...`, which resolves to the repository and commit of
+  the running workflow. `job.workflow_*` is unavailable
   on GitHub Enterprise Server; irrelevant for this account, which is github.com-hosted.
   The checkout runs on the **caller's** `GITHUB_TOKEN`, so it resolves only while this
   repository is public — making it private would red `yamllint`, a required check in
