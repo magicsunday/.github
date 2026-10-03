@@ -7,9 +7,10 @@
 # (issue #99) - neither is a production completeness-gate dependency.
 #
 # Before adding another hardening round here, read AGENTS.md's "When to harden
-# the scan-completeness gate further" bullet (issue #105): a new check on an
-# existing path may land on a plausible theory, a new code branch needs a
-# reproduction against the pinned engine first.
+# the scan-completeness gate further" bullet (issue #105): a change that only
+# makes the gate fail where it wrongly passes, on data it already reads, may land
+# on a plausible theory. A change that reads a new report field or state, or
+# widens what passes, needs a reproduction against the pinned engine first.
 
 # shellcheck source=annotation-sanitize.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
