@@ -178,21 +178,22 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   (#65's stderr suppression caused #69's swallowed diagnostic). The threshold those
   issues actually applied, written down so the next "this could theoretically fail
   too" report is a lookup rather than a fresh debate (issue #105). A gap here is
-  fleet-wide: every consumer repository uploads through this one gate, and a report
+  fleet-wide. Every consumer repository uploads through this one gate, and a report
   that silently covered less retires real alerts (see the bullet above). So the
   default stays to reproduce a concern against the pinned engine first, with one
   exception. A case is a report together with the tree it is checked against. Its
   verdict is the return value of the check function itself, read in a shell
-  without errexit. A change that alters the report the function sees, such as a
-  workflow flag, belongs to the second bullet.
+  without errexit. A change that alters what the report covers, such as a workflow
+  flag that narrows the scan, belongs to the second bullet.
   - A change that can only turn previously passing cases into failures, using
-    information the gate already consults, may land on a plausible but unreproduced
-    theory that those cases should fail. It must show the following. A regression
-    test fails on the old code and passes with the change. A known-good case
-    exercises the changed check and stays accepted (real pinned-engine output or a
-    fixture derived from it). The existing tests for rejected cases still pass. An
-    issue or code comment names the invariant the gate already holds that the new
-    failure enforces, and says why no previously rejected case can become accepted.
+    report or repository state the gate already consults, may land on a plausible
+    but unreproduced theory that those cases should fail. It must show the
+    following. A regression test fails on the old code and passes with the change.
+    A known-good case exercises the changed check and stays accepted (real
+    pinned-engine output or a fixture derived from it). The existing tests for
+    rejected cases still pass. An issue or code comment names the invariant the
+    gate already holds that the new failure enforces, and says why no previously
+    rejected case can become accepted.
     A failure that rests on a new assumption about valid output or tree contents
     does not qualify. #65 is the precedent. Its check only makes the function itself
     fail on a report it could not evaluate, where a caller without active errexit saw
