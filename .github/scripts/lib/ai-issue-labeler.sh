@@ -109,9 +109,11 @@ extract_tool_input() {
 # priority label in one place only. `kind` is "priority" for a `priority:`
 # label, "type" for bug, enhancement or documentation, and null for anything
 # else, matched without regard to case. Single-quoted on purpose, the `$` in
-# the program belongs to jq and must not expand in the shell.
+# the program belongs to jq and must not expand in the shell. A plain
+# assignment rather than `readonly`, so the library can still be sourced twice
+# in one shell.
 # shellcheck disable=SC2016
-readonly AI_LABELER_KIND_JQ_DEF='def kind:
+AI_LABELER_KIND_JQ_DEF='def kind:
     ascii_downcase as $lowered
     | if ($lowered | startswith("priority:")) then "priority"
     elif ($lowered == "bug" or $lowered == "enhancement" or $lowered == "documentation") then "type"
