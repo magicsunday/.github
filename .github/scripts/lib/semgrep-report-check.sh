@@ -8,7 +8,7 @@
 #
 # Before adding another hardening round here, read AGENTS.md's "When to harden
 # the scan-completeness gate further" bullet (issue #105). It sorts a change by
-# what it reads and what it lets pass.
+# what it consults and what it lets pass.
 
 # shellcheck source=annotation-sanitize.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"

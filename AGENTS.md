@@ -177,32 +177,34 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   a long run of issues, several of them follow-ons that an earlier round introduced
   (#65's stderr suppression caused #69's swallowed diagnostic). The threshold those
   issues actually applied, written down so the next "this could theoretically fail
-  too" report is a lookup rather than a fresh debate (issue #105):
-  - A change that can only make the gate fail where it wrongly passes, on data the
-    gate already reads, may land on a plausible but unreproduced theory, provided
-    it shows that claim. It ships a test that fails without the change and a report
-    that was accepted before and stays accepted, and its issue or code comment says
-    why it cannot let more reports pass. A change without that evidence is judged
-    by the next bullet. This is the deliberate exception to the general default of
-    verifying that a concern manifests before hardening against it, and it holds
-    because a gap here is fleet-wide: every consumer repository uploads through
-    this one gate, and a report that silently covered less retires real alerts (see
-    the bullet above). #65 is the precedent. Its check only turns a wrongly passing
-    report into a failing one, and it was fixed although its own text says the
-    crash is "currently **not reachable through Semgrep's real output**".
-  - A change that reads a report field or state the gate does not read yet, or
-    widens what passes (a new skip reason tolerated, or a parser path or fallback
-    that lets more reports pass), needs a reproduction against the pinned engine
-    first. Record it in the issue or the code comment, together with the command
-    that re-derives it. A change that fits both bullets, or that alters which
-    reports pass without fitting the first, belongs to this one. #92 is the
-    precedent. It is labelled `wontfix` and was never implemented, because it would
-    have read the `.errors` field for a state that "could not be reproduced"
-    against the pinned engine.
-  - Neither rule covers a change that keeps the set of passing reports the same,
-    since that is no hardening, nor a report that only restates an existing
-    guarantee in new words. Close the latter with a pointer to the check that
-    already holds it.
+  too" report is a lookup rather than a fresh debate (issue #105). A gap here is
+  fleet-wide: every consumer repository uploads through this one gate, and a report
+  that silently covered less retires real alerts (see the bullet above). So the
+  default stays to reproduce a concern against the pinned engine first, with one
+  exception. A case is a report together with the tree it is checked against.
+  - A change that can only turn previously passing cases into failures, using
+    information the gate already uses in its decision, may land on a plausible but
+    unreproduced theory that those cases should fail, provided it shows that claim.
+    It ships a regression test that fails on the old code and passes with the
+    change, a known-good case that exercises the changed check and stays accepted,
+    and an issue or code comment saying why no previously rejected case can become
+    accepted. #65 is the precedent. Its check only turns a wrongly passing report
+    into a failing one, and it was fixed although its own text says the crash is
+    "currently **not reachable through Semgrep's real output**". A change without
+    that evidence is judged by the next bullet.
+  - A change that uses report or repository state the gate does not consult yet,
+    or lets any previously rejected case pass (a new skip reason tolerated, or a
+    parser path or fallback that lets more cases pass), needs a reproduction against
+    the pinned engine first. Record it in the issue or the code comment, together
+    with the command that re-derives it. A change that fits both bullets, or that
+    alters which cases pass without meeting the first, belongs to this one. #92 is
+    the precedent. It is labelled `wontfix` and was never implemented, because it
+    would have used the `.errors` field in its decision for a state that "could not
+    be reproduced" against the pinned engine.
+  - Neither rule covers a change that keeps the set of passing cases the same, since
+    that is no hardening, and ordinary regression evidence still applies to it. A
+    report that only restates an existing guarantee in new words is closed with a
+    pointer to the check that already holds it.
   This is a rule for this gate only, because of that blast radius; everywhere else
   the general "reproduce first" default stands.
   A single-language (Python) rewrite of the gate was evaluated and **deferred**
@@ -218,8 +220,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   real migration risk. Revisit it when one of these happens: a divergence between
   two sanitizer implementations reaches `main` despite the parity tests; a
   pinned-engine bump needs the gate's jq report filters re-derived anyway; or the
-  gate needs a change that reads a new report field or widens what passes and that
-  bash cannot express without a second escaping path.
+  gate needs a change that uses state it does not consult yet or lets more cases
+  pass and that bash cannot express without a second escaping path.
 - **When a reusable workflow's `run:` block grows real logic (argument
   construction, report assertions — a bare exit-code check is usually too small to
   be worth this) worth pinning against regression, put it in `.github/scripts/lib/*.sh`,
