@@ -360,8 +360,8 @@ else
     pass "resolve_labels_to_apply: the fallback path returns non-zero when the existing labels are malformed"
 fi
 
-# Sourcing the library a second time in one shell must keep working, as it did
-# before the shared jq definition was added.
+# The library must stay sourceable more than once in one shell, so its shared
+# jq definition may not be a readonly variable.
 # The check runs in its own process, because errexit is ignored inside a
 # condition and a failing second source would otherwise go unnoticed.
 if bash -c 'set -euo pipefail; source "$1"; source "$1"' _ "${SCRIPT_DIR}/../lib/ai-issue-labeler.sh" >/dev/null 2>&1; then
