@@ -320,6 +320,22 @@ else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
+# One type or priority label is enough, an unrelated label next to it does not
+# bring the fallback back.
+result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["help wanted","bug"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: an unrelated label next to a type label does not bring needs-triage back"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["documentation","help wanted"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: a documentation label counts as triaged next to an unrelated label"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
 # A label outside both kinds says nothing about triage, so the fallback stays.
 result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["help wanted"]')
 if [ "${result}" = "needs-triage" ]; then
