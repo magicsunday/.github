@@ -50,6 +50,16 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   about what a workflow installs *itself*: a SHA-pinned action that brings its own
   binary, as `zizmor.yml` does, already has its version tracked by the
   `github-actions` ecosystem.)
+  The exclusion only protects anything if the merge step looks at something
+  concrete, so before merging such a pull request by hand:
+  - Read the release notes of the bumped tool, looking for a changed default or a
+    removed option the gate relies on.
+  - Check that the pull request's own checks ran the bumped closure, in particular
+    the `pip-closures-fresh` job in `lint.yml`.
+  - For a `semgrep` bump, also read the `semgrep-smoke` job's result and the skip
+    reasons the new engine reports. `semgrep-report-check.sh` tolerates an allow list
+    of them, and the stopping rule below names a pinned-engine bump as a reason to
+    revisit that gate.
 - **Each `.txt` here is a hash-locked closure, compiled from the matching `.in`.**
   Pinning only the direct requirement (the version line in `semgrep.in`) still
   lets `pip install -r` re-resolve every transitive dependency live on each
