@@ -183,7 +183,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   default stays to reproduce a concern against the pinned engine first, with one
   exception. A case is a report together with the tree it is checked against. Its
   verdict is the return value of the check function itself, read in a shell
-  without errexit.
+  without errexit. A change that alters the report the function sees, such as a
+  workflow flag, belongs to the second bullet.
   - A change that can only turn previously passing cases into failures, using
     information the gate already consults, may land on a plausible but unreproduced
     theory that those cases should fail. It must show the following. A regression
