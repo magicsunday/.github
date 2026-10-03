@@ -104,6 +104,21 @@ extract_tool_input() {
     echo "${tool_input}"
 }
 
+# jq definition shared by the exclusive-kind guard and the needs-triage
+# fallback in `resolve_labels_to_apply`, so a label counts as a type or a
+# priority label in one place only. `kind` is "priority" for a `priority:`
+# label, "type" for bug, enhancement or documentation, and null for anything
+# else, matched without regard to case. Single-quoted on purpose, the `$` in
+# the program belongs to jq and must not expand in the shell. A plain
+# assignment rather than `readonly`, so the library can still be sourced twice
+# in one shell.
+# shellcheck disable=SC2016
+AI_LABELER_KIND_JQ_DEF='def kind:
+    ascii_downcase as $lowered
+    | if ($lowered | startswith("priority:")) then "priority"
+    elif ($lowered == "bug" or $lowered == "enhancement" or $lowered == "documentation") then "type"
+    else null end;'
+
 # Decides which labels to apply, printed one per line (empty output means
 # apply nothing). `tool_input_json` is the object `extract_tool_input`
 # printed - `{labels: [...], confident: bool}`. Selected labels are
@@ -113,7 +128,8 @@ extract_tool_input() {
 # label surviving in the OUTPUT if `labels_json` was refreshed between
 # building the request and resolving its response. When nothing survives
 # confidently, GH-57 asks for a `needs-triage` fallback where the repository
-# has one - never a guess.
+# has one - never a guess - unless the issue already carries a type or a
+# priority label, which means it has been triaged.
 #
 # The `|| return 1` guards below are load-bearing, not defensive noise: `set -e`
 # does NOT propagate into a command substitution by default (and does not
@@ -134,8 +150,8 @@ extract_tool_input() {
 # carries. A kind the issue has is left alone, and a kind the model answered
 # with two labels is dropped entirely rather than guessed. Labels outside
 # both kinds pass through. A selection the guard empties applies nothing: the
-# `needs-triage` fallback below is for a model that was not confident, not
-# for an issue that was already labelled.
+# `needs-triage` fallback below is for an answer with no confident known label,
+# not for an issue that already carries a type or a priority label.
 resolve_labels_to_apply() {
     local tool_input_json="$1"
     local labels_json="$2"
@@ -153,12 +169,7 @@ resolve_labels_to_apply() {
 
     if [ "${confident}" = "true" ] && [ -n "${selected}" ]; then
         local allowed
-        allowed=$(jq -Rr --argjson existing "${existing_labels_json}" '
-            def kind:
-                ascii_downcase as $lowered
-                | if ($lowered | startswith("priority:")) then "priority"
-                elif ($lowered == "bug" or $lowered == "enhancement" or $lowered == "documentation") then "type"
-                else null end;
+        allowed=$(jq -Rr --argjson existing "${existing_labels_json}" "${AI_LABELER_KIND_JQ_DEF}"'
             ($existing | map(kind)) as $taken
             | [., inputs] | unique as $names
             | ($names | map(select(kind != null) | kind) | group_by(.) | map(select(length > 1) | .[0])) as $conflicting
@@ -169,6 +180,16 @@ resolve_labels_to_apply() {
         if [ -n "${allowed}" ]; then
             printf '%s\n' "${allowed}"
         fi
+        return 0
+    fi
+
+    # An issue that already carries a type or a priority label has been
+    # triaged, so the fallback would only be removed by hand again.
+    local triaged
+    triaged=$(jq -r --argjson existing "${existing_labels_json}" -n "${AI_LABELER_KIND_JQ_DEF}"'
+        $existing | map(kind) | any(. != null)
+    ') || return 1
+    if [ "${triaged}" = "true" ]; then
         return 0
     fi
 

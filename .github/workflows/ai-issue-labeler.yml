@@ -28,11 +28,13 @@ name: AI issue labeler (reusable)
 # The label set is fetched live from the calling repository on every run
 # (never hardcoded), so a tool call is constrained to an `enum` of exactly
 # those names - the model can never invent a label. A repository with zero
-# labels, or a classification Claude is not confident about, applies
-# `needs-triage` where that label exists and otherwise leaves the issue
-# unlabeled - it never guesses. The labeler never adds a second type label or
-# a second `priority:` label: a kind the issue already carries is left alone,
-# and a kind the model answers with two labels is dropped. The labels are read
+# labels, or a classification Claude is not confident about or that names no
+# known label, applies `needs-triage` where that label exists and otherwise
+# leaves the issue unlabeled - it never guesses. An issue that already carries
+# a type label or a `priority:` label has been triaged and gets no
+# `needs-triage`. The labeler never adds a second type label or a second
+# `priority:` label: a kind the issue already carries is left alone, and a
+# kind the model answers with two labels is dropped. The labels are read
 # shortly before they are added, so a label another actor adds in between is
 # not seen.
 #

@@ -273,8 +273,8 @@ else
 fi
 
 # The guard must not turn an already labelled issue into a needs-triage one:
-# the fallback is for a model that was not confident, not for a selection the
-# guard emptied.
+# a selection the guard emptied after a confident answer does not re-enter the
+# fallback.
 offered=$(jq -n '{labels: ["enhancement"], confident: true}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
 if [ -z "${result}" ]; then
@@ -283,19 +283,91 @@ else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
-# A model that is not confident still gets the fallback, with or without
-# labels already on the issue.
-result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
-if [ "${result}" = "needs-triage" ]; then
-    pass "resolve_labels_to_apply: a not-confident answer still falls back with existing labels"
-else
-    fail "resolve_labels_to_apply: expected needs-triage fallback - got '${result}'"
-fi
-
 if resolve_labels_to_apply "${valid_tool_input}" "${LABELS_JSON_EXCLUSIVE}" "not-json" >/dev/null 2>&1; then
     fail "resolve_labels_to_apply: returned success despite malformed existing labels"
 else
     pass "resolve_labels_to_apply: returns non-zero when the existing labels are malformed"
+fi
+
+# An issue that already carries a type or a priority label has been triaged,
+# so the needs-triage fallback must not be added to it. The kind definition is
+# the one the exclusive-kind guard uses.
+result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["bug","priority: high"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: no needs-triage for an issue with a type and a priority label"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["enhancement"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: no needs-triage for an issue with only a type label"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["priority: low"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: no needs-triage for an issue with only a priority label"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["Bug"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: a capitalised type label counts as triaged"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+# One type or priority label is enough, an unrelated label next to it does not
+# bring the fallback back.
+result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["help wanted","bug"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: an unrelated label next to a type label does not bring needs-triage back"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["documentation","help wanted"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: a documentation label counts as triaged next to an unrelated label"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+# A label outside both kinds says nothing about triage, so the fallback stays.
+result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["help wanted"]')
+if [ "${result}" = "needs-triage" ]; then
+    pass "resolve_labels_to_apply: needs-triage stays for an issue with only an unrelated label"
+else
+    fail "resolve_labels_to_apply: expected needs-triage - got '${result}'"
+fi
+
+# The other way into the fallback, a confident answer that names no known
+# label, is held to the same rule.
+only_unknown=$(jq -n '{labels: ["invented-label"], confident: true}')
+result=$(resolve_labels_to_apply "${only_unknown}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: no needs-triage for a triaged issue when the answer names no known label"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
+if resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" "not-json" >/dev/null 2>&1; then
+    fail "resolve_labels_to_apply: returned success on the fallback path despite malformed existing labels"
+else
+    pass "resolve_labels_to_apply: the fallback path returns non-zero when the existing labels are malformed"
+fi
+
+# The library must stay sourceable more than once in one shell, so its shared
+# jq definition may not be a readonly variable.
+# The check runs in its own process, because errexit is ignored inside a
+# condition and a failing second source would otherwise go unnoticed.
+if bash -c 'set -euo pipefail; source "$1"; source "$1"' _ "${SCRIPT_DIR}/../lib/ai-issue-labeler.sh" >/dev/null 2>&1; then
+    pass "library: can be sourced again in the same shell under set -e"
+else
+    fail "library: sourcing it a second time failed"
 fi
 
 # --- build_labels_payload ---
