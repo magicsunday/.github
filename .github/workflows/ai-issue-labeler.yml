@@ -232,10 +232,10 @@ jobs:
                   existing_labels=$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}" --jq '[.labels[].name]') \
                       || warn_and_skip "Could not read the current labels of issue #${ISSUE_NUMBER}; leaving labels untouched."
 
-                  # Both inputs of the decision go into the log, so a run shows
-                  # what the model chose and what the issue already carried. Both
-                  # are compact JSON, so a label name cannot start a workflow
-                  # command at the beginning of a line.
+                  # The model answer and the issue's existing labels go into the
+                  # log, so a run shows what the model chose and what the issue
+                  # already carried. Both are compact JSON, so a label name cannot
+                  # start a workflow command at the beginning of a line.
                   echo "Model answer for issue #${ISSUE_NUMBER}: ${tool_input} | existing labels: ${existing_labels}"
 
                   # Captured into a plain variable (not piped straight into
