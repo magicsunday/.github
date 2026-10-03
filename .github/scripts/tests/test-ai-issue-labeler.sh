@@ -290,6 +290,13 @@ else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
+result=$(resolve_labels_to_apply "${picks_triage}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage is dropped for an issue with only a type label"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
+fi
+
 # Only needs-triage is dropped, the other selected labels still apply.
 picks_triage_and_other=$(jq -n '{labels: ["needs-triage", "help wanted"], confident: true}')
 result=$(resolve_labels_to_apply "${picks_triage_and_other}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
@@ -307,6 +314,15 @@ if [ "${result}" = "bug" ]; then
     pass "resolve_labels_to_apply: a selected needs-triage is dropped next to a type label of the same selection"
 else
     fail "resolve_labels_to_apply: expected 'bug' - got '${result}'"
+fi
+
+# The guard drops the selected type that the issue already has, and the issue
+# stays triaged through the label it carries.
+result=$(resolve_labels_to_apply "${picks_triage_and_type}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
+if [ -z "${result}" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage is dropped when the guard removes the type the issue already has"
+else
+    fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
 picks_triage_and_priority=$(jq -n '{labels: ["needs-triage", "priority: high"], confident: true}')
