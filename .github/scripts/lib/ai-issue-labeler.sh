@@ -106,7 +106,8 @@ extract_tool_input() {
 
 # Prints its argument with every `##[` broken up into `## [`. The runner
 # recognises its older bracket workflow command syntax anywhere inside a log
-# line, so a value that is echoed to the log goes through this first.
+# line, so the model answer and the label names that the step logs go through
+# this first.
 neutralize_command_markers() {
     local text="$1"
 
