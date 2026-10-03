@@ -61,14 +61,12 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
     A workflow without a `pull_request` trigger did not run on the pull request.
     A green `pip-closures-fresh` only shows that each `.txt` still matches its
     `.in`, unless the bump is `pip-tools` itself.
-  - For a `semgrep` bump, also compare the skip reasons of the engine before and
-    after. Save `git show origin/main:.github/requirements/semgrep.txt` to a scratch
-    directory. Then run the verification command below once on that directory and
-    once on the bumped `semgrep.txt`, with the `SkipReason` pipeline from the comment
-    above the allow list in `semgrep-report-check.sh` chained after the install. A
-    reason the difference adds needs the decision that the allow list rule in the
-    scan report bullet below describes. `semgrep-smoke` asserts only a few
-    skip-inventory facts.
+  - For a `semgrep` bump, also check that the scan-completeness gate still holds
+    against the new engine. Compare the skip reasons of the old and the new engine
+    with the `SkipReason` pipeline in the comment above the allow list in
+    `semgrep-report-check.sh`, run in a container that has the closure installed.
+    A reason the new engine adds needs the decision that the allow list rule in the
+    scan report bullet below describes.
 - **Each `.txt` here is a hash-locked closure, compiled from the matching `.in`.**
   Pinning only the direct requirement (the version line in `semgrep.in`) still
   lets `pip install -r` re-resolve every transitive dependency live on each
