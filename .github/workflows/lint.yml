@@ -14,7 +14,7 @@ permissions:
 
 jobs:
     yamllint:
-        uses: ./.github/workflows/yamllint.yml
+        uses: $/.github/workflows/yamllint.yml
         permissions:
             contents: read
 

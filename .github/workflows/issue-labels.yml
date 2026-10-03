@@ -3,13 +3,13 @@ name: Issue labels
 # Thin caller for the reusable AI issue labeler (ai-issue-labeler.yml),
 # mirroring the labels.yml -> label-sync.yml pattern in this same directory.
 #
-# `uses: ./...` (a relative path), not the fully-qualified
-# `magicsunday/.github/.github/workflows/ai-issue-labeler.yml@main` form
-# ai-issue-labeler.yml's own header comment gives external callers — that
-# form is for a DIFFERENT repository calling this one; a caller inside this
-# same repository resolves the reusable workflow locally, exactly like
-# labels.yml calling ./.github/workflows/label-sync.yml, its own
-# reusable-workflow counterpart in this same directory.
+# This caller uses `uses: $/...` (the self-repository form). The fully-qualified
+# `magicsunday/.github/.github/workflows/ai-issue-labeler.yml@main` form from
+# ai-issue-labeler.yml's own header comment is for a DIFFERENT repository
+# calling this one. A caller inside this same repository resolves the reusable
+# workflow at the running commit, exactly like labels.yml calling
+# $/.github/workflows/label-sync.yml, its own reusable-workflow counterpart in
+# this same directory.
 #
 # REQUIRES the `ANTHROPIC_API_KEY` repository secret to be set on THIS repo
 # before this workflow's first real run — this account has no org-wide
@@ -25,7 +25,7 @@ permissions: {}
 
 jobs:
     label:
-        uses: ./.github/workflows/ai-issue-labeler.yml
+        uses: $/.github/workflows/ai-issue-labeler.yml
         permissions:
             issues: write
         secrets:

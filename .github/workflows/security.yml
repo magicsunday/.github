@@ -3,8 +3,8 @@ name: Security
 # Dogfood the reusable security scanners against this repository's own workflow
 # YAML, dependency manifests and supply-chain posture so a template regression
 # is caught here before it ships to consumers. The scanners are invoked through
-# a local `./` ref rather than the published `magicsunday/.github/...@main` ref
-# that downstream repositories use.
+# the self-repository form `$/` rather than the published
+# `magicsunday/.github/...@main` ref that downstream repositories use.
 on:
     push:
         branches: [main]
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
     zizmor:
-        uses: ./.github/workflows/zizmor.yml
+        uses: $/.github/workflows/zizmor.yml
         permissions:
             contents: read
             security-events: write
@@ -25,14 +25,14 @@ jobs:
     scorecard:
         # Scorecard publishes against the default branch; skip pull-request runs.
         if: github.event_name != 'pull_request'
-        uses: ./.github/workflows/scorecard.yml
+        uses: $/.github/workflows/scorecard.yml
         permissions:
             contents: read
             security-events: write
             id-token: write
 
     code-scanning:
-        uses: ./.github/workflows/code-scanning.yml
+        uses: $/.github/workflows/code-scanning.yml
         permissions:
             contents: read
             security-events: write
@@ -40,7 +40,7 @@ jobs:
     dependency-review:
         # The action only operates on a pull request's diff.
         if: github.event_name == 'pull_request'
-        uses: ./.github/workflows/dependency-review.yml
+        uses: $/.github/workflows/dependency-review.yml
         permissions:
             contents: read
             pull-requests: write
