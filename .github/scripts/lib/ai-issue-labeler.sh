@@ -151,8 +151,8 @@ AI_LABELER_KIND_JQ_DEF='def kind:
 # with two labels is dropped entirely rather than guessed. Labels outside
 # both kinds pass through, except that a `needs-triage` the model selected
 # itself is dropped for an issue that already carries a type or a priority
-# label, or whose own selection applies one, just like the fallback. A
-# selection the guard empties applies nothing: the `needs-triage` fallback
+# label, just like the fallback, and also when its own selection applies one.
+# A selection the guard empties applies nothing: the `needs-triage` fallback
 # below is for an answer with no confident known label, not for an issue that
 # already carries a type or a priority label.
 resolve_labels_to_apply() {
