@@ -54,12 +54,14 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   concrete, so before merging such a pull request by hand:
   - Read the release notes of the bumped tool, looking for a changed default or a
     removed option the gate relies on.
-  - Check that the pull request's own checks ran the bumped closure, in particular
-    the `pip-closures-fresh` job in `lint.yml`.
-  - For a `semgrep` bump, also read the `semgrep-smoke` job's result and the skip
-    reasons the new engine reports. `semgrep-report-check.sh` tolerates an allow list
-    of them, and the stopping rule below names a pinned-engine bump as a reason to
-    revisit that gate.
+  - Check that the job installing the bumped closure passed on the pull request:
+    `yamllint` for `yamllint`, `semgrep-smoke` for `semgrep`, and `shell-tests` and
+    `workflow-catalog-fresh` for `pyyaml`, all in `lint.yml`. A green
+    `pip-closures-fresh` only shows that each `.txt` still matches its `.in`.
+  - For a `semgrep` bump, also re-derive the skip reasons of the new engine with the
+    command in `semgrep-report-check.sh` (the comment above its allow list of
+    tolerated reasons), because `semgrep-smoke` asserts only a few skip-inventory
+    facts.
 - **Each `.txt` here is a hash-locked closure, compiled from the matching `.in`.**
   Pinning only the direct requirement (the version line in `semgrep.in`) still
   lets `pip install -r` re-resolve every transitive dependency live on each
