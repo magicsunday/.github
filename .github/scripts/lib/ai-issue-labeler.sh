@@ -151,9 +151,10 @@ AI_LABELER_KIND_JQ_DEF='def kind:
 # with two labels is dropped entirely rather than guessed. Labels outside
 # both kinds pass through, except that a `needs-triage` the model selected
 # itself is dropped for an issue that already carries a type or a priority
-# label, just like the fallback. A selection the guard empties applies nothing:
-# the `needs-triage` fallback below is for an answer with no confident known
-# label, not for an issue that already carries a type or a priority label.
+# label, or whose own selection applies one, just like the fallback. A
+# selection the guard empties applies nothing: the `needs-triage` fallback
+# below is for an answer with no confident known label, not for an issue that
+# already carries a type or a priority label.
 resolve_labels_to_apply() {
     local tool_input_json="$1"
     local labels_json="$2"
@@ -169,16 +170,24 @@ resolve_labels_to_apply() {
         | select(. as $label | $names | index($label) != null)
     ' <<<"${tool_input_json}") || return 1
 
+    # An issue that already carries a type or a priority label has been
+    # triaged, so neither the fallback nor a needs-triage the model selected
+    # itself would be anything but removed by hand again.
+    local existing_triaged
+    existing_triaged=$(jq -r --argjson existing "${existing_labels_json}" -n "${AI_LABELER_KIND_JQ_DEF}"'
+        $existing | map(kind) | any(. != null)
+    ') || return 1
+
     if [ "${confident}" = "true" ] && [ -n "${selected}" ]; then
         local allowed
-        allowed=$(jq -Rr --argjson existing "${existing_labels_json}" "${AI_LABELER_KIND_JQ_DEF}"'
+        allowed=$(jq -Rr --argjson existing "${existing_labels_json}" --argjson existing_triaged "${existing_triaged}" "${AI_LABELER_KIND_JQ_DEF}"'
             ($existing | map(kind)) as $taken
-            | ($taken | any(. != null)) as $triaged
             | [., inputs] | unique as $names
             | ($names | map(select(kind != null) | kind) | group_by(.) | map(select(length > 1) | .[0])) as $conflicting
-            | $names[]
+            | [$names[] | select(kind as $kind | $kind == null or (($taken | index($kind)) == null and ($conflicting | index($kind)) == null))] as $kept
+            | ($existing_triaged or ($kept | any(kind != null))) as $triaged
+            | $kept[]
             | select(($triaged | not) or . != "needs-triage")
-            | select(kind as $kind | $kind == null or (($taken | index($kind)) == null and ($conflicting | index($kind)) == null))
         ' <<<"${selected}") || return 1
 
         if [ -n "${allowed}" ]; then
@@ -187,13 +196,7 @@ resolve_labels_to_apply() {
         return 0
     fi
 
-    # An issue that already carries a type or a priority label has been
-    # triaged, so the fallback would only be removed by hand again.
-    local triaged
-    triaged=$(jq -r --argjson existing "${existing_labels_json}" -n "${AI_LABELER_KIND_JQ_DEF}"'
-        $existing | map(kind) | any(. != null)
-    ') || return 1
-    if [ "${triaged}" = "true" ]; then
+    if [ "${existing_triaged}" = "true" ]; then
         return 0
     fi
 

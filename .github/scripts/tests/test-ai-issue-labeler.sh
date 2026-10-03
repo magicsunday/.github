@@ -299,6 +299,34 @@ else
     fail "resolve_labels_to_apply: expected 'help wanted' - got '${result}'"
 fi
 
+# A type or priority label that the same selection applies makes the issue
+# triaged as well, so a selected needs-triage is dropped next to it.
+picks_triage_and_type=$(jq -n '{labels: ["needs-triage", "bug"], confident: true}')
+result=$(resolve_labels_to_apply "${picks_triage_and_type}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ "${result}" = "bug" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage is dropped next to a type label of the same selection"
+else
+    fail "resolve_labels_to_apply: expected 'bug' - got '${result}'"
+fi
+
+picks_triage_and_priority=$(jq -n '{labels: ["needs-triage", "priority: high"], confident: true}')
+result=$(resolve_labels_to_apply "${picks_triage_and_priority}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ "${result}" = "priority: high" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage is dropped next to a priority label of the same selection"
+else
+    fail "resolve_labels_to_apply: expected 'priority: high' - got '${result}'"
+fi
+
+# A kind the guard rejects leaves nothing that triages the issue, so the
+# selected needs-triage stays.
+picks_triage_and_two_types=$(jq -n '{labels: ["needs-triage", "bug", "enhancement"], confident: true}')
+result=$(resolve_labels_to_apply "${picks_triage_and_two_types}" "${LABELS_JSON_EXCLUSIVE}" '[]')
+if [ "${result}" = "needs-triage" ]; then
+    pass "resolve_labels_to_apply: a selected needs-triage stays when the guard rejects the selected types"
+else
+    fail "resolve_labels_to_apply: expected needs-triage - got '${result}'"
+fi
+
 # An issue with neither kind keeps a selected needs-triage.
 result=$(resolve_labels_to_apply "${picks_triage}" "${LABELS_JSON_EXCLUSIVE}" '["help wanted"]')
 if [ "${result}" = "needs-triage" ]; then
