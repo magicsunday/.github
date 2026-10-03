@@ -62,13 +62,13 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
     A green `pip-closures-fresh` only shows that each `.txt` still matches its
     `.in`, unless the bump is `pip-tools` itself.
   - For a `semgrep` bump, also compare the skip reasons of the engine before and
-    after. Install the bumped `semgrep.txt` and the one from
-    `git show origin/main:.github/requirements/semgrep.txt` the way the verification
-    command below does, each in a throwaway container, and run the `SkipReason`
-    pipeline from the comment above the allow list in `semgrep-report-check.sh` in
-    that same container. Decide on any reason the difference adds. The pipeline
-    prints the whole schema of the installed engine, most of it denied by design,
-    and `semgrep-smoke` asserts only a few skip-inventory facts.
+    after. Save `git show origin/main:.github/requirements/semgrep.txt` to a scratch
+    directory. Then run the verification command below once on that directory and
+    once on the bumped `semgrep.txt`, with the `SkipReason` pipeline from the comment
+    above the allow list in `semgrep-report-check.sh` chained after the install. A
+    reason the difference adds needs the decision that the allow list rule in the
+    scan report bullet below describes. `semgrep-smoke` asserts only a few
+    skip-inventory facts.
 - **Each `.txt` here is a hash-locked closure, compiled from the matching `.in`.**
   Pinning only the direct requirement (the version line in `semgrep.in`) still
   lets `pip install -r` re-resolve every transitive dependency live on each
