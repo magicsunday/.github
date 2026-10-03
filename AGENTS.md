@@ -181,21 +181,22 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   fleet-wide: every consumer repository uploads through this one gate, and a report
   that silently covered less retires real alerts (see the bullet above). So the
   default stays to reproduce a concern against the pinned engine first, with one
-  exception. A case is a report together with the tree it is checked against.
+  exception. A case is a report together with the tree it is checked against. Its
+  verdict is what the check function itself returns, whatever shell options the
+  caller runs under.
   - A change that can only turn previously passing cases into failures, using
     information the gate already consults, may land on a plausible but unreproduced
-    theory that those cases should fail, provided it shows the following. It ships
-    a regression test that fails on the old code and passes with the change, and a
-    known-good case that exercises the changed check and stays accepted (real
-    pinned-engine output or a fixture derived from it). The existing tests for
-    rejected cases still pass. An issue or code comment names the invariant the
-    gate already holds that the new failure enforces, and says why no previously
-    rejected case can become accepted. A failure that rests on a new assumption
-    about valid output or tree contents does not qualify. #65 is the precedent. Its
-    check only makes the function itself fail on a report it could not evaluate,
-    where a caller without active errexit saw success, and it was fixed although its
-    own text says the crash is "currently **not reachable through Semgrep's real
-    output**".
+    theory that those cases should fail. It must show the following. A regression
+    test fails on the old code and passes with the change. A known-good case
+    exercises the changed check and stays accepted (real pinned-engine output or a
+    fixture derived from it). The existing tests for rejected cases still pass. An
+    issue or code comment names the invariant the gate already holds that the new
+    failure enforces, and says why no previously rejected case can become accepted.
+    A failure that rests on a new assumption about valid output or tree contents
+    does not qualify. #65 is the precedent. Its check only makes the function itself
+    fail on a report it could not evaluate, where a caller without active errexit saw
+    success. It was fixed although its own text says the crash is "currently
+    **not reachable through Semgrep's real output**".
   - A change that starts consulting report or repository state and thereby changes
     which cases pass, or lets any previously rejected case pass (a new skip reason
     tolerated, or a parser path or fallback that lets more cases pass), needs a
