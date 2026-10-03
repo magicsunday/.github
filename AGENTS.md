@@ -55,9 +55,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   - Read the release notes of the bumped tool, looking for a changed default or a
     removed option the gate relies on.
   - Check that the job installing the bumped closure passed on the pull request:
-    `yamllint` for `yamllint`, `semgrep-smoke` for `semgrep`, and `shell-tests` and
-    `workflow-catalog-fresh` for `pyyaml`, all in `lint.yml`. A green
-    `pip-closures-fresh` only shows that each `.txt` still matches its `.in`.
+    `yamllint` for `yamllint`, `semgrep-smoke` for `semgrep`, `shell-tests` and
+    `workflow-catalog-fresh` for `pyyaml` and `pip-closures-fresh` for `pip-tools`,
+    all in `lint.yml`. For any other tool a green `pip-closures-fresh` only shows
+    that each `.txt` still matches its `.in`.
   - For a `semgrep` bump, also re-derive the skip reasons of the new engine with the
     command in `semgrep-report-check.sh` (the comment above its allow list of
     tolerated reasons), because `semgrep-smoke` asserts only a few skip-inventory
