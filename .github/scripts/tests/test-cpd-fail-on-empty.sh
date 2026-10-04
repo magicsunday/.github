@@ -40,6 +40,33 @@ for step in job.get("steps") or []:
 PY
 }
 
+# Prints the keys that can neutralize the "Run jscpd" step of workflow "$1"
+# without touching its command: `if` and `continue-on-error`, on the cpd job
+# and on the step, as `job_if=...`, `job_coe=...`, `step_if=...` and
+# `step_coe=...`. Prints nothing for the step when it is missing.
+gate_fields() {
+    python3 - "$1" <<'PY'
+import sys
+import yaml
+
+job = (yaml.safe_load(open(sys.argv[1], encoding="utf-8")).get("jobs") or {}).get("cpd") or {}
+print(f"job_if={job.get('if', '')}")
+print(f"job_coe={str(job.get('continue-on-error', False)).lower()}")
+for step in job.get("steps") or []:
+    if step.get("name") != "Run jscpd":
+        continue
+    print(f"step_if={step.get('if', '')}")
+    print(f"step_coe={str(step.get('continue-on-error', False)).lower()}")
+PY
+}
+
+readonly EXPECTED_GATE=$'job_if=\njob_coe=false\nstep_if=\nstep_coe=false'
+
+check_gate() {
+    assert_eq "neither the cpd job nor the Run jscpd step is skipped or allowed to fail" \
+        "${EXPECTED_GATE}" "$1"
+}
+
 # Whole lines, not substrings: a statement that only mentions the command
 # (an inline comment, `echo`, a trailing `|| true`) does not count.
 check_command() {
@@ -54,6 +81,7 @@ check_command() {
 check_command "$(step_script "${WORKFLOW_FILE}")"
 assert_contains "the README adoption text names the same command" \
     "$(cat "${README_FILE}")" "\`${EXPECTED_COMMAND}\`"
+check_gate "$(gate_fields "${WORKFLOW_FILE}")"
 
 # Negative controls on fixture workflows: each must make the check fail, or
 # the check would pass for the wrong reason.
@@ -84,5 +112,35 @@ assert_starts_with_fail "a commented-out command does not count" "${output}"
 write_fixture "${EXPECTED_COMMAND} || true"
 output="$(check_command "$(step_script "${fixture_dir}/wf.yml")")"
 assert_starts_with_fail "a command whose failure is ignored does not count" "${output}"
+
+# Writes a workflow whose cpd job holds only the Run jscpd step with the
+# accepted command: "$1" holds extra job keys and "$2" extra step keys, one
+# per line (either may be empty).
+write_gate_fixture() {
+    local key
+    {
+        printf 'jobs:\n    cpd:\n'
+        [ -z "$1" ] || while IFS= read -r key; do
+            printf '        %s\n' "${key}"
+        done <<<"$1"
+        printf '        steps:\n            - name: Run jscpd\n'
+        [ -z "$2" ] || while IFS= read -r key; do
+            printf '              %s\n' "${key}"
+        done <<<"$2"
+        printf '              run: |\n                  %s\n' "${EXPECTED_COMMAND}"
+    } >"${fixture_dir}/wf.yml"
+}
+
+write_gate_fixture "" ""
+assert_eq "the fixture writer produces a workflow check_gate accepts" \
+    "${EXPECTED_GATE}" "$(gate_fields "${fixture_dir}/wf.yml")"
+
+for variant in "|if: false" "|if: github.event_name == 'push'" "|continue-on-error: true" \
+    "if: false|" "continue-on-error: true|"; do
+    write_gate_fixture "${variant%%|*}" "${variant#*|}"
+    output="$(check_gate "$(gate_fields "${fixture_dir}/wf.yml")")"
+    assert_starts_with_fail \
+        "job keys \"${variant%%|*}\" with step keys \"${variant#*|}\" do not count" "${output}"
+done
 
 report_and_exit "cpd fail-on-empty test"
