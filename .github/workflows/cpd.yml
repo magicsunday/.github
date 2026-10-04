@@ -15,8 +15,12 @@ name: Copy-paste detection (reusable)
 #
 # php-quality.yml leaves cpd out on purpose (jscpd is a Node tool), so this
 # is the separate, Node-only lane for it: no PHP and no Composer. The command
-# is the contract's, not the caller's `composer ci:test:php:cpd` script, which
-# would need PHP and a `composer install` only to start a Node binary.
+# is the contract's plus `--fail-on-empty`, not the caller's
+# `composer ci:test:php:cpd` script, which would need PHP and a
+# `composer install` only to start a Node binary. The flag turns a scan that
+# analyzed no file into a failure, so an over-broad ignore or pattern cannot
+# pass as a clean run. It needs jscpd 5.2.1 or newer, an older pin fails the
+# job on the unknown option.
 #
 # A missing `.jscpd.json`, `package.json` or `package-lock.json` fails the
 # job by name before anything is installed: without the configuration jscpd
@@ -85,4 +89,4 @@ jobs:
                       exit 1
                   fi
 
-                  node_modules/.bin/jscpd --config .jscpd.json --skip-comments --no-tips
+                  node_modules/.bin/jscpd --config .jscpd.json --skip-comments --no-tips --fail-on-empty

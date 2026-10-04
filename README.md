@@ -149,13 +149,13 @@ jobs:
 
 `cpd.yml` expects the jscpd install contract from
 magicsunday/coding-standard#219: jscpd pinned to an exact version in
-`package.json` `devDependencies`, a committed `package-lock.json`, and every
-scan setting (paths, ignores, threshold) in `.jscpd.json`. It installs Node 24
-and the locked tooling with `npm ci`, then runs
-`node_modules/.bin/jscpd --config .jscpd.json --skip-comments --no-tips` —
+`package.json` `devDependencies` (jscpd 5.2.1 or newer), a committed
+`package-lock.json`, and every scan setting (paths, ignores, threshold) in
+`.jscpd.json`. It installs Node 24 and the locked tooling with `npm ci`, then runs
+`node_modules/.bin/jscpd --config .jscpd.json --skip-comments --no-tips --fail-on-empty` —
 no PHP and no Composer, and no npm in Composer hooks. A missing contract file
-fails the job by name. Give the caller's `.github/dependabot.yml` an `npm`
-entry, or nothing bumps the pin.
+fails the job by name, and a scan that analyzes no file fails too. Give the
+caller's `.github/dependabot.yml` an `npm` entry, or nothing bumps the pin.
 
 ## Labels
 
