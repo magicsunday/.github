@@ -1,0 +1,88 @@
+name: Copy-paste detection (reusable)
+
+# Reusable copy-paste detection for repositories that ship a `.jscpd.json`
+# (issue #176). It runs jscpd under the consumer install contract defined in
+# magicsunday/coding-standard#219:
+#
+#   - `package.json` declares jscpd in `devDependencies` with an exact
+#     version and `package-lock.json` is committed, so the version lives in
+#     one place and Dependabot's npm ecosystem bumps it;
+#   - nothing installs jscpd from a Composer hook: this workflow installs it
+#     explicitly with `npm ci`;
+#   - the scan runs the installed binary offline with a fixed command line,
+#     and every per-repository setting (paths, ignores, threshold) lives in
+#     `.jscpd.json`.
+#
+# php-quality.yml leaves cpd out on purpose (jscpd is a Node tool), so this
+# is the separate, Node-only lane for it: no PHP and no Composer. The command
+# is the contract's, not the caller's `composer ci:test:php:cpd` script, which
+# would need PHP and a `composer install` only to start a Node binary.
+#
+# A missing `.jscpd.json`, `package.json` or `package-lock.json` fails the
+# job by name before anything is installed: without the configuration jscpd
+# would scan with its defaults and pass vacuously, and without the lockfile
+# `npm ci` has nothing to install from.
+#
+# CALLER REQUIREMENTS: the calling job must grant `contents: read`. Adopting
+# this workflow RENAMES the reported status check (a reusable reports as
+# `<caller job> / Copy-paste detection`), so the calling repository's
+# branch-protection required-checks list must be updated in the same change.
+# The caller's `.github/dependabot.yml` needs an `npm` updates entry, or
+# nothing bumps the exact jscpd pin.
+on:
+    workflow_call:
+
+permissions:
+    contents: read
+
+jobs:
+    cpd:
+        name: Copy-paste detection
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            # Checked before setup-node: its npm cache keys on
+            # package-lock.json and would otherwise fail with a message about
+            # the cache rather than the contract.
+            - name: Check the jscpd install contract files
+              run: |
+                  set -euo pipefail
+
+                  missing=0
+                  for file in .jscpd.json package.json package-lock.json; do
+                      if [ ! -f "${file}" ]; then
+                          echo "::error::${file} is missing - the jscpd install contract (magicsunday/coding-standard#219) needs .jscpd.json, package.json and a committed package-lock.json."
+                          missing=1
+                      fi
+                  done
+
+                  exit "${missing}"
+
+            - name: Set up Node.js
+              uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: '24'
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - name: Install the locked Node tooling
+              run: npm ci --no-audit --no-fund --ignore-scripts
+
+            - name: Run jscpd
+              run: |
+                  set -euo pipefail
+
+                  if [ ! -x node_modules/.bin/jscpd ]; then
+                      echo "::error::node_modules/.bin/jscpd is missing after npm ci - package.json must declare jscpd in devDependencies with an exact version."
+                      exit 1
+                  fi
+
+                  node_modules/.bin/jscpd --config .jscpd.json --skip-comments --no-tips

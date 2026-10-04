@@ -46,5 +46,9 @@
     "php-quality.yml": {
         "purpose": "Runs the granular `composer ci:test:php:*` PHP quality gate across a version matrix",
         "permissions": ["contents: read"]
+    },
+    "cpd.yml": {
+        "purpose": "Copy-paste detection with the caller's exact-pinned jscpd: `npm ci`, then the fixed jscpd command line; settings live in `.jscpd.json`",
+        "permissions": ["contents: read"]
     }
 }
