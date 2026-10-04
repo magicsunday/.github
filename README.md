@@ -37,6 +37,7 @@ runs.
 <tr><td><code>auto-merge-deps.yml</code></td><td>Auto-merges passing dependency bumps (patch and minor only; <code>pip</code> is excluded — see below)</td><td><code>contents: write</code>, <code>pull-requests: write</code></td></tr>
 <tr><td><code>ai-issue-labeler.yml</code></td><td>Classifies a newly opened issue against the caller's own live label set via the Anthropic API and applies the labels it is confident about — see below</td><td><code>issues: write</code></td></tr>
 <tr><td><code>php-quality.yml</code></td><td>Runs the granular <code>composer ci:test:php:*</code> PHP quality gate across a version matrix</td><td><code>contents: read</code></td></tr>
+<tr><td><code>cpd.yml</code></td><td>Copy-paste detection with the caller's exact-pinned jscpd: <code>npm ci</code>, then the fixed jscpd command line; settings live in <code>.jscpd.json</code></td><td><code>contents: read</code></td></tr>
 </tbody>
 </table>
 
@@ -135,6 +136,26 @@ jobs:
             contents: read
             issues: write
 ```
+
+Copy-paste detection, next to the PHP gate in a `CI` workflow:
+
+```yaml
+jobs:
+    cpd:
+        uses: magicsunday/.github/.github/workflows/cpd.yml@main
+        permissions:
+            contents: read
+```
+
+`cpd.yml` expects the jscpd install contract from
+magicsunday/coding-standard#219: jscpd pinned to an exact version in
+`package.json` `devDependencies`, a committed `package-lock.json`, and every
+scan setting (paths, ignores, threshold) in `.jscpd.json`. It installs Node 24
+and the locked tooling with `npm ci`, then runs
+`node_modules/.bin/jscpd --config .jscpd.json --skip-comments --no-tips` —
+no PHP and no Composer, and no npm in Composer hooks. A missing contract file
+fails the job by name. Give the caller's `.github/dependabot.yml` an `npm`
+entry, or nothing bumps the pin.
 
 ## Labels
 
