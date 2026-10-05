@@ -79,6 +79,19 @@ build_ai_labeler_request() {
         '
 }
 
+# Prints `labels_json` (the `{name, description}` array the request builder
+# takes) without the labels that describe themselves as pull-request labels.
+# Only a description that OPENS with "Pull requests that" counts, matched
+# without regard to case, so a label that merely mentions pull requests stays
+# selectable. The caller feeds the result to the request builder and to
+# `resolve_labels_to_apply` alike, so the model's choices and the guard's known
+# set stay the same.
+drop_pull_request_only_labels() {
+    local labels_json="$1"
+
+    jq -c '[.[] | select(.description | ascii_downcase | startswith("pull requests that") | not)]' <<<"${labels_json}"
+}
+
 # Prints the `assign_labels` tool call's `input` object from an Anthropic
 # Messages API response, or returns 1 with no output when the response
 # carries no such call (a non-`tool_use` stop reason, a refusal, an API

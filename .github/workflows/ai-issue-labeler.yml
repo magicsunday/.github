@@ -27,8 +27,12 @@ name: AI issue labeler (reusable)
 #
 # The label set is fetched live from the calling repository on every run
 # (never hardcoded), so a tool call is constrained to an `enum` of exactly
-# those names - the model can never invent a label. A repository with zero
-# labels, or a classification Claude is not confident about or that names no
+# those names - the model can never invent a label. Labels whose description
+# opens with "Pull requests that" describe themselves as pull-request labels,
+# so they are removed from that set first and neither offered to the model nor
+# known to the guard below. A repository without a selectable label, none at
+# all or only pull-request labels, is skipped with a notice and the issue gets
+# no label. A classification Claude is not confident about, or that names no
 # known label, applies `needs-triage` where that label exists and otherwise
 # leaves the issue unlabeled - it never guesses. An issue that already carries
 # a type label or a `priority:` label has been triaged and gets no
@@ -175,10 +179,11 @@ jobs:
 
                   labels_json=$(gh api "repos/${REPO}/labels" --paginate | jq -s 'flatten | [.[] | {name: .name, description: (.description // "")}]') \
                       || warn_and_skip "Could not fetch the label set for ${REPO}; leaving labels untouched for issue #${ISSUE_NUMBER}."
+                  labels_json=$(drop_pull_request_only_labels "$labels_json")
                   label_count=$(jq 'length' <<<"$labels_json")
 
                   if [ "$label_count" -eq 0 ]; then
-                      echo "::notice::${REPO} has no labels defined; skipping AI labeling for issue #${ISSUE_NUMBER}."
+                      echo "::notice::${REPO} has no labels to choose from; skipping AI labeling for issue #${ISSUE_NUMBER}."
                       exit 0
                   fi
 

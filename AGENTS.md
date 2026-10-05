@@ -242,8 +242,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   block. `code-scanning.yml` is migrated this way (`semgrep-excludes.sh`,
   `semgrep-report-check.sh`, `semgrepignore-guard.sh`,
   `annotation-sanitize.sh`, `retry.sh`, `semgrep-prune-dirs.sh`), as is
-  `ai-issue-labeler.yml` (`ai-issue-labeler.sh` — request construction and
-  response parsing) and `zizmor.yml` (`canonical-file-guard.sh` — the
+  `ai-issue-labeler.yml` (`ai-issue-labeler.sh` — request construction,
+  label-set filtering and response parsing) and `zizmor.yml` (`canonical-file-guard.sh` — the
   caller's `.github/zizmor.yml` against the canonical copy this reusable
   workflow checks out via `job.workflow_repository`/`job.workflow_sha`).
   `canonical-drift.yml` — this repository's own scheduled, account-wide
