@@ -40,7 +40,7 @@
         "permissions": ["contents: write", "pull-requests: write"]
     },
     "ai-issue-labeler.yml": {
-        "purpose": "Classifies a newly opened issue against the caller's own live label set via the Anthropic API and applies the labels it is confident about — see below",
+        "purpose": "Classifies a newly opened issue against the caller's own live label set, without the labels that describe themselves as pull-request labels, via the Anthropic API and applies the labels it is confident about — see below",
         "permissions": ["issues: write"]
     },
     "php-quality.yml": {

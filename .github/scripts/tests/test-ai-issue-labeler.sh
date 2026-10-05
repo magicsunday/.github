@@ -446,6 +446,61 @@ else
     pass "resolve_labels_to_apply: the fallback path returns non-zero when the existing labels are malformed"
 fi
 
+# --- drop_pull_request_only_labels ---
+
+# The labels Dependabot creates for its own pull requests describe themselves
+# as pull-request labels. `php` stands for the descriptions Dependabot writes
+# per ecosystem, in its own spelling.
+LABELS_JSON_DEPENDABOT='[{"name":"bug","description":"Something is broken"},{"name":"dependencies","description":"Pull requests that update a dependency file"},{"name":"github_actions","description":"Pull requests that update GitHub Actions code"},{"name":"php","description":"Pull requests that update php code"},{"name":"needs-triage","description":"Not yet classified"}]'
+
+kept=$(drop_pull_request_only_labels "${LABELS_JSON_DEPENDABOT}")
+if [ "$(jq -c 'map(.name)' <<<"${kept}")" = '["bug","needs-triage"]' ]; then
+    pass "drop_pull_request_only_labels: removes the labels that describe themselves as pull-request labels"
+else
+    fail "drop_pull_request_only_labels: expected bug and needs-triage - got $(jq -c 'map(.name)' <<<"${kept}")"
+fi
+
+kept=$(drop_pull_request_only_labels '[{"name":"deps","description":"PULL REQUESTS THAT update a lockfile"}]')
+if [ "$(jq -c 'map(.name)' <<<"${kept}")" = '[]' ]; then
+    pass "drop_pull_request_only_labels: matches the description without regard to case"
+else
+    fail "drop_pull_request_only_labels: an upper-case description was kept - got $(jq -c 'map(.name)' <<<"${kept}")"
+fi
+
+# Only a description that opens with the phrase marks a pull-request label.
+# A label that merely mentions pull requests in the middle stays selectable,
+# and so does one without any description.
+kept=$(drop_pull_request_only_labels '[{"name":"review","description":"Needs attention in pull requests that touch the API"},{"name":"welcome","description":"Pull requests are welcome here"},{"name":"plain","description":""}]')
+if [ "$(jq -c 'map(.name)' <<<"${kept}")" = '["review","welcome","plain"]' ]; then
+    pass "drop_pull_request_only_labels: keeps a label that mentions pull requests without the full opening phrase, and one without a description"
+else
+    fail "drop_pull_request_only_labels: expected review, welcome and plain - got $(jq -c 'map(.name)' <<<"${kept}")"
+fi
+
+# The fields of the kept entries stay as they were, because the request
+# builder and the guard read both of them.
+kept=$(drop_pull_request_only_labels "${LABELS_JSON_DEPENDABOT}")
+if [ "$(jq -c '.[0]' <<<"${kept}")" = '{"name":"bug","description":"Something is broken"}' ]; then
+    pass "drop_pull_request_only_labels: leaves the kept entries unchanged"
+else
+    fail "drop_pull_request_only_labels: a kept entry changed - got $(jq -c '.[0]' <<<"${kept}")"
+fi
+
+if drop_pull_request_only_labels "not-json" >/dev/null 2>&1; then
+    fail "drop_pull_request_only_labels: returned success for malformed input"
+else
+    pass "drop_pull_request_only_labels: returns non-zero for malformed input"
+fi
+
+# End to end through the request: the filtered set is what the model may pick
+# from, so a Dependabot label is not offered at all.
+request=$(build_ai_labeler_request "magicsunday/example" "Require a status check" "Add it to the protection." "$(drop_pull_request_only_labels "${LABELS_JSON_DEPENDABOT}")")
+if [ "$(jq -c '.tools[0].input_schema.properties.labels.items.enum | sort' <<<"${request}")" = '["bug","needs-triage"]' ]; then
+    pass "drop_pull_request_only_labels: a Dependabot label is not offered to the model"
+else
+    fail "drop_pull_request_only_labels: the enum was $(jq -c '.tools[0].input_schema.properties.labels.items.enum | sort' <<<"${request}")"
+fi
+
 # --- neutralize_command_markers ---
 
 plain_answer='{"labels":["bug","priority: low"],"confident":true}'
