@@ -42,7 +42,7 @@ build_ai_labeler_request() {
         --argjson label_names "${label_names}" \
         '
         {
-            model: "claude-haiku-4-5",
+            model: "claude-sonnet-5-5",
             max_tokens: 1024,
             system: ("You triage newly opened GitHub issues for the repository " + $repo + ". Choose the labels that apply to the issue below, using ONLY the labels listed here - never invent a new label:\n\n" + $label_list + "\n\nIf you are not confident any of these labels apply, return an empty labels array and set confident to false."),
             tools: [
