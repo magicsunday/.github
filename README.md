@@ -160,10 +160,17 @@ caller's `.github/dependabot.yml` an `npm` entry, or nothing bumps the pin.
 ## Labels
 
 `labels.yml` is the single source of truth for the shared label set — the type
-labels, the four `priority: *` levels, and the three Dependabot-managed labels.
-Names are lowercase; keep `dependencies`, `github_actions` and `python`
-lowercase in `labels.yml` — as observed on 2026-09-05 (`gh label list`), all
-three were lowercase, matching Dependabot's own ecosystem-default labels.
+labels, the workflow labels such as `needs-triage` and `awaiting feedback`, the
+four `priority: *` levels, and the Dependabot-managed labels. Names are
+lowercase; keep the Dependabot ones (`dependencies`, `github_actions` and the
+language labels) lowercase in `labels.yml`, matching Dependabot's own
+ecosystem-default labels.
+
+The AI issue labeler reads each label as `name: description` and chooses from
+that text, so a description there is a decision criterion and not a caption.
+State what an issue must look like to deserve the label. A description that
+opens with "Pull requests that" hides the label from the labeler, which is how
+the pull-request-only labels stay out of its choices.
 
 The sync runs with `skip-delete`, so it only creates and updates: labels
 specific to a repository are never removed. To change the set for every
