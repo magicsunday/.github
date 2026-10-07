@@ -527,6 +527,12 @@ else
     fail "build_ai_labeler_request: the schema still carries the overall confident flag"
 fi
 
+if jq -e '.system | contains("untrusted")' <<<"${request}" >/dev/null; then
+    pass "build_ai_labeler_request: system prompt marks the issue text as untrusted"
+else
+    fail "build_ai_labeler_request: system prompt did not mark the issue text as untrusted"
+fi
+
 # --- apply_label_confidence ---
 
 # The model answers with a confidence per label. The guard below it reads the
