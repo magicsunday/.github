@@ -46,7 +46,7 @@ else
     fail "build_ai_labeler_request: tool was not declared strict"
 fi
 
-enum_names=$(jq -c '.tools[0].input_schema.properties.labels.items.enum | sort' <<<"${request}")
+enum_names=$(jq -c '.tools[0].input_schema.properties.labels.items.properties.label.enum | sort' <<<"${request}")
 if [ "${enum_names}" = '["bug","enhancement","needs-triage"]' ]; then
     pass "build_ai_labeler_request: enum matches the repository's own label set"
 else
@@ -507,10 +507,86 @@ fi
 # End to end through the request: the filtered set is what the model may pick
 # from, so a Dependabot label is not offered at all.
 request=$(build_ai_labeler_request "magicsunday/example" "Require a status check" "Add it to the protection." "$(drop_pull_request_only_labels "${LABELS_JSON_DEPENDABOT}")")
-if [ "$(jq -c '.tools[0].input_schema.properties.labels.items.enum | sort' <<<"${request}")" = '["bug","needs-triage"]' ]; then
+if [ "$(jq -c '.tools[0].input_schema.properties.labels.items.properties.label.enum | sort' <<<"${request}")" = '["bug","needs-triage"]' ]; then
     pass "drop_pull_request_only_labels: a Dependabot label is not offered to the model"
 else
-    fail "drop_pull_request_only_labels: the enum was $(jq -c '.tools[0].input_schema.properties.labels.items.enum | sort' <<<"${request}")"
+    fail "drop_pull_request_only_labels: the enum was $(jq -c '.tools[0].input_schema.properties.labels.items.properties.label.enum | sort' <<<"${request}")"
+fi
+
+# --- request schema: confidence per label ---
+
+if jq -e '.tools[0].input_schema.properties.labels.items | (.type == "object" and (.required | sort) == ["confidence","label"] and .additionalProperties == false and .properties.confidence.type == "number")' <<<"${request}" >/dev/null; then
+    pass "build_ai_labeler_request: each selected label carries its own numeric confidence"
+else
+    fail "build_ai_labeler_request: label items were not objects with a label and a numeric confidence"
+fi
+
+if jq -e '.tools[0].input_schema.properties | has("confident") | not' <<<"${request}" >/dev/null; then
+    pass "build_ai_labeler_request: the single overall confident flag is gone"
+else
+    fail "build_ai_labeler_request: the schema still carries the overall confident flag"
+fi
+
+# --- apply_label_confidence ---
+
+# The model answers with a confidence per label. The guard below it reads the
+# older shape, a plain list plus one overall flag, so this keeps the labels at
+# or above the threshold and derives the flag from whether any is left.
+answer='{"labels":[{"label":"bug","confidence":0.95},{"label":"help wanted","confidence":0.4}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["bug"],"confident":true}' ]; then
+    pass "apply_label_confidence: keeps the labels above the threshold and drops the rest"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
+fi
+
+answer='{"labels":[{"label":"bug","confidence":0.74},{"label":"enhancement","confidence":0.3}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":[],"confident":false}' ]; then
+    pass "apply_label_confidence: no label at the threshold means not confident"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
+fi
+
+answer='{"labels":[{"label":"bug","confidence":0.75}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["bug"],"confident":true}' ]; then
+    pass "apply_label_confidence: a label exactly at the threshold is kept"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
+fi
+
+answer='{"labels":[{"label":"bug","confidence":0.6},{"label":"enhancement","confidence":0.9}]}'
+if [ "$(apply_label_confidence "${answer}" 0.5)" = '{"labels":["bug","enhancement"],"confident":true}' ]; then
+    pass "apply_label_confidence: takes the threshold from its second argument"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}" 0.5)"
+fi
+
+# A confidence that is missing or not a number counts as no confidence.
+answer='{"labels":[{"label":"bug"},{"label":"enhancement","confidence":"high"},{"label":"documentation","confidence":0.9}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["documentation"],"confident":true}' ]; then
+    pass "apply_label_confidence: a missing or non-numeric confidence drops the label"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
+fi
+
+if [ "$(apply_label_confidence '{"labels":[]}')" = '{"labels":[],"confident":false}' ]; then
+    pass "apply_label_confidence: an empty answer is not confident"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence '{"labels":[]}')"
+fi
+
+if apply_label_confidence "not-json" >/dev/null 2>&1; then
+    fail "apply_label_confidence: returned success for malformed input"
+else
+    pass "apply_label_confidence: returns non-zero for malformed input"
+fi
+
+# End to end with the guard: a label below the threshold never reaches it, so
+# the needs-triage fallback applies when nothing is left.
+converted=$(apply_label_confidence '{"labels":[{"label":"bug","confidence":0.4}]}')
+if [ "$(resolve_labels_to_apply "${converted}" "${LABELS_JSON}" '[]')" = "needs-triage" ]; then
+    pass "apply_label_confidence: a label below the threshold falls through to needs-triage"
+else
+    fail "apply_label_confidence: expected needs-triage, got $(resolve_labels_to_apply "${converted}" "${LABELS_JSON}" '[]')"
 fi
 
 # --- drop_maintainer_set_labels ---
@@ -551,10 +627,10 @@ fi
 # End to end through the request: the filtered set is what the model may pick
 # from, so a maintainer-set label is not offered at all.
 request=$(build_ai_labeler_request "magicsunday/example" "Needs a spec" "Describe the design." "$(drop_maintainer_set_labels "${LABELS_JSON_MAINTAINER}")")
-if [ "$(jq -c '.tools[0].input_schema.properties.labels.items.enum | sort' <<<"${request}")" = '["bug","needs-triage"]' ]; then
+if [ "$(jq -c '.tools[0].input_schema.properties.labels.items.properties.label.enum | sort' <<<"${request}")" = '["bug","needs-triage"]' ]; then
     pass "drop_maintainer_set_labels: a maintainer-set label is not offered to the model"
 else
-    fail "drop_maintainer_set_labels: the enum was $(jq -c '.tools[0].input_schema.properties.labels.items.enum | sort' <<<"${request}")"
+    fail "drop_maintainer_set_labels: the enum was $(jq -c '.tools[0].input_schema.properties.labels.items.properties.label.enum | sort' <<<"${request}")"
 fi
 
 # --- neutralize_command_markers ---

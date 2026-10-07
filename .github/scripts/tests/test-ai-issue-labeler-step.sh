@@ -70,6 +70,7 @@ the filter|labels_json=$(drop_pull_request_only_labels "$labels_json")
 the maintainer filter|labels_json=$(drop_maintainer_set_labels "$labels_json")
 the count|label_count=$(jq 'length' <<<"$labels_json")
 the request builder|request_body=$(build_ai_labeler_request
+the confidence threshold|tool_input=$(apply_label_confidence "$tool_input")
 the guard|selected_output=$(resolve_labels_to_apply
 ORDER
     echo "PASS: the step filters the label set between its fetch and its count"
@@ -86,39 +87,46 @@ FILTER='labels_json=$(drop_pull_request_only_labels "$labels_json")'
 MFILTER='labels_json=$(drop_maintainer_set_labels "$labels_json")'
 COUNT='label_count=$(jq '"'"'length'"'"' <<<"$labels_json")'
 REQUEST='request_body=$(build_ai_labeler_request "$REPO" "$TITLE" "$BODY" "$labels_json")'
+CONFIDENCE='tool_input=$(apply_label_confidence "$tool_input")'
 GUARD='selected_output=$(resolve_labels_to_apply "$tool_input" "$labels_json" "$existing")'
 
 fixture_script() {
     printf '%s\n' "$@"
 }
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${CONFIDENCE}" "${GUARD}")")"
 assert_eq "the fixture in the right order is accepted" \
     "PASS: the step filters the label set between its fetch and its count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a step without the filter does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${FILTER}" "${REQUEST}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${FILTER}" "${REQUEST}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a filter behind the count does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${GUARD}" "${REQUEST}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${GUARD}" "${REQUEST}" "${CONFIDENCE}")")"
 assert_starts_with_fail "a guard before the request builder does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FILTER}" "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FILTER}" "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a filter before the fetch does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a commented-out filter does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${REQUEST}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${REQUEST}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a step without the maintainer filter does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${MFILTER}" "${REQUEST}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${MFILTER}" "${REQUEST}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a maintainer filter behind the count does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "# ${MFILTER}" "${COUNT}" "${REQUEST}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "# ${MFILTER}" "${COUNT}" "${REQUEST}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a commented-out maintainer filter does not count" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${GUARD}")")"
+assert_starts_with_fail "a step without the confidence threshold does not count" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${GUARD}" "${CONFIDENCE}")")"
+assert_starts_with_fail "a confidence threshold behind the guard does not count" "${output}"
 
 # The same through the parser: a workflow whose step carries the filter only
 # in a comment yields no filter statement.
@@ -126,7 +134,7 @@ fixture_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${fixture_dir}"' EXIT
 {
     printf 'jobs:\n    label:\n        steps:\n            - name: Classify and label the issue\n              run: |\n'
-    printf '                  %s\n' "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${GUARD}"
+    printf '                  %s\n' "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${CONFIDENCE}" "${GUARD}"
 } >"${fixture_dir}/wf.yml"
 output="$(check_order "$(step_script "${fixture_dir}/wf.yml")")"
 assert_starts_with_fail "a comment line in the parsed step does not count" "${output}"

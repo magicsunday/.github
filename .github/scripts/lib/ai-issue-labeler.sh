@@ -44,7 +44,7 @@ build_ai_labeler_request() {
         {
             model: "claude-haiku-4-5",
             max_tokens: 1024,
-            system: ("You triage newly opened GitHub issues for the repository " + $repo + ". Choose the labels that apply to the issue below, using ONLY the labels listed here - never invent a new label:\n\n" + $label_list + "\n\nSelect exactly one type label (bug, enhancement or documentation) and exactly one priority label whenever the issue text supports it, and leave a kind unset when the text gives no basis for it.\n\nIf you are not confident any of these labels apply, return an empty labels array and set confident to false."),
+            system: ("You triage newly opened GitHub issues for the repository " + $repo + ". Choose the labels that apply to the issue below, using ONLY the labels listed here - never invent a new label:\n\n" + $label_list + "\n\nSelect exactly one type label (bug, enhancement or documentation) and exactly one priority label whenever the issue text supports it, and leave a kind unset when the text gives no basis for it.\n\nGive every label you select its own confidence. If none of these labels applies, return an empty labels array."),
             tools: [
                 {
                     name: "assign_labels",
@@ -55,15 +55,22 @@ build_ai_labeler_request() {
                         properties: {
                             labels: {
                                 type: "array",
-                                items: {type: "string", enum: $label_names},
-                                description: "Existing label names that apply to this issue. Empty if none confidently apply."
-                            },
-                            confident: {
-                                type: "boolean",
-                                description: "True only if at least one selected label is a confident match."
+                                items: {
+                                    type: "object",
+                                    properties: {
+                                        label: {type: "string", enum: $label_names},
+                                        confidence: {
+                                            type: "number",
+                                            description: "How firmly the issue text itself establishes this label, from 0 (not at all) to 1 (beyond doubt)."
+                                        }
+                                    },
+                                    required: ["label", "confidence"],
+                                    additionalProperties: false
+                                },
+                                description: "Existing labels that apply to this issue, each with its own confidence. Empty if none apply."
                             }
                         },
-                        required: ["labels", "confident"],
+                        required: ["labels"],
                         additionalProperties: false
                     }
                 }
@@ -127,6 +134,26 @@ extract_tool_input() {
     fi
 
     echo "${tool_input}"
+}
+
+# Smallest confidence a label needs to be applied. The model grades each label
+# it selects, and a label below this is treated as if it had not been chosen.
+AI_LABELER_MIN_CONFIDENCE="0.75"
+
+# Reads the `assign_labels` input (`{labels: [{label, confidence}, ...]}`) and
+# prints it in the shape `resolve_labels_to_apply` reads, a plain list plus one
+# overall flag: the labels at or above the threshold (the second argument, else
+# `AI_LABELER_MIN_CONFIDENCE`), and `confident` true only if any is left. A
+# confidence that is missing or not a number counts as none. Returns non-zero,
+# with no output, for input that is not the expected JSON.
+apply_label_confidence() {
+    local tool_input_json="$1"
+    local threshold="${2:-${AI_LABELER_MIN_CONFIDENCE}}"
+
+    jq -c --argjson threshold "${threshold}" '
+        [.labels[] | select((.confidence | type) == "number" and .confidence >= $threshold) | .label] as $kept
+        | {labels: $kept, confident: ($kept | length > 0)}
+    ' <<<"${tool_input_json}"
 }
 
 # Prints its argument with every `##[` broken up into `## [`. The runner
