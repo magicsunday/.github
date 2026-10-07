@@ -28,10 +28,10 @@ LABELS_JSON_EXCLUSIVE='[{"name":"bug","description":"Something is broken"},{"nam
 
 request=$(build_ai_labeler_request "magicsunday/example" "Crash on startup" "It throws a TypeError." "${LABELS_JSON}")
 
-if [ "$(jq -r '.model' <<<"${request}")" = "claude-sonnet-5-5" ]; then
-    pass "build_ai_labeler_request: uses claude-sonnet-5-5"
+if [ "$(jq -r '.model' <<<"${request}")" = "claude-haiku-4-5" ]; then
+    pass "build_ai_labeler_request: uses claude-haiku-4-5"
 else
-    fail "build_ai_labeler_request: expected model claude-sonnet-5-5, got $(jq -r '.model' <<<"${request}")"
+    fail "build_ai_labeler_request: expected model claude-haiku-4-5, got $(jq -r '.model' <<<"${request}")"
 fi
 
 if [ "$(jq -r '.tool_choice.name' <<<"${request}")" = "assign_labels" ]; then
