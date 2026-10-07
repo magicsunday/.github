@@ -59,6 +59,18 @@ else
     fail "build_ai_labeler_request: system prompt did not name the repository"
 fi
 
+if jq -e '.system | (contains("one type label") and contains("one priority label"))' <<<"${request}" >/dev/null; then
+    pass "build_ai_labeler_request: system prompt asks for one type and one priority label"
+else
+    fail "build_ai_labeler_request: system prompt did not ask for one type and one priority label"
+fi
+
+if jq -e '.system | contains("no basis")' <<<"${request}" >/dev/null; then
+    pass "build_ai_labeler_request: system prompt allows leaving a kind unset without a basis"
+else
+    fail "build_ai_labeler_request: system prompt did not allow leaving a kind unset"
+fi
+
 if jq -e '.messages[0].content | contains("Crash on startup") and contains("It throws a TypeError.")' <<<"${request}" >/dev/null; then
     pass "build_ai_labeler_request: user message carries the issue title and body"
 else
