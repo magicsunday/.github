@@ -92,6 +92,18 @@ drop_pull_request_only_labels() {
     jq -c '[.[] | select(.description | ascii_downcase | startswith("pull requests that") | not)]' <<<"${labels_json}"
 }
 
+# Prints `labels_json` without the labels whose description opens with "Set by
+# maintainers", matched without regard to case. Such a label states a decision
+# or a workflow state that a maintainer sets after reading the issue, which the
+# text of a freshly opened issue cannot establish. The caller feeds the result
+# to the request builder and to `resolve_labels_to_apply` alike, as it does for
+# `drop_pull_request_only_labels`.
+drop_maintainer_set_labels() {
+    local labels_json="$1"
+
+    jq -c '[.[] | select(.description | ascii_downcase | startswith("set by maintainers") | not)]' <<<"${labels_json}"
+}
+
 # Prints the `assign_labels` tool call's `input` object from an Anthropic
 # Messages API response, or returns 1 with no output when the response
 # carries no such call (a non-`tool_use` stop reason, a refusal, an API

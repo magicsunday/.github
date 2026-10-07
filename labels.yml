@@ -7,6 +7,8 @@
 # from that text, so a description is a decision criterion and not a caption.
 # A description that opens with "Pull requests that" hides the label from the
 # labeler, which is how the pull-request-only labels stay out of its choices.
+# One that opens with "Set by maintainers" hides it too, for a decision or a
+# workflow state that only a maintainer can establish after reading the issue.
 - name: "bug"
   color: "d73a4a"
   description: "Reports a defect: the software behaves wrongly, crashes or contradicts its documentation"
@@ -30,13 +32,13 @@
   description: "Not a valid report: unrelated to this project or too thin to act on"
 - name: "wontfix"
   color: "ffffff"
-  description: "Valid, but the maintainers decided not to act on it"
+  description: "Set by maintainers: valid, but the maintainers decided not to act on it"
 - name: "help wanted"
   color: "008672"
-  description: "The issue text itself invites outside contributors to implement it. A plain proposal is not enough"
+  description: "Set by maintainers: outside contributors are invited to take this on"
 - name: "good first issue"
   color: "7057ff"
-  description: "Small, well-scoped task suited to a first-time contributor. Not for design or architecture work"
+  description: "Set by maintainers: small, well-scoped task suited to a first-time contributor"
 - name: "i18n"
   color: "c5def5"
   description: "Translations and internationalization"
@@ -45,7 +47,7 @@
   description: "Caused by an upstream dependency such as webtrees core, not by this project"
 - name: "not reproducible"
   color: "5319e7"
-  description: "The reported behaviour could not be reproduced"
+  description: "Set by maintainers: the reported behaviour could not be reproduced"
 - name: "performance"
   color: "e4a11b"
   description: "Speed, memory use or rendering performance"
@@ -54,10 +56,10 @@
   description: "Visual appearance, CSS or layout"
 - name: "awaiting feedback"
   color: "1d76db"
-  description: "Waiting for a response from the reporter or for external information"
+  description: "Set by maintainers: waiting for a response from the reporter or external information"
 - name: "needs design"
   color: "8b5cf6"
-  description: "Needs a spec or brainstorm first. Not for issues that already describe a concrete solution"
+  description: "Set by maintainers: needs a spec or brainstorm before implementation can start"
 - name: "refactoring"
   color: "c2e0c6"
   description: "Restructuring or cleanup of code with no change in behaviour"

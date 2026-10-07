@@ -513,6 +513,50 @@ else
     fail "drop_pull_request_only_labels: the enum was $(jq -c '.tools[0].input_schema.properties.labels.items.enum | sort' <<<"${request}")"
 fi
 
+# --- drop_maintainer_set_labels ---
+
+# A label that states a maintainer decision or a later workflow state opens its
+# description with "Set by maintainers:", so the model is never offered it.
+LABELS_JSON_MAINTAINER='[{"name":"bug","description":"Something is broken"},{"name":"wontfix","description":"Set by maintainers: valid, but not going to be done"},{"name":"needs design","description":"SET BY MAINTAINERS: needs a spec first"},{"name":"needs-triage","description":"Not yet classified"}]'
+
+kept=$(drop_maintainer_set_labels "${LABELS_JSON_MAINTAINER}")
+if [ "$(jq -c 'map(.name)' <<<"${kept}")" = '["bug","needs-triage"]' ]; then
+    pass "drop_maintainer_set_labels: removes the labels whose description opens with the marker, in any case"
+else
+    fail "drop_maintainer_set_labels: expected bug and needs-triage - got $(jq -c 'map(.name)' <<<"${kept}")"
+fi
+
+# Only an opening marker counts. A label that mentions maintainers elsewhere in
+# its description, or has none, stays selectable.
+kept=$(drop_maintainer_set_labels '[{"name":"review","description":"Needs a look; set by maintainers later"},{"name":"owners","description":"Maintainers decide"},{"name":"plain","description":""}]')
+if [ "$(jq -c 'map(.name)' <<<"${kept}")" = '["review","owners","plain"]' ]; then
+    pass "drop_maintainer_set_labels: keeps a label that mentions maintainers without opening with the marker, and one without a description"
+else
+    fail "drop_maintainer_set_labels: expected review, owners and plain - got $(jq -c 'map(.name)' <<<"${kept}")"
+fi
+
+kept=$(drop_maintainer_set_labels "${LABELS_JSON_MAINTAINER}")
+if [ "$(jq -c '.[0]' <<<"${kept}")" = '{"name":"bug","description":"Something is broken"}' ]; then
+    pass "drop_maintainer_set_labels: leaves the kept entries unchanged"
+else
+    fail "drop_maintainer_set_labels: a kept entry changed - got $(jq -c '.[0]' <<<"${kept}")"
+fi
+
+if drop_maintainer_set_labels "not-json" >/dev/null 2>&1; then
+    fail "drop_maintainer_set_labels: returned success for malformed input"
+else
+    pass "drop_maintainer_set_labels: returns non-zero for malformed input"
+fi
+
+# End to end through the request: the filtered set is what the model may pick
+# from, so a maintainer-set label is not offered at all.
+request=$(build_ai_labeler_request "magicsunday/example" "Needs a spec" "Describe the design." "$(drop_maintainer_set_labels "${LABELS_JSON_MAINTAINER}")")
+if [ "$(jq -c '.tools[0].input_schema.properties.labels.items.enum | sort' <<<"${request}")" = '["bug","needs-triage"]' ]; then
+    pass "drop_maintainer_set_labels: a maintainer-set label is not offered to the model"
+else
+    fail "drop_maintainer_set_labels: the enum was $(jq -c '.tools[0].input_schema.properties.labels.items.enum | sort' <<<"${request}")"
+fi
+
 # --- neutralize_command_markers ---
 
 plain_answer='{"labels":["bug","priority: low"],"confident":true}'
