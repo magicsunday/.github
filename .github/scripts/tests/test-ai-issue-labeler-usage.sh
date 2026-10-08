@@ -53,8 +53,11 @@ for stop_reason in '"tool_use\n"' '"Tool_use"' '"tool use"' '"tool_use2"' '""' 5
         "$(describe_api_usage "$(response_body "${stop_reason}" 1 2 3)")"
 done
 
-# Pins the limit of the stop reason with the longest accepted word and the
-# shortest rejected one.
+# Pins the limits of the stop reason with the shortest and the longest accepted
+# word and the shortest rejected one.
+assert_eq "describe_api_usage: prints the shortest accepted stop reason" \
+    'stop_reason=a input_tokens=1 output_tokens=2 thinking_tokens=3' \
+    "$(describe_api_usage "$(response_body '"a"' 1 2 3)")"
 accepted=$(printf 'a%.0s' $(seq 1 32))
 rejected=$(printf 'a%.0s' $(seq 1 33))
 assert_eq "describe_api_usage: prints the longest accepted stop reason" \
