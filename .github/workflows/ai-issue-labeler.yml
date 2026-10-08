@@ -41,7 +41,7 @@ name: AI issue labeler (reusable)
 # type label or a `priority:` label has been triaged and gets no
 # `needs-triage`. The labeler never adds a second type label or a second
 # `priority:` label. A kind the issue already carries is left alone, and a kind
-# the model answers with two labels is dropped. The labels are read shortly
+# the model answers with several labels is dropped. The labels are read shortly
 # before they are added, so a label another actor adds in between is not seen.
 #
 # The labeler script is read from this repository via the shared-checkout

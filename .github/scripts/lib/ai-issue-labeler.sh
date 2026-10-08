@@ -249,7 +249,7 @@ AI_LABELER_KIND_JQ_DEF='def kind:
 # type labels bug/enhancement/documentation, matched without regard to case.
 # `existing_labels_json` is a JSON array of the label names the issue already
 # carries. A kind the issue has is left alone, and a kind the model answered
-# with two labels is dropped entirely rather than guessed. Labels outside
+# with several labels is dropped entirely rather than guessed. Labels outside
 # both kinds pass through, except that a `needs-triage` the model selected
 # itself is dropped for an issue that already carries a type or a priority
 # label, just like the fallback, and also when its own selection applies one.
