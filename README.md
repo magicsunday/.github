@@ -35,7 +35,7 @@ runs.
 <tr><td><code>i18n.yml</code></td><td>Enforces the catalogue layout; optional <code>make lang</code> freshness gate</td><td><code>contents: read</code></td></tr>
 <tr><td><code>bundle-freshness.yml</code></td><td>Verifies committed build artefacts match a clean rebuild</td><td><code>contents: read</code></td></tr>
 <tr><td><code>auto-merge-deps.yml</code></td><td>Auto-merges passing dependency bumps (patch and minor only; <code>pip</code> is excluded — see below)</td><td><code>contents: write</code>, <code>pull-requests: write</code></td></tr>
-<tr><td><code>ai-issue-labeler.yml</code></td><td>Classifies a newly opened issue against the caller's own live label set, without the labels that describe themselves as pull-request labels, via the Anthropic API and applies the labels it is confident about — see below</td><td><code>issues: write</code></td></tr>
+<tr><td><code>ai-issue-labeler.yml</code></td><td>Classifies a newly opened issue via the Anthropic API against the caller's own live label set, leaves out the pull-request labels and the labels a maintainer sets, and applies the labels it is confident about (see below)</td><td><code>issues: write</code></td></tr>
 <tr><td><code>php-quality.yml</code></td><td>Runs the granular <code>composer ci:test:php:*</code> PHP quality gate across a version matrix</td><td><code>contents: read</code></td></tr>
 <tr><td><code>cpd.yml</code></td><td>Copy-paste detection with the caller's exact-pinned jscpd: <code>npm ci</code>, then the fixed jscpd command line; settings live in <code>.jscpd.json</code></td><td><code>contents: read</code></td></tr>
 </tbody>
@@ -159,11 +159,22 @@ caller's `.github/dependabot.yml` an `npm` entry, or nothing bumps the pin.
 
 ## Labels
 
-`labels.yml` is the single source of truth for the shared label set — the type
-labels, the four `priority: *` levels, and the three Dependabot-managed labels.
-Names are lowercase; keep `dependencies`, `github_actions` and `python`
-lowercase in `labels.yml` — as observed on 2026-09-05 (`gh label list`), all
-three were lowercase, matching Dependabot's own ecosystem-default labels.
+`labels.yml` is the single source of truth for the shared label set: the type
+labels, the workflow labels such as `needs-triage` and `awaiting feedback`, the
+`priority: *` levels, and the Dependabot-managed labels. Names are
+lowercase. Keep the Dependabot ones (`dependencies`, `github_actions` and the
+language labels) lowercase in `labels.yml`, matching Dependabot's own
+ecosystem-default labels.
+
+The AI issue labeler reads each label as `name: description` and chooses from
+that text, so a description there is a decision criterion and not a caption.
+State what an issue must look like to deserve the label. A description that
+opens with "Pull requests that" hides the label from the labeler, which is how
+the pull-request-only labels stay out of its choices. One that opens with "Set
+by maintainers" is hidden as well, for a decision or a workflow state that only
+a maintainer can establish after reading the issue. A marker takes effect in a
+repository once the sync has written the description there, and until then the
+descriptions that repository had before apply.
 
 The sync runs with `skip-delete`, so it only creates and updates: labels
 specific to a repository are never removed. To change the set for every

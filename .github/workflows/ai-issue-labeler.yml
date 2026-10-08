@@ -27,20 +27,22 @@ name: AI issue labeler (reusable)
 #
 # The label set is fetched live from the calling repository on every run
 # (never hardcoded), so a tool call is constrained to an `enum` of exactly
-# those names - the model can never invent a label. Labels whose description
-# opens with "Pull requests that" describe themselves as pull-request labels,
-# so they are removed from that set first and neither offered to the model nor
-# known to the guard below. A repository without a selectable label, none at
-# all or only pull-request labels, is skipped with a notice and the issue gets
-# no label. A classification Claude is not confident about, or that names no
+# those names and the model can never invent a label. Labels whose description
+# opens with "Pull requests that" describe themselves as pull-request labels.
+# Labels opening with "Set by maintainers" name a decision or workflow state
+# that only a maintainer can establish. Both kinds are removed from the set
+# first, so they are neither offered to the model nor known to the guard below.
+# A repository without a selectable label, none at all or only labels of those
+# kinds, is skipped with a notice and the issue gets no label. The model
+# grades each label it selects, and a label graded below the floor of its kind
+# counts as not chosen. A classification with no label left, or that names no
 # known label, applies `needs-triage` where that label exists and otherwise
-# leaves the issue unlabeled - it never guesses. An issue that already carries
-# a type label or a `priority:` label has been triaged and gets no
+# leaves the issue unlabeled. It never guesses. An issue that already carries a
+# type label or a `priority:` label has been triaged and gets no
 # `needs-triage`. The labeler never adds a second type label or a second
-# `priority:` label: a kind the issue already carries is left alone, and a
-# kind the model answers with two labels is dropped. The labels are read
-# shortly before they are added, so a label another actor adds in between is
-# not seen.
+# `priority:` label. A kind the issue already carries is left alone, and a kind
+# the model answers with several labels is dropped. The labels are read shortly
+# before they are added, so a label another actor adds in between is not seen.
 #
 # The labeler script is read from this repository via the shared-checkout
 # pattern below, so a caller's job needs to be able to read it - which holds
@@ -180,6 +182,7 @@ jobs:
                   labels_json=$(gh api "repos/${REPO}/labels" --paginate | jq -s 'flatten | [.[] | {name: .name, description: (.description // "")}]') \
                       || warn_and_skip "Could not fetch the label set for ${REPO}; leaving labels untouched for issue #${ISSUE_NUMBER}."
                   labels_json=$(drop_pull_request_only_labels "$labels_json")
+                  labels_json=$(drop_maintainer_set_labels "$labels_json")
                   label_count=$(jq 'length' <<<"$labels_json")
 
                   if [ "$label_count" -eq 0 ]; then
@@ -208,6 +211,11 @@ jobs:
                       || warn_and_skip "Could not reach the Anthropic API for issue #${ISSUE_NUMBER}; leaving labels untouched."
                   http_status=$(tail -n1 <<<"$http_response")
                   response_body=$(sed '$d' <<<"$http_response")
+
+                  # A failed call is logged with the reason the API gave, so a
+                  # request it rejects can be explained from this log alone.
+                  [ "$http_status" = "200" ] \
+                      || echo "Anthropic API error for issue #${ISSUE_NUMBER} (HTTP ${http_status}): $(describe_api_error "$response_body")"
 
                   # As observed on 2026-08-28 against
                   # platform.claude.com/docs/en/api/errors, Anthropic documented 401
@@ -244,6 +252,14 @@ jobs:
                   model_answer_log=$(neutralize_command_markers "$tool_input")
                   existing_labels_log=$(neutralize_command_markers "$existing_labels")
                   echo "Model answer for issue #${ISSUE_NUMBER}: ${model_answer_log} | existing labels: ${existing_labels_log}"
+
+                  # The model grades each label it chose. Only the labels at or
+                  # above the threshold go on to the guard, in the shape it reads,
+                  # so a label the model was unsure about counts as not chosen.
+                  # The jq error text is dropped because it quotes the model's
+                  # answer and would reach the log without the marker neutralising.
+                  tool_input=$(apply_label_confidence "$tool_input" 2>/dev/null) \
+                      || warn_and_skip "Could not apply the confidence threshold for issue #${ISSUE_NUMBER}; leaving labels untouched."
 
                   # Captured into a plain variable (not piped straight into
                   # `mapfile < <(...)`) so resolve_labels_to_apply's own
