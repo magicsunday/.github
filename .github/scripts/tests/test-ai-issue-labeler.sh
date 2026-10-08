@@ -539,8 +539,8 @@ else
     fail "build_ai_labeler_request: label items were not objects with a label and a numeric confidence"
 fi
 
-if jq -e '.tools[0].input_schema.properties | has("confident") | not' <<<"${request}" >/dev/null; then
-    pass "build_ai_labeler_request: the single overall confident flag is gone"
+if jq -e '(.tools[0].input_schema.properties | has("confident") | not) and (.tools[0].input_schema.required == ["labels"])' <<<"${request}" >/dev/null; then
+    pass "build_ai_labeler_request: the single overall confident flag is gone and only labels is required"
 else
     fail "build_ai_labeler_request: the schema still carries the overall confident flag"
 fi
