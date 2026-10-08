@@ -35,7 +35,7 @@ runs.
 <tr><td><code>i18n.yml</code></td><td>Enforces the catalogue layout; optional <code>make lang</code> freshness gate</td><td><code>contents: read</code></td></tr>
 <tr><td><code>bundle-freshness.yml</code></td><td>Verifies committed build artefacts match a clean rebuild</td><td><code>contents: read</code></td></tr>
 <tr><td><code>auto-merge-deps.yml</code></td><td>Auto-merges passing dependency bumps (patch and minor only; <code>pip</code> is excluded — see below)</td><td><code>contents: write</code>, <code>pull-requests: write</code></td></tr>
-<tr><td><code>ai-issue-labeler.yml</code></td><td>Classifies a newly opened issue against the caller's own live label set, without the pull-request labels and the labels a maintainer sets, and, via the Anthropic API, applies the labels it is confident about (see below)</td><td><code>issues: write</code></td></tr>
+<tr><td><code>ai-issue-labeler.yml</code></td><td>Classifies a newly opened issue via the Anthropic API against the caller's own live label set, leaves out the pull-request labels and the labels a maintainer sets, and applies the labels it is confident about (see below)</td><td><code>issues: write</code></td></tr>
 <tr><td><code>php-quality.yml</code></td><td>Runs the granular <code>composer ci:test:php:*</code> PHP quality gate across a version matrix</td><td><code>contents: read</code></td></tr>
 <tr><td><code>cpd.yml</code></td><td>Copy-paste detection with the caller's exact-pinned jscpd: <code>npm ci</code>, then the fixed jscpd command line; settings live in <code>.jscpd.json</code></td><td><code>contents: read</code></td></tr>
 </tbody>
