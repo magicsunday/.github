@@ -73,7 +73,7 @@ the request builder|request_body=$(build_ai_labeler_request
 the API error log||| echo "Anthropic API error for issue #
 the auth failure exit|if [ "$http_status" = "401" ]
 the non-200 skip||| warn_and_skip "Anthropic API request failed
-the usage log|echo "Usage for issue #
+the usage log|echo "Usage for issue #${ISSUE_NUMBER}: $(describe_api_usage "$response_body")"
 the tool input extraction|tool_input=$(extract_tool_input "$response_body")
 the confidence threshold|tool_input=$(apply_label_confidence "$tool_input" 2>/dev/null)
 the guard|selected_output=$(resolve_labels_to_apply
@@ -218,6 +218,12 @@ assert_fails_at "a step without the non-200 skip does not count" "the non-200 sk
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${SKIP}" "${AUTHEXIT}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a non-200 skip before the authentication exit does not count" "the non-200 skip" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" 'echo "Usage for issue #${ISSUE_NUMBER}: $response_body"' "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+assert_fails_at "a usage log that echoes the raw body does not count" "the usage log" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" 'echo "Usage for issue #${ISSUE_NUMBER}: $(describe_api_error "$response_body")"' "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+assert_fails_at "a usage log that describes the error instead does not count" "the usage log" "${output}"
 
 output="$(check_error_log_gate "$(fixture_script "${REQUEST}" "${ERRGATE}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}")")"
 assert_eq "an API error log behind the status test is accepted" \
