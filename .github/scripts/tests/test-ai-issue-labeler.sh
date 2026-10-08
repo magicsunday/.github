@@ -770,6 +770,32 @@ else
     fail "describe_api_error: got ${result}"
 fi
 
+# An error object with only one of its two fields, or with a field that is not
+# a string, still prints what it has.
+if [ "$(describe_api_error '{"error":{"type":"overloaded_error"}}')" = 'overloaded_error' ]; then
+    pass "describe_api_error: prints an error type without a message"
+else
+    fail "describe_api_error: got $(describe_api_error '{"error":{"type":"overloaded_error"}}')"
+fi
+
+if [ "$(describe_api_error '{"error":{"message":"boom"}}')" = 'boom' ]; then
+    pass "describe_api_error: prints a message without an error type"
+else
+    fail "describe_api_error: got $(describe_api_error '{"error":{"message":"boom"}}')"
+fi
+
+if [ "$(describe_api_error '{"error":{"type":"t","message":5}}')" = 't' ]; then
+    pass "describe_api_error: ignores a message that is not a string"
+else
+    fail "describe_api_error: got $(describe_api_error '{"error":{"type":"t","message":5}}')"
+fi
+
+if [ "$(describe_api_error '{"error":"boom"}')" = '{"error":"boom"}' ]; then
+    pass "describe_api_error: shows a body whose error is not an object"
+else
+    fail "describe_api_error: got $(describe_api_error '{"error":"boom"}')"
+fi
+
 body=$(printf '{"error":{"type":"t","message":"x \\n"}}')
 if [ "$(describe_api_error "${body}")" = 't: x' ]; then
     pass "describe_api_error: trims trailing space from the message"

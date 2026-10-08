@@ -71,6 +71,7 @@ the maintainer filter|labels_json=$(drop_maintainer_set_labels "$labels_json")
 the count|label_count=$(jq 'length' <<<"$labels_json")
 the request builder|request_body=$(build_ai_labeler_request
 the API error log||| echo "Anthropic API error for issue #
+the auth failure exit|if [ "$http_status" = "401" ]
 the confidence threshold|tool_input=$(apply_label_confidence "$tool_input")
 the guard|selected_output=$(resolve_labels_to_apply
 ORDER
@@ -113,60 +114,67 @@ REQUEST='request_body=$(build_ai_labeler_request "$REPO" "$TITLE" "$BODY" "$labe
 CONFIDENCE='tool_input=$(apply_label_confidence "$tool_input")'
 ERRLOG='|| echo "Anthropic API error for issue #${ISSUE_NUMBER} (HTTP ${http_status}): $(describe_api_error "$response_body")"'
 ERRGATE='[ "$http_status" = "200" ] \'
+AUTHEXIT='if [ "$http_status" = "401" ] || [ "$http_status" = "402" ] || [ "$http_status" = "403" ]; then'
 GUARD='selected_output=$(resolve_labels_to_apply "$tool_input" "$labels_json" "$existing")'
 
 fixture_script() {
     printf '%s\n' "$@"
 }
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_eq "the fixture in the right order is accepted" \
     "PASS: the step filters the label set between its fetch and its count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a step without the filter does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${FILTER}" "${REQUEST}" "${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${FILTER}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a filter behind the count does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${GUARD}" "${REQUEST}" "${ERRLOG}" "${CONFIDENCE}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${GUARD}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}")")"
 assert_starts_with_fail "a guard before the request builder does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FILTER}" "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FILTER}" "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a filter before the fetch does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a commented-out filter does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a step without the maintainer filter does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${MFILTER}" "${REQUEST}" "${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${MFILTER}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a maintainer filter behind the count does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "# ${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "# ${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a commented-out maintainer filter does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${GUARD}")")"
 assert_starts_with_fail "a step without the confidence threshold does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${GUARD}" "${CONFIDENCE}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${GUARD}" "${CONFIDENCE}")")"
 assert_starts_with_fail "a confidence threshold behind the guard does not count" "${output}"
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a step without the API error log does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${CONFIDENCE}" "${ERRLOG}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${CONFIDENCE}" "${ERRLOG}" "${AUTHEXIT}" "${GUARD}")")"
 assert_starts_with_fail "an API error log behind the confidence threshold does not count" "${output}"
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "# ${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a commented-out API error log does not count" "${output}"
 
-output="$(check_error_log_gate "$(fixture_script "${REQUEST}" "${ERRGATE}" "${ERRLOG}" "${CONFIDENCE}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${AUTHEXIT}" "${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
+assert_starts_with_fail "an API error log behind the authentication exit does not count" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
+assert_starts_with_fail "a step without the authentication exit does not count" "${output}"
+
+output="$(check_error_log_gate "$(fixture_script "${REQUEST}" "${ERRGATE}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}")")"
 assert_eq "an API error log behind the status test is accepted" \
     "PASS: the API error log runs only for a status other than 200" "${output}"
 
-output="$(check_error_log_gate "$(fixture_script "${REQUEST}" "${ERRLOG}" "${CONFIDENCE}")")"
+output="$(check_error_log_gate "$(fixture_script "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}")")"
 assert_starts_with_fail "an API error log without the status test does not count" "${output}"
 
 # The same through the parser: a workflow whose step carries the filter only
@@ -175,7 +183,7 @@ fixture_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${fixture_dir}"' EXIT
 {
     printf 'jobs:\n    label:\n        steps:\n            - name: Classify and label the issue\n              run: |\n'
-    printf '                  %s\n' "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${CONFIDENCE}" "${GUARD}"
+    printf '                  %s\n' "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}"
 } >"${fixture_dir}/wf.yml"
 output="$(check_order "$(step_script "${fixture_dir}/wf.yml")")"
 assert_starts_with_fail "a comment line in the parsed step does not count" "${output}"
