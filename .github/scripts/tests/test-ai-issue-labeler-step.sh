@@ -4,7 +4,8 @@
 # it is counted, and only then reaches the request builder and the guard. The
 # library tests call the filter directly, so a step that dropped the call or
 # moved it behind the count would leave them green while the model is offered
-# the pull-request labels again.
+# the pull-request labels again. The same table pins where the API error log,
+# the authentication exit and the confidence threshold sit around the call.
 # The statements are read from the parsed workflow with comment lines
 # dropped, so a comment that only mentions a call does not count.
 #
@@ -46,9 +47,8 @@ line_starting_with() {
     awk -v prefix="$1" 'index($0, prefix) == 1 { print NR; exit }' <<<"$2"
 }
 
-# Prints PASS when the statements of script "$1" run in this order: the
-# fetch of the label set, the filter, the count, the request builder and the
-# guard. Prints the failing step and the script otherwise.
+# Prints PASS when the statements of script "$1" run in the order the ORDER
+# table below lists. Prints the failing step and the script otherwise.
 check_order() {
     local script="$1"
     local previous=0
@@ -160,17 +160,11 @@ assert_fails_at "a request builder behind the API error log does not count" "the
 output="$(check_order "$(fixture_script "${FILTER}" "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a filter before the fetch does not count" "the filter" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
-assert_fails_at "a commented-out filter does not count" "the filter" "${output}"
-
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a step without the maintainer filter does not count" "the maintainer filter" "${output}"
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${MFILTER}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a maintainer filter behind the count does not count" "the count" "${output}"
-
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "# ${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
-assert_fails_at "a commented-out maintainer filter does not count" "the maintainer filter" "${output}"
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${GUARD}")")"
 assert_fails_at "a step without the confidence threshold does not count" "the confidence threshold" "${output}"
@@ -187,9 +181,6 @@ assert_fails_at "a step without the tool input extraction does not count" "the t
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a step without the API error log does not count" "the API error log" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "# ${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
-assert_fails_at "a commented-out API error log does not count" "the API error log" "${output}"
-
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${AUTHEXIT}" "${ERRLOG}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "an API error log behind the authentication exit does not count" "the auth failure exit" "${output}"
 
@@ -203,15 +194,17 @@ assert_eq "an API error log behind the status test is accepted" \
 output="$(check_error_log_gate "$(fixture_script "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}")")"
 assert_starts_with_fail "an API error log without the status test does not count" "${output}"
 
-# The same through the parser: a workflow whose step carries the filter only
-# in a comment yields no filter statement.
+# The parser drops a comment line, so a call that only a comment mentions
+# yields no statement. The check reads the statements themselves, because the
+# order check anchors on the start of a line and would pass either way.
 fixture_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${fixture_dir}"' EXIT
 {
     printf 'jobs:\n    label:\n        steps:\n            - name: Classify and label the issue\n              run: |\n'
-    printf '                  %s\n' "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}"
+    printf '                  %s\n' "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}"
 } >"${fixture_dir}/wf.yml"
-output="$(check_order "$(step_script "${fixture_dir}/wf.yml")")"
-assert_starts_with_fail "a comment line in the parsed step does not count" "${output}"
+output="$(step_script "${fixture_dir}/wf.yml")"
+expected="$(printf '%s\n' "${FETCH}" "${MFILTER}" "${COUNT}")"
+assert_eq "a comment line in the parsed step is dropped" "${expected}" "${output}"
 
 report_and_exit "ai issue labeler step test"
