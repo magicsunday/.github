@@ -142,7 +142,7 @@ assert_eq "the fixture in the right order is accepted" \
 output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a step without the filter does not count" "the filter" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${FILTER}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${FILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a pull-request filter behind the maintainer filter does not count" "the maintainer filter" "${output}"
 
 output="$(check_order "$(fixture_script "${FETCH}" "${COUNT}" "${FILTER}" "${MFILTER}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
@@ -195,16 +195,20 @@ output="$(check_error_log_gate "$(fixture_script "${REQUEST}" "${ERRLOG}" "${AUT
 assert_starts_with_fail "an API error log without the status test does not count" "${output}"
 
 # The parser drops a comment line, so a call that only a comment mentions
-# yields no statement. The check reads the statements themselves, because the
-# order check anchors on the start of a line and would pass either way.
+# yields no statement, and it reads only the named step, so a statement of
+# another step yields none either. The check reads the statements themselves,
+# because the order check anchors on the start of a line and would pass either
+# way.
 fixture_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${fixture_dir}"' EXIT
 {
     printf 'jobs:\n    label:\n        steps:\n            - name: Classify and label the issue\n              run: |\n'
     printf '                  %s\n' "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}"
+    printf '            - name: Another step\n              run: |\n'
+    printf '                  %s\n' "${REQUEST}"
 } >"${fixture_dir}/wf.yml"
 output="$(step_script "${fixture_dir}/wf.yml")"
 expected="$(printf '%s\n' "${FETCH}" "${MFILTER}" "${COUNT}")"
-assert_eq "a comment line in the parsed step is dropped" "${expected}" "${output}"
+assert_eq "a comment line and another step are left out of the parsed step" "${expected}" "${output}"
 
 report_and_exit "ai issue labeler step test"
