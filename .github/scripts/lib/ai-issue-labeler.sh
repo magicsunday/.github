@@ -174,11 +174,11 @@ AI_LABELER_MIN_CONFIDENCE_TOPIC="0.5"
 
 # Reads the `assign_labels` input (`{labels: [{label, confidence}, ...]}`) and
 # prints it in the shape `resolve_labels_to_apply` reads, a plain list plus one
-# overall flag: the labels at or above the floor of their kind, and `confident`
-# true only if any is left. A confidence that is missing, not a number or
-# outside 0 to 1 counts as none, because a grade outside that range (a
-# percentage, say) would otherwise pass every floor. Returns non-zero, with no
-# output, for input that is not JSON or whose `labels` cannot be iterated.
+# overall flag. It keeps the labels at or above the floor of their kind, and
+# `confident` is true only if any is left. A confidence that is missing, not a
+# number or outside 0 to 1 counts as none, because a grade outside that range
+# (a percentage, say) would otherwise pass every floor. Returns non-zero, with
+# no output, for input that is not JSON or whose `labels` cannot be iterated.
 apply_label_confidence() {
     local tool_input_json="$1"
 
