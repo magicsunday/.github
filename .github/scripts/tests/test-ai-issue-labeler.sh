@@ -588,6 +588,15 @@ else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
+# A topic label that merely starts with the word priority is not a priority
+# label, so it needs the topic floor.
+answer='{"labels":[{"label":"priorities","confidence":0.45},{"label":"priority-queue","confidence":0.45}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":[],"confident":false}' ]; then
+    pass "apply_label_confidence: a topic label that only starts with priority gets the topic floor"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
+fi
+
 answer='{"labels":[{"label":"documentation","confidence":0.4}]}'
 if [ "$(apply_label_confidence "${answer}")" = '{"labels":["documentation"],"confident":true}' ]; then
     pass "apply_label_confidence: a documentation label exactly at 0.4 is kept as a type label"
