@@ -165,13 +165,10 @@ describe_api_error() {
 # Smallest confidence a label needs to be applied, by kind of label. The model
 # grades each label it selects, and a label below its floor is treated as if it
 # had not been chosen. These are floors for plausibility, not calibrated
-# probabilities: for a type or a priority label, the exclusive kinds of the
-# guard (`AI_LABELER_KIND_JQ_DEF`), the model's confidence did not separate
-# right answers from wrong ones in the measured samples, so the floor only drops
-# answers it barely supports. A topic label is every other label. For those the
-# mean confidence of the labels the maintainer also set was higher in the
-# measured samples, so they get a higher floor, which still keeps most wrong
-# picks.
+# probabilities. A type or a priority label, the exclusive kinds of the guard
+# (`AI_LABELER_KIND_JQ_DEF`), gets the lower floor, because the guard already
+# keeps it to one label per kind. A topic label is every other label and gets
+# the higher floor, because nothing else holds back an extra one.
 AI_LABELER_MIN_CONFIDENCE_EXCLUSIVE="0.4"
 AI_LABELER_MIN_CONFIDENCE_TOPIC="0.5"
 
