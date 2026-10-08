@@ -658,6 +658,18 @@ else
     pass "apply_label_confidence: returns non-zero for malformed input"
 fi
 
+# Labels that cannot be iterated must fail, not read as an empty answer, so the
+# step leaves the issue alone instead of falling back to needs-triage.
+for unreadable in '{}' '{"labels":"bug"}' '{"labels":null}'; do
+    if out=$(apply_label_confidence "${unreadable}" 2>/dev/null); then
+        fail "apply_label_confidence: returned success for ${unreadable}"
+    elif [ -n "${out}" ]; then
+        fail "apply_label_confidence: printed output for ${unreadable}"
+    else
+        pass "apply_label_confidence: returns non-zero with no output for ${unreadable}"
+    fi
+done
+
 # End to end with the guard: a label below its threshold never reaches it, so
 # the needs-triage fallback applies when nothing is left.
 converted=$(apply_label_confidence '{"labels":[{"label":"bug","confidence":0.39}]}')
