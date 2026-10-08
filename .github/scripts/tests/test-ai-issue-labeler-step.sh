@@ -81,22 +81,31 @@ ORDER
     echo "PASS: the step filters the label set between its fetch and its count"
 }
 
-# Prints PASS when the API error log statement of script "$1" sits directly
-# behind the test that keeps it from running on a successful call, so the log
-# line cannot appear for status 200. Prints FAIL otherwise.
-check_error_log_gate() {
-    awk '
+# Prints PASS when the statement of script "$1" that starts with "$2" sits
+# directly behind the test that keeps it from running on a successful call, so
+# the statement cannot run for status 200. "$3" names the statement in the
+# message. Prints FAIL otherwise.
+check_status_gate() {
+    awk -v prefix="$2" -v what="$3" '
         { lines[NR] = $0 }
         END {
             for (i = 2; i <= NR; i++) {
-                if (index(lines[i], "|| echo \"Anthropic API error for issue #") == 1) {
-                    if (lines[i - 1] == "[ \"$http_status\" = \"200\" ] \\") { print "PASS: the API error log runs only for a status other than 200"; exit }
-                    print "FAIL: the API error log is not directly behind the status test"; exit
+                if (index(lines[i], prefix) == 1) {
+                    if (lines[i - 1] == "[ \"$http_status\" = \"200\" ] \\") { print "PASS: the " what " runs only for a status other than 200"; exit }
+                    print "FAIL: the " what " is not directly behind the status test"; exit
                 }
             }
-            print "FAIL: no API error log statement"
+            print "FAIL: no " what " statement"
         }
     ' <<<"$1"
+}
+
+check_error_log_gate() {
+    check_status_gate "$1" '|| echo "Anthropic API error for issue #' "API error log"
+}
+
+check_skip_gate() {
+    check_status_gate "$1" '|| warn_and_skip "Anthropic API request failed' "non-200 skip"
 }
 
 output="$(check_order "$(step_script "${WORKFLOW_FILE}")")"
@@ -106,6 +115,10 @@ assert_eq "the workflow step filters before it counts" \
 output="$(check_error_log_gate "$(step_script "${WORKFLOW_FILE}")")"
 assert_eq "the workflow step logs an API error only for a status other than 200" \
     "PASS: the API error log runs only for a status other than 200" "${output}"
+
+output="$(check_skip_gate "$(step_script "${WORKFLOW_FILE}")")"
+assert_eq "the workflow step skips a failed call only for a status other than 200" \
+    "PASS: the non-200 skip runs only for a status other than 200" "${output}"
 
 # Negative controls on fixture scripts: each must make the check fail, or the
 # check would pass for the wrong reason.
@@ -212,6 +225,13 @@ assert_eq "an API error log behind the status test is accepted" \
 
 output="$(check_error_log_gate "$(fixture_script "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}")")"
 assert_starts_with_fail "an API error log without the status test does not count" "${output}"
+
+output="$(check_skip_gate "$(fixture_script "${REQUEST}" "${ERRGATE}" "${SKIP}" "${USAGE}")")"
+assert_eq "a non-200 skip behind the status test is accepted" \
+    "PASS: the non-200 skip runs only for a status other than 200" "${output}"
+
+output="$(check_skip_gate "$(fixture_script "${REQUEST}" "true \\" "${SKIP}" "${USAGE}")")"
+assert_starts_with_fail "a non-200 skip behind another test does not count" "${output}"
 
 # The parser drops a comment line, so a call that only a comment mentions
 # yields no statement, and it reads only the named step, so a statement of
