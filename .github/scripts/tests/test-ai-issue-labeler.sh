@@ -814,8 +814,8 @@ else
     fail "describe_api_error: got ${result}"
 fi
 
-# An error object with only one of its two fields, or with a field that is not
-# a string, still prints what it has.
+# An error object with only a type or only a message, or with a field that is
+# not a string, still prints what it has.
 if [ "$(describe_api_error '{"error":{"type":"overloaded_error"}}')" = 'overloaded_error' ]; then
     pass "describe_api_error: prints an error type without a message"
 else
