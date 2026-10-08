@@ -168,8 +168,10 @@ describe_api_error() {
 # probabilities: for a type or a priority label, the exclusive kinds of the
 # guard (`AI_LABELER_KIND_JQ_DEF`), the model's confidence did not separate
 # right answers from wrong ones in the measured samples, so the floor only drops
-# answers it barely supports. A topic label is every other label, and for those
-# confidence did separate them, so they need more.
+# answers it barely supports. A topic label is every other label. For those the
+# mean confidence of the labels the maintainer also set was higher in the
+# measured samples, so they get a higher floor, which still keeps most wrong
+# picks.
 AI_LABELER_MIN_CONFIDENCE_EXCLUSIVE="0.4"
 AI_LABELER_MIN_CONFIDENCE_TOPIC="0.5"
 

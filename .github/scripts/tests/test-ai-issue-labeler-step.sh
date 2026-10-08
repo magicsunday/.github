@@ -155,13 +155,13 @@ assert_starts_with_fail "a step without the confidence threshold does not count"
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${GUARD}" "${CONFIDENCE}")")"
 assert_starts_with_fail "a confidence threshold behind the guard does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a step without the API error log does not count" "${output}"
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${CONFIDENCE}" "${ERRLOG}" "${AUTHEXIT}" "${GUARD}")")"
 assert_starts_with_fail "an API error log behind the confidence threshold does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "# ${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "# ${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a commented-out API error log does not count" "${output}"
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${AUTHEXIT}" "${ERRLOG}" "${CONFIDENCE}" "${GUARD}")")"
