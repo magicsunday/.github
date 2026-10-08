@@ -186,7 +186,7 @@ assert_fails_at "a step without the API error log does not count" "the API error
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${AUTHEXIT}" "${USAGE}" "${ERRLOG}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "an API error log behind the authentication exit does not count" "the auth failure exit" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a step without the authentication exit does not count" "the auth failure exit" "${output}"
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"

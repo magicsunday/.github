@@ -167,7 +167,7 @@ describe_api_error() {
 # used. A count is printed only as a plain run of digits and a stop reason only as
 # a short lowercase word, anything else as `unknown`, which keeps one shape for
 # every response and keeps text from the network out of the log. A body that holds
-# several JSON values is read for its first. Never fails.
+# several JSON values still yields one line. Never fails.
 describe_api_usage() {
     local response_body="$1"
     local summary

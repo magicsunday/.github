@@ -966,8 +966,8 @@ for stop_reason in '"tool_use\n"' '"Tool_use"' '"tool use"' '""'; do
     fi
 done
 
-# The limit of the stop reason is exact: the longest accepted word and the
-# shortest rejected one.
+# The limit of the stop reason is exact. The cases are the longest accepted
+# word and the shortest rejected one.
 accepted=$(printf 'a%.0s' $(seq 1 32))
 rejected=$(printf 'a%.0s' $(seq 1 33))
 body=$(jq -cn --arg reason "${accepted}" '{stop_reason: $reason, usage: {input_tokens: 1, output_tokens: 1, output_tokens_details: {thinking_tokens: 1}}}')
@@ -1006,7 +1006,7 @@ while IFS='|' read -r label body_template want; do
         fail "describe_api_usage: got $(describe_api_usage "${body}") for ${label}"
     fi
 done <<'CASES'
-a string stop reason that is not a word|{"stop_reason":5,"usage":{"input_tokens":1,"output_tokens":2,"output_tokens_details":{"thinking_tokens":3}}}|stop_reason=unknown input_tokens=1 output_tokens=2 thinking_tokens=3
+a stop reason that is not a string|{"stop_reason":5,"usage":{"input_tokens":1,"output_tokens":2,"output_tokens_details":{"thinking_tokens":3}}}|stop_reason=unknown input_tokens=1 output_tokens=2 thinking_tokens=3
 a count given as a string of digits|{"stop_reason":"tool_use","usage":{"input_tokens":"7","output_tokens":2,"output_tokens_details":{"thinking_tokens":3}}}|stop_reason=tool_use input_tokens=unknown output_tokens=2 thinking_tokens=3
 a count given as text with a marker|{"stop_reason":"tool_use","usage":{"input_tokens":"7 ##[x]","output_tokens":2,"output_tokens_details":{"thinking_tokens":3}}}|stop_reason=tool_use input_tokens=unknown output_tokens=2 thinking_tokens=3
 a negative output count|{"stop_reason":"tool_use","usage":{"input_tokens":1,"output_tokens":-2,"output_tokens_details":{"thinking_tokens":3}}}|stop_reason=tool_use input_tokens=1 output_tokens=unknown thinking_tokens=3
