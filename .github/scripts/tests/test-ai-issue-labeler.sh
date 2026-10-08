@@ -556,8 +556,8 @@ fi
 # The model answers with a confidence per label. The guard below it reads the
 # older shape, a plain list plus one overall flag, so this keeps the labels at
 # or above the threshold of their kind and derives the flag from whether any is
-# left. A type label (bug, enhancement, documentation) and a priority label need
-# 0.4, any other label 0.5.
+# left. A type label (bug, enhancement, documentation) and a priority label have
+# a lower floor than any other label.
 answer='{"labels":[{"label":"bug","confidence":0.95},{"label":"i18n","confidence":0.45}]}'
 if [ "$(apply_label_confidence "${answer}")" = '{"labels":["bug"],"confident":true}' ]; then
     pass "apply_label_confidence: keeps a confident label and drops a topic label below its threshold"
