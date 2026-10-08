@@ -579,6 +579,20 @@ else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
+answer='{"labels":[{"label":"documentation","confidence":0.4}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["documentation"],"confident":true}' ]; then
+    pass "apply_label_confidence: a documentation label exactly at 0.4 is kept as a type label"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
+fi
+
+answer='{"labels":[{"label":"documentation","confidence":0.39}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":[],"confident":false}' ]; then
+    pass "apply_label_confidence: a documentation label below 0.4 is dropped"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
+fi
+
 answer='{"labels":[{"label":"priority: high","confidence":0.4}]}'
 if [ "$(apply_label_confidence "${answer}")" = '{"labels":["priority: high"],"confident":true}' ]; then
     pass "apply_label_confidence: a priority label exactly at 0.4 is kept"
