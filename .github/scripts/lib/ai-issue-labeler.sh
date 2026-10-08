@@ -87,28 +87,30 @@ build_ai_labeler_request() {
 }
 
 # Prints `labels_json` (the `{name, description}` array the request builder
-# takes) without the labels that describe themselves as pull-request labels.
-# Only a description that OPENS with "Pull requests that" counts, matched
-# without regard to case, so a label that merely mentions pull requests stays
-# selectable. The caller feeds the result to the request builder and to
-# `resolve_labels_to_apply` alike, so the model's choices and the guard's known
-# set stay the same.
-drop_pull_request_only_labels() {
+# takes) without the labels whose description opens with the given words,
+# matched without regard to case. Only a description that OPENS with them
+# counts, so a label that merely mentions them stays selectable. The two
+# filters below share it. Their callers feed the result to the request builder
+# and to `resolve_labels_to_apply` alike, so the model's choices and the
+# guard's known set stay the same.
+drop_labels_described_as() {
     local labels_json="$1"
+    local opening="$2"
 
-    jq -c '[.[] | select(.description | ascii_downcase | startswith("pull requests that") | not)]' <<<"${labels_json}"
+    jq -c --arg opening "${opening}" '[.[] | select(.description | ascii_downcase | startswith($opening) | not)]' <<<"${labels_json}"
 }
 
-# Prints `labels_json` without the labels whose description opens with "Set by
-# maintainers", matched without regard to case. Such a label states a decision
-# or a workflow state that a maintainer sets after reading the issue, which the
-# text of a freshly opened issue cannot establish. The caller feeds the result
-# to the request builder and to `resolve_labels_to_apply` alike, as it does for
-# `drop_pull_request_only_labels`.
-drop_maintainer_set_labels() {
-    local labels_json="$1"
+# Drops the labels that describe themselves as pull-request labels, which
+# Dependabot writes as "Pull requests that ...".
+drop_pull_request_only_labels() {
+    drop_labels_described_as "$1" "pull requests that"
+}
 
-    jq -c '[.[] | select(.description | ascii_downcase | startswith("set by maintainers") | not)]' <<<"${labels_json}"
+# Drops the labels whose description opens with "Set by maintainers". Such a
+# label states a decision or a workflow state that a maintainer sets after
+# reading the issue, which the text of a freshly opened issue cannot establish.
+drop_maintainer_set_labels() {
+    drop_labels_described_as "$1" "set by maintainers"
 }
 
 # Prints the `assign_labels` tool call's `input` object from an Anthropic
@@ -139,15 +141,20 @@ extract_tool_input() {
 # Prints the reason of a failed Anthropic API call for the job log: the error
 # type and message of an API error body, else the start of whatever body came
 # back, else a note that it was empty. The text comes from the network, so it is
-# cut and its runner command markers are broken up before it is logged.
+# cut, folded into one line, and its runner command markers are broken up before
+# it is logged. One line matters because the runner reads a workflow command at
+# the start of any log line, and the log prefix protects only the first.
 describe_api_error() {
     local response_body="$1"
     local description
 
     description=$(jq -r 'try (.error | [.type, .message] | map(select(type == "string")) | join(": ")) catch empty' <<<"${response_body}" 2>/dev/null) || description=""
     if [ -z "${description}" ]; then
-        description=$(printf '%s' "${response_body}" | tr -d '\r' | head -c 300)
+        description=$(printf '%s' "${response_body}" | head -c 300)
     fi
+    description=$(printf '%s' "${description}" | tr -s '[:cntrl:]' ' ')
+    description="${description#"${description%%[![:space:]]*}"}"
+    description="${description%"${description##*[![:space:]]}"}"
     if [ -z "${description}" ]; then
         description="(empty response body)"
     fi
@@ -158,34 +165,32 @@ describe_api_error() {
 # Smallest confidence a label needs to be applied, by kind of label. The model
 # grades each label it selects, and a label below its floor is treated as if it
 # had not been chosen. These are floors for plausibility, not calibrated
-# probabilities: for a type or a priority label the model's confidence did not
-# separate right answers from wrong ones in the measured samples, so the floor
-# only drops answers it barely supports. A topic label is where confidence
-# separated them, so it needs more. The kinds are the ones the guard reads
-# (`AI_LABELER_KIND_JQ_DEF`), and every label that is neither a type nor a
-# priority label counts as a topic.
-AI_LABELER_MIN_CONFIDENCE_TYPE="0.4"
-AI_LABELER_MIN_CONFIDENCE_PRIORITY="0.4"
+# probabilities: for a type or a priority label, the exclusive kinds of the
+# guard (`AI_LABELER_KIND_JQ_DEF`), the model's confidence did not separate
+# right answers from wrong ones in the measured samples, so the floor only drops
+# answers it barely supports. A topic label is every other label, and for those
+# confidence did separate them, so they need more.
+AI_LABELER_MIN_CONFIDENCE_EXCLUSIVE="0.4"
 AI_LABELER_MIN_CONFIDENCE_TOPIC="0.5"
 
 # Reads the `assign_labels` input (`{labels: [{label, confidence}, ...]}`) and
 # prints it in the shape `resolve_labels_to_apply` reads, a plain list plus one
 # overall flag: the labels at or above the floor of their kind, and `confident`
-# true only if any is left. A confidence that is missing or not a number counts
-# as none. Returns non-zero, with no output, for input that is not the expected
-# JSON.
+# true only if any is left. A confidence that is missing, not a number or
+# outside 0 to 1 counts as none, because a grade outside that range (a
+# percentage, say) would otherwise pass every floor. Returns non-zero, with no
+# output, for input that is not the expected JSON.
 apply_label_confidence() {
     local tool_input_json="$1"
 
     jq -c \
-        --argjson type_floor "${AI_LABELER_MIN_CONFIDENCE_TYPE}" \
-        --argjson priority_floor "${AI_LABELER_MIN_CONFIDENCE_PRIORITY}" \
+        --argjson exclusive_floor "${AI_LABELER_MIN_CONFIDENCE_EXCLUSIVE}" \
         --argjson topic_floor "${AI_LABELER_MIN_CONFIDENCE_TOPIC}" \
         "${AI_LABELER_KIND_JQ_DEF}"'
         [.labels[]
             | (.label | kind) as $kind
-            | (if $kind == "type" then $type_floor elif $kind == "priority" then $priority_floor else $topic_floor end) as $floor
-            | select((.confidence | type) == "number" and .confidence >= $floor)
+            | (if $kind == null then $topic_floor else $exclusive_floor end) as $floor
+            | select((.confidence | type) == "number" and .confidence >= $floor and .confidence <= 1)
             | .label] as $kept
         | {labels: $kept, confident: ($kept | length > 0)}
     ' <<<"${tool_input_json}"
@@ -217,7 +222,7 @@ AI_LABELER_KIND_JQ_DEF='def kind:
     else null end;'
 
 # Decides which labels to apply, printed one per line (empty output means
-# apply nothing). `tool_input_json` is the object `extract_tool_input`
+# apply nothing). `tool_input_json` is the object `apply_label_confidence`
 # printed - `{labels: [...], confident: bool}`. Selected labels are
 # re-filtered against `labels_json` (the same set the request was built
 # from) rather than trusted as-is: the request-side `enum` is what stops the
@@ -250,7 +255,7 @@ AI_LABELER_KIND_JQ_DEF='def kind:
 # itself is dropped for an issue that already carries a type or a priority
 # label, just like the fallback, and also when its own selection applies one.
 # A selection the guard empties applies nothing: the `needs-triage` fallback
-# below is for an answer with no confident known label, not for an issue that
+# below is for an answer with no label left above its floor, not for an issue that
 # already carries a type or a priority label.
 resolve_labels_to_apply() {
     local tool_input_json="$1"
