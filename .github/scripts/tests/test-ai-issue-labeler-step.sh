@@ -123,6 +123,18 @@ fixture_script() {
     printf '%s\n' "$@"
 }
 
+# A negative control must fail for the property it names. This asserts the
+# check fails and that the failure names statement "$2", so a fixture that
+# fails for another reason does not pass.
+assert_fails_at() {
+    local description="$1"
+    local statement="$2"
+    local output="$3"
+
+    assert_starts_with_fail "${description}" "${output}"
+    assert_contains "${description}: the failure names ${statement}" "${output}" ": ${statement}"
+}
+
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_eq "the fixture in the right order is accepted" \
     "PASS: the step filters the label set between its fetch and its count" "${output}"
@@ -131,10 +143,13 @@ output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${RE
 assert_starts_with_fail "a step without the filter does not count" "${output}"
 
 output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${FILTER}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
-assert_starts_with_fail "a filter behind the count does not count" "${output}"
+assert_fails_at "a pull-request filter behind the maintainer filter does not count" "the maintainer filter" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${COUNT}" "${FILTER}" "${MFILTER}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+assert_fails_at "a count before the filters does not count" "the count" "${output}"
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${GUARD}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}")")"
-assert_starts_with_fail "a guard before the request builder does not count" "${output}"
+assert_fails_at "a guard before the request builder does not count" "the guard" "${output}"
 
 output="$(check_order "$(fixture_script "${FILTER}" "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a filter before the fetch does not count" "${output}"
@@ -154,8 +169,8 @@ assert_starts_with_fail "a commented-out maintainer filter does not count" "${ou
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${GUARD}")")"
 assert_starts_with_fail "a step without the confidence threshold does not count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${GUARD}" "${EXTRACT}" "${CONFIDENCE}")")"
-assert_starts_with_fail "a confidence threshold behind the guard does not count" "${output}"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${GUARD}" "${CONFIDENCE}")")"
+assert_fails_at "a confidence threshold behind the guard does not count" "the guard" "${output}"
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${EXTRACT}" "${GUARD}")")"
 assert_starts_with_fail "a tool input extraction behind the confidence threshold does not count" "${output}"
@@ -165,9 +180,6 @@ assert_starts_with_fail "a step without the tool input extraction does not count
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a step without the API error log does not count" "${output}"
-
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${EXTRACT}" "${CONFIDENCE}" "${ERRLOG}" "${AUTHEXIT}" "${GUARD}")")"
-assert_starts_with_fail "an API error log behind the confidence threshold does not count" "${output}"
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "# ${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_starts_with_fail "a commented-out API error log does not count" "${output}"
