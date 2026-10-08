@@ -75,7 +75,7 @@ build_ai_labeler_request() {
                     }
                 }
             ],
-            tool_choice: {type: "tool", name: "assign_labels"},
+            tool_choice: {type: "tool", name: "assign_labels", disable_parallel_tool_use: true},
             messages: [
                 {
                     role: "user",

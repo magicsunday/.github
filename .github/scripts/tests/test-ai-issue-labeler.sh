@@ -40,6 +40,14 @@ else
     fail "build_ai_labeler_request: tool_choice did not force assign_labels"
 fi
 
+# The extraction reads one tool call only, so the model must be told to make
+# exactly one.
+if [ "$(jq -r '.tool_choice.disable_parallel_tool_use' <<<"${request}")" = "true" ]; then
+    pass "build_ai_labeler_request: asks for a single tool call"
+else
+    fail "build_ai_labeler_request: parallel tool calls were not disabled"
+fi
+
 if [ "$(jq -r '.tools[0].strict' <<<"${request}")" = "true" ]; then
     pass "build_ai_labeler_request: tool is strict"
 else
