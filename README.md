@@ -162,7 +162,7 @@ caller's `.github/dependabot.yml` an `npm` entry, or nothing bumps the pin.
 `labels.yml` is the single source of truth for the shared label set: the type
 labels, the workflow labels such as `needs-triage` and `awaiting feedback`, the
 four `priority: *` levels, and the Dependabot-managed labels. Names are
-lowercase; keep the Dependabot ones (`dependencies`, `github_actions` and the
+lowercase. Keep the Dependabot ones (`dependencies`, `github_actions` and the
 language labels) lowercase in `labels.yml`, matching Dependabot's own
 ecosystem-default labels.
 

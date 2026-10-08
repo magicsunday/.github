@@ -179,7 +179,7 @@ AI_LABELER_MIN_CONFIDENCE_TOPIC="0.5"
 # true only if any is left. A confidence that is missing, not a number or
 # outside 0 to 1 counts as none, because a grade outside that range (a
 # percentage, say) would otherwise pass every floor. Returns non-zero, with no
-# output, for input that is not the expected JSON.
+# output, for input that is not JSON or whose `labels` cannot be iterated.
 apply_label_confidence() {
     local tool_input_json="$1"
 
