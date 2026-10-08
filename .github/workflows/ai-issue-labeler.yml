@@ -37,7 +37,7 @@ name: AI issue labeler (reusable)
 # it selects, and a label graded below the floor of its kind counts as not chosen. A
 # classification with no label left, or that names no known label, applies
 # `needs-triage` where that label exists and otherwise leaves the issue
-# unlabeled - it never guesses. An issue that already carries
+# unlabeled. It never guesses. An issue that already carries
 # a type label or a `priority:` label has been triaged and gets no
 # `needs-triage`. The labeler never adds a second type label or a second
 # `priority:` label: a kind the issue already carries is left alone, and a
