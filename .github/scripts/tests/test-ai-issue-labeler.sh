@@ -905,6 +905,55 @@ else
     fail "build_labels_payload: expected ${expected} - got ${payload}"
 fi
 
+# --- describe_api_usage ---
+# One log line with the stop reason and the token counts of a response, so a
+# run shows how much of the output budget the model used.
+
+body='{"stop_reason":"tool_use","usage":{"input_tokens":1586,"output_tokens":72,"output_tokens_details":{"thinking_tokens":0}},"content":[]}'
+expected='stop_reason=tool_use input_tokens=1586 output_tokens=72 thinking_tokens=0'
+if [ "$(describe_api_usage "${body}")" = "${expected}" ]; then
+    pass "describe_api_usage: prints the stop reason and the token counts"
+else
+    fail "describe_api_usage: got $(describe_api_usage "${body}")"
+fi
+
+body='{"stop_reason":"max_tokens","usage":{"input_tokens":1500,"output_tokens":1024,"output_tokens_details":{"thinking_tokens":1024}}}'
+expected='stop_reason=max_tokens input_tokens=1500 output_tokens=1024 thinking_tokens=1024'
+if [ "$(describe_api_usage "${body}")" = "${expected}" ]; then
+    pass "describe_api_usage: shows a response that ran out of output budget"
+else
+    fail "describe_api_usage: got $(describe_api_usage "${body}")"
+fi
+
+# A missing field is reported as unknown instead of being left out, so the
+# line keeps one shape for every response.
+body='{"stop_reason":"tool_use","usage":{"input_tokens":10,"output_tokens":5}}'
+expected='stop_reason=tool_use input_tokens=10 output_tokens=5 thinking_tokens=unknown'
+if [ "$(describe_api_usage "${body}")" = "${expected}" ]; then
+    pass "describe_api_usage: reports a missing count as unknown"
+else
+    fail "describe_api_usage: got $(describe_api_usage "${body}")"
+fi
+
+expected='stop_reason=unknown input_tokens=unknown output_tokens=unknown thinking_tokens=unknown'
+for body in '<html>Bad gateway</html>' '' '[]' '"text"' '{"usage":null}'; do
+    if [ "$(describe_api_usage "${body}")" = "${expected}" ]; then
+        pass "describe_api_usage: reports a body without usage as unknown (${body:-empty})"
+    else
+        fail "describe_api_usage: got $(describe_api_usage "${body}") for ${body:-empty}"
+    fi
+done
+
+# The values come from the network, so only a plain count and a plain stop
+# reason are printed. Anything else is reported as unknown, which keeps a
+# crafted value from putting text or a second line into the log.
+body=$(jq -cn '{stop_reason: "tool_use\n::error::x", usage: {input_tokens: "7 ##[x]", output_tokens: -3, output_tokens_details: {thinking_tokens: 1.5}}}')
+if [ "$(describe_api_usage "${body}")" = "${expected}" ]; then
+    pass "describe_api_usage: prints only plain values"
+else
+    fail "describe_api_usage: got $(describe_api_usage "${body}")"
+fi
+
 # A label name containing a comma must survive as ONE atomic array entry -
 # gh issue edit --add-label would instead split it into two labels (its
 # own --help example shows "bug,help wanted" -> two labels), which is
