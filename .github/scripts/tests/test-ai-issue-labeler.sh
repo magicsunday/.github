@@ -996,6 +996,36 @@ for count in 1e300 1.0 -0 -3 100000000000000000000 1000000000000000 999999999999
     fi
 done
 
+# One bad field at a time with the others valid, so that each guard is pinned
+# by itself and not hidden behind the fallback for the whole body.
+while IFS='|' read -r label body_template want; do
+    body=$(printf "${body_template}")
+    if [ "$(describe_api_usage "${body}")" = "${want}" ]; then
+        pass "describe_api_usage: ${label}"
+    else
+        fail "describe_api_usage: got $(describe_api_usage "${body}") for ${label}"
+    fi
+done <<'CASES'
+a string stop reason that is not a word|{"stop_reason":5,"usage":{"input_tokens":1,"output_tokens":2,"output_tokens_details":{"thinking_tokens":3}}}|stop_reason=unknown input_tokens=1 output_tokens=2 thinking_tokens=3
+a count given as a string of digits|{"stop_reason":"tool_use","usage":{"input_tokens":"7","output_tokens":2,"output_tokens_details":{"thinking_tokens":3}}}|stop_reason=tool_use input_tokens=unknown output_tokens=2 thinking_tokens=3
+a count given as text with a marker|{"stop_reason":"tool_use","usage":{"input_tokens":"7 ##[x]","output_tokens":2,"output_tokens_details":{"thinking_tokens":3}}}|stop_reason=tool_use input_tokens=unknown output_tokens=2 thinking_tokens=3
+a negative output count|{"stop_reason":"tool_use","usage":{"input_tokens":1,"output_tokens":-2,"output_tokens_details":{"thinking_tokens":3}}}|stop_reason=tool_use input_tokens=1 output_tokens=unknown thinking_tokens=3
+a fractional thinking count|{"stop_reason":"tool_use","usage":{"input_tokens":1,"output_tokens":2,"output_tokens_details":{"thinking_tokens":1.5}}}|stop_reason=tool_use input_tokens=1 output_tokens=2 thinking_tokens=unknown
+CASES
+
+# The step runs with errexit and pipefail, so a body that is not JSON must not
+# abort it, and the parse error of jq, which quotes the body, must not reach
+# the log through stderr.
+expected='stop_reason=unknown input_tokens=unknown output_tokens=unknown thinking_tokens=unknown'
+# The call sits in a script of its own, because errexit is ignored inside a
+# command that stands left of `||`.
+output=$(bash -c 'set -euo pipefail; source "$1"; describe_api_usage "$2"; echo finished' _ "${SCRIPT_DIR}/../lib/ai-issue-labeler.sh" '<html>text from the network</html>' 2>&1)
+if [ "${output}" = "${expected}"$'\nfinished' ]; then
+    pass "describe_api_usage: survives errexit and keeps the parse error out of the output"
+else
+    fail "describe_api_usage: got ${output} under errexit"
+fi
+
 # A body that holds several JSON values still yields one line.
 body='{"stop_reason":"tool_use","usage":{"input_tokens":1,"output_tokens":2,"output_tokens_details":{"thinking_tokens":3}}} {"stop_reason":"end_turn"}'
 if [ "$(describe_api_usage "${body}" | wc -l)" = "1" ]; then
