@@ -1,4 +1,4 @@
-# Canonical magicsunday label set — single source of truth.
+# Canonical magicsunday label set, the single source of truth.
 # Applied to every actively-maintained (non-fork) repository. Repo-specific
 # labels beyond this set are preserved; only these are enforced (name, color,
 # description). Keep in sync via the reusable label-sync workflow.

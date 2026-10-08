@@ -27,23 +27,22 @@ name: AI issue labeler (reusable)
 #
 # The label set is fetched live from the calling repository on every run
 # (never hardcoded), so a tool call is constrained to an `enum` of exactly
-# those names - the model can never invent a label. Labels whose description
-# opens with "Pull requests that" describe themselves as pull-request labels,
-# and those opening with "Set by maintainers" name a decision or workflow state
-# that only a maintainer can establish, so both are removed from that set first
-# and neither offered to the model nor known to the guard below. A repository
-# without a selectable label, none at all or only labels of those two kinds, is
-# skipped with a notice and the issue gets no label. The model grades each label
-# it selects, and a label graded below the floor of its kind counts as not chosen. A
-# classification with no label left, or that names no known label, applies
-# `needs-triage` where that label exists and otherwise leaves the issue
-# unlabeled. It never guesses. An issue that already carries
-# a type label or a `priority:` label has been triaged and gets no
+# those names and the model can never invent a label. Labels whose description
+# opens with "Pull requests that" describe themselves as pull-request labels.
+# Labels opening with "Set by maintainers" name a decision or workflow state
+# that only a maintainer can establish. Both kinds are removed from the set
+# first, so they are neither offered to the model nor known to the guard below.
+# A repository without a selectable label, none at all or only labels of those
+# two kinds, is skipped with a notice and the issue gets no label. The model
+# grades each label it selects, and a label graded below the floor of its kind
+# counts as not chosen. A classification with no label left, or that names no
+# known label, applies `needs-triage` where that label exists and otherwise
+# leaves the issue unlabeled. It never guesses. An issue that already carries a
+# type label or a `priority:` label has been triaged and gets no
 # `needs-triage`. The labeler never adds a second type label or a second
-# `priority:` label: a kind the issue already carries is left alone, and a
-# kind the model answers with two labels is dropped. The labels are read
-# shortly before they are added, so a label another actor adds in between is
-# not seen.
+# `priority:` label. A kind the issue already carries is left alone, and a kind
+# the model answers with two labels is dropped. The labels are read shortly
+# before they are added, so a label another actor adds in between is not seen.
 #
 # The labeler script is read from this repository via the shared-checkout
 # pattern below, so a caller's job needs to be able to read it - which holds
