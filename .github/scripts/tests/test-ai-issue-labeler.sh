@@ -588,11 +588,11 @@ else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
-# A topic label that merely starts with the word priority is not a priority
-# label, so it needs the topic floor.
+# Labels that only resemble a priority label, a plural and a hyphenated
+# compound, are topics, so they need the topic floor.
 answer='{"labels":[{"label":"priorities","confidence":0.45},{"label":"priority-queue","confidence":0.45}]}'
 if [ "$(apply_label_confidence "${answer}")" = '{"labels":[],"confident":false}' ]; then
-    pass "apply_label_confidence: a topic label that only starts with priority gets the topic floor"
+    pass "apply_label_confidence: labels that only resemble a priority label get the topic floor"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
