@@ -966,8 +966,8 @@ for stop_reason in '"tool_use\n"' '"Tool_use"' '"tool use"' '""'; do
     fi
 done
 
-# The limit of the stop reason is exact. The cases are the longest accepted
-# word and the shortest rejected one.
+# Pins the limit of the stop reason with the longest accepted word and the
+# shortest rejected one.
 accepted=$(printf 'a%.0s' $(seq 1 32))
 rejected=$(printf 'a%.0s' $(seq 1 33))
 body=$(jq -cn --arg reason "${accepted}" '{stop_reason: $reason, usage: {input_tokens: 1, output_tokens: 1, output_tokens_details: {thinking_tokens: 1}}}')
