@@ -65,6 +65,18 @@ else
     fail "build_ai_labeler_request: system prompt did not ask for one type and one priority label"
 fi
 
+if jq -e '.system | contains("critical only when the issue text itself establishes")' <<<"${request}" >/dev/null; then
+    pass "build_ai_labeler_request: system prompt limits critical to what the text establishes"
+else
+    fail "build_ai_labeler_request: system prompt did not limit critical to what the text establishes"
+fi
+
+if jq -e '.system | contains("blocked merge is high at most")' <<<"${request}" >/dev/null; then
+    pass "build_ai_labeler_request: system prompt caps a failing build or blocked merge at high"
+else
+    fail "build_ai_labeler_request: system prompt did not cap a failing build or blocked merge at high"
+fi
+
 if jq -e '.system | contains("no basis")' <<<"${request}" >/dev/null; then
     pass "build_ai_labeler_request: system prompt allows leaving a kind unset without a basis"
 else
