@@ -1014,8 +1014,7 @@ a fractional thinking count|{"stop_reason":"tool_use","usage":{"input_tokens":1,
 CASES
 
 # The step runs with errexit and pipefail, so a body that is not JSON must not
-# abort it, and the parse error of jq, which quotes the body, must not reach
-# the log through stderr.
+# abort it, and the parse error of jq must not reach the log through stderr.
 expected='stop_reason=unknown input_tokens=unknown output_tokens=unknown thinking_tokens=unknown'
 # The call sits in a script of its own, because errexit is ignored inside a
 # command that stands left of `||`.
