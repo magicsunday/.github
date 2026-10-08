@@ -213,6 +213,11 @@ jobs:
                   http_status=$(tail -n1 <<<"$http_response")
                   response_body=$(sed '$d' <<<"$http_response")
 
+                  # A failed call is logged with the reason the API gave, so a
+                  # request it rejects can be explained from this log alone.
+                  [ "$http_status" = "200" ] \
+                      || echo "Anthropic API error for issue #${ISSUE_NUMBER} (HTTP ${http_status}): $(describe_api_error "$response_body")"
+
                   # As observed on 2026-08-28 against
                   # platform.claude.com/docs/en/api/errors, Anthropic documented 401
                   # as authentication_error (bad/expired/revoked key), 402 as

@@ -136,6 +136,25 @@ extract_tool_input() {
     echo "${tool_input}"
 }
 
+# Prints the reason of a failed Anthropic API call for the job log: the error
+# type and message of an API error body, else the start of whatever body came
+# back, else a note that it was empty. The text comes from the network, so it is
+# cut and its runner command markers are broken up before it is logged.
+describe_api_error() {
+    local response_body="$1"
+    local description
+
+    description=$(jq -r 'try (.error | [.type, .message] | map(select(type == "string")) | join(": ")) catch empty' <<<"${response_body}" 2>/dev/null) || description=""
+    if [ -z "${description}" ]; then
+        description=$(printf '%s' "${response_body}" | tr -d '\r' | head -c 300)
+    fi
+    if [ -z "${description}" ]; then
+        description="(empty response body)"
+    fi
+
+    neutralize_command_markers "${description:0:400}"
+}
+
 # Smallest confidence a label needs to be applied. The model grades each label
 # it selects, and a label below this is treated as if it had not been chosen.
 AI_LABELER_MIN_CONFIDENCE="0.75"

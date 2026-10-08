@@ -639,6 +639,47 @@ else
     fail "drop_maintainer_set_labels: the enum was $(jq -c '.tools[0].input_schema.properties.labels.items.properties.label.enum | sort' <<<"${request}")"
 fi
 
+# --- describe_api_error ---
+
+# A failed API call is logged with the reason the API gave, so a request the
+# API rejects can be explained from the job log alone.
+body='{"type":"error","error":{"type":"invalid_request_error","message":"tool_choice: type \"tool\" is not supported for this model."},"request_id":"req_1"}'
+if [ "$(describe_api_error "${body}")" = 'invalid_request_error: tool_choice: type "tool" is not supported for this model.' ]; then
+    pass "describe_api_error: prints the error type and message of an API error body"
+else
+    fail "describe_api_error: got $(describe_api_error "${body}")"
+fi
+
+# A body that is not an API error object still shows its start.
+if [ "$(describe_api_error '<html>Bad gateway</html>')" = '<html>Bad gateway</html>' ]; then
+    pass "describe_api_error: falls back to the start of a body that is not JSON"
+else
+    fail "describe_api_error: got $(describe_api_error '<html>Bad gateway</html>')"
+fi
+
+if [ "$(describe_api_error '')" = '(empty response body)' ]; then
+    pass "describe_api_error: names an empty body"
+else
+    fail "describe_api_error: got $(describe_api_error '')"
+fi
+
+# The text comes from the network, so a runner command marker in it is broken
+# up like in every other value the step logs.
+body='{"error":{"type":"x","message":"see ##[error]boom"}}'
+if [ "$(describe_api_error "${body}")" = 'x: see ## [error]boom' ]; then
+    pass "describe_api_error: breaks up a runner command marker"
+else
+    fail "describe_api_error: got $(describe_api_error "${body}")"
+fi
+
+long=$(printf 'a%.0s' $(seq 1 900))
+cut_length=$(describe_api_error "{\"error\":{\"type\":\"t\",\"message\":\"${long}\"}}" | wc -c)
+if [ "${cut_length}" -ge 100 ] && [ "${cut_length}" -le 420 ]; then
+    pass "describe_api_error: cuts a long message but keeps its start"
+else
+    fail "describe_api_error: a long message came out with ${cut_length} bytes, expected between 100 and 420"
+fi
+
 # --- neutralize_command_markers ---
 
 plain_answer='{"labels":["bug","priority: low"],"confident":true}'
