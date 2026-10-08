@@ -537,33 +537,64 @@ fi
 
 # The model answers with a confidence per label. The guard below it reads the
 # older shape, a plain list plus one overall flag, so this keeps the labels at
-# or above the threshold and derives the flag from whether any is left.
-answer='{"labels":[{"label":"bug","confidence":0.95},{"label":"help wanted","confidence":0.4}]}'
+# or above the threshold of their kind and derives the flag from whether any is
+# left. A type label (bug, enhancement, documentation) and a priority label need
+# 0.4, any other label 0.5.
+answer='{"labels":[{"label":"bug","confidence":0.95},{"label":"i18n","confidence":0.45}]}'
 if [ "$(apply_label_confidence "${answer}")" = '{"labels":["bug"],"confident":true}' ]; then
-    pass "apply_label_confidence: keeps the labels above the threshold and drops the rest"
+    pass "apply_label_confidence: keeps a confident label and drops a topic label below its threshold"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
-answer='{"labels":[{"label":"bug","confidence":0.74},{"label":"enhancement","confidence":0.3}]}'
+answer='{"labels":[{"label":"bug","confidence":0.4}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["bug"],"confident":true}' ]; then
+    pass "apply_label_confidence: a type label exactly at 0.4 is kept"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
+fi
+
+answer='{"labels":[{"label":"enhancement","confidence":0.39}]}'
 if [ "$(apply_label_confidence "${answer}")" = '{"labels":[],"confident":false}' ]; then
-    pass "apply_label_confidence: no label at the threshold means not confident"
+    pass "apply_label_confidence: a type label below 0.4 is dropped"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
-answer='{"labels":[{"label":"bug","confidence":0.75}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":["bug"],"confident":true}' ]; then
-    pass "apply_label_confidence: a label exactly at the threshold is kept"
+answer='{"labels":[{"label":"priority: high","confidence":0.4}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["priority: high"],"confident":true}' ]; then
+    pass "apply_label_confidence: a priority label exactly at 0.4 is kept"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
-answer='{"labels":[{"label":"bug","confidence":0.6},{"label":"enhancement","confidence":0.9}]}'
-if [ "$(apply_label_confidence "${answer}" 0.5)" = '{"labels":["bug","enhancement"],"confident":true}' ]; then
-    pass "apply_label_confidence: takes the threshold from its second argument"
+answer='{"labels":[{"label":"priority: low","confidence":0.39}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":[],"confident":false}' ]; then
+    pass "apply_label_confidence: a priority label below 0.4 is dropped"
 else
-    fail "apply_label_confidence: got $(apply_label_confidence "${answer}" 0.5)"
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
+fi
+
+answer='{"labels":[{"label":"i18n","confidence":0.5}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["i18n"],"confident":true}' ]; then
+    pass "apply_label_confidence: a topic label exactly at 0.5 is kept"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
+fi
+
+answer='{"labels":[{"label":"i18n","confidence":0.49}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":[],"confident":false}' ]; then
+    pass "apply_label_confidence: a topic label below 0.5 is dropped"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
+fi
+
+# The kind is read without regard to case, like the guard reads it.
+answer='{"labels":[{"label":"Bug","confidence":0.45},{"label":"Priority: High","confidence":0.45}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["Bug","Priority: High"],"confident":true}' ]; then
+    pass "apply_label_confidence: recognises the kind of a label without regard to case"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
 # A confidence that is missing or not a number counts as no confidence.
@@ -586,11 +617,11 @@ else
     pass "apply_label_confidence: returns non-zero for malformed input"
 fi
 
-# End to end with the guard: a label below the threshold never reaches it, so
+# End to end with the guard: a label below its threshold never reaches it, so
 # the needs-triage fallback applies when nothing is left.
-converted=$(apply_label_confidence '{"labels":[{"label":"bug","confidence":0.4}]}')
+converted=$(apply_label_confidence '{"labels":[{"label":"bug","confidence":0.39}]}')
 if [ "$(resolve_labels_to_apply "${converted}" "${LABELS_JSON}" '[]')" = "needs-triage" ]; then
-    pass "apply_label_confidence: a label below the threshold falls through to needs-triage"
+    pass "apply_label_confidence: a label below its threshold falls through to needs-triage"
 else
     fail "apply_label_confidence: expected needs-triage, got $(resolve_labels_to_apply "${converted}" "${LABELS_JSON}" '[]')"
 fi

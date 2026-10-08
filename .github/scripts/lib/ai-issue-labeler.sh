@@ -155,22 +155,38 @@ describe_api_error() {
     neutralize_command_markers "${description:0:400}"
 }
 
-# Smallest confidence a label needs to be applied. The model grades each label
-# it selects, and a label below this is treated as if it had not been chosen.
-AI_LABELER_MIN_CONFIDENCE="0.75"
+# Smallest confidence a label needs to be applied, by kind of label. The model
+# grades each label it selects, and a label below its floor is treated as if it
+# had not been chosen. These are floors for plausibility, not calibrated
+# probabilities: for a type or a priority label the model's confidence did not
+# separate right answers from wrong ones in the measured samples, so the floor
+# only drops answers it barely supports. A topic label is where confidence
+# separated them, so it needs more. The kinds are the ones the guard reads
+# (`AI_LABELER_KIND_JQ_DEF`), and every label that is neither a type nor a
+# priority label counts as a topic.
+AI_LABELER_MIN_CONFIDENCE_TYPE="0.4"
+AI_LABELER_MIN_CONFIDENCE_PRIORITY="0.4"
+AI_LABELER_MIN_CONFIDENCE_TOPIC="0.5"
 
 # Reads the `assign_labels` input (`{labels: [{label, confidence}, ...]}`) and
 # prints it in the shape `resolve_labels_to_apply` reads, a plain list plus one
-# overall flag: the labels at or above the threshold (the second argument, else
-# `AI_LABELER_MIN_CONFIDENCE`), and `confident` true only if any is left. A
-# confidence that is missing or not a number counts as none. Returns non-zero,
-# with no output, for input that is not the expected JSON.
+# overall flag: the labels at or above the floor of their kind, and `confident`
+# true only if any is left. A confidence that is missing or not a number counts
+# as none. Returns non-zero, with no output, for input that is not the expected
+# JSON.
 apply_label_confidence() {
     local tool_input_json="$1"
-    local threshold="${2:-${AI_LABELER_MIN_CONFIDENCE}}"
 
-    jq -c --argjson threshold "${threshold}" '
-        [.labels[] | select((.confidence | type) == "number" and .confidence >= $threshold) | .label] as $kept
+    jq -c \
+        --argjson type_floor "${AI_LABELER_MIN_CONFIDENCE_TYPE}" \
+        --argjson priority_floor "${AI_LABELER_MIN_CONFIDENCE_PRIORITY}" \
+        --argjson topic_floor "${AI_LABELER_MIN_CONFIDENCE_TOPIC}" \
+        "${AI_LABELER_KIND_JQ_DEF}"'
+        [.labels[]
+            | (.label | kind) as $kind
+            | (if $kind == "type" then $type_floor elif $kind == "priority" then $priority_floor else $topic_floor end) as $floor
+            | select((.confidence | type) == "number" and .confidence >= $floor)
+            | .label] as $kept
         | {labels: $kept, confident: ($kept | length > 0)}
     ' <<<"${tool_input_json}"
 }
