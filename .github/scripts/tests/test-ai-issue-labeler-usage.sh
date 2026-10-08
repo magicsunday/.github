@@ -12,8 +12,8 @@ source "${SCRIPT_DIR}/../lib/ai-issue-labeler.sh"
 
 ALL_UNKNOWN='stop_reason=unknown input_tokens=unknown output_tokens=unknown thinking_tokens=unknown'
 
-# Prints a response body with the stop reason, given as JSON, and the three
-# counts, given as JSON, in the places the API puts them.
+# Prints a response body with the stop reason and the token counts, each given
+# as JSON, in the places the API puts them.
 response_body() {
     printf '{"stop_reason":%s,"usage":{"input_tokens":%s,"output_tokens":%s,"output_tokens_details":{"thinking_tokens":%s}}}' "$1" "$2" "$3" "$4"
 }

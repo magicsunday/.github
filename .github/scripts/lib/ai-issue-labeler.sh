@@ -165,9 +165,9 @@ describe_api_error() {
 # Prints one line with the stop reason and the token counts of an Anthropic
 # Messages API response, so a run shows how much of the output budget the model
 # used. A count is printed only as a plain run of digits and a stop reason only as
-# a short lowercase word, anything else as `unknown`, which keeps one shape for
-# every response and keeps text from the network out of the log. A body that holds
-# several JSON values still yields one line. Never fails.
+# a short lowercase word. Anything else is printed as `unknown`. That keeps one
+# shape for every response and keeps text from the network out of the log. A body
+# that holds several JSON values still yields one line. Never fails.
 describe_api_usage() {
     local response_body="$1"
     local summary
