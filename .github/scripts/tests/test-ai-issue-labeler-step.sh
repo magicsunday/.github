@@ -72,7 +72,7 @@ the count|label_count=$(jq 'length' <<<"$labels_json")
 the request builder|request_body=$(build_ai_labeler_request
 the API error log||| echo "Anthropic API error for issue #
 the auth failure exit|if [ "$http_status" = "401" ]
-the confidence threshold|tool_input=$(apply_label_confidence "$tool_input")
+the confidence threshold|tool_input=$(apply_label_confidence "$tool_input" 2>/dev/null)
 the guard|selected_output=$(resolve_labels_to_apply
 ORDER
     echo "PASS: the step filters the label set between its fetch and its count"
@@ -111,7 +111,7 @@ FILTER='labels_json=$(drop_pull_request_only_labels "$labels_json")'
 MFILTER='labels_json=$(drop_maintainer_set_labels "$labels_json")'
 COUNT='label_count=$(jq '"'"'length'"'"' <<<"$labels_json")'
 REQUEST='request_body=$(build_ai_labeler_request "$REPO" "$TITLE" "$BODY" "$labels_json")'
-CONFIDENCE='tool_input=$(apply_label_confidence "$tool_input")'
+CONFIDENCE='tool_input=$(apply_label_confidence "$tool_input" 2>/dev/null)'
 ERRLOG='|| echo "Anthropic API error for issue #${ISSUE_NUMBER} (HTTP ${http_status}): $(describe_api_error "$response_body")"'
 ERRGATE='[ "$http_status" = "200" ] \'
 AUTHEXIT='if [ "$http_status" = "401" ] || [ "$http_status" = "402" ] || [ "$http_status" = "403" ]; then'

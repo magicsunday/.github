@@ -256,7 +256,9 @@ jobs:
                   # The model grades each label it chose. Only the labels at or
                   # above the threshold go on to the guard, in the shape it reads,
                   # so a label the model was unsure about counts as not chosen.
-                  tool_input=$(apply_label_confidence "$tool_input") \
+                  # The jq error text is dropped because it quotes the model's
+                  # answer and would reach the log without the marker neutralising.
+                  tool_input=$(apply_label_confidence "$tool_input" 2>/dev/null) \
                       || warn_and_skip "Could not apply the confidence threshold for issue #${ISSUE_NUMBER}; leaving labels untouched."
 
                   # Captured into a plain variable (not piped straight into
