@@ -954,6 +954,56 @@ else
     fail "describe_api_usage: got $(describe_api_usage "${body}")"
 fi
 
+# A single trailing line break must not pass for a word, and a count must be a
+# plain run of digits, not an exponent, a fraction or a sign.
+expected='stop_reason=unknown input_tokens=1 output_tokens=1 thinking_tokens=1'
+for stop_reason in '"tool_use\n"' '"Tool_use"' '"tool use"' '""'; do
+    body=$(jq -cn --argjson reason "${stop_reason}" '{stop_reason: $reason, usage: {input_tokens: 1, output_tokens: 1, output_tokens_details: {thinking_tokens: 1}}}')
+    if [ "$(describe_api_usage "${body}")" = "${expected}" ]; then
+        pass "describe_api_usage: rejects the stop reason ${stop_reason}"
+    else
+        fail "describe_api_usage: got $(describe_api_usage "${body}") for ${stop_reason}"
+    fi
+done
+
+# The limit of the stop reason is exact: the longest accepted word and the
+# shortest rejected one.
+accepted=$(printf 'a%.0s' $(seq 1 32))
+rejected=$(printf 'a%.0s' $(seq 1 33))
+body=$(jq -cn --arg reason "${accepted}" '{stop_reason: $reason, usage: {input_tokens: 1, output_tokens: 1, output_tokens_details: {thinking_tokens: 1}}}')
+if [ "$(describe_api_usage "${body}")" = "stop_reason=${accepted} input_tokens=1 output_tokens=1 thinking_tokens=1" ]; then
+    pass "describe_api_usage: prints the longest accepted stop reason"
+else
+    fail "describe_api_usage: got $(describe_api_usage "${body}") for the longest accepted stop reason"
+fi
+body=$(jq -cn --arg reason "${rejected}" '{stop_reason: $reason, usage: {input_tokens: 1, output_tokens: 1, output_tokens_details: {thinking_tokens: 1}}}')
+if [ "$(describe_api_usage "${body}")" = "${expected}" ]; then
+    pass "describe_api_usage: rejects a stop reason one character too long"
+else
+    fail "describe_api_usage: got $(describe_api_usage "${body}") for a stop reason one character too long"
+fi
+
+for count in 1e300 1.0 -0 -3 100000000000000000000 1000000000000000 999999999999999; do
+    body=$(printf '{"stop_reason":"tool_use","usage":{"input_tokens":%s,"output_tokens":2,"output_tokens_details":{"thinking_tokens":3}}}' "${count}")
+    case "${count}" in
+        999999999999999) want='input_tokens=999999999999999' ;;
+        *) want='input_tokens=unknown' ;;
+    esac
+    if [ "$(describe_api_usage "${body}")" = "stop_reason=tool_use ${want} output_tokens=2 thinking_tokens=3" ]; then
+        pass "describe_api_usage: handles the count ${count}"
+    else
+        fail "describe_api_usage: got $(describe_api_usage "${body}") for the count ${count}"
+    fi
+done
+
+# A body that holds several JSON values still yields one line.
+body='{"stop_reason":"tool_use","usage":{"input_tokens":1,"output_tokens":2,"output_tokens_details":{"thinking_tokens":3}}} {"stop_reason":"end_turn"}'
+if [ "$(describe_api_usage "${body}" | wc -l)" = "1" ]; then
+    pass "describe_api_usage: prints one line for a body with several JSON values"
+else
+    fail "describe_api_usage: printed more than one line for a body with several JSON values"
+fi
+
 # A label name containing a comma must survive as ONE atomic array entry -
 # gh issue edit --add-label would instead split it into two labels (its
 # own --help example shows "bug,help wanted" -> two labels), which is
