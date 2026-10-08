@@ -579,6 +579,15 @@ else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
+# 0.45 is above the floor of a type or a priority label and below the floor of
+# a topic label, so it only passes when the label is read as an exclusive kind.
+answer='{"labels":[{"label":"enhancement","confidence":0.45},{"label":"priority: low","confidence":0.45}]}'
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["enhancement","priority: low"],"confident":true}' ]; then
+    pass "apply_label_confidence: an enhancement and a priority label at 0.45 are kept as exclusive kinds"
+else
+    fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
+fi
+
 answer='{"labels":[{"label":"documentation","confidence":0.4}]}'
 if [ "$(apply_label_confidence "${answer}")" = '{"labels":["documentation"],"confident":true}' ]; then
     pass "apply_label_confidence: a documentation label exactly at 0.4 is kept as a type label"
