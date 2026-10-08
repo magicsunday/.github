@@ -222,7 +222,7 @@ AI_LABELER_KIND_JQ_DEF='def kind:
 
 # Decides which labels to apply, printed one per line (empty output means
 # apply nothing). `tool_input_json` is the object `apply_label_confidence`
-# printed - `{labels: [...], confident: bool}`. Selected labels are
+# printed, `{labels: [...], confident: bool}`. Selected labels are
 # re-filtered against `labels_json` (the same set the request was built
 # from) rather than trusted as-is: the request-side `enum` is what stops the
 # model from inventing a label, this filter is what stops a stale/renamed
@@ -253,9 +253,9 @@ AI_LABELER_KIND_JQ_DEF='def kind:
 # both kinds pass through, except that a `needs-triage` the model selected
 # itself is dropped for an issue that already carries a type or a priority
 # label, just like the fallback, and also when its own selection applies one.
-# A selection the guard empties applies nothing: the `needs-triage` fallback
-# below is for an answer with no label left above its floor, not for an issue that
-# already carries a type or a priority label.
+# A selection the guard empties applies nothing. The `needs-triage` fallback
+# below is for an answer with no label left above its floor. It is not for an
+# issue that already carries a type or a priority label.
 resolve_labels_to_apply() {
     local tool_input_json="$1"
     local labels_json="$2"
