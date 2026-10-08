@@ -191,7 +191,7 @@ fixture_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${fixture_dir}"' EXIT
 {
     printf 'jobs:\n    label:\n        steps:\n            - name: Classify and label the issue\n              run: |\n'
-    printf '                  %s\n' "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}"
+    printf '                  %s\n' "${FETCH}" "# ${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}"
 } >"${fixture_dir}/wf.yml"
 output="$(check_order "$(step_script "${fixture_dir}/wf.yml")")"
 assert_starts_with_fail "a comment line in the parsed step does not count" "${output}"
