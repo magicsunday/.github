@@ -89,7 +89,7 @@ build_ai_labeler_request() {
 # Prints `labels_json` (the `{name, description}` array the request builder
 # takes) without the labels whose description opens with the given words,
 # matched without regard to case. Only a description that OPENS with them
-# counts, so a label that merely mentions them stays selectable. The two
+# counts, so a label that merely mentions them stays selectable. The
 # filters below share it. Their callers feed the result to the request builder
 # and to `resolve_labels_to_apply` alike, so the model's choices and the
 # guard's known set stay the same.

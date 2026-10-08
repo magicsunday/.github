@@ -33,7 +33,7 @@ name: AI issue labeler (reusable)
 # that only a maintainer can establish. Both kinds are removed from the set
 # first, so they are neither offered to the model nor known to the guard below.
 # A repository without a selectable label, none at all or only labels of those
-# two kinds, is skipped with a notice and the issue gets no label. The model
+# kinds, is skipped with a notice and the issue gets no label. The model
 # grades each label it selects, and a label graded below the floor of its kind
 # counts as not chosen. A classification with no label left, or that names no
 # known label, applies `needs-triage` where that label exists and otherwise
