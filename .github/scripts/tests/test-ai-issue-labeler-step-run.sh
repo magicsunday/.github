@@ -41,16 +41,17 @@ sys.exit("step not found")
 PY
 
 # The library under test, with every function the step calls wrapped so that
-# a call is recorded in the trace before the real function runs.
-cat >"${WORK_DIR}/lib/ai-issue-labeler.sh" <<LIB
+# a call is recorded in the trace before the real function runs. A run can
+# force one function to fail by naming it in FAIL_FUNCTION.
+cat >"${WORK_DIR}/lib/ai-issue-labeler.sh" <<'LIB'
 # shellcheck disable=SC1090
-source "${LIBRARY_FILE}"
-for traced in drop_pull_request_only_labels drop_maintainer_set_labels \\
-    build_ai_labeler_request describe_api_error describe_api_usage \\
-    extract_tool_input apply_label_confidence resolve_labels_to_apply \\
+source "${REAL_LIBRARY_FILE}"
+for traced in drop_pull_request_only_labels drop_maintainer_set_labels \
+    build_ai_labeler_request describe_api_error describe_api_usage \
+    extract_tool_input apply_label_confidence resolve_labels_to_apply \
     build_labels_payload neutralize_command_markers; do
-    eval "original_\$(declare -f "\${traced}")"
-    eval "\${traced}() { echo \"\${traced}\" >>\"\\\${TRACE_FILE}\"; original_\${traced} \"\\\$@\"; }"
+    eval "original_$(declare -f "${traced}")"
+    eval "${traced}() { echo \"${traced}\" >>\"\${TRACE_FILE}\"; [ \"\${FAIL_FUNCTION:-}\" != \"${traced}\" ] || return 1; original_${traced} \"\$@\"; }"
 done
 LIB
 
@@ -60,23 +61,29 @@ cat >"${WORK_DIR}/bin/gh" <<'STUB'
 #!/usr/bin/env bash
 echo "gh $*" >>"${TRACE_FILE}"
 case "$*" in
-    *"/labels"*"-X POST"*) cat >"${POSTED_FILE}" ;;
+    *"/labels"*"-X POST"*)
+        cat >"${POSTED_FILE}"
+        [ -z "${POST_FAILS:-}" ] || exit 1
+        ;;
     *"/labels"*"--paginate"*)
         [ -z "${GH_FETCH_FAILS:-}" ] || exit 1
         cat "${LABELS_FIXTURE}"
         ;;
-    *"--jq"*) echo "${ISSUE_LABELS:-[]}" ;;
+    *"--jq"*)
+        [ -z "${ISSUE_READ_FAILS:-}" ] || exit 1
+        echo "${ISSUE_LABELS:-[]}"
+        ;;
 esac
 STUB
 
-# curl records its arguments and answers with the fixed body. Like the real
+# curl records its arguments, one per field, and answers with the fixed body. Like the real
 # call it reads the request from stdin only for `--data-binary @-` and prints
 # the status on its own line only for `-w`, so a step that drops either
 # argument changes what it sees.
 cat >"${WORK_DIR}/bin/curl" <<'STUB'
 #!/usr/bin/env bash
 echo "curl" >>"${TRACE_FILE}"
-printf '%s\n' "$*" >"${ARGV_FILE}"
+printf '%s\n' "$@" | paste -sd'|' >"${ARGV_FILE}"
 [ -z "${CURL_FAILS:-}" ] || exit 7
 case "$*" in *"--data-binary @-"*) cat >"${REQUEST_FILE}" ;; esac
 cat "${RESPONSE_FILE}"
@@ -88,6 +95,9 @@ cat >"${WORK_DIR}/labels.json" <<'JSON'
 [
     {"name": "bug", "description": "Something is broken"},
     {"name": "needs-triage", "description": "Not yet classified"},
+    {"name": "question", "description": null},
+    {"name": "help wanted", "description": "Extra attention"},
+    {"name": "##[notice]odd", "description": "A name the runner would read as a command"},
     {"name": "dependencies", "description": "Pull requests that update a dependency file"},
     {"name": "status: accepted", "description": "Set by maintainers after triage"}
 ]
@@ -105,17 +115,20 @@ tool_response() {
 run_step() {
     : >"${WORK_DIR}/trace"
     rm -f "${WORK_DIR}/posted.json" "${WORK_DIR}/request.json" "${WORK_DIR}/argv"
+    local body_args=(ISSUE_BODY="It crashes.")
+    [ -z "${STEP_NO_BODY:-}" ] || body_args=()
     env \
         PATH="${WORK_DIR}/bin:${PATH}" \
         TRACE_FILE="${WORK_DIR}/trace" \
         POSTED_FILE="${WORK_DIR}/posted.json" \
+        REAL_LIBRARY_FILE="${LIBRARY_FILE}" \
         REQUEST_FILE="${WORK_DIR}/request.json" \
         ARGV_FILE="${WORK_DIR}/argv" \
         RESPONSE_FILE="$2" \
         RESPONSE_STATUS="$1" \
         LABELS_FIXTURE="${LABELS_FIXTURE:-${WORK_DIR}/labels.json}" \
         GH_TOKEN=unused REPO=owner/repo ISSUE_NUMBER=7 \
-        ISSUE_TITLE="Crash on start" ISSUE_BODY="It crashes." \
+        ISSUE_TITLE="Crash on start" "${body_args[@]}" \
         ANTHROPIC_API_KEY=unused SCRIPT_LIB="${WORK_DIR}/lib" \
         bash "${WORK_DIR}/step.sh" >"${WORK_DIR}/output" 2>&1
     echo "$?" >"${WORK_DIR}/status"
@@ -126,8 +139,14 @@ trace() {
     paste -sd'|' "${WORK_DIR}/trace" | sed 's/|/ | /g'
 }
 
-output() {
-    cat "${WORK_DIR}/output"
+# Prints how many lines of the step output match the extended regex "$1".
+logged() {
+    grep -c -E "$1" "${WORK_DIR}/output"
+}
+
+# Prints yes when the file "$1" of the last run exists, otherwise no.
+exists() {
+    [ -e "${WORK_DIR}/$1" ] && echo yes || echo no
 }
 
 status() {
@@ -148,16 +167,20 @@ assert_eq "a successful answer exits cleanly" "0" "$(status)"
 assert_eq "a successful answer writes the chosen label" \
     '{"labels":["bug"]}' "$(jq -c . "${WORK_DIR}/posted.json")"
 assert_eq "a successful answer logs no API error" \
-    "0" "$(grep -c 'Anthropic API error' "${WORK_DIR}/output")"
+    "0" "$(logged 'Anthropic API error')"
 assert_eq "the request offers the repository label" \
     "yes" "$(grep -q 'Something is broken' "${WORK_DIR}/request.json" && echo yes || echo no)"
 assert_eq "the request call carries its timeouts, the status format and the stdin body" \
-    "-sS --connect-timeout 10 --max-time 30 -w \\n%{http_code} https://api.anthropic.com/v1/messages -H Content-Type: application/json -H x-api-key: unused -H anthropic-version: 2023-06-01 --data-binary @-" \
+    "-sS|--connect-timeout|10|--max-time|30|-w|\\n%{http_code}|https://api.anthropic.com/v1/messages|-H|Content-Type: application/json|-H|x-api-key: unused|-H|anthropic-version: 2023-06-01|--data-binary|@-" \
     "$(cat "${WORK_DIR}/argv")"
+assert_eq "the request offers a label that has no description" \
+    "yes" "$(grep -q 'question' "${WORK_DIR}/request.json" && echo yes || echo no)"
+assert_eq "the request carries the issue title, the issue body and the repository" \
+    "3" "$(grep -o -E 'Crash on start|It crashes\.|owner/repo' "${WORK_DIR}/request.json" | sort -u | wc -l)"
 assert_eq "the request leaves out the pull request label and the maintainer label" \
     "0" "$(grep -c -E 'dependencies|status: accepted' "${WORK_DIR}/request.json")"
 assert_eq "a successful answer logs the model answer and the applied label" \
-    "2" "$(grep -c -E 'Model answer for issue #7: |Applied labels to issue #7: bug' "${WORK_DIR}/output")"
+    "2" "$(logged 'Model answer for issue #7: |Applied labels to issue #7: bug')"
 
 # A label below its floor does not reach the guard, so the fallback applies.
 tool_response bug 0.1 >"${WORK_DIR}/response.json"
@@ -172,9 +195,9 @@ assert_eq "an answer without a tool call stops after reading it" \
     "${BEFORE_REQUEST} | describe_api_usage | extract_tool_input" "$(trace)"
 assert_eq "an answer without a tool call exits cleanly" "0" "$(status)"
 assert_eq "an answer without a tool call still logs the usage" \
-    "1" "$(grep -c 'Usage for issue #7: stop_reason=max_tokens' "${WORK_DIR}/output")"
+    "1" "$(logged 'Usage for issue #7: stop_reason=max_tokens')"
 assert_eq "an answer without a tool call writes no label" \
-    "no" "$([ -e "${WORK_DIR}/posted.json" ] && echo yes || echo no)"
+    "no" "$(exists posted.json)"
 
 # A failed call logs the API error and gives up without reading an answer.
 printf '{"type":"error","error":{"type":"api_error","message":"overloaded"}}' >"${WORK_DIR}/response.json"
@@ -183,21 +206,22 @@ assert_eq "a failed call stops after the error log" \
     "${BEFORE_REQUEST} | describe_api_error | neutralize_command_markers" "$(trace)"
 assert_eq "a failed call exits cleanly" "0" "$(status)"
 assert_eq "a failed call logs the API error once" \
-    "1" "$(grep -c 'Anthropic API error for issue #7 (HTTP 500)' "${WORK_DIR}/output")"
+    "1" "$(logged 'Anthropic API error for issue #7 \(HTTP 500\)')"
 assert_eq "a failed call writes no label" \
-    "no" "$([ -e "${WORK_DIR}/posted.json" ] && echo yes || echo no)"
+    "no" "$(exists posted.json)"
 
 # A rejected key fails the job loudly, after the error log.
 printf '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}' >"${WORK_DIR}/response.json"
 run_step 401 "${WORK_DIR}/response.json"
 assert_eq "a rejected key fails the step" "1" "$(status)"
 assert_eq "a rejected key logs the API error and the failure" \
-    "2" "$(grep -c -E 'Anthropic API error for issue #7 \(HTTP 401\)|::error::Anthropic API rejected' "${WORK_DIR}/output")"
+    "2" "$(logged 'Anthropic API error for issue #7 \(HTTP 401\)|::error::Anthropic API rejected')"
 assert_eq "a rejected key stops after the error log" \
     "${BEFORE_REQUEST} | describe_api_error | neutralize_command_markers" "$(trace)"
 
-# Statuses 402 and 403 are standing account problems like 401, any other
-# failing status is a transient one that gives up quietly.
+# Statuses 402 and 403 are standing account problems like 401. Any other
+# failing status is a transient one that gives up with a warning and a clean
+# exit.
 for rejected in 402 403; do
     run_step "${rejected}" "${WORK_DIR}/response.json"
     assert_eq "status ${rejected} fails the step" "1" "$(status)"
@@ -206,9 +230,9 @@ for transient in 429 529; do
     run_step "${transient}" "${WORK_DIR}/response.json"
     assert_eq "status ${transient} exits cleanly" "0" "$(status)"
     assert_eq "status ${transient} logs the API error and gives up" \
-        "2" "$(grep -c -E "Anthropic API error for issue #7 \\(HTTP ${transient}\\)|::warning::Anthropic API request failed" "${WORK_DIR}/output")"
+        "2" "$(logged "Anthropic API error for issue #7 \\(HTTP ${transient}\\)|::warning::Anthropic API request failed")"
     assert_eq "status ${transient} writes no label" \
-        "no" "$([ -e "${WORK_DIR}/posted.json" ] && echo yes || echo no)"
+        "no" "$(exists posted.json)"
 done
 
 # A type label the issue already carries is left alone, so the model's own
@@ -216,31 +240,88 @@ done
 tool_response bug 0.95 >"${WORK_DIR}/response.json"
 ISSUE_LABELS='["enhancement"]' run_step 200 "${WORK_DIR}/response.json"
 assert_eq "an issue with a type label gets no second type label" \
-    "no" "$([ -e "${WORK_DIR}/posted.json" ] && echo yes || echo no)"
+    "no" "$(exists posted.json)"
 assert_eq "an issue with a type label logs its labels and the empty result" \
-    "2" "$(grep -c -E 'existing labels: \["enhancement"\]|No label to apply for issue #7' "${WORK_DIR}/output")"
+    "2" "$(logged 'existing labels: \["enhancement"\]|No label to apply for issue #7')"
 assert_eq "an issue with a type label exits cleanly" "0" "$(status)"
 
 # Each transient failure gives up with a warning and a clean exit.
 CURL_FAILS=1 run_step 200 "${WORK_DIR}/response.json"
 assert_eq "a failing curl gives up with a warning" \
-    "1" "$(grep -c '::warning::Could not reach the Anthropic API' "${WORK_DIR}/output")"
+    "1" "$(logged '::warning::Could not reach the Anthropic API')"
 assert_eq "a failing curl exits cleanly" "0" "$(status)"
 
 GH_FETCH_FAILS=1 run_step 200 "${WORK_DIR}/response.json"
 assert_eq "a failing label fetch gives up with a warning" \
-    "1" "$(grep -c '::warning::Could not fetch the label set' "${WORK_DIR}/output")"
+    "1" "$(logged '::warning::Could not fetch the label set')"
 assert_eq "a failing label fetch sends no request" \
-    "no" "$([ -e "${WORK_DIR}/request.json" ] && echo yes || echo no)"
+    "no" "$(exists request.json)"
 assert_eq "a failing label fetch exits cleanly" "0" "$(status)"
 
 printf '{"stop_reason":"tool_use","content":[{"type":"tool_use","name":"assign_labels","input":{"labels":5}}],"usage":{"input_tokens":1,"output_tokens":1}}' >"${WORK_DIR}/response.json"
 run_step 200 "${WORK_DIR}/response.json"
 assert_eq "an answer the confidence step cannot read gives up with a warning" \
-    "1" "$(grep -c '::warning::Could not apply the confidence threshold' "${WORK_DIR}/output")"
+    "1" "$(logged '::warning::Could not apply the confidence threshold')"
 assert_eq "an answer the confidence step cannot read writes no label" \
-    "no" "$([ -e "${WORK_DIR}/posted.json" ] && echo yes || echo no)"
+    "no" "$(exists posted.json)"
 assert_eq "an answer the confidence step cannot read exits cleanly" "0" "$(status)"
+
+# A failure of the live label read, of the request builder or of the guard
+# gives up with a warning, and a failing label write fails the step.
+tool_response bug 0.95 >"${WORK_DIR}/response.json"
+ISSUE_READ_FAILS=1 run_step 200 "${WORK_DIR}/response.json"
+assert_eq "a failing read of the issue labels gives up with a warning" \
+    "1" "$(logged '::warning::Could not read the current labels')"
+assert_eq "a failing read of the issue labels writes no label" "no" "$(exists posted.json)"
+assert_eq "a failing read of the issue labels exits cleanly" "0" "$(status)"
+
+FAIL_FUNCTION=build_ai_labeler_request run_step 200 "${WORK_DIR}/response.json"
+assert_eq "a failing request builder gives up with a warning" \
+    "1" "$(logged '::warning::Could not build the classification request')"
+assert_eq "a failing request builder sends no request" "no" "$(exists request.json)"
+assert_eq "a failing request builder exits cleanly" "0" "$(status)"
+
+FAIL_FUNCTION=resolve_labels_to_apply run_step 200 "${WORK_DIR}/response.json"
+assert_eq "a failing guard gives up with a warning" \
+    "1" "$(logged '::warning::Could not resolve which labels to apply')"
+assert_eq "a failing guard writes no label" "no" "$(exists posted.json)"
+assert_eq "a failing guard exits cleanly" "0" "$(status)"
+
+POST_FAILS=1 run_step 200 "${WORK_DIR}/response.json"
+assert_eq "a failing label write fails the step" "1" "$(status)"
+assert_eq "a failing label write does not log the labels as applied" \
+    "0" "$(logged 'Applied labels to issue')"
+
+# The step still runs when the issue has no body.
+STEP_NO_BODY=1 run_step 200 "${WORK_DIR}/response.json"
+assert_eq "an issue without a body still gets its label" \
+    '{"labels":["bug"]}' "$(jq -c . "${WORK_DIR}/posted.json")"
+
+# Several labels reach the payload and the log together.
+printf '{"stop_reason":"tool_use","content":[{"type":"tool_use","name":"assign_labels","input":{"labels":[{"label":"help wanted","confidence":0.9},{"label":"question","confidence":0.9}]}}],"usage":{"input_tokens":1,"output_tokens":1}}' >"${WORK_DIR}/response.json"
+run_step 200 "${WORK_DIR}/response.json"
+assert_eq "two labels are written together" \
+    '{"labels":["help wanted","question"]}' "$(jq -c . "${WORK_DIR}/posted.json")"
+assert_eq "two labels are logged together" \
+    "1" "$(logged 'Applied labels to issue #7: help wanted question')"
+
+# Text that the runner would read as a command never reaches the log as such,
+# neither in the model answer, nor in the issue labels, nor in the applied labels.
+tool_response '##[notice]odd' 0.95 >"${WORK_DIR}/response.json"
+ISSUE_LABELS='["##[group]x"]' run_step 200 "${WORK_DIR}/response.json"
+assert_eq "no command marker reaches the log" \
+    "0" "$(logged '##\[')"
+assert_eq "the model answer and the applied labels are logged neutralised" \
+    "2" "$(logged '## \[notice\]odd')"
+assert_eq "the issue labels are logged neutralised" \
+    "1" "$(logged 'existing labels: \["## \[group\]x"\]')"
+
+# The jq error of the confidence step quotes the model answer, so it must not
+# reach the log. The answer itself appears once, in the line that logs it.
+printf '{"stop_reason":"tool_use","content":[{"type":"tool_use","name":"assign_labels","input":{"labels":"LEAKCHECK"}}],"usage":{"input_tokens":1,"output_tokens":1}}' >"${WORK_DIR}/response.json"
+run_step 200 "${WORK_DIR}/response.json"
+assert_eq "the error text of the confidence step stays out of the log" \
+    "1" "$(logged 'LEAKCHECK')"
 
 # A repository whose labels are all filtered out sends no request.
 cat >"${WORK_DIR}/filtered.json" <<'JSON'
@@ -253,7 +334,7 @@ LABELS_FIXTURE="${WORK_DIR}/filtered.json" run_step 200 "${WORK_DIR}/response.js
 assert_eq "a repository with no label to choose from sends no request" \
     "${BEFORE_REQUEST%% | build_ai_labeler_request*}" "$(trace)"
 assert_eq "a repository with no label to choose from says so" \
-    "1" "$(grep -c '::notice::owner/repo has no labels to choose from' "${WORK_DIR}/output")"
+    "1" "$(logged '::notice::owner/repo has no labels to choose from')"
 assert_eq "a repository with no label to choose from exits cleanly" "0" "$(status)"
 
 report_and_exit "AI issue-labeler step run tests"
