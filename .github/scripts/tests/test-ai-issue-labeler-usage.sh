@@ -97,8 +97,9 @@ output=$(bash -c 'set -euo pipefail; source "$1"; describe_api_usage "$2"; echo 
 assert_eq "describe_api_usage: survives errexit and keeps the parse error out of the output" \
     "${ALL_UNKNOWN}"$'\nfinished' "${output}"
 
-# A body that holds several JSON values still yields one line.
-assert_eq "describe_api_usage: prints one line for a body with several JSON values" \
-    1 "$(describe_api_usage "$(response_body '"tool_use"' 1 2 3) $(response_body '"end_turn"' 4 5 6)" | wc -l)"
+# A body that holds several JSON values yields one line, the one of the first value.
+several=$(describe_api_usage "$(response_body '"tool_use"' 1 2 3) $(response_body '"end_turn"' 4 5 6)")
+assert_eq "describe_api_usage: prints the first value of a body with several JSON values" \
+    'stop_reason=tool_use input_tokens=1 output_tokens=2 thinking_tokens=3' "${several}"
 
 report_and_exit "AI issue-labeler usage tests"

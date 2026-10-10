@@ -42,9 +42,15 @@ PY
 }
 
 # Prints the number of the first line of "$2" that starts with "$1", or
-# nothing when no line does.
+# nothing when no line does. A "$1" that begins with "=" must equal the whole
+# line instead, so a redirection or a suffix appended to the statement does
+# not pass.
 line_starting_with() {
-    awk -v prefix="$1" 'index($0, prefix) == 1 { print NR; exit }' <<<"$2"
+    if [ "${1:0:1}" = "=" ]; then
+        awk -v statement="${1:1}" '$0 == statement { print NR; exit }' <<<"$2"
+    else
+        awk -v prefix="$1" 'index($0, prefix) == 1 { print NR; exit }' <<<"$2"
+    fi
 }
 
 # Prints PASS when the statements of script "$1" run in the order the ORDER
@@ -73,7 +79,7 @@ the request builder|request_body=$(build_ai_labeler_request
 the API error log||| echo "Anthropic API error for issue #
 the auth failure exit|if [ "$http_status" = "401" ]
 the non-200 skip||| warn_and_skip "Anthropic API request failed
-the usage log|echo "Usage for issue #${ISSUE_NUMBER}: $(describe_api_usage "$response_body")"
+the usage log|=echo "Usage for issue #${ISSUE_NUMBER}: $(describe_api_usage "$response_body")"
 the tool input extraction|tool_input=$(extract_tool_input "$response_body")
 the confidence threshold|tool_input=$(apply_label_confidence "$tool_input" 2>/dev/null)
 the guard|selected_output=$(resolve_labels_to_apply
@@ -224,6 +230,11 @@ assert_fails_at "a usage log that echoes the raw body does not count" "the usage
 
 output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" 'echo "Usage for issue #${ISSUE_NUMBER}: $(describe_api_error "$response_body")"' "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a usage log that describes the error instead does not count" "the usage log" "${output}"
+
+for suffix in ' >/dev/null' ' >&2' '; true'; do
+    output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}${suffix}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+    assert_fails_at "a usage log followed by '${suffix}' does not count" "the usage log" "${output}"
+done
 
 output="$(check_error_log_gate "$(fixture_script "${REQUEST}" "${ERRGATE}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}")")"
 assert_eq "an API error log behind the status test is accepted" \
