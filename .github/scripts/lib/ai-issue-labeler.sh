@@ -162,6 +162,30 @@ describe_api_error() {
     neutralize_command_markers "${description:0:400}"
 }
 
+# Prints one line with the stop reason and the token counts of an Anthropic
+# Messages API response, so a run shows how much of the output budget the model
+# used. A count is printed only as a plain run of digits and a stop reason only as
+# a short lowercase word. Anything else is printed as `unknown`. That keeps one
+# shape for every response and keeps text from the network out of the log. A body
+# that holds several JSON values still yields one line. Never fails.
+describe_api_usage() {
+    local response_body="$1"
+    local summary
+
+    summary=$(jq -r '
+        def count: if type == "number" then (tostring | if test("\\A[0-9]{1,15}\\z") then . else "unknown" end) else "unknown" end;
+        def reason: if type == "string" and test("\\A[a-z_]{1,32}\\z") then . else "unknown" end;
+        "stop_reason=\(.stop_reason | reason) input_tokens=\(.usage.input_tokens | count) output_tokens=\(.usage.output_tokens | count) thinking_tokens=\(.usage.output_tokens_details.thinking_tokens | count)"
+    ' <<<"${response_body}" 2>/dev/null | head -n 1) || summary=""
+
+    # jq prints nothing and succeeds on an empty body.
+    if [ -z "${summary}" ]; then
+        summary="stop_reason=unknown input_tokens=unknown output_tokens=unknown thinking_tokens=unknown"
+    fi
+
+    printf '%s\n' "${summary}"
+}
+
 # Smallest confidence a label needs to be applied, by kind of label. The model
 # grades each label it selects, and a label below its floor is treated as if it
 # had not been chosen. These are floors for plausibility, not calibrated

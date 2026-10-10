@@ -42,9 +42,15 @@ PY
 }
 
 # Prints the number of the first line of "$2" that starts with "$1", or
-# nothing when no line does.
+# nothing when no line does. A "$1" that begins with "=" must equal the whole
+# line instead, so a redirection or a suffix appended to the statement does
+# not pass.
 line_starting_with() {
-    awk -v prefix="$1" 'index($0, prefix) == 1 { print NR; exit }' <<<"$2"
+    if [ "${1:0:1}" = "=" ]; then
+        awk -v statement="${1:1}" '$0 == statement { print NR; exit }' <<<"$2"
+    else
+        awk -v prefix="$1" 'index($0, prefix) == 1 { print NR; exit }' <<<"$2"
+    fi
 }
 
 # Prints PASS when the statements of script "$1" run in the order the ORDER
@@ -72,6 +78,8 @@ the count|label_count=$(jq 'length' <<<"$labels_json")
 the request builder|request_body=$(build_ai_labeler_request
 the API error log||| echo "Anthropic API error for issue #
 the auth failure exit|if [ "$http_status" = "401" ]
+the non-200 skip||| warn_and_skip "Anthropic API request failed
+the usage log|=echo "Usage for issue #${ISSUE_NUMBER}: $(describe_api_usage "$response_body")"
 the tool input extraction|tool_input=$(extract_tool_input "$response_body")
 the confidence threshold|tool_input=$(apply_label_confidence "$tool_input" 2>/dev/null)
 the guard|selected_output=$(resolve_labels_to_apply
@@ -79,22 +87,31 @@ ORDER
     echo "PASS: the step filters the label set between its fetch and its count"
 }
 
-# Prints PASS when the API error log statement of script "$1" sits directly
-# behind the test that keeps it from running on a successful call, so the log
-# line cannot appear for status 200. Prints FAIL otherwise.
-check_error_log_gate() {
-    awk '
+# Prints PASS when the statement of script "$1" that starts with "$2" sits
+# directly behind the test that keeps it from running on a successful call, so
+# the statement cannot run for status 200. "$3" names the statement in the
+# message. Prints FAIL otherwise.
+check_status_gate() {
+    awk -v prefix="$2" -v what="$3" '
         { lines[NR] = $0 }
         END {
             for (i = 2; i <= NR; i++) {
-                if (index(lines[i], "|| echo \"Anthropic API error for issue #") == 1) {
-                    if (lines[i - 1] == "[ \"$http_status\" = \"200\" ] \\") { print "PASS: the API error log runs only for a status other than 200"; exit }
-                    print "FAIL: the API error log is not directly behind the status test"; exit
+                if (index(lines[i], prefix) == 1) {
+                    if (lines[i - 1] == "[ \"$http_status\" = \"200\" ] \\") { print "PASS: the " what " runs only for a status other than 200"; exit }
+                    print "FAIL: the " what " is not directly behind the status test"; exit
                 }
             }
-            print "FAIL: no API error log statement"
+            print "FAIL: no " what " statement"
         }
     ' <<<"$1"
+}
+
+check_error_log_gate() {
+    check_status_gate "$1" '|| echo "Anthropic API error for issue #' "API error log"
+}
+
+check_skip_gate() {
+    check_status_gate "$1" '|| warn_and_skip "Anthropic API request failed' "non-200 skip"
 }
 
 output="$(check_order "$(step_script "${WORKFLOW_FILE}")")"
@@ -105,6 +122,10 @@ output="$(check_error_log_gate "$(step_script "${WORKFLOW_FILE}")")"
 assert_eq "the workflow step logs an API error only for a status other than 200" \
     "PASS: the API error log runs only for a status other than 200" "${output}"
 
+output="$(check_skip_gate "$(step_script "${WORKFLOW_FILE}")")"
+assert_eq "the workflow step skips a failed call only for a status other than 200" \
+    "PASS: the non-200 skip runs only for a status other than 200" "${output}"
+
 # Negative controls on fixture scripts: each must make the check fail, or the
 # check would pass for the wrong reason.
 FETCH='labels_json=$(gh api "repos/${REPO}/labels" --paginate)'
@@ -113,6 +134,8 @@ MFILTER='labels_json=$(drop_maintainer_set_labels "$labels_json")'
 COUNT='label_count=$(jq '"'"'length'"'"' <<<"$labels_json")'
 REQUEST='request_body=$(build_ai_labeler_request "$REPO" "$TITLE" "$BODY" "$labels_json")'
 EXTRACT='tool_input=$(extract_tool_input "$response_body")'
+USAGE='echo "Usage for issue #${ISSUE_NUMBER}: $(describe_api_usage "$response_body")"'
+SKIP='|| warn_and_skip "Anthropic API request failed for issue #${ISSUE_NUMBER} (HTTP ${http_status}); leaving labels untouched."'
 CONFIDENCE='tool_input=$(apply_label_confidence "$tool_input" 2>/dev/null)'
 ERRLOG='|| echo "Anthropic API error for issue #${ISSUE_NUMBER} (HTTP ${http_status}): $(describe_api_error "$response_body")"'
 ERRGATE='[ "$http_status" = "200" ] \'
@@ -135,57 +158,83 @@ assert_fails_at() {
     assert_contains "${description}: the failure names ${statement}" "${output}" ": ${statement}"
 }
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_eq "the fixture in the right order is accepted" \
     "PASS: the step filters the label set between its fetch and its count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a step without the filter does not count" "the filter" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${FILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${MFILTER}" "${FILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a pull-request filter behind the maintainer filter does not count" "the maintainer filter" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${COUNT}" "${FILTER}" "${MFILTER}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${COUNT}" "${FILTER}" "${MFILTER}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a count before the filters does not count" "the count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${GUARD}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${GUARD}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}")")"
 assert_fails_at "a guard before the request builder does not count" "the guard" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a step without the request builder does not count" "the request builder" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${ERRLOG}" "${REQUEST}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${ERRLOG}" "${REQUEST}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a request builder behind the API error log does not count" "the API error log" "${output}"
 
-output="$(check_order "$(fixture_script "${FILTER}" "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FILTER}" "${FETCH}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a filter before the fetch does not count" "the filter" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a step without the maintainer filter does not count" "the maintainer filter" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${MFILTER}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${COUNT}" "${MFILTER}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a maintainer filter behind the count does not count" "the count" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${GUARD}")")"
 assert_fails_at "a step without the confidence threshold does not count" "the confidence threshold" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${EXTRACT}" "${GUARD}" "${CONFIDENCE}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${GUARD}" "${CONFIDENCE}")")"
 assert_fails_at "a confidence threshold behind the guard does not count" "the guard" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${EXTRACT}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${CONFIDENCE}" "${EXTRACT}" "${GUARD}")")"
 assert_fails_at "a tool input extraction behind the confidence threshold does not count" "the confidence threshold" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a step without the tool input extraction does not count" "the tool input extraction" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${AUTHEXIT}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a step without the API error log does not count" "the API error log" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${AUTHEXIT}" "${ERRLOG}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${AUTHEXIT}" "${SKIP}" "${USAGE}" "${ERRLOG}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "an API error log behind the authentication exit does not count" "the auth failure exit" "${output}"
 
-output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${SKIP}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
 assert_fails_at "a step without the authentication exit does not count" "the auth failure exit" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+assert_fails_at "a step without the usage log does not count" "the usage log" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${EXTRACT}" "${USAGE}" "${CONFIDENCE}" "${GUARD}")")"
+assert_fails_at "a usage log behind the tool input extraction does not count" "the tool input extraction" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${USAGE}" "${SKIP}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+assert_fails_at "a usage log before the non-200 skip does not count" "the usage log" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+assert_fails_at "a step without the non-200 skip does not count" "the non-200 skip" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${SKIP}" "${AUTHEXIT}" "${USAGE}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+assert_fails_at "a non-200 skip before the authentication exit does not count" "the non-200 skip" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" 'echo "Usage for issue #${ISSUE_NUMBER}: $response_body"' "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+assert_fails_at "a usage log that echoes the raw body does not count" "the usage log" "${output}"
+
+output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" 'echo "Usage for issue #${ISSUE_NUMBER}: $(describe_api_error "$response_body")"' "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+assert_fails_at "a usage log that describes the error instead does not count" "the usage log" "${output}"
+
+for suffix in ' >/dev/null' ' >&2' '; true'; do
+    output="$(check_order "$(fixture_script "${FETCH}" "${FILTER}" "${MFILTER}" "${COUNT}" "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${SKIP}" "${USAGE}${suffix}" "${EXTRACT}" "${CONFIDENCE}" "${GUARD}")")"
+    assert_fails_at "a usage log followed by '${suffix}' does not count" "the usage log" "${output}"
+done
 
 output="$(check_error_log_gate "$(fixture_script "${REQUEST}" "${ERRGATE}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}")")"
 assert_eq "an API error log behind the status test is accepted" \
@@ -193,6 +242,13 @@ assert_eq "an API error log behind the status test is accepted" \
 
 output="$(check_error_log_gate "$(fixture_script "${REQUEST}" "${ERRLOG}" "${AUTHEXIT}" "${CONFIDENCE}")")"
 assert_starts_with_fail "an API error log without the status test does not count" "${output}"
+
+output="$(check_skip_gate "$(fixture_script "${REQUEST}" "${ERRGATE}" "${SKIP}" "${USAGE}")")"
+assert_eq "a non-200 skip behind the status test is accepted" \
+    "PASS: the non-200 skip runs only for a status other than 200" "${output}"
+
+output="$(check_skip_gate "$(fixture_script "${REQUEST}" "true \\" "${SKIP}" "${USAGE}")")"
+assert_starts_with_fail "a non-200 skip behind another test does not count" "${output}"
 
 # The parser drops a comment line, so a call that only a comment mentions
 # yields no statement, and it reads only the named step, so a statement of
