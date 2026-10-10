@@ -151,53 +151,44 @@ fi
 
 # --- resolve_labels_to_apply ---
 
-confident_known=$(jq -n '{labels: ["bug", "help wanted"], confident: true}')
-result=$(resolve_labels_to_apply "${confident_known}" "${LABELS_JSON_EXCLUSIVE}")
+known_answer=$(jq -n '{labels: ["bug", "help wanted"]}')
+result=$(resolve_labels_to_apply "${known_answer}" "${LABELS_JSON_EXCLUSIVE}")
 if [ "$(printf '%s\n' "${result}" | sort | tr '\n' ',')" = "bug,help wanted," ]; then
-    pass "resolve_labels_to_apply: applies a confident selection of known labels"
+    pass "resolve_labels_to_apply: applies a selection of known labels"
 else
     fail "resolve_labels_to_apply: expected bug,help wanted - got ${result}"
 fi
 
-confident_with_unknown=$(jq -n '{labels: ["bug", "invented-label"], confident: true}')
-result=$(resolve_labels_to_apply "${confident_with_unknown}" "${LABELS_JSON}")
+answer_with_unknown=$(jq -n '{labels: ["bug", "invented-label"]}')
+result=$(resolve_labels_to_apply "${answer_with_unknown}" "${LABELS_JSON}")
 if [ "${result}" = "bug" ]; then
     pass "resolve_labels_to_apply: filters out a label absent from the known set"
 else
     fail "resolve_labels_to_apply: expected only bug - got ${result}"
 fi
 
-not_confident=$(jq -n '{labels: [], confident: false}')
-result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON}")
+empty_answer=$(jq -n '{labels: []}')
+result=$(resolve_labels_to_apply "${empty_answer}" "${LABELS_JSON}")
 if [ "${result}" = "needs-triage" ]; then
-    pass "resolve_labels_to_apply: falls back to needs-triage when not confident"
+    pass "resolve_labels_to_apply: falls back to needs-triage when no label is left"
 else
     fail "resolve_labels_to_apply: expected needs-triage fallback - got '${result}'"
 fi
 
-not_confident_no_fallback=$(jq -n '{labels: [], confident: false}')
-result=$(resolve_labels_to_apply "${not_confident_no_fallback}" "${LABELS_JSON_NO_TRIAGE}")
+result=$(resolve_labels_to_apply "${empty_answer}" "${LABELS_JSON_NO_TRIAGE}")
 if [ -z "${result}" ]; then
-    pass "resolve_labels_to_apply: applies nothing when not confident and no needs-triage exists"
+    pass "resolve_labels_to_apply: applies nothing when no label is left and no needs-triage exists"
 else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
-confident_but_empty=$(jq -n '{labels: [], confident: true}')
-result=$(resolve_labels_to_apply "${confident_but_empty}" "${LABELS_JSON}")
-if [ "${result}" = "needs-triage" ]; then
-    pass "resolve_labels_to_apply: confident with an empty selection still falls back"
-else
-    fail "resolve_labels_to_apply: expected needs-triage fallback - got '${result}'"
-fi
-
 # A malformed argument must make the function itself return non-zero -
 # the caller relies on this (`x=$(resolve_labels_to_apply ...) ||
-# warn_and_skip ...`) to distinguish "internal error" from "legitimately
-# not confident", and `set -e` alone does not surface an internal jq
+# warn_and_skip ...`) to distinguish "internal error" from an
+# ordinary answer, and `set -e` alone does not surface an internal jq
 # failure through a command substitution sitting inside a tested context
 # (see the function's own comment for the re-derive command this pins).
-valid_tool_input=$(jq -n '{labels: ["bug"], confident: true}')
+valid_tool_input=$(jq -n '{labels: ["bug"]}')
 if resolve_labels_to_apply "${valid_tool_input}" "not-json" >/dev/null 2>&1; then
     fail "resolve_labels_to_apply: returned success despite malformed labels_json"
 else
@@ -210,7 +201,7 @@ fi
 # The reported case: the issue already has bug and priority: high, the model
 # offers enhancement and priority: medium on top. Only the label of a kind
 # the issue does not carry yet may be added.
-offered=$(jq -n '{labels: ["enhancement", "priority: medium", "help wanted"], confident: true}')
+offered=$(jq -n '{labels: ["enhancement", "priority: medium", "help wanted"]}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '["bug","priority: high"]')
 if [ "${result}" = "help wanted" ]; then
     pass "resolve_labels_to_apply: adds no second type or priority label to an issue that has both"
@@ -219,7 +210,7 @@ else
 fi
 
 # A kind the issue lacks is still filled, one the issue has is left alone.
-offered=$(jq -n '{labels: ["enhancement", "priority: medium"], confident: true}')
+offered=$(jq -n '{labels: ["enhancement", "priority: medium"]}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
 if [ "${result}" = "priority: medium" ]; then
     pass "resolve_labels_to_apply: fills a missing kind and leaves a present one alone"
@@ -228,7 +219,7 @@ else
 fi
 
 # Every member of the type kind counts, not only bug and enhancement.
-offered=$(jq -n '{labels: ["documentation", "priority: medium"], confident: true}')
+offered=$(jq -n '{labels: ["documentation", "priority: medium"]}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '["documentation"]')
 if [ "${result}" = "priority: medium" ]; then
     pass "resolve_labels_to_apply: a present documentation label holds the type kind"
@@ -236,7 +227,7 @@ else
     fail "resolve_labels_to_apply: expected only 'priority: medium' - got '${result}'"
 fi
 
-offered=$(jq -n '{labels: ["bug", "documentation"], confident: true}')
+offered=$(jq -n '{labels: ["bug", "documentation"]}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '[]')
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: documentation next to bug is a type answered twice"
@@ -246,7 +237,7 @@ fi
 
 # A label outside both kinds passes through even when the issue already
 # carries other labels outside both kinds, next to a kind it does have.
-offered=$(jq -n '{labels: ["help wanted", "enhancement"], confident: true}')
+offered=$(jq -n '{labels: ["help wanted", "enhancement"]}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '["good first issue","bug"]')
 if [ "${result}" = "help wanted" ]; then
     pass "resolve_labels_to_apply: a label outside both kinds passes through next to unrelated existing labels"
@@ -256,7 +247,7 @@ fi
 
 # The same label twice in the model's own answer is one label, not a kind
 # answered twice.
-offered=$(jq -n '{labels: ["bug", "bug"], confident: true}')
+offered=$(jq -n '{labels: ["bug", "bug"]}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '[]')
 if [ "${result}" = "bug" ]; then
     pass "resolve_labels_to_apply: a label repeated in the answer is applied once"
@@ -267,7 +258,7 @@ fi
 # Label names are compared without regard to case, so a repository that
 # capitalises them gets the same exclusivity.
 LABELS_JSON_CAPITALISED='[{"name":"Bug","description":"Something is broken"},{"name":"Enhancement","description":"New feature or request"},{"name":"Priority: Low","description":"Low"},{"name":"Priority: High","description":"High"}]'
-offered=$(jq -n '{labels: ["Enhancement", "Priority: High"], confident: true}')
+offered=$(jq -n '{labels: ["Enhancement", "Priority: High"]}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_CAPITALISED}" '["Bug","Priority: Low"]')
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: capitalised label names hold their kind"
@@ -275,7 +266,7 @@ else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
-offered=$(jq -n '{labels: ["Bug", "Priority: High"], confident: true}')
+offered=$(jq -n '{labels: ["Bug", "Priority: High"]}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_CAPITALISED}" '["bug"]')
 if [ "${result}" = "Priority: High" ]; then
     pass "resolve_labels_to_apply: existing and offered labels match across different casing"
@@ -284,7 +275,7 @@ else
 fi
 
 # One label per kind is fine, and both kinds can be offered together.
-offered=$(jq -n '{labels: ["bug", "priority: high"], confident: true}')
+offered=$(jq -n '{labels: ["bug", "priority: high"]}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '[]')
 if [ "$(printf '%s\n' "${result}" | sort | tr '\n' ',')" = "bug,priority: high," ]; then
     pass "resolve_labels_to_apply: keeps one type and one priority label on a bare issue"
@@ -294,7 +285,7 @@ fi
 
 # Two labels of one kind in the model's own answer is a guess, so that kind
 # is dropped entirely while the other kinds survive.
-offered=$(jq -n '{labels: ["bug", "enhancement", "priority: medium", "help wanted"], confident: true}')
+offered=$(jq -n '{labels: ["bug", "enhancement", "priority: medium", "help wanted"]}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '[]')
 if [ "$(printf '%s\n' "${result}" | sort | tr '\n' ',')" = "help wanted,priority: medium," ]; then
     pass "resolve_labels_to_apply: drops a kind the model answered twice"
@@ -302,7 +293,7 @@ else
     fail "resolve_labels_to_apply: expected 'help wanted' and 'priority: medium' - got '${result}'"
 fi
 
-offered=$(jq -n '{labels: ["priority: high", "priority: medium"], confident: true}')
+offered=$(jq -n '{labels: ["priority: high", "priority: medium"]}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '[]')
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: drops two conflicting priorities without a needs-triage fallback"
@@ -310,10 +301,10 @@ else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
-# needs-triage is one of the labels the model may choose, so a confident answer
+# needs-triage is one of the labels the model may choose, so an answer
 # can select it. An issue that already carries a type or a priority label has
 # been triaged, so the selection path drops it just like the fallback does.
-picks_triage=$(jq -n '{labels: ["needs-triage"], confident: true}')
+picks_triage=$(jq -n '{labels: ["needs-triage"]}')
 result=$(resolve_labels_to_apply "${picks_triage}" "${LABELS_JSON_EXCLUSIVE}" '["documentation","priority: high"]')
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: a selected needs-triage is dropped for an issue with a type and a priority label"
@@ -336,7 +327,7 @@ else
 fi
 
 # Only needs-triage is dropped, the other selected labels still apply.
-picks_triage_and_other=$(jq -n '{labels: ["needs-triage", "help wanted"], confident: true}')
+picks_triage_and_other=$(jq -n '{labels: ["needs-triage", "help wanted"]}')
 result=$(resolve_labels_to_apply "${picks_triage_and_other}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
 if [ "${result}" = "help wanted" ]; then
     pass "resolve_labels_to_apply: a dropped needs-triage leaves the other selected labels"
@@ -346,7 +337,7 @@ fi
 
 # A type or priority label that the same selection applies makes the issue
 # triaged as well, so a selected needs-triage is dropped next to it.
-picks_triage_and_type=$(jq -n '{labels: ["needs-triage", "bug"], confident: true}')
+picks_triage_and_type=$(jq -n '{labels: ["needs-triage", "bug"]}')
 result=$(resolve_labels_to_apply "${picks_triage_and_type}" "${LABELS_JSON_EXCLUSIVE}" '[]')
 if [ "${result}" = "bug" ]; then
     pass "resolve_labels_to_apply: a selected needs-triage is dropped next to a type label of the same selection"
@@ -363,7 +354,7 @@ else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
-picks_triage_and_priority=$(jq -n '{labels: ["needs-triage", "priority: high"], confident: true}')
+picks_triage_and_priority=$(jq -n '{labels: ["needs-triage", "priority: high"]}')
 result=$(resolve_labels_to_apply "${picks_triage_and_priority}" "${LABELS_JSON_EXCLUSIVE}" '[]')
 if [ "${result}" = "priority: high" ]; then
     pass "resolve_labels_to_apply: a selected needs-triage is dropped next to a priority label of the same selection"
@@ -373,7 +364,7 @@ fi
 
 # A kind the guard rejects leaves nothing that triages the issue, so the
 # selected needs-triage stays.
-picks_triage_and_two_types=$(jq -n '{labels: ["needs-triage", "bug", "enhancement"], confident: true}')
+picks_triage_and_two_types=$(jq -n '{labels: ["needs-triage", "bug", "enhancement"]}')
 result=$(resolve_labels_to_apply "${picks_triage_and_two_types}" "${LABELS_JSON_EXCLUSIVE}" '[]')
 if [ "${result}" = "needs-triage" ]; then
     pass "resolve_labels_to_apply: a selected needs-triage stays when the guard rejects the selected types"
@@ -397,9 +388,9 @@ else
 fi
 
 # The guard must not turn an already labelled issue into a needs-triage one:
-# a selection the guard emptied after a confident answer does not re-enter the
+# a selection the guard emptied after an answer does not re-enter the
 # fallback.
-offered=$(jq -n '{labels: ["enhancement"], confident: true}')
+offered=$(jq -n '{labels: ["enhancement"]}')
 result=$(resolve_labels_to_apply "${offered}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: a selection emptied by the guard does not fall back to needs-triage"
@@ -416,28 +407,28 @@ fi
 # An issue that already carries a type or a priority label has been triaged,
 # so the needs-triage fallback must not be added to it. The kind definition is
 # the one the exclusive-kind guard uses.
-result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["bug","priority: high"]')
+result=$(resolve_labels_to_apply "${empty_answer}" "${LABELS_JSON_EXCLUSIVE}" '["bug","priority: high"]')
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: no needs-triage for an issue with a type and a priority label"
 else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
-result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["enhancement"]')
+result=$(resolve_labels_to_apply "${empty_answer}" "${LABELS_JSON_EXCLUSIVE}" '["enhancement"]')
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: no needs-triage for an issue with only a type label"
 else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
-result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["priority: low"]')
+result=$(resolve_labels_to_apply "${empty_answer}" "${LABELS_JSON_EXCLUSIVE}" '["priority: low"]')
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: no needs-triage for an issue with only a priority label"
 else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
-result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["Bug"]')
+result=$(resolve_labels_to_apply "${empty_answer}" "${LABELS_JSON_EXCLUSIVE}" '["Bug"]')
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: a capitalised type label counts as triaged"
 else
@@ -446,14 +437,14 @@ fi
 
 # One type or priority label is enough, an unrelated label next to it does not
 # bring the fallback back.
-result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["help wanted","bug"]')
+result=$(resolve_labels_to_apply "${empty_answer}" "${LABELS_JSON_EXCLUSIVE}" '["help wanted","bug"]')
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: an unrelated label next to a type label does not bring needs-triage back"
 else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
-result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["documentation","help wanted"]')
+result=$(resolve_labels_to_apply "${empty_answer}" "${LABELS_JSON_EXCLUSIVE}" '["documentation","help wanted"]')
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: a documentation label counts as triaged next to an unrelated label"
 else
@@ -461,16 +452,16 @@ else
 fi
 
 # A label outside both kinds says nothing about triage, so the fallback stays.
-result=$(resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" '["help wanted"]')
+result=$(resolve_labels_to_apply "${empty_answer}" "${LABELS_JSON_EXCLUSIVE}" '["help wanted"]')
 if [ "${result}" = "needs-triage" ]; then
     pass "resolve_labels_to_apply: needs-triage stays for an issue with only an unrelated label"
 else
     fail "resolve_labels_to_apply: expected needs-triage - got '${result}'"
 fi
 
-# The other way into the fallback, a confident answer that names no known
+# The other way into the fallback, an answer that names no known
 # label, is held to the same rule.
-only_unknown=$(jq -n '{labels: ["invented-label"], confident: true}')
+only_unknown=$(jq -n '{labels: ["invented-label"]}')
 result=$(resolve_labels_to_apply "${only_unknown}" "${LABELS_JSON_EXCLUSIVE}" '["bug"]')
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: no needs-triage for a triaged issue when the answer names no known label"
@@ -478,7 +469,7 @@ else
     fail "resolve_labels_to_apply: expected no output - got '${result}'"
 fi
 
-if resolve_labels_to_apply "${not_confident}" "${LABELS_JSON_EXCLUSIVE}" "not-json" >/dev/null 2>&1; then
+if resolve_labels_to_apply "${empty_answer}" "${LABELS_JSON_EXCLUSIVE}" "not-json" >/dev/null 2>&1; then
     fail "resolve_labels_to_apply: returned success on the fallback path despite malformed existing labels"
 else
     pass "resolve_labels_to_apply: the fallback path returns non-zero when the existing labels are malformed"
@@ -561,27 +552,26 @@ fi
 
 # --- apply_label_confidence ---
 
-# The model answers with a confidence per label. The guard below it reads the
-# older shape, a plain list plus one overall flag, so this keeps the labels at
-# or above the threshold of their kind and derives the flag from whether any is
-# left. A type label (bug, enhancement, documentation) and a priority label have
-# a lower floor than any other label.
+# The model answers with a confidence per label. The guard below it reads a
+# plain list, so this keeps the labels at or above the threshold of their kind
+# and prints them as that list. A type label (bug, enhancement, documentation)
+# and a priority label have a lower floor than any other label.
 answer='{"labels":[{"label":"bug","confidence":0.95},{"label":"i18n","confidence":0.45}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":["bug"],"confident":true}' ]; then
-    pass "apply_label_confidence: keeps a confident label and drops a topic label below its threshold"
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["bug"]}' ]; then
+    pass "apply_label_confidence: keeps a label above its floor and drops a topic label below its threshold"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
 answer='{"labels":[{"label":"bug","confidence":0.4}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":["bug"],"confident":true}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["bug"]}' ]; then
     pass "apply_label_confidence: a type label exactly at 0.4 is kept"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
 answer='{"labels":[{"label":"enhancement","confidence":0.39}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":[],"confident":false}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":[]}' ]; then
     pass "apply_label_confidence: a type label below 0.4 is dropped"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
@@ -590,7 +580,7 @@ fi
 # 0.45 is above the floor of a type or a priority label and below the floor of
 # a topic label, so it only passes when the label is read as an exclusive kind.
 answer='{"labels":[{"label":"enhancement","confidence":0.45},{"label":"priority: low","confidence":0.45}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":["enhancement","priority: low"],"confident":true}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["enhancement","priority: low"]}' ]; then
     pass "apply_label_confidence: an enhancement and a priority label at 0.45 are kept as exclusive kinds"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
@@ -599,49 +589,49 @@ fi
 # Labels that only resemble a priority label, a plural and a hyphenated
 # compound, are topics, so they need the topic floor.
 answer='{"labels":[{"label":"priorities","confidence":0.45},{"label":"priority-queue","confidence":0.45}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":[],"confident":false}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":[]}' ]; then
     pass "apply_label_confidence: labels that only resemble a priority label get the topic floor"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
 answer='{"labels":[{"label":"documentation","confidence":0.4}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":["documentation"],"confident":true}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["documentation"]}' ]; then
     pass "apply_label_confidence: a documentation label exactly at 0.4 is kept as a type label"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
 answer='{"labels":[{"label":"documentation","confidence":0.39}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":[],"confident":false}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":[]}' ]; then
     pass "apply_label_confidence: a documentation label below 0.4 is dropped"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
 answer='{"labels":[{"label":"priority: high","confidence":0.4}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":["priority: high"],"confident":true}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["priority: high"]}' ]; then
     pass "apply_label_confidence: a priority label exactly at 0.4 is kept"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
 answer='{"labels":[{"label":"priority: low","confidence":0.39}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":[],"confident":false}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":[]}' ]; then
     pass "apply_label_confidence: a priority label below 0.4 is dropped"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
 answer='{"labels":[{"label":"i18n","confidence":0.5}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":["i18n"],"confident":true}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["i18n"]}' ]; then
     pass "apply_label_confidence: a topic label exactly at 0.5 is kept"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
 answer='{"labels":[{"label":"i18n","confidence":0.49}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":[],"confident":false}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":[]}' ]; then
     pass "apply_label_confidence: a topic label below 0.5 is dropped"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
@@ -650,7 +640,7 @@ fi
 # A confidence outside 0 to 1 is not a grade, for example a percentage, and
 # must not pass every floor.
 answer='{"labels":[{"label":"bug","confidence":75},{"label":"enhancement","confidence":1.5},{"label":"i18n","confidence":-1},{"label":"documentation","confidence":1}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":["documentation"],"confident":true}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["documentation"]}' ]; then
     pass "apply_label_confidence: a confidence outside 0 to 1 drops the label and 1 is kept"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
@@ -658,7 +648,7 @@ fi
 
 # The kind is read without regard to case, like the guard reads it.
 answer='{"labels":[{"label":"Bug","confidence":0.45},{"label":"Priority: High","confidence":0.45}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":["Bug","Priority: High"],"confident":true}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["Bug","Priority: High"]}' ]; then
     pass "apply_label_confidence: recognises the kind of a label without regard to case"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
@@ -666,14 +656,14 @@ fi
 
 # A confidence that is missing or not a number counts as no confidence.
 answer='{"labels":[{"label":"bug"},{"label":"enhancement","confidence":"high"},{"label":"documentation","confidence":0.9}]}'
-if [ "$(apply_label_confidence "${answer}")" = '{"labels":["documentation"],"confident":true}' ]; then
+if [ "$(apply_label_confidence "${answer}")" = '{"labels":["documentation"]}' ]; then
     pass "apply_label_confidence: a missing or non-numeric confidence drops the label"
 else
     fail "apply_label_confidence: got $(apply_label_confidence "${answer}")"
 fi
 
-if [ "$(apply_label_confidence '{"labels":[]}')" = '{"labels":[],"confident":false}' ]; then
-    pass "apply_label_confidence: an empty answer is not confident"
+if [ "$(apply_label_confidence '{"labels":[]}')" = '{"labels":[]}' ]; then
+    pass "apply_label_confidence: an empty answer keeps no label"
 else
     fail "apply_label_confidence: got $(apply_label_confidence '{"labels":[]}')"
 fi
@@ -863,7 +853,7 @@ fi
 
 # --- neutralize_command_markers ---
 
-plain_answer='{"labels":["bug","priority: low"],"confident":true}'
+plain_answer='{"labels":["bug","priority: low"]}'
 result=$(neutralize_command_markers "${plain_answer}")
 if [ "${result}" = "${plain_answer}" ]; then
     pass "neutralize_command_markers: leaves text without a command marker unchanged"
@@ -871,8 +861,8 @@ else
     fail "neutralize_command_markers: expected the text unchanged - got '${result}'"
 fi
 
-result=$(neutralize_command_markers '{"labels":["##[error]x"],"confident":true}')
-if [ "${result}" = '{"labels":["## [error]x"],"confident":true}' ]; then
+result=$(neutralize_command_markers '{"labels":["##[error]x"]}')
+if [ "${result}" = '{"labels":["## [error]x"]}' ]; then
     pass "neutralize_command_markers: breaks up a bracket command marker"
 else
     fail "neutralize_command_markers: expected the marker broken up - got '${result}'"

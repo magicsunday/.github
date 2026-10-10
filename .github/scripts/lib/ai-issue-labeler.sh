@@ -197,13 +197,12 @@ AI_LABELER_MIN_CONFIDENCE_EXCLUSIVE="0.4"
 AI_LABELER_MIN_CONFIDENCE_TOPIC="0.5"
 
 # Reads the `assign_labels` input (`{labels: [{label, confidence}, ...]}`) and
-# prints it in the shape `resolve_labels_to_apply` reads, a plain list plus one
-# overall flag. It keeps the labels at or above the floor of their kind, and
-# `confident` is true only if any is left. A confidence that is missing, not a
-# number or outside 0 to 1 counts as none, because a grade outside that range
-# (a percentage, say) would otherwise pass every floor. Returns non-zero, with
-# no output, whenever jq fails on the input, for example on text that is not
-# JSON or on a `labels` value that is missing or not iterable.
+# prints it in the shape `resolve_labels_to_apply` reads, a plain list. It keeps
+# the labels at or above the floor of their kind. A confidence that is missing,
+# not a number or outside 0 to 1 counts as none, because a grade outside that
+# range (a percentage, say) would otherwise pass every floor. Returns non-zero,
+# with no output, whenever jq fails on the input, for example on text that is
+# not JSON or on a `labels` value that is missing or not iterable.
 apply_label_confidence() {
     local tool_input_json="$1"
 
@@ -216,7 +215,7 @@ apply_label_confidence() {
             | (if $kind == null then $topic_floor else $exclusive_floor end) as $floor
             | select((.confidence | type) == "number" and .confidence >= $floor and .confidence <= 1)
             | .label] as $kept
-        | {labels: $kept, confident: ($kept | length > 0)}
+        | {labels: $kept}
     ' <<<"${tool_input_json}"
 }
 
@@ -247,13 +246,13 @@ AI_LABELER_KIND_JQ_DEF='def kind:
 
 # Decides which labels to apply, printed one per line (empty output means
 # apply nothing). `tool_input_json` is the object `apply_label_confidence`
-# printed, `{labels: [...], confident: bool}`. Selected labels are
+# printed, `{labels: [...]}`. Selected labels are
 # re-filtered against `labels_json` (the same set the request was built
 # from) rather than trusted as-is: the request-side `enum` is what stops the
 # model from inventing a label, this filter is what stops a stale/renamed
 # label surviving in the OUTPUT if `labels_json` was refreshed between
-# building the request and resolving its response. When nothing survives
-# confidently, GH-57 asks for a `needs-triage` fallback where the repository
+# building the request and resolving its response. When no label survives,
+# GH-57 asks for a `needs-triage` fallback where the repository
 # has one - never a guess - unless the issue already carries a type or a
 # priority label, which means it has been triaged.
 #
@@ -262,9 +261,9 @@ AI_LABELER_KIND_JQ_DEF='def kind:
 # even with `shopt -s inherit_errexit` once the substitution sits inside a
 # tested context like the caller's `x=$(resolve_labels_to_apply ...) ||
 # warn_and_skip ...`), so without them a malformed argument here would
-# silently continue with an empty `confident`/`selected` and this function
-# would still return 0 - reported by the caller as "not confident" rather
-# than "internal error". Re-derive: run either jq assignment against
+# silently continue with an empty `selected` and this function would still
+# return 0. The caller would then treat the failure as an ordinary answer
+# rather than as an "internal error". Re-derive: run either jq assignment against
 # `--argjson known "not-json"` with and without the `||`, under `set -e`,
 # called as `x=$(that_function ...) || echo caught` - only the guarded
 # version reports `caught`.
@@ -286,9 +285,6 @@ resolve_labels_to_apply() {
     local labels_json="$2"
     local existing_labels_json="${3:-[]}"
 
-    local confident
-    confident=$(jq -r '.confident' <<<"${tool_input_json}") || return 1
-
     local selected
     selected=$(jq -r --argjson known "${labels_json}" '
         ($known | map(.name)) as $names
@@ -304,7 +300,7 @@ resolve_labels_to_apply() {
         $existing | map(kind) | any(. != null)
     ') || return 1
 
-    if [ "${confident}" = "true" ] && [ -n "${selected}" ]; then
+    if [ -n "${selected}" ]; then
         local allowed
         allowed=$(jq -Rr --argjson existing "${existing_labels_json}" --argjson existing_triaged "${existing_triaged}" "${AI_LABELER_KIND_JQ_DEF}"'
             ($existing | map(kind)) as $taken
