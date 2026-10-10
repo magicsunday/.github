@@ -262,8 +262,8 @@ AI_LABELER_KIND_JQ_DEF='def kind:
 # tested context like the caller's `x=$(resolve_labels_to_apply ...) ||
 # warn_and_skip ...`), so without them a malformed argument here would
 # silently continue with an empty `selected` and this function would still
-# return 0. The caller would then report "nothing to apply" rather than
-# "internal error". Re-derive: run either jq assignment against
+# return 0. The caller would then treat the failure as an ordinary answer
+# rather than as an "internal error". Re-derive: run either jq assignment against
 # `--argjson known "not-json"` with and without the `||`, under `set -e`,
 # called as `x=$(that_function ...) || echo caught` - only the guarded
 # version reports `caught`.

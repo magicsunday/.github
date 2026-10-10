@@ -175,8 +175,7 @@ else
     fail "resolve_labels_to_apply: expected needs-triage fallback - got '${result}'"
 fi
 
-empty_answer_no_fallback=$(jq -n '{labels: []}')
-result=$(resolve_labels_to_apply "${empty_answer_no_fallback}" "${LABELS_JSON_NO_TRIAGE}")
+result=$(resolve_labels_to_apply "${empty_answer}" "${LABELS_JSON_NO_TRIAGE}")
 if [ -z "${result}" ]; then
     pass "resolve_labels_to_apply: applies nothing when no label is left and no needs-triage exists"
 else
@@ -185,8 +184,8 @@ fi
 
 # A malformed argument must make the function itself return non-zero -
 # the caller relies on this (`x=$(resolve_labels_to_apply ...) ||
-# warn_and_skip ...`) to distinguish "internal error" from "legitimately
-# nothing to apply", and `set -e` alone does not surface an internal jq
+# warn_and_skip ...`) to distinguish "internal error" from an
+# ordinary answer, and `set -e` alone does not surface an internal jq
 # failure through a command substitution sitting inside a tested context
 # (see the function's own comment for the re-derive command this pins).
 valid_tool_input=$(jq -n '{labels: ["bug"]}')
