@@ -48,7 +48,7 @@ source "${LIBRARY_FILE}"
 for traced in drop_pull_request_only_labels drop_maintainer_set_labels \\
     build_ai_labeler_request describe_api_error describe_api_usage \\
     extract_tool_input apply_label_confidence resolve_labels_to_apply \\
-    build_labels_payload; do
+    build_labels_payload neutralize_command_markers; do
     eval "original_\$(declare -f "\${traced}")"
     eval "\${traced}() { echo \"\${traced}\" >>\"\\\${TRACE_FILE}\"; original_\${traced} \"\\\$@\"; }"
 done
@@ -134,15 +134,19 @@ BEFORE_REQUEST='gh api repos/owner/repo/labels --paginate | drop_pull_request_on
 tool_response bug 0.95 >"${WORK_DIR}/response.json"
 run_step 200 "${WORK_DIR}/response.json"
 assert_eq "a successful answer runs every stage in order" \
-    "${BEFORE_REQUEST} | describe_api_usage | extract_tool_input | gh api repos/owner/repo/issues/7 --jq [.labels[].name] | apply_label_confidence | resolve_labels_to_apply | build_labels_payload | gh api repos/owner/repo/issues/7/labels -X POST --input -" \
+    "${BEFORE_REQUEST} | describe_api_usage | extract_tool_input | gh api repos/owner/repo/issues/7 --jq [.labels[].name] | neutralize_command_markers | neutralize_command_markers | apply_label_confidence | resolve_labels_to_apply | build_labels_payload | gh api repos/owner/repo/issues/7/labels -X POST --input - | neutralize_command_markers" \
     "$(trace)"
 assert_eq "a successful answer exits cleanly" "0" "$(status)"
 assert_eq "a successful answer writes the chosen label" \
     '{"labels":["bug"]}' "$(jq -c . "${WORK_DIR}/posted.json")"
 assert_eq "a successful answer logs no API error" \
     "0" "$(grep -c 'Anthropic API error' "${WORK_DIR}/output")"
+assert_eq "the request offers the repository label" \
+    "yes" "$(grep -q 'bug' "${WORK_DIR}/request.json" && echo yes || echo no)"
 assert_eq "the request leaves out the pull request label and the maintainer label" \
     "0" "$(grep -c -E 'dependencies|status: accepted' "${WORK_DIR}/request.json")"
+assert_eq "a successful answer logs the model answer and the applied label" \
+    "2" "$(grep -c -E 'Model answer for issue #7: |Applied labels to issue #7: bug' "${WORK_DIR}/output")"
 
 # A label below its floor does not reach the guard, so the fallback applies.
 tool_response bug 0.1 >"${WORK_DIR}/response.json"
@@ -165,7 +169,7 @@ assert_eq "an answer without a tool call writes no label" \
 printf '{"type":"error","error":{"type":"api_error","message":"overloaded"}}' >"${WORK_DIR}/response.json"
 run_step 500 "${WORK_DIR}/response.json"
 assert_eq "a failed call stops after the error log" \
-    "${BEFORE_REQUEST} | describe_api_error" "$(trace)"
+    "${BEFORE_REQUEST} | describe_api_error | neutralize_command_markers" "$(trace)"
 assert_eq "a failed call exits cleanly" "0" "$(status)"
 assert_eq "a failed call logs the API error once" \
     "1" "$(grep -c 'Anthropic API error for issue #7 (HTTP 500)' "${WORK_DIR}/output")"
@@ -179,6 +183,6 @@ assert_eq "a rejected key fails the step" "1" "$(status)"
 assert_eq "a rejected key logs the API error and the failure" \
     "2" "$(grep -c -E 'Anthropic API error for issue #7 \(HTTP 401\)|::error::Anthropic API rejected' "${WORK_DIR}/output")"
 assert_eq "a rejected key stops after the error log" \
-    "${BEFORE_REQUEST} | describe_api_error" "$(trace)"
+    "${BEFORE_REQUEST} | describe_api_error | neutralize_command_markers" "$(trace)"
 
 report_and_exit "AI issue-labeler step run tests"
