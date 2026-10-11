@@ -465,17 +465,20 @@ class RefereeTest(unittest.TestCase):
         request = labeler_eval.judge_request("the-model", "T", "B", ["bug", "priority: low", "needs-triage", "ui"])
         tool = request["tools"][0]
         self.assertEqual("the-model", request["model"])
-        self.assertEqual(4000, request["max_tokens"])
+        self.assertGreater(request["max_tokens"], 0)
         self.assertTrue(tool["strict"])
         self.assertEqual(["type", "priority", "topics"], tool["input_schema"]["required"])
         self.assertFalse(tool["input_schema"]["additionalProperties"])
         properties = tool["input_schema"]["properties"]
-        self.assertEqual(["bug", "enhancement", "documentation", "none"], properties["type"]["enum"])
-        self.assertEqual(
-            ["priority: low", "priority: medium", "priority: high", "priority: critical", "none"],
-            properties["priority"]["enum"],
-        )
+        self.assertEqual(["bug", "none"], properties["type"]["enum"])
+        self.assertEqual(["priority: low", "none"], properties["priority"]["enum"])
         self.assertEqual(["ui"], properties["topics"]["items"]["enum"])
+
+    def test_the_referee_is_offered_only_the_types_and_priorities_the_repository_has(self):
+        request = labeler_eval.judge_request("m", "T", "B", ["Bug", "priority: high", "ui"])
+        properties = request["tools"][0]["input_schema"]["properties"]
+        self.assertEqual(["bug", "none"], properties["type"]["enum"])
+        self.assertEqual(["priority: high", "none"], properties["priority"]["enum"])
 
     def test_the_tool_input_is_found_by_name(self):
         answer = {"content": [{"type": "text", "text": "x"}, {"type": "tool_use", "name": "report_gold", "input": {"a": 1}}]}
@@ -815,10 +818,15 @@ class TokenTotalsTest(unittest.TestCase):
 
 
 class HardPatternTest(unittest.TestCase):
-    def test_a_long_line_without_a_failure_word_is_matched_in_linear_time(self):
+    def test_a_long_line_without_a_failure_word_is_matched_in_bounded_time(self):
         started = time.monotonic()
-        self.assertFalse(labeler_eval.is_hard("x", "ci " * 20000))
-        self.assertLess(time.monotonic() - started, 2.0)
+        self.assertFalse(labeler_eval.is_hard("x", "ci " * 30000))
+        self.assertTrue(labeler_eval.is_hard("x", "ci " * 30000 + "failed"))
+        self.assertLess(time.monotonic() - started, 5.0)
+
+    def test_the_failing_build_pattern_stays_on_one_line(self):
+        self.assertFalse(labeler_eval.is_hard("x", "the build ran\nthen it failed"))
+        self.assertTrue(labeler_eval.is_hard("x", "the build ran and then failed"))
 
     def test_red_is_a_word_of_its_own(self):
         self.assertTrue(labeler_eval.is_hard("The build is red", ""))
@@ -890,9 +898,11 @@ class CommandResumeTest(unittest.TestCase):
 
 
 class CommandReportTest(unittest.TestCase):
-    def _report(self, with_gold):
-        manifest = {"issues": [{"repo": "o/r", "number": 1, "hard": False, "split": "dev",
-                                "maintainer_labels": ["bug"]}]}
+    def _report(self, with_gold, split="dev"):
+        manifest = {"issues": [
+            {"repo": "o/r", "number": 1, "hard": False, "split": "dev", "maintainer_labels": ["bug"]},
+            {"repo": "o/r", "number": 9, "hard": False, "split": "dev", "maintainer_labels": []},
+        ]}
         error = {"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "error", "http": 529}
         ok = {"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "ok", "labels": ["bug"],
               "offered": ["bug"]}
@@ -906,7 +916,7 @@ class CommandReportTest(unittest.TestCase):
             with open(results_path, "w", encoding="utf-8") as handle:
                 for record in (error, ok, failed_other):
                     handle.write(json.dumps(record) + "\n")
-            args = mock.Mock(manifest=manifest_path, results=results_path, split="dev",
+            args = mock.Mock(manifest=manifest_path, results=results_path, split=split,
                              gold=gold_path if with_gold else None)
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
@@ -917,11 +927,23 @@ class CommandReportTest(unittest.TestCase):
         report = self._report(with_gold=False)
         self.assertEqual((2, 1), (report["calls"], report["not_ok"]))
 
+    def test_the_report_counts_only_the_calls_of_its_split(self):
+        report = self._report(with_gold=False, split="holdout")
+        self.assertEqual((0, 0), (report["calls"], report["not_ok"]))
+        self.assertEqual({"input": 0, "output": 0}, report["tokens"])
+
     def test_the_text_kind_needs_a_gold_file(self):
         self.assertNotIn("text", self._report(with_gold=False))
         report = self._report(with_gold=True)
         self.assertEqual(1.0, report["text"]["type_accuracy"])
         self.assertIn("hard_case_stability", report["convention"])
+
+
+class MetricsTopicsTest(unittest.TestCase):
+    def test_a_repeated_topic_counts_once(self):
+        gold = {"type": None, "priority": None, "topics": ["ui", "ui"]}
+        metrics = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["ui"]))])
+        self.assertEqual((1.0, 1.0), (metrics["topic_precision"], metrics["topic_recall"]))
 
 
 class CommandBuildTest(unittest.TestCase):

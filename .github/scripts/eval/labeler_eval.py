@@ -204,9 +204,11 @@ def compute_metrics(pairs):
         ):
             critical_over_calls += 1
 
-        topic_gold += len(gold["topics"])
-        topic_predicted += len(predicted["topics"])
-        topic_true_positive += len(set(gold["topics"]) & set(predicted["topics"]))
+        gold_topics = set(gold["topics"])
+        predicted_topics = set(predicted["topics"])
+        topic_gold += len(gold_topics)
+        topic_predicted += len(predicted_topics)
+        topic_true_positive += len(gold_topics & predicted_topics)
 
     issue_count = len(pairs)
     return {
@@ -535,6 +537,10 @@ def topics_schema(offered):
 
 
 def judge_request(model, title, body, offered):
+    """The referee may only answer with a type or priority the repository offers."""
+    offered_names = {name.lower() for name in offered}
+    types = [name for name in TYPE_LABELS if name in offered_names]
+    priorities = [name for name in PRIORITY_ORDER if name in offered_names]
     return {
         "model": model,
         "max_tokens": 4000,
@@ -546,8 +552,8 @@ def judge_request(model, title, body, offered):
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "type": {"type": "string", "enum": list(TYPE_LABELS) + [NO_ANSWER]},
-                    "priority": {"type": "string", "enum": list(PRIORITY_ORDER) + [NO_ANSWER]},
+                    "type": {"type": "string", "enum": types + [NO_ANSWER]},
+                    "priority": {"type": "string", "enum": priorities + [NO_ANSWER]},
                     "topics": topics_schema(offered),
                 },
                 "required": ["type", "priority", "topics"],
@@ -698,8 +704,10 @@ def command_report(args):
     manifest = read_json(args.manifest)
     results = read_results(args.results)
     text_gold = read_json(args.gold) if args.gold else {}
-    failed = sum(1 for record in results.values() if record.get("status") != "ok")
-    report = {"calls": len(results), "not_ok": failed, "tokens": token_totals(results)}
+    keys = {issue_key(e["repo"], e["number"]) for e in selected(manifest, args.split)}
+    results_in_split = {name: record for name, record in results.items() if record.get("key") in keys}
+    failed = sum(1 for record in results_in_split.values() if record.get("status") != "ok")
+    report = {"calls": len(results_in_split), "not_ok": failed, "tokens": token_totals(results_in_split)}
     for kind in ("convention", "text"):
         if kind == "text" and not text_gold:
             continue
