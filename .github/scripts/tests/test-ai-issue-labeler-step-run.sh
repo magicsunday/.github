@@ -25,7 +25,7 @@ require_files_or_bail "ai issue labeler step run test" "${WORKFLOW_FILE}" "${LIB
 
 # A knob that is already set in the caller's environment must not steer a run.
 KNOBS=(FAIL_FUNCTION POST_FAILS GH_FETCH_FAILS CURL_FAILS ISSUE_READ_FAILS
-    STEP_NO_BODY ISSUE_LABELS LABELS_FIXTURE ISSUE_BODY)
+    STEP_NO_BODY ISSUE_LABELS LABELS_FIXTURE)
 unset "${KNOBS[@]}"
 
 WORK_DIR="$(mktemp -d)" || exit 1
