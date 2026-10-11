@@ -8,6 +8,7 @@ import io
 import json
 import os
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -584,9 +585,11 @@ class PlanJobsTest(unittest.TestCase):
         self.assertEqual([2], [e["number"] for e, _ in jobs])
 
     def test_a_failed_call_is_planned_again(self):
-        results = {"o/r#1@0": {"status": "error"}, "o/r#2@0": {"status": "exception"}}
-        jobs = labeler_eval.plan_jobs(self.ENTRIES, 1, 1, results)
-        self.assertEqual([1, 2], [e["number"] for e, _ in jobs])
+        for first, second in (("error", "exception"), ("no_tool_call", "unreadable_answer")):
+            with self.subTest(statuses=(first, second)):
+                results = {"o/r#1@0": {"status": first}, "o/r#2@0": {"status": second}}
+                jobs = labeler_eval.plan_jobs(self.ENTRIES, 1, 1, results)
+                self.assertEqual([1, 2], [e["number"] for e, _ in jobs])
 
 
 class ClassifyRetryTest(unittest.TestCase):
@@ -793,10 +796,12 @@ class CommandJudgeTest(unittest.TestCase):
 class RunPoolTest(unittest.TestCase):
     def test_an_interruption_cancels_the_queued_calls_and_is_raised(self):
         started = []
+        never = threading.Event()
 
         def work(item):
             started.append(item)
-            time.sleep(0.05)
+            if item:
+                never.wait(0.3)
             return item
 
         def handle(_future):
@@ -804,7 +809,7 @@ class RunPoolTest(unittest.TestCase):
 
         with self.assertRaises(KeyboardInterrupt):
             labeler_eval.run_pool(1, list(range(8)), work, handle)
-        self.assertLessEqual(len(started), 3)
+        self.assertLessEqual(len(started), 2)
 
 
 class TokenTotalsTest(unittest.TestCase):
@@ -943,6 +948,9 @@ class MetricsTopicsTest(unittest.TestCase):
     def test_a_repeated_topic_counts_once(self):
         gold = {"type": None, "priority": None, "topics": ["ui", "ui"]}
         metrics = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["ui"]))])
+        self.assertEqual((1.0, 1.0), (metrics["topic_precision"], metrics["topic_recall"]))
+        once = {"type": None, "priority": None, "topics": ["ui"]}
+        metrics = labeler_eval.compute_metrics([(once, labeler_eval.predicted_shape(["ui", "ui"]))])
         self.assertEqual((1.0, 1.0), (metrics["topic_precision"], metrics["topic_recall"]))
 
 
