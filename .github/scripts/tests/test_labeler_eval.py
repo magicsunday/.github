@@ -465,7 +465,7 @@ class RefereeTest(unittest.TestCase):
         self.assertIn("none", schema["properties"]["type"]["enum"])
         self.assertIn("- i18n", request["system"])
         self.assertIn("Issue title:\nTitle\n\nIssue body:\nBody", request["messages"][0]["content"])
-        self.assertEqual({"type": "auto"}, request["tool_choice"])
+        self.assertEqual({"type": "tool", "name": "report_gold"}, request["tool_choice"])
 
     def test_the_request_is_complete(self):
         request = labeler_eval.judge_request("the-model", "T", "B", ["bug", "priority: low", "needs-triage", "ui"])

@@ -582,7 +582,7 @@ def judge_request(model, title, body, offered):
                 "additionalProperties": False,
             },
         }],
-        "tool_choice": {"type": "auto"},
+        "tool_choice": {"type": "tool", "name": "report_gold"},
         "messages": [{"role": "user", "content": "Issue title:\n" + title + "\n\nIssue body:\n" + body}],
     }
 
