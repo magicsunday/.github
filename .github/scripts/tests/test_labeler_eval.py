@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Exercises the pure core of labeler_eval.py: the sampling, the split, the gold
-# reduction and the metrics (issue #192). The commands that fetch issues or call
-# the API are not run here. They need the network and a key.
+# reduction and the metrics (issue #192), and drives the commands with their
+# boundaries mocked. No test here reaches the network or needs a key.
 import contextlib
 import importlib.util
 import io
@@ -704,6 +704,11 @@ class RunHelperTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "bad"):
                 labeler_eval.run_helper(["x"])
 
+    def test_a_line_separator_inside_a_value_does_not_split_the_line(self):
+        output = '{"a": "x\u2028y\u0085z"}\n'
+        with mock.patch.object(labeler_eval.subprocess, "run", return_value=self._completed(0, output)):
+            self.assertEqual({"a": "x\u2028y\u0085z"}, labeler_eval.run_helper(["x"]))
+
     def test_empty_output_is_an_error(self):
         with mock.patch.object(labeler_eval.subprocess, "run", return_value=self._completed(0, "\n")):
             with self.assertRaisesRegex(RuntimeError, "no output"):
@@ -810,6 +815,11 @@ class TokenTotalsTest(unittest.TestCase):
 
 
 class HardPatternTest(unittest.TestCase):
+    def test_a_long_line_without_a_failure_word_is_matched_in_linear_time(self):
+        started = time.monotonic()
+        self.assertFalse(labeler_eval.is_hard("x", "ci " * 20000))
+        self.assertLess(time.monotonic() - started, 2.0)
+
     def test_red_is_a_word_of_its_own(self):
         self.assertTrue(labeler_eval.is_hard("The build is red", ""))
         self.assertFalse(labeler_eval.is_hard("The build log is required", ""))
@@ -823,8 +833,10 @@ class IssuePathTest(unittest.TestCase):
                     labeler_eval.issue_path("/cache", repo, number)
 
     def test_two_identifiers_never_share_a_file(self):
-        with self.assertRaises(ValueError):
-            labeler_eval.issue_path("/cache", "a__b/c", 1)
+        for repo in ("a__b/c", "a_/b", "a/_b"):
+            with self.subTest(repo=repo):
+                with self.assertRaises(ValueError):
+                    labeler_eval.issue_path("/cache", repo, 1)
         self.assertNotEqual(
             labeler_eval.issue_path("/cache", "labels/foo", 1),
             labeler_eval.labels_path("/cache", "foo/1"),
@@ -917,8 +929,9 @@ class CommandBuildTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as work:
             path = os.path.join(work, "set.json")
             labeler_eval.write_json(path, {"issues": []})
-            with self.assertRaises(SystemExit):
-                labeler_eval.main(["build", "--owner", "o", "--manifest", path, "--cache-dir", work])
+            with mock.patch.object(labeler_eval, "fetch_candidates", side_effect=AssertionError("fetched")):
+                with self.assertRaisesRegex(SystemExit, "exists"):
+                    labeler_eval.main(["build", "--owner", "o", "--manifest", path, "--cache-dir", work])
             self.assertEqual({"issues": []}, labeler_eval.read_json(path))
 
 

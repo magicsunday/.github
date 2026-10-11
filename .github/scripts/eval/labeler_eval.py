@@ -48,8 +48,8 @@ FALLBACK_LABEL = "needs-triage"
 # failing builds, and wording that sits between a bug and an enhancement.
 HARD_PATTERNS = (
     re.compile(r"\b(proposal|propose|idea|rfc|should we|consider)\b", re.IGNORECASE),
-    re.compile(r"\b(build|ci|pipeline|workflow)\b.*\b(fail\w*|broken|red)\b", re.IGNORECASE),
-    re.compile(r"\b(fail(s|ed|ing)?|broken|regression)\b.*\b(build|ci|pipeline)", re.IGNORECASE),
+    re.compile(r"\b(build|ci|pipeline|workflow)\b[^\n]{0,200}\b(fail\w*|broken|red)\b", re.IGNORECASE),
+    re.compile(r"\b(fail(s|ed|ing)?|broken|regression)\b[^\n]{0,200}\b(build|ci|pipeline)", re.IGNORECASE),
     re.compile(r"\b(improve|support|allow|make it possible)\b", re.IGNORECASE),
 )
 
@@ -283,16 +283,25 @@ def write_json(path, value):
         raise
 
 
+def valid_repo(repo):
+    """An owner/name pair that maps to a file name no other pair maps to. The
+    underscore at a segment edge is refused because it would merge with the
+    double underscore that stands for the slash."""
+    if not REPO_PATTERN.fullmatch(repo):
+        return False
+    return not any(part.startswith("_") or part.endswith("_") for part in repo.split("/"))
+
+
 def issue_path(cache_dir, repo, number):
     """The cache file of an issue. The manifest is edited by pull requests, so its
     identifiers must not be able to leave the cache directory."""
-    if isinstance(number, bool) or not isinstance(number, int) or not REPO_PATTERN.fullmatch(repo):
+    if isinstance(number, bool) or not isinstance(number, int) or not valid_repo(repo):
         raise ValueError("not a valid issue identifier: {!r} #{!r}".format(repo, number))
     return os.path.join(cache_dir, "{}__{}.json".format(repo.replace("/", "__"), number))
 
 
 def labels_path(cache_dir, repo):
-    if not REPO_PATTERN.fullmatch(repo):
+    if not valid_repo(repo):
         raise ValueError("not a valid repository: {!r}".format(repo))
     return os.path.join(cache_dir, "{}.labels.json".format(repo.replace("/", "__")))
 
@@ -309,7 +318,7 @@ def fetch_candidates(owner):
             ["api", "--paginate", "repos/{}/{}/issues?state=all&per_page=100".format(owner, name),
              "--jq", ".[] | select(.pull_request == null) | {number, title, body, labels: [.labels[].name]}"]
         )
-        for line in output.splitlines():
+        for line in output.split("\n"):
             if line.strip():
                 issue = json.loads(line)
                 issue["repo"] = "{}/{}".format(owner, name)
@@ -373,10 +382,10 @@ def run_helper(arguments):
         ["bash", RUN_ONE] + arguments, capture_output=True, text=True, check=False,
         timeout=180,
     )
-    lines = completed.stdout.strip().splitlines()
-    if completed.returncode != 0 or not lines:
+    output = completed.stdout.strip()
+    if completed.returncode != 0 or not output:
         raise RuntimeError("run-one.sh failed: {}".format(completed.stderr.strip() or "no output"))
-    return json.loads(lines[-1])
+    return json.loads(output.split("\n")[-1])
 
 
 def offered_labels(cache_dir, repo):
@@ -676,7 +685,8 @@ TOKEN_PATTERN = re.compile(r"(input|output)_tokens=(\d+)")
 
 
 def token_totals(results):
-    """Sums the tokens of every call in the results file, retries included."""
+    """Sums the tokens of the latest result of every call. A call that was run again
+    counts with its last answer only."""
     totals = {"input": 0, "output": 0}
     for record in results.values():
         for kind, count in TOKEN_PATTERN.findall(record.get("usage", "")):
