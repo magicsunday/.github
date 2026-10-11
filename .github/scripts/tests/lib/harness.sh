@@ -276,3 +276,19 @@ assert_no_tmp_leak() {
     after="$(find "${tmp_scan_dir}" -maxdepth 1 -name 'tmp.*' | wc -l)"
     assert_eq "${description}" "${before}" "${after}"
 }
+
+# Prints the raw run text of the step named "$2" in workflow file "$1", or
+# fails with a message when the workflow has no such step. Needs PyYAML.
+workflow_step_run() {
+    python3 - "$1" "$2" <<'PY'
+import sys
+import yaml
+
+for job in (yaml.safe_load(open(sys.argv[1], encoding="utf-8")).get("jobs") or {}).values():
+    for step in job.get("steps") or []:
+        if step.get("name") == sys.argv[2]:
+            sys.stdout.write(step.get("run") or "")
+            sys.exit(0)
+sys.exit("step not found: " + sys.argv[2])
+PY
+}
