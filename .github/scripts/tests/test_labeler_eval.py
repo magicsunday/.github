@@ -723,7 +723,7 @@ class RunHelperTest(unittest.TestCase):
 
 class CommandRunTest(unittest.TestCase):
     def test_one_broken_call_does_not_lose_the_others(self):
-        manifest = {"issues": [
+        manifest = {"owner": "o", "issues": [
             {"repo": "o/r", "number": 1, "hard": False, "split": "dev"},
             {"repo": "o/r", "number": 2, "hard": False, "split": "dev"},
         ]}
@@ -751,7 +751,7 @@ class CommandRunTest(unittest.TestCase):
 
 class CommandRunRepeatsTest(unittest.TestCase):
     def test_each_repeat_of_a_hard_case_is_recorded_under_its_own_run(self):
-        manifest = {"issues": [{"repo": "o/r", "number": 1, "hard": True, "split": "dev"}]}
+        manifest = {"owner": "o", "issues": [{"repo": "o/r", "number": 1, "hard": True, "split": "dev"}]}
         with tempfile.TemporaryDirectory() as work:
             manifest_path = os.path.join(work, "set.json")
             results_path = os.path.join(work, "results.jsonl")
@@ -769,7 +769,7 @@ class CommandRunRepeatsTest(unittest.TestCase):
 
 class CommandJudgeTest(unittest.TestCase):
     def test_a_failed_issue_stays_open_and_the_others_are_kept(self):
-        manifest = {"issues": [{"repo": "o/r", "number": 1, "sha256": "x"}, {"repo": "o/r", "number": 2, "sha256": "x"}]}
+        manifest = {"owner": "o", "issues": [{"repo": "o/r", "number": 1, "sha256": "x"}, {"repo": "o/r", "number": 2, "sha256": "x"}]}
 
         def load(_cache, entry):
             if entry["number"] == 1:
@@ -782,7 +782,8 @@ class CommandJudgeTest(unittest.TestCase):
             gold_path = os.path.join(work, "gold.json")
             labeler_eval.write_json(manifest_path, manifest)
             args = mock.Mock(manifest=manifest_path, gold=gold_path, cache_dir=work, model="m", workers=2)
-            with mock.patch.object(labeler_eval, "offered_labels", return_value=["ui", "i18n"]), \
+            with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "k"}), \
+                    mock.patch.object(labeler_eval, "offered_labels", return_value=["ui", "i18n"]), \
                     mock.patch.object(labeler_eval, "load_issue", side_effect=load), \
                     mock.patch.object(labeler_eval, "call_messages", return_value={}), \
                     mock.patch.object(labeler_eval, "tool_input", return_value=answer), \
@@ -791,6 +792,15 @@ class CommandJudgeTest(unittest.TestCase):
             gold = labeler_eval.read_json(gold_path)
         self.assertEqual({"o/r#2"}, set(gold))
         self.assertEqual({"type": "none", "priority": "priority: low", "topics": ["i18n", "ui"]}, gold["o/r#2"])
+
+    def test_a_missing_key_stops_before_any_issue_is_judged(self):
+        with tempfile.TemporaryDirectory() as work:
+            args = mock.Mock(manifest=os.path.join(work, "set.json"), gold=os.path.join(work, "g.json"),
+                             cache_dir=work, model="m", workers=1)
+            with mock.patch.dict(os.environ, {}, clear=True), \
+                    mock.patch.object(labeler_eval, "read_manifest", side_effect=AssertionError("read")):
+                with self.assertRaisesRegex(SystemExit, "ANTHROPIC_API_KEY"):
+                    labeler_eval.command_judge(args)
 
 
 class RunPoolTest(unittest.TestCase):
@@ -801,7 +811,7 @@ class RunPoolTest(unittest.TestCase):
         def work(item):
             started.append(item)
             if item:
-                never.wait(0.3)
+                never.wait(0.5)
             return item
 
         def handle(_future):
@@ -865,7 +875,7 @@ class TypeCaseTest(unittest.TestCase):
 
 
 class CommandResumeTest(unittest.TestCase):
-    MANIFEST = {"issues": [
+    MANIFEST = {"owner": "o", "issues": [
         {"repo": "o/r", "number": 1, "hard": False, "split": "dev"},
         {"repo": "o/r", "number": 2, "hard": False, "split": "dev"},
     ]}
@@ -900,7 +910,7 @@ class CommandResumeTest(unittest.TestCase):
 
 class CommandReportTest(unittest.TestCase):
     def _report(self, with_gold, split="dev"):
-        manifest = {"issues": [
+        manifest = {"owner": "o", "issues": [
             {"repo": "o/r", "number": 1, "hard": False, "split": "dev", "maintainer_labels": ["bug"]},
             {"repo": "o/r", "number": 9, "hard": False, "split": "dev", "maintainer_labels": []},
         ]}
@@ -970,10 +980,36 @@ class TopicsSchemaTest(unittest.TestCase):
         self.assertEqual(["i18n"], schema["items"]["enum"])
 
 
+class ReadManifestTest(unittest.TestCase):
+    def _read(self, manifest):
+        with tempfile.TemporaryDirectory() as work:
+            path = os.path.join(work, "set.json")
+            labeler_eval.write_json(path, manifest)
+            return labeler_eval.read_manifest(path)
+
+    def test_an_entry_of_the_frozen_owner_is_read(self):
+        manifest = {"owner": "o", "issues": [{"repo": "o/r", "number": 1}]}
+        self.assertEqual(manifest, self._read(manifest))
+
+    def test_an_entry_of_another_owner_is_refused(self):
+        with self.assertRaisesRegex(SystemExit, "not a repository of o"):
+            self._read({"owner": "o", "issues": [{"repo": "x/r", "number": 1}]})
+
+    def test_a_manifest_without_an_owner_is_refused(self):
+        with self.assertRaisesRegex(SystemExit, "no owner"):
+            self._read({"issues": [{"repo": "o/r", "number": 1}]})
+
+    def test_an_entry_with_an_invalid_repository_is_refused(self):
+        for repo in ("o/..", "o/a__b", None):
+            with self.subTest(repo=repo):
+                with self.assertRaises(SystemExit):
+                    self._read({"owner": "o", "issues": [{"repo": repo, "number": 1}]})
+
+
 class CommandFetchTest(unittest.TestCase):
     def _manifest(self, work, sha):
         path = os.path.join(work, "set.json")
-        labeler_eval.write_json(path, {"issues": [{"repo": "o/r", "number": 1, "sha256": sha}]})
+        labeler_eval.write_json(path, {"owner": "o", "issues": [{"repo": "o/r", "number": 1, "sha256": sha}]})
         return path
 
     def _gh(self, arguments):
