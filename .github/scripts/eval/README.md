@@ -37,12 +37,12 @@ labeler_eval.py run    --manifest MANIFEST --cache-dir CACHE --results RESULTS -
 labeler_eval.py report --manifest MANIFEST --results RESULTS --gold GOLD --split dev
 ```
 
-The tool is Python. `run-one.sh` is the one shell file, a thin shim, because the
+The tool is Python. `run-one.sh` is the only shell file of the tool, a thin shim, because the
 labeler library it has to measure is a bash library.
 
 `fetch` fills the cache on a fresh checkout from the committed manifest and fails
 when an issue was edited since it was frozen. `build` is for a new set and
-overwrites the manifest.
+refuses to replace an existing manifest unless `--force` is given.
 
 The referee answers `none` where the text establishes no type or no priority.
 That counts as an answer, so a labeler that adds a type there is wrong, while an
@@ -62,14 +62,16 @@ type labels stays in the set, but it has no convention gold for the type.
 ## Metrics
 
 Every issue counts once, with its first run. An issue whose first run did not end
-ok is left out, and the report counts such calls as `not_ok`.
+ok is left out. The report counts every call of the results file that did not end
+ok as `not_ok`, whatever its run or split.
 
 - Type: accuracy and a confusion matrix.
 - Priority: exact accuracy, the mean distance and the number of over-calls of
   `critical`.
 - Topics: precision and recall.
-- The rate of the `needs-triage` fallback, the labels outside the offered set and
-  the labels per issue.
+- The rate of the `needs-triage` fallback and the labels per issue. A label
+  outside the offered set is not measured, because the request never offers one
+  and the pipeline drops it.
 - Stability: the mean share of the repeated runs of a hard case that agree with
   its most common label set.
 
