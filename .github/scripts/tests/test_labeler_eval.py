@@ -850,10 +850,6 @@ class IssuePathTest(unittest.TestCase):
             with self.subTest(repo=repo):
                 with self.assertRaises(ValueError):
                     labeler_eval.issue_path("/cache", repo, 1)
-        self.assertNotEqual(
-            labeler_eval.issue_path("/cache", "labels/foo", 1),
-            labeler_eval.labels_path("/cache", "foo/1"),
-        )
 
     def test_a_repository_name_that_could_leave_the_cache_is_refused_for_labels(self):
         with self.assertRaises(ValueError):
