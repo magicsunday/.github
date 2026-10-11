@@ -57,6 +57,10 @@ The referee answers `none` where the text establishes no type or no priority.
 That counts as an answer, so a labeler that adds a type there is wrong, while an
 issue without any convention gold for a field is left out of that metric.
 
+`judge` skips an issue that already has an answer in the gold file. After `build
+--force` has frozen a new set, delete the old gold file first, otherwise an edited
+issue keeps the answer of its earlier text.
+
 `judge` and `run` need `ANTHROPIC_API_KEY`. `run` goes through the library of
 the workflow (`ai-issue-labeler.sh`) for the request, the confidence step and the
 guard, so a measurement uses the code that runs in production. Hard cases are run
