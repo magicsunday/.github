@@ -6,10 +6,11 @@ instead of on a new small sample.
 
 ## What is frozen
 
-`.github/eval/labeler-set.json` lists issues of the public repositories of one
-account. For each issue it holds the repository, the number, a hash of the title
-and the body, the split (`dev` or `holdout`), a flag for hard cases and the
-labels the maintainers set. The texts are not in the repository. They sit in a
+`.github/eval/labeler-set.json` lists open and closed issues of the public
+repositories of one account, archived repositories and forks left out. For each
+issue it holds the repository, the number, a hash of the title and the body, the
+split (`dev` or `holdout`), a flag for hard cases and the labels the maintainers
+set. The texts are not in the repository. They sit in a
 cache directory that `build` fills. `run` and `judge` refuse an issue whose hash
 no longer matches, so an edited issue never changes a result unnoticed.
 
@@ -23,28 +24,45 @@ check, never to tune.
   conventions of each repository.
 - **Text**: what the title and the body alone establish.
   `.github/eval/labeler-gold-text.json` holds the answers of a referee model
-  that sees the same input as the labeler and nothing more.
+  that sees the same title and body as the labeler and the names of the offered
+  labels, without their descriptions and without the repository name.
 
 ## Commands
 
 ```bash
 labeler_eval.py build  --owner OWNER --manifest MANIFEST --cache-dir CACHE
+labeler_eval.py fetch  --manifest MANIFEST --cache-dir CACHE
 labeler_eval.py judge  --manifest MANIFEST --cache-dir CACHE --gold GOLD
 labeler_eval.py run    --manifest MANIFEST --cache-dir CACHE --results RESULTS --split dev
 labeler_eval.py report --manifest MANIFEST --results RESULTS --gold GOLD --split dev
 ```
 
+The tool is Python. `run-one.sh` is the one shell file, a thin shim, because the
+labeler library it has to measure is a bash library.
+
+`fetch` fills the cache on a fresh checkout from the committed manifest and fails
+when an issue was edited since it was frozen. `build` is for a new set and
+overwrites the manifest.
+
+The referee answers `none` where the text establishes no type or no priority.
+That counts as an answer, so a labeler that adds a type there is wrong, while an
+issue without any convention gold for a field is left out of that metric.
+
 `judge` and `run` need `ANTHROPIC_API_KEY`. `run` goes through the library of
 the workflow (`ai-issue-labeler.sh`) for the request, the confidence step and the
 guard, so a measurement uses the code that runs in production. Hard cases are run
-several times. `run` continues an interrupted results file.
+several times. `run` continues an interrupted results file and runs a call again
+whose last result was not ok.
 
-`build` samples with a seed. The same seed gives the same set, and an issue keeps
-its split when other issues are added.
+`build` samples with a seed. The same seed on an unchanged set of issues gives the
+same sample, and an issue keeps its split when other issues are added. Only the
+frozen manifest is stable once the issues of the account change. An issue with two
+type labels stays in the set, but it has no convention gold for the type.
 
 ## Metrics
 
-Every issue counts once, with its first run.
+Every issue counts once, with its first run. An issue whose first run did not end
+ok is left out, and the report counts such calls as `not_ok`.
 
 - Type: accuracy and a confusion matrix.
 - Priority: exact accuracy, the mean distance and the number of over-calls of
