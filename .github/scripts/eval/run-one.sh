@@ -11,7 +11,8 @@
 #       A failure of the guard aborts the script with a non-zero exit instead.
 #
 # LABELS_FILE holds the {name, description} array of the repository labels.
-# classify needs ANTHROPIC_API_KEY in the environment. The issue starts with no
+# classify needs ANTHROPIC_API_KEY in the environment. The key reaches curl
+# through a header file descriptor, so it never shows up in the process list. The issue starts with no
 # labels of its own, so the type and priority guard has nothing to leave alone.
 set -euo pipefail
 
@@ -41,7 +42,7 @@ case "${mode}" in
         http_response=$(curl -sS --connect-timeout 10 --max-time 60 -w '\n%{http_code}' \
             https://api.anthropic.com/v1/messages \
             -H "Content-Type: application/json" \
-            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+            -H @<(printf 'x-api-key: %s\n' "${ANTHROPIC_API_KEY}") \
             -H "anthropic-version: 2023-06-01" \
             --data-binary @- <<<"${request_body}") \
             || { jq -cn '{status: "error", http: 0}'; exit 0; }

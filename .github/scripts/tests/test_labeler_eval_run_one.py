@@ -20,6 +20,14 @@ import sys
 
 with open(os.environ["STUB_ARGV"], "w", encoding="utf-8") as handle:
     json.dump(sys.argv[1:], handle)
+headers = []
+arguments = sys.argv[1:]
+for index, argument in enumerate(arguments):
+    if argument == "-H" and arguments[index + 1].startswith("@"):
+        with open(arguments[index + 1][1:], encoding="utf-8") as header_file:
+            headers.append(header_file.read())
+with open(os.environ["STUB_HEADERS"], "w", encoding="utf-8") as handle:
+    json.dump(headers, handle)
 with open(os.environ["STUB_STDIN"], "w", encoding="utf-8") as handle:
     handle.write(sys.stdin.read())
 if os.environ.get("STUB_FAIL"):
@@ -58,7 +66,7 @@ class RunOneTest(unittest.TestCase):
             handle.write(CURL_STUB)
         os.chmod(stub, os.stat(stub).st_mode | stat.S_IXUSR)
         self.paths = {name: os.path.join(self.work, name)
-                      for name in ("labels.json", "title", "body", "argv", "stdin", "response")}
+                      for name in ("labels.json", "title", "body", "argv", "headers", "stdin", "response")}
         self._write("labels.json", json.dumps(LABELS))
         self._write("title", "A title")
         self._write("body", "A body")
@@ -76,7 +84,7 @@ class RunOneTest(unittest.TestCase):
             os.environ,
             PATH=os.path.join(self.work, "bin") + os.pathsep + os.environ["PATH"],
             ANTHROPIC_API_KEY="key-test",
-            STUB_ARGV=self.paths["argv"], STUB_STDIN=self.paths["stdin"],
+            STUB_ARGV=self.paths["argv"], STUB_HEADERS=self.paths["headers"], STUB_STDIN=self.paths["stdin"],
             STUB_RESPONSE=self.paths["response"], STUB_STATUS=status,
         )
         if fail:
@@ -145,7 +153,8 @@ class RunOneTest(unittest.TestCase):
     def test_the_request_carries_the_key_the_timeouts_and_the_issue_text(self):
         self._classify(tool_response("bug", 0.95))
         arguments = json.loads(self._read("argv"))
-        self.assertIn("x-api-key: key-test", arguments)
+        self.assertNotIn("key-test", " ".join(arguments))
+        self.assertEqual(["x-api-key: key-test\n"], json.loads(self._read("headers")))
         self.assertEqual("60", arguments[arguments.index("--max-time") + 1])
         self.assertEqual("https://api.anthropic.com/v1/messages", arguments[arguments.index("-w") + 2])
         request = json.loads(self._read("stdin"))
