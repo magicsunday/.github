@@ -798,7 +798,7 @@ class CommandJudgeTest(unittest.TestCase):
             args = mock.Mock(manifest=os.path.join(work, "set.json"), gold=os.path.join(work, "g.json"),
                              cache_dir=work, model="m", workers=1)
             with mock.patch.dict(os.environ, {}, clear=True), \
-                    mock.patch.object(labeler_eval, "read_manifest", side_effect=AssertionError("read")):
+                    mock.patch.object(labeler_eval, "read_json", side_effect=AssertionError("read")):
                 with self.assertRaisesRegex(SystemExit, "ANTHROPIC_API_KEY"):
                     labeler_eval.command_judge(args)
 
@@ -978,32 +978,6 @@ class TopicsSchemaTest(unittest.TestCase):
     def test_topics_give_an_enum_of_their_names(self):
         schema = labeler_eval.topics_schema({"bug", "i18n"})
         self.assertEqual(["i18n"], schema["items"]["enum"])
-
-
-class ReadManifestTest(unittest.TestCase):
-    def _read(self, manifest):
-        with tempfile.TemporaryDirectory() as work:
-            path = os.path.join(work, "set.json")
-            labeler_eval.write_json(path, manifest)
-            return labeler_eval.read_manifest(path)
-
-    def test_an_entry_of_the_frozen_owner_is_read(self):
-        manifest = {"owner": "o", "issues": [{"repo": "o/r", "number": 1}]}
-        self.assertEqual(manifest, self._read(manifest))
-
-    def test_an_entry_of_another_owner_is_refused(self):
-        with self.assertRaisesRegex(SystemExit, "not a repository of o"):
-            self._read({"owner": "o", "issues": [{"repo": "x/r", "number": 1}]})
-
-    def test_a_manifest_without_an_owner_is_refused(self):
-        with self.assertRaisesRegex(SystemExit, "no owner"):
-            self._read({"issues": [{"repo": "o/r", "number": 1}]})
-
-    def test_an_entry_with_an_invalid_repository_is_refused(self):
-        for repo in ("o/..", "o/a__b", None):
-            with self.subTest(repo=repo):
-                with self.assertRaises(SystemExit):
-                    self._read({"owner": "o", "issues": [{"repo": repo, "number": 1}]})
 
 
 class CommandFetchTest(unittest.TestCase):

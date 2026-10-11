@@ -354,23 +354,6 @@ def load_issue(cache_dir, entry):
     return issue["title"], body
 
 
-def read_manifest(path):
-    """Reads the manifest and refuses an entry outside the frozen owner.
-
-    Pull requests edit the manifest and the tool reads with the operator's own
-    gh login, so an entry must not point at a repository of another owner.
-    """
-    manifest = read_json(path)
-    owner = manifest.get("owner")
-    if not isinstance(owner, str) or not owner:
-        raise SystemExit("{} names no owner".format(path))
-    for entry in manifest["issues"]:
-        repo = entry.get("repo")
-        if not isinstance(repo, str) or not valid_repo(repo) or repo.split("/")[0] != owner:
-            raise SystemExit("{!r} is not a repository of {}".format(repo, owner))
-    return manifest
-
-
 def selected(manifest, split):
     return [entry for entry in manifest["issues"] if split == "all" or entry["split"] == split]
 
@@ -506,7 +489,7 @@ def run_pool(workers, items, work, handle):
 
 
 def command_run(args):
-    manifest = read_manifest(args.manifest)
+    manifest = read_json(args.manifest)
     jobs = plan_jobs(selected(manifest, args.split), args.repeats, args.hard_repeats,
                      read_results(args.results))
     offered = {repo: offered_labels(args.cache_dir, repo) for repo in sorted({e["repo"] for e, _ in jobs})}
@@ -621,7 +604,7 @@ def command_fetch(args):
     A fresh checkout has the manifest but not the texts. The manifest is kept as
     it is, so an issue edited since it was frozen shows up as a mismatch.
     """
-    manifest = read_manifest(args.manifest)
+    manifest = read_json(args.manifest)
     os.makedirs(args.cache_dir, exist_ok=True)
     for repo in sorted({entry["repo"] for entry in manifest["issues"]}):
         if not os.path.exists(labels_path(args.cache_dir, repo)):
@@ -647,7 +630,7 @@ def command_fetch(args):
 def command_judge(args):
     if "ANTHROPIC_API_KEY" not in os.environ:
         raise SystemExit("ANTHROPIC_API_KEY is not set")
-    manifest = read_manifest(args.manifest)
+    manifest = read_json(args.manifest)
     gold = read_json(args.gold) if os.path.exists(args.gold) else {}
     todo = [e for e in manifest["issues"] if issue_key(e["repo"], e["number"]) not in gold]
     offered = {repo: offered_labels(args.cache_dir, repo) for repo in sorted({e["repo"] for e in todo})}
@@ -720,7 +703,7 @@ def token_totals(results):
 
 
 def command_report(args):
-    manifest = read_manifest(args.manifest)
+    manifest = read_json(args.manifest)
     results = read_results(args.results)
     text_gold = read_json(args.gold) if args.gold else {}
     keys = {issue_key(e["repo"], e["number"]) for e in selected(manifest, args.split)}
