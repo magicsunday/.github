@@ -998,21 +998,26 @@ class CommandReportTest(unittest.TestCase):
             {"repo": "o/r", "number": 1, "hard": False, "split": "dev", "maintainer_labels": ["bug"]},
             {"repo": "o/r", "number": 9, "hard": False, "split": "dev", "maintainer_labels": []},
             {"repo": "o/r", "number": 7, "hard": False, "split": "holdout", "maintainer_labels": []},
+            {"repo": "o/r", "number": 5, "hard": True, "split": "dev", "maintainer_labels": []},
         ]}
         error = {"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "error", "http": 529}
         ok = {"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "ok", "labels": ["bug"],
               "offered": ["bug"], "usage": "input_tokens=10 output_tokens=5"}
         holdout = {"id": "o/r#7@0", "key": "o/r#7", "run": 0, "status": "ok", "labels": [],
                    "offered": ["bug"], "usage": "input_tokens=100 output_tokens=50"}
+        hard_runs = [
+            {"id": "o/r#5@0", "key": "o/r#5", "run": 0, "status": "ok", "labels": ["bug"], "offered": ["bug"]},
+            {"id": "o/r#5@1", "key": "o/r#5", "run": 1, "status": "ok", "labels": [], "offered": ["bug"]},
+        ]
         failed_other = {"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "error", "http": 0}
         with tempfile.TemporaryDirectory() as work:
             manifest_path = os.path.join(work, "set.json")
             results_path = os.path.join(work, "results.jsonl")
             gold_path = os.path.join(work, "gold.json")
             labeler_eval.write_json(manifest_path, manifest)
-            labeler_eval.write_json(gold_path, {"o/r#1": {"type": "bug", "priority": None, "topics": []}})
+            labeler_eval.write_json(gold_path, {"o/r#1": {"type": "enhancement", "priority": None, "topics": []}})
             with open(results_path, "w", encoding="utf-8") as handle:
-                for record in (error, ok, failed_other, holdout):
+                for record in (error, ok, failed_other, holdout, *hard_runs):
                     handle.write(json.dumps(record) + "\n")
             args = mock.Mock(manifest=manifest_path, results=results_path, split=split,
                              gold=gold_path if with_gold else None)
@@ -1023,7 +1028,7 @@ class CommandReportTest(unittest.TestCase):
 
     def test_not_ok_counts_the_calls_whose_latest_result_failed(self):
         report = self._report(with_gold=False)
-        self.assertEqual((2, 1), (report["calls"], report["not_ok"]))
+        self.assertEqual((4, 1), (report["calls"], report["not_ok"]))
 
     def test_the_report_counts_only_the_calls_of_its_split(self):
         dev = self._report(with_gold=False, split="dev")
@@ -1035,8 +1040,9 @@ class CommandReportTest(unittest.TestCase):
     def test_the_text_kind_needs_a_gold_file(self):
         self.assertNotIn("text", self._report(with_gold=False))
         report = self._report(with_gold=True)
-        self.assertEqual(1.0, report["text"]["type_accuracy"])
-        self.assertIn("hard_case_stability", report["convention"])
+        self.assertEqual(0.0, report["text"]["type_accuracy"])
+        self.assertEqual(1.0, report["convention"]["type_accuracy"])
+        self.assertEqual(0.5, report["convention"]["hard_case_stability"])
 
 
 class MetricsTopicsTest(unittest.TestCase):
