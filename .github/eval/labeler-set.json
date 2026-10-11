@@ -1,0 +1,5243 @@
+{
+  "holdout_percent": 33,
+  "issues": [
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 19,
+      "repo": "magicsunday/.github",
+      "sha256": "02f778126a3057e40ad9bafdf33be344f864556e4767cc41335c0094f2c4ac35",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 30,
+      "repo": "magicsunday/.github",
+      "sha256": "2187c052e9393ef8d2d6fc56b5423872073a2db92e8596431465dfe7819d7955",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 34,
+      "repo": "magicsunday/.github",
+      "sha256": "f45922e9eb6724afbf5acefbf9c5e0cb8fccb555de920713adbc7a9174cfb9a0",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 45,
+      "repo": "magicsunday/.github",
+      "sha256": "febcc0194628e91b7eeaec9326335d4ed48cabfff59cfc54835c19c5e56ca679",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 60,
+      "repo": "magicsunday/.github",
+      "sha256": "93418c1525b6e12a1b30e82d6df7ce5f62908a7d53a74690c0a34475f608670c",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 83,
+      "repo": "magicsunday/.github",
+      "sha256": "eefc36aac008da20b8aadadca249a76124cf4fa2f40d009f8df4837c2317314b",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 87,
+      "repo": "magicsunday/.github",
+      "sha256": "11cd4e77a4c3a8432076a12203fd3331001287ef120dce4606d2036a438e9daf",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low",
+        "security"
+      ],
+      "number": 90,
+      "repo": "magicsunday/.github",
+      "sha256": "c029cf4b38ff813dbca74a7104977cbbffae9099fb446eb23b81616a7354165d",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 91,
+      "repo": "magicsunday/.github",
+      "sha256": "8bb0fd15ebf90cee31207b3b224e2f5a5f276516838acde5ba08196dd655ca0f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "github_actions",
+        "needs-triage",
+        "priority: low"
+      ],
+      "number": 98,
+      "repo": "magicsunday/.github",
+      "sha256": "505aad665c686b976f9264176bab38f9cb5b54c9f33a8fbab600ed319ce8fe0e",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "documentation",
+        "needs-triage",
+        "priority: low"
+      ],
+      "number": 103,
+      "repo": "magicsunday/.github",
+      "sha256": "07717984d3be800abaf8aaf0b8965f6ee636f2ca2c84e6ee7b745891f42a6ce3",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "documentation",
+        "priority: low"
+      ],
+      "number": 106,
+      "repo": "magicsunday/.github",
+      "sha256": "f094ef5a605ed2c2a734fff14958e559f513fef583424771577b494c71a285b2",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "documentation",
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 107,
+      "repo": "magicsunday/.github",
+      "sha256": "6e42a38400f98b549a955934c6d312a7fd33c75aae28b01dcbfabf970bc84cb8",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "documentation",
+        "enhancement"
+      ],
+      "number": 109,
+      "repo": "magicsunday/.github",
+      "sha256": "7ad7e1320fe8068a6fad3c5b512fb691eaa3d1ba72eabe9ff4de20610ee464e4",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "github_actions",
+        "priority: medium",
+        "security"
+      ],
+      "number": 114,
+      "repo": "magicsunday/.github",
+      "sha256": "26848bd0aeaa8c11518a4df749e5050c5465e612c49eb2cff5d5e481fa2240e1",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "bug",
+        "github_actions",
+        "priority: low",
+        "security"
+      ],
+      "number": 127,
+      "repo": "magicsunday/.github",
+      "sha256": "7b9543b6d3a1b85723cf07b772b5325043ee477572684d9e77ef3646a311d616",
+      "split": "holdout"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "bug",
+        "github_actions",
+        "priority: high"
+      ],
+      "number": 138,
+      "repo": "magicsunday/.github",
+      "sha256": "f6bc9a6dc3b6b78606c4b4308bc4bd3b1eda1f4fee49f79257912d19e59f0cc2",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "documentation",
+        "enhancement",
+        "needs-triage",
+        "priority: medium"
+      ],
+      "number": 139,
+      "repo": "magicsunday/.github",
+      "sha256": "c7f43b0ac0df3c7e2c46caefbbbb3c86071a338abf6c6a3b9eb7a7ebf619bf97",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "github_actions",
+        "priority: low"
+      ],
+      "number": 142,
+      "repo": "magicsunday/.github",
+      "sha256": "ae7bc8d6a408ae8b724b972a14bf3d90c152f64ea1a82a53e2a07337f905fc5b",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "github_actions",
+        "help wanted",
+        "priority: high",
+        "priority: medium"
+      ],
+      "number": 146,
+      "repo": "magicsunday/.github",
+      "sha256": "80155e62b3a6fe4d7f944a4227dd5d09b6dd592f6070d36c1a572587a6966fe9",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "needs-triage",
+        "priority: medium"
+      ],
+      "number": 151,
+      "repo": "magicsunday/.github",
+      "sha256": "ec62c0f0824bf127ecbf67a83d006301160b186e5971254525f390918bbe4779",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "good first issue",
+        "priority: low"
+      ],
+      "number": 157,
+      "repo": "magicsunday/.github",
+      "sha256": "7cdb45b9e948974c5624fc60257a5f105719172b7daf12d315e97a85c991d788",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 164,
+      "repo": "magicsunday/.github",
+      "sha256": "2acf6db4bbf71600479e25e1e6473bebbff9de72f2ad1c508395a372fff227ac",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "github_actions",
+        "priority: low",
+        "security"
+      ],
+      "number": 171,
+      "repo": "magicsunday/.github",
+      "sha256": "24538db36c98b7631a8fe1246e049c751d8ff35d2380b75b3e6d7d2477d7d3ca",
+      "split": "holdout"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "github_actions",
+        "help wanted",
+        "priority: medium"
+      ],
+      "number": 176,
+      "repo": "magicsunday/.github",
+      "sha256": "d92687a09d7a854cfe3fad06c3bed9e19877f963e52a105199e51b2d1998a1be",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "github_actions",
+        "priority: medium"
+      ],
+      "number": 178,
+      "repo": "magicsunday/.github",
+      "sha256": "0a369ce3f124dddf4082d4a1f4d6a623c60f5d084a310deedb23f9929ddf020d",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 183,
+      "repo": "magicsunday/.github",
+      "sha256": "2912c8fd060c749c303d5b91cd49769dcc1bd111b6f6e78ef64d539841c1ab2a",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 194,
+      "repo": "magicsunday/.github",
+      "sha256": "9cfeabe9e1d33582a83f15101aedeb5c0b85712a07f653f384fc1238dec6c596",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 196,
+      "repo": "magicsunday/.github",
+      "sha256": "ff3e8cfe6f3c64276a488e67e7350c347f513e367e911fd5013ea4c4ecdaafab",
+      "split": "holdout"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 197,
+      "repo": "magicsunday/.github",
+      "sha256": "c26a7768ebb8b4122358078142234eff03e0fee7ef6a2c2d49cf01a700ef0506",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 4,
+      "repo": "magicsunday/coderabbit",
+      "sha256": "3f68d6d0527abb4a203935772eec1a28efd2c5e7f1517c470ff1cee7dad395e7",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 6,
+      "repo": "magicsunday/coderabbit",
+      "sha256": "bd13b8942920079a656a707a7754b9937e5a385bc2d7fdfbe66b725c1ce15c42",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 11,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "08d581bec4df3a39d53cc3727c2b398f55ea570abf1d7d8afc5b1fbdfe1c18da",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 32,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "48021b441a6a48aa3da3349f05e96a269d2873a93c3e45e4508493757b106674",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 34,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "d476513243854688db5187a6d721f011f09725b65e93daa0fcd4eca7b6c9a4af",
+      "split": "holdout"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 48,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "9b6dd3acd673cf01dd7dc3e5130261f943ab14a407f522afabcd7e61e605ae76",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 51,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "ef2d76e422cef75b2159d611ba554430027d38551a96b587a39dfa3a4992c652",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 52,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "879ec3889a35c260c098bd2682d30af62abcd2fe4fce9fb3f99177767c5271b3",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 60,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "b2536006ebc0a59aaca3c894224f589b96659416998e63f602e45c5866b9ae03",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 61,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "e54e255d04a26f8a87582c10237848bd0d0b5a07b87092ef4643dea25bc16e39",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 62,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "58039acc7a2e34c92c6793daa215a4383932ddc5c5a842febc5a7468f22d64ec",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 71,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "ff3574aa9cc2bbd6d33f206c1fd2d47476455f47a8040dcf8ce5053bf157532d",
+      "split": "holdout"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 74,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "ae3c993cc07cad686b4ee533909e4b176613aa0490724a4e79f1dbc792ddd67e",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 77,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "170e6b163abdac0d123188f29d5ea1c6aafaabdcdf89f78c7e01972a1122d26f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 81,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "83f1738c4407d8367465f36f951487298d17046073c0aa9f88cd1670ef035f2d",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 83,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "d87d908bc17d6789dbd8073032fb6cd6558a701bde0eee88504b8c2f3bd9cb28",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 91,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "6ec37c18db4d69ff27c997dfe92f0af9522e46f5547dc80bfd380c90658403d1",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 96,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "7ed3d9a3cbcfcbe519a0b4d6ca0ea9a6f6afdb32401ad03df9107000c82804ec",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 98,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "687979a2025049ad18f4bcc37d3d2305fb091d171adf6458bf9db5160f2d56e4",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 132,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "981e2c6d36000888826c477483a4e13caad8f10f79c44965671016354f3f28eb",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 139,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "6419fdc32bef937425aa2b9c3c0bb690360b3244839dc4ebbe3cbfb6c49abd83",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 144,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "0552b95dbaaa405ae6af17559a37f153cd49d76f9926ded40412034981368ded",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 152,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "301cdc2dc05182f7ef21ca433936c6d610263859dd299b7bbc532a6daf836f19",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "bug",
+        "help wanted",
+        "priority: medium",
+        "security"
+      ],
+      "number": 160,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "610a2877f33dbb55fdacb218775662987d84d958268fff03337b5831660b3194",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 183,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "4106175f38cb5daf7373ae166644b9bce7db521bcc651eb5d710fa57a1c054b8",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "needs-triage",
+        "priority: medium"
+      ],
+      "number": 192,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "5f1aed6c560b74a367d65787cbcc9e357eb09ad09d8a728e97ce0e2c96939307",
+      "split": "holdout"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: high"
+      ],
+      "number": 207,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "3ac31da0f01d2cb375cf47bfb6013a4e26746488bc24e09f4deb108504e2184d",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: high"
+      ],
+      "number": 209,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "415871c94aa8c1982eb8fcd9bf0b54720c84e8a959ca76321007b949b82da170",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "needs-triage",
+        "priority: medium"
+      ],
+      "number": 213,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "0f7227ac87c4149dce6a39417409db1166d864d180596ef0a8c40ed7c6bedd11",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 215,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "47278a1d577fc9e93f92022a727638893036ff74086e875e7b01455faec1ad23",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "help wanted",
+        "javascript"
+      ],
+      "number": 219,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "bb9f79e25ba56c90fd3af539981d0b5483e8b3857d88d065e70bb4f669f7847e",
+      "split": "holdout"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 226,
+      "repo": "magicsunday/coding-standard",
+      "sha256": "f78dd12364b6b035f1c95312f05fbab232194120be26ca6149fa5874a26a129c",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 9,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "88b2ad1dad63b791a9245362ed5718e08de326407d80ba2722ea1fc621699233",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 14,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "83a52cda57244912d804b718d142cfcb319a62a952042d5c2aa47e5c83711e5a",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: high"
+      ],
+      "number": 15,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "dd64d48e6c3e0bf4fe146829cce12cba6776556ff8b10ac6f5043e797c950f47",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: high"
+      ],
+      "number": 16,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "0a6861c879a6fcff89b1fdfd1f8834dc3b6fd36af96728d8e8512ac4ea8c75ab",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: medium"
+      ],
+      "number": 17,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "d4eaec0c4eb4ff358a2d0cfb4902e9faa2704f663b1cdabd379ea2a8a55f300e",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 18,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "6b5fab6886424cc3a60be34783fb3a41e0cc180c3d719a36682f872db95eb364",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: high"
+      ],
+      "number": 21,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "016028469e9fe6c4788f5fdfa6997383bacacf7191d54e05f6eb9ffbc94a6370",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 23,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "cad33cbaaf7daf911279f5d1f3696eda9cfb7012d6798dd1b2327cd2224508f0",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 26,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "aacbee62471aa166528eef3f53f594bce5520e2b90e75078f90302245daa8213",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 29,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "e1dcc0ddb974cd161c6ae3f627d39c315d782f61a2b77f7c7727493aa93a29ec",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low",
+        "refactoring"
+      ],
+      "number": 30,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "80bf3aeda361772fbf136400c9df81e8d6deb10eedbd897fe21bb9ca0eacbb58",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 31,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "34c75869b920a5b1d5da535d8d39ded7296c932da56b051a09f0ebcbe0c40c14",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 33,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "5a9b389fb3f4a009fef537fbbc9dedcdbb2ad80e57a074c344998d8bd5915a37",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 47,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "30ebfb96a41475608ed1e6b541ddbb875794a2dc6fc84009d38d5c25eb6a4322",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 56,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "ac5350817bf15556f796e496fd39041458277cbd758dd22cbabb810fdc45807a",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 67,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "8398192f1bf4d625bfe8e82483465e296045c0e2d25cc829026db5b8d63f2aa1",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 69,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "b12a9d9fce078ced3bcf42a9b379c02b3d673de2ef67b210f6ae51f7243c47de",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 123,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "d8107604d67dac8d41de9751f773616686ed41e8c0f8f7e9f6c3a988a3a5afb0",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: high"
+      ],
+      "number": 132,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "e59ad12920a32dfaf1e20414a8a21969bbfb1fcfc482c1877b40abf3b4228a32",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 163,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "146f32e1f88e13e1c1c90ce0510640775445ea9e1109399682f3430674dbb11b",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 168,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "f790f7d6e3a559cbf558448fa7f73c511f815a6ad89430024e891c435ebac35c",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 180,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "13f61d84762f290b2ac0746e4b880bead6710c0893ea278ee93ca87f6bc27cd3",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 183,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "52ca5b8ee679a4af47364fb243a91a27b70ca28a8bf4997b66b656c4c0703736",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 189,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "18612e23cb4e45177da92d991e2e04b7bc90dc29e6f990515273a62e6f7d7043",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 191,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "5b860aea3ad014d54637a0f46a645fa70a049e25d93830f0554ce56f5d0851ef",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 195,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "e778a0ca51ce13d73804bee61138ba6bb75d8540da0bfc5fd0958f4c4a9fd896",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 207,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "97e323c8ab8743be81fe26fbbffff4b1c5fd5453bce74bafc46b359fe11c6321",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 209,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "672b15a583f61a06fa54131934de057260ba741f5df3f0e7cb97d49b3c2f65f1",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 214,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "80c4d8ee0c4bbff639befd7dc1377b2fd30a4c5b5da9d1f2a9025304abc79adb",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement",
+        "refactoring"
+      ],
+      "number": 237,
+      "repo": "magicsunday/gedcom-parser",
+      "sha256": "3d74a78f9d89577b37305786069aa8af6a51c04dbe652be6f5a16aa10ccc60dd",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "enhancement"
+      ],
+      "number": 577,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "97f057cfd9cfa4537eead42fbfebf7889f427c04763eb27a5fbaf7a335cf759c",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 580,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "b26b4389a3f0fc81bc9b5aa1645726428a442b469b865295ee86f3ef35a822f8",
+      "split": "holdout"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "ISO-BMFF",
+        "bug"
+      ],
+      "number": 695,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "419bd7a34ede5d94685ead741cfd08ceb8aa786425131f4b97fc97bd5e57ea94",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "ISO-BMFF",
+        "QuickTime",
+        "bug"
+      ],
+      "number": 706,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "6f513d2a55638b808288333f549c76bed7e53d7af8269ebdec5d412c252de48e",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "ISO-BMFF",
+        "QuickTime",
+        "bug"
+      ],
+      "number": 756,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "2db5f20f6f10afe97f8e924cce5710274ee2a2cb95fdd6e0645db534eb10eebe",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "EXIF",
+        "bug",
+        "duplicate"
+      ],
+      "number": 761,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "f194b3aadc8b314455f2b342f528e89cd658bffe842d06ed0896022e7cd6a0c5",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "ISO-BMFF",
+        "bug"
+      ],
+      "number": 835,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "29555358be92b488d6bb30ccb44ba67b5b08b8395b48c98aa5aaaa6d025f9e03",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "XMP",
+        "bug"
+      ],
+      "number": 848,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "eede700878555fd85b2e7c24623838bd37e40a0b3e3cab007fb15b03f1424225",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "EXIF",
+        "bug"
+      ],
+      "number": 925,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "371c9c5b07b2d4e3a32999083c702aea2be0b998854cf22c537368660bb09d4e",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "DNG",
+        "bug"
+      ],
+      "number": 1016,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "3f4ba3d5012ea742a3f14ba16761e82162085cd82d080efead776ce1a778642b",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "TIFF",
+        "bug"
+      ],
+      "number": 1100,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "eec496a98f28e850fcd623ab550359862ba5fb4cde3745d65c279e7fb8f7830b",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "ICC",
+        "bug"
+      ],
+      "number": 1113,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "a8e41fd724046b04637662194b1528673d88a71e20d518c4d10b6955532ae059",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "ISO-BMFF",
+        "bug"
+      ],
+      "number": 1143,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "89f82444b1407393c276a26d7119e29bdf0ea9209ddbeaa92ebbf1c4f45b9aff",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "ISO-BMFF",
+        "QuickTime",
+        "bug"
+      ],
+      "number": 1171,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "cc2d3c4f1a481cdd43dd3d8b0175a8116e848a55269a9c650999d8d66d47b954",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "ISO-BMFF",
+        "QuickTime",
+        "bug"
+      ],
+      "number": 1175,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "94b62a4a24a94d54352aea1a0ee97b15fe79bee22ef53ed8409247d82ec7d616",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "EXIF",
+        "bug"
+      ],
+      "number": 1184,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "4d7875dd2effbad4625ecd4cafc2e446a34fcba1b43fcd3694447fb7f1366070",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "XMP",
+        "bug"
+      ],
+      "number": 1220,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "2a67394e57a03dcd8684c52b4c1b42ab85fb2b8398dce1e0b212a714a6954fa9",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "XMP",
+        "bug"
+      ],
+      "number": 1234,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "000418b381daedcd227e6c91db8b3bfc7a3c11f62cd5df3e736936710411bad8",
+      "split": "holdout"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "ISO-BMFF",
+        "QuickTime",
+        "bug"
+      ],
+      "number": 1246,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "d0bc191bee0a14d5def6caa896c0a2ae859b79e5b6cb371b2329a03cf2ab4247",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "DNG",
+        "TIFF",
+        "bug"
+      ],
+      "number": 1284,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "2cc9d8bdd74275ec130f194a18696541aef177c2c1aa8dd326a6cd60191cdd89",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "EXIF",
+        "JPEG",
+        "TIFF",
+        "bug"
+      ],
+      "number": 1307,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "e65fed4ce7c114bd318bb2ab144e2e281dae5430da9d436bea761214354bf164",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "EXIF",
+        "JPEG",
+        "MPF",
+        "bug"
+      ],
+      "number": 1399,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "7347e1a90b5b10059ecbb7f15cc48b5ce18308c22342ee8e64457df3e259ca69",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "EXIF",
+        "TIFF",
+        "bug"
+      ],
+      "number": 1541,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "8e39008e3f0566cdc8fd42614c67d9fdc36d8bd28d577eb92c0538e3d7f59d21",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "EXIF",
+        "bug",
+        "good first issue"
+      ],
+      "number": 1652,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "c2b7bf0136aac42deea44db09edadac38fc6a3ed5ef730339c9a5c3b3044e36a",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "QuickTime",
+        "enhancement",
+        "refactoring"
+      ],
+      "number": 1743,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "98da2243a3aa0742d28d88d12429a13693cfe2c6d73bbba8f6540ac7b79f9866",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "format script"
+      ],
+      "number": 1786,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "8c91cd14712e3a1f37ccceac1721440306d3336c6105a81df66e58bb372448e4",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "refactoring"
+      ],
+      "number": 1818,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "507cab59dfd21dbb3f2cc440e1cd9573ad755001d1491cf50227fd8cd5c10d4f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "QuickTime",
+        "enhancement"
+      ],
+      "number": 2265,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "5910e0c114f8590b87bde023e886a9898708566542d3955d1d096f3bf78ad387",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 2303,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "7903f572178c8fff6b87044877f4d68a36969eca001847233f96cbcc5266e515",
+      "split": "holdout"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 2354,
+      "repo": "magicsunday/imagemeta",
+      "sha256": "5531dfef70128fd07f00f35a31ace6812225212a8f1a17031995adab7eeb2672",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: critical"
+      ],
+      "number": 53,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "4a3fcc4b553bf8a877512861580cd73ecbe4fb1b2939e67a4a35e7e012e4fe74",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: critical"
+      ],
+      "number": 57,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "9d23ad4c2a88cc18e821a7793da5ec3d5a4df97844b92d82087c96f80927f881",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 58,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "75d16f9a29710d95b64f1c7ae01592fd0b939ce9cbd2f501f161b864f596fdb9",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 62,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "478569b3c2971d79d164fba3b5ed980db1b38c62594392b524d547e52b809cc1",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 66,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "a7af61a291fb0c1c1ab9a11d377d8346f3af6996d79d12e009f88b7b9fe8f39f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 67,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "ddac159517f04ac6259c17ba6db41c6a40c63093d992f8fd10040a457a8a68ca",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: medium"
+      ],
+      "number": 69,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "b0c5f6d9b4459cc7caffec38e82ae06593a99baa4f27d8801be0528783a76806",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: low"
+      ],
+      "number": 70,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "4ee9c5c67b3dd6f507b9fff11fe6afa1f8be654f7229492993ed67aecae6a24a",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 71,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "76884758aa7d9e8e8cc37bc7d891636d8e5856f8ad018b75404f7b3e500230fe",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 72,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "0ff0b03ed7f50e80034703ae7b68c6f1b3175b19254b1fa449f124c94edc7546",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 78,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "469cd980f193d4955cccb5c850a00603f56d73d77be0470697ea80964904a2bd",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: low"
+      ],
+      "number": 80,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "d80cfecab447a4dbf9503b6965d95c47f4e99b07deb3fad3b0f9a3dfdb13d8cd",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "documentation",
+        "priority: low"
+      ],
+      "number": 81,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "7d622048fc83f7321cd5457918c81041ab18e3fa7d295018422b4cdc37e4e282",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: critical"
+      ],
+      "number": 83,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "f283c5233990e1831b84e599d3535ffd301c1e570e5b0753cc7df2a58fa1ceaf",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 85,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "d7a191843c94016f82e68703b634fb494095e76617ce56658cae3aa8903a68fb",
+      "split": "holdout"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "bug",
+        "priority: critical"
+      ],
+      "number": 86,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "0a891990940544cfbdaad485e57dc4d3ee4d4af38afbc4426704d72f22dce057",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 87,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "d15d032e3d48baf279a6862ab9fac7b441e99ccade28a9ad4a1af2e0efecdcc2",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 100,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "7c88be09155c823b45c6f78dfb1616386f2d7760581081d1a3dee439f578e586",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 105,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "f393969bd3235d5f68d198a447e9f880b3d4f87666181146d6ba7dc7070c2c05",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 106,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "c6487541cdd336e0823a7a054b8380b27734a4ad363f66049f0c6f6ae65695ec",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 112,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "c2f061027d67b310255b90d5559068a47b4024252a517b81c67f9e111b110a8e",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 116,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "027880d460219edf9fae91c0b12eeeadd97ef04cf7c1f520cee0ae0ceb606532",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: low"
+      ],
+      "number": 123,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "7991688cdb469e259ba46229b3232736a16be9d38a84fa8a06d55d5a29b7e365",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 128,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "87fadae0fb71259d546977a3795cb79a94949481cdd56853be96a39ef4ff3de4",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 129,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "6c2e89703cda4b8f9ba74a7154278a7cc24f52334c5f155447f7a6c56f546d5f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 130,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "2d4757ccc707853c4d10daab2b781694380520350029f9a25586107a4919f174",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 146,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "1e350a47f17d7bce54b87f9e9f312ec39e52f240c237f96200e9e1035de31356",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 148,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "d199a9c91cecc88919550370e73e4eebbe88c7a23e11326b8bc65f3515517576",
+      "split": "dev"
+    },
+    {
+      "hard": true,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 149,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "f0b1a5cbeb0f11f3b0fa398a6c510fd2fd0a9ab84a668f98970054ffc13eb7d2",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement",
+        "needs-triage"
+      ],
+      "number": 153,
+      "repo": "magicsunday/jsonmapper",
+      "sha256": "b6a0ade647c907966a74b042e6d1f877820891b28ef60313f3141dac9191b79b",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "github_actions",
+        "priority: medium"
+      ],
+      "number": 4,
+      "repo": "magicsunday/magicsunday",
+      "sha256": "2ae0fa06c7aea2dce5d00c8f0511f0ab6f5b0c33d1fd8298759f2ade2ae71e7a",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 774,
+      "repo": "magicsunday/photo-memories",
+      "sha256": "4d89641fdc5cfa399d1e7bfaef7f222072a5f2d0490668ec9642ea0b23c6a136",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 781,
+      "repo": "magicsunday/photo-memories",
+      "sha256": "5cb318f6a93468820c21d0c21a078620645092e903117c854b735394902313b4",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 783,
+      "repo": "magicsunday/photo-memories",
+      "sha256": "ef3e86074fe3fb50b1a0eef535d08d9870ba5fab9d9dec398e3c0a7b88bbd80c",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 784,
+      "repo": "magicsunday/photo-memories",
+      "sha256": "ccf29095b44b666538bc2666ce0ad0eaf1c068790b520a0587293f5fc323fe1f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 786,
+      "repo": "magicsunday/photo-memories",
+      "sha256": "2f4fe05c314590c3bebfa568cde3c2f1a70a3820356773c856aca2a6b8fd06ea",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "php",
+        "priority: high"
+      ],
+      "number": 790,
+      "repo": "magicsunday/photo-memories",
+      "sha256": "052db1260c2db33427311837a5c1c8ba48d126adc20d0a66382c196b0961ca5d",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "github_actions",
+        "php",
+        "priority: critical",
+        "priority: high"
+      ],
+      "number": 791,
+      "repo": "magicsunday/photo-memories",
+      "sha256": "b4cdfc40a6cde6530d3d0004d1a150f7d2f762af9fef37f98cd64a94e44fb89b",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "github_actions",
+        "priority: low"
+      ],
+      "number": 793,
+      "repo": "magicsunday/photo-memories",
+      "sha256": "d657b5a1603333118685ddf37caced16dd3a4991a773755bb327eaa348e9a51b",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 82,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "84c12f4e9b3a05a052991a3046f57bbd45a4af66b0d8b2a31168d49e98d493ba",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 83,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "81ac601a54cc165ee310ad894a9a44a1adbddcc7405323fe5474b3afa77b3b6c",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 99,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "49c8c0ca7db55155e7052ee8ebc970facbdfb03a390717800c9085253697db56",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 103,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "fc5b5e1c87256ec5d3817aaa02b1e3cb61b87738f799da6d3875b06bb82889d4",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 104,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "b8ec5a0092659face41398341bb08200f66cb4d6b7708c02b4f2317138589226",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement"
+      ],
+      "number": 109,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "0cfd4d0c5dd5b68dd20e17b6707927b6668f990c5a2a5b5c3aa569f0310f3da0",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "github_actions",
+        "priority: low"
+      ],
+      "number": 113,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "bc4b973950234e3dd1552b31b3522493c334ec0b861a6a429cc5aa9f280aa539",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 117,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "eff259b3f99ce1259dd4c75675b01e33ccbddc239f34ff91060aa90dbdb426c5",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 121,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "a4b5c439eb12ed84ae96bd299aa78d413e212c387179eaae1c84197ff9e08ac4",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 123,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "f48e062fb0fa3b5304f04d67b6db47ddc6db824acd0865ecfa5b541a4035db12",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 124,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "579b117c197ed4e3d42b959bfcac103a1274a52bba04c2b1c138dad34015eb62",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "performance",
+        "priority: medium",
+        "security"
+      ],
+      "number": 127,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "5d9b100da5bc9572c70a6190a83b88b93ff32ef941ba455052c1a531d54ccd3f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "performance",
+        "priority: medium"
+      ],
+      "number": 128,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "ab3d0ece309f51ec78463ff0204fe822d6bcba82bca1b7813be76cd9c9fda1a8",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 129,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "ac27e745cafc06e7dc895b64973254e295dc3479da679bf0d573c210f53ab234",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 131,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "78f88df235fa0d2a5a90b7595eb4aaec16bc090c8e3451339db8a478e6640a2a",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 133,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "9495ea8dc1641ae1694e7ffc49487eb16052bfef2281f2fc5cd47c44695ea98e",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low",
+        "refactoring"
+      ],
+      "number": 134,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "0ca01911a717b739df0bf5c406ed6b0371bf0390b9a59dc2ce1c264209dac28d",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: high",
+        "security",
+        "upstream"
+      ],
+      "number": 136,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "b706e42cf09574bc56f3ccd19d9e142edfeb328ff4bb283030ef503162a68b87",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "hardening",
+        "performance",
+        "priority: medium",
+        "security"
+      ],
+      "number": 138,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "d321bca63c0fe1f5b3bed1f6d9c026c77815d75e9e9c98bbecaf7e00e9f14d09",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "hardening",
+        "priority: medium",
+        "security"
+      ],
+      "number": 139,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "c9f15cbf6fca0062b9fb3ba6a63210c5c2fbb03f58881ab3f55709287eefd8e2",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 141,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "552950e215f0610a12c2439ec2c07e726ba868d5e97bfc4477d56cd43d9097d0",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 142,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "9d1ff03695cac4d9c6a7bfb52e9197dafb05278723962f8929c4018854115789",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium",
+        "refactoring"
+      ],
+      "number": 143,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "b7f1ec576fffe4eb7288025788ad20388a80552e7e3064d7c5b82cda1097bdbc",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium",
+        "refactoring"
+      ],
+      "number": 144,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "997cd635d5e7b9a66b2009a365c29a6c6ebabee3e17020855c9865cc25987476",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "hardening",
+        "priority: medium",
+        "refactoring"
+      ],
+      "number": 146,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "83db9b9813761af8e2c81e35823013642f487cfd9cf4bdffb91abc6c94e275e0",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 148,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "4a40d306a562705c2442837dfc9abc135fa48f8d1041486ee115c60cb8b184d6",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "hardening",
+        "priority: medium"
+      ],
+      "number": 149,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "676b9cf15ae196ab5505f8747da574b2f5d89d53828e0250efee443429d8d11f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low",
+        "refactoring"
+      ],
+      "number": 150,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "d9459b87f520f2d5f500e43a5824bc97636b777a611745d1ab35c5da043c05af",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "hardening",
+        "priority: medium"
+      ],
+      "number": 152,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "ee5236e459496d93d9a78e578dabbd2fda475a3166eaaceb8cb0592b5dd9f07f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "performance",
+        "priority: high"
+      ],
+      "number": 167,
+      "repo": "magicsunday/photo-renamer",
+      "sha256": "43c284aa3967fd3fb94c1179684a627c002d8c6ed86a115f1ddda5b0933b4314",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 6,
+      "repo": "magicsunday/typo3-migration-analyzer",
+      "sha256": "84942093e2f97338211b6c8985ca22af63f0cb03cca5ed60bcd7f80c94f8b0f8",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 7,
+      "repo": "magicsunday/typo3-migration-analyzer",
+      "sha256": "d7e091552a7c6aa83ac71b6b463543ae8e6b50f55695f24ad85951e6729d3ed4",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 9,
+      "repo": "magicsunday/typo3-migration-analyzer",
+      "sha256": "4e291df55cc55fc4ac873c3c5309c40348c59247cfaff2c91bf560e1e741ff6b",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 10,
+      "repo": "magicsunday/typo3-migration-analyzer",
+      "sha256": "27407c5d036df1b5f7a5160954bbb74bcbd0d3ce299ba3836439dad06b875aa6",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "good first issue"
+      ],
+      "number": 11,
+      "repo": "magicsunday/typo3-migration-analyzer",
+      "sha256": "5560299801e5e7f4b2b911ef3227122833c05b61393ba800d9acfe966e497cb8",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: high"
+      ],
+      "number": 16,
+      "repo": "magicsunday/typo3-migration-analyzer",
+      "sha256": "052db1260c2db33427311837a5c1c8ba48d126adc20d0a66382c196b0961ca5d",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "github_actions",
+        "priority: low"
+      ],
+      "number": 18,
+      "repo": "magicsunday/typo3-migration-analyzer",
+      "sha256": "bc4b973950234e3dd1552b31b3522493c334ec0b861a6a429cc5aa9f280aa539",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 13,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "f7f7e63d78a4cb90773ab9cc710c909d76197e93ff5c7a196e1ba1175244ac83",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 22,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "34e73ace2ba7df71815866cf6cd362a77678ab34a32d3a153e939a7eb1d1f7d9",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "javascript"
+      ],
+      "number": 23,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "9536fc10611ce813a6a158eaab89595b9e52cf7a0d2a8f924126c1015cc2f845",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "javascript"
+      ],
+      "number": 24,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "42858cbf064870f4ca3eab22a10dc46ce338ade7506f253d6e6bd1fbac270241",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "javascript"
+      ],
+      "number": 25,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "17246bff53d6f9a1ac4f04706d79d46f8c93e080f224933e9901bc57d7fc777e",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 40,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "d2d01ddd19ba7a05c992b7ff0b55982f50edd49e0e4ef6fefc3677d92a5468c1",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 43,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "2ddd00cbec5ab8aeb0da70273c6bd30d1d7e1c3b818ef0f7657fd0305b1bd5d5",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 45,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "8ba77ab1b5fcdcdd043bb161fd2945e204c429f2d33b4ba0a63c36632952811e",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 46,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "a22af9a46ec03c2d7b21d3f109eab6a21a1c6050c9e30f397ba9cc5f7c04f385",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 47,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "e97eecabdc711c2a7025299d368d182d0f9f0b51cf11835fcebdb4fb3d0e80a3",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 48,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "7eaeefc3ccf85c31ee339035900840e60ae670a045b0f2bc7fa2854cf5c6814d",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 50,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "78a1917fffccc76214b87fdd213c174b87fc3ccc10b2c6719bb4bf41bb9c5763",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 51,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "3e597a32902cf60b929cc549a7cda6cf751aedbd3209fdec90a3b2489fa9b8f1",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 53,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "3e117f2986eea5d0557e00e5b8d48b8ff6464b49ebbdb2738345f9e8c3a809e2",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 55,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "97e81b9778ca31107644828585f3e80f26eac4da79e3f9e1cd84b50f45b14250",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 58,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "448b0c58945bc05a16f2ae2a633e4c01244b6a4f5375feb55086ff87570429fd",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 61,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "1f709e0da55639218eca24f29aae9eaf2c4c2a3b50998cfb2e5d4a9030fd2274",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 64,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "eb5791097240f67ed8d9c4ad7701c4627dea90b26e1bead6e1b76d849d7f50ce",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 65,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "f06c75cfb6093df6dcceaab66353e14d4664fe9a33c07c82c2b3d81153821dcc",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 66,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "94b21927c6cafd77c3737f6f24d4f9ef1a7c4f4cd829e1d65df0985bb5503f2b",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 68,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "e8c3b234a604a1a24ed4b296cdad4fdcec8a1269226340d293a1738a7f731450",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 69,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "87ce9c04f13084a919b6a9019b792d1d68839e9f7eab298b13a96b777f82d536",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 76,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "9f16207fbb0866e08cf44b4d4ecddfaea42d6936655c509ae792f50ccd6a8385",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: low"
+      ],
+      "number": 78,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "605857fe45f0ab5c7d3c2942e1cb92de2e082735dad66a0a7c2b5ce73f322ca9",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 89,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "a6d3643b61594d84c6c3ac966bc02d55d834063fbf7440341afb8d6431d8b8e4",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 98,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "82841bbf58173df580c8ed9c1616196996f1803b442b74c55dca2a0d3dd31cb1",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 101,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "1964357d1a7005a5a4767eb2b962f72fd5859fe841465e95d309a84acaf01ad1",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 103,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "f17b05c635ae9a0c34053031cfce11d69bd1639c0757b2de3f18f52fa2571a90",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 106,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "403c9a5f11b9689cd493eebca7d455ba3661058c23ff42b4c277382619505bfd",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: medium"
+      ],
+      "number": 107,
+      "repo": "magicsunday/webtrees-chart-lib",
+      "sha256": "99202f0eae0a3fe7fc8e21826bfa74efa23508ff7489d07f46a39c0261e63fa1",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "needs design",
+        "priority: low"
+      ],
+      "number": 3,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "4ac96a2bb5970eda92cba9de3fe6ccdcf9c5081572c96258fcd04fbf03d85183",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 24,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "55593af8c62c5fc2ff48dadb4f4e6251aa9e367ebfb2823e0f36e0799f96a41b",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 39,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "6b81d109fb9d8dc6c27cef561a31946a024c52bb790a97f0703d4c59d60af417",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 40,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "8982b8d9dba021b0dbc7a93155dd8d4ccc20d0523a4c479ffc03d0718d2f4336",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 55,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "57d536ccfeea7600331da2ffb1a43c8b8a7313d78e106f2e8082bfa539c61f1f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "awaiting feedback",
+        "bug"
+      ],
+      "number": 72,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "d5e40ea69be6fceaa2855cc9e6249e0da9d2ae023e905f88e3631be211a32f28",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 73,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "784da7f26d1e65f7a032e6b51ca87d6280cd20352f65b68cfeffb8b9df5acb2a",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "needs design",
+        "priority: medium"
+      ],
+      "number": 79,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "d89298f5599959323ccd629df3822706ef553f8a681d1433c8838f32af76850c",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "needs design",
+        "priority: low"
+      ],
+      "number": 83,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "209b64d004ff7191c3da7620a8f048e22b5086a7cf72a20b91aabc7fccac3494",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 87,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "834d8051d27f752416258c4af7108171cf94a0963401e4a8cf0b043de9a40105",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 112,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "e7d4b552bea4c54088d068639f470fe6b27b6e3095a037839204dd0e99dbfc97",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 131,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "372a74b1660c1f1f398f587a0f43e76c1b20f9a84e1c739ae89ffb5c10a067f0",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "needs design",
+        "priority: low"
+      ],
+      "number": 133,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "744fca44dae1adc181c8f122c14d26ab8e10f56feed68a52b8a30daa87f19c73",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 134,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "e877bf3e5a16bda6557ccaea047a8bc63288090777aedc2166e149d9fcc953a2",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 135,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "46c4d44e796b2a202302750093f432c5f4035a2d6cda5802cb6ce635192be27c",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 137,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "e0679391cf0d032fdfd8807ecc29c053d918127a8627f4122b779e5ce95b6f32",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 141,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "132b2a532f24dde5672540eec95e83986d9dc0525e43c3318a68a7f904b7620c",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 143,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "f502c891cbb7ba014970510c4c5bd647da1dc4cd0edb9276b22ca31678bd8128",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 145,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "aed856ca348554d7845f60b4ba35bd0a525848a39b72f4ed0bc983640af7edc1",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 147,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "12253a124150b36eb40d570110c8e140bed60839b3fdf53be2843e2e0ef39204",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 149,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "842853996a0e7afe7160ae5cbecf3cbdc90e448cba82682e8b068d17d0b755f1",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 160,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "fac964d211d0d6b52204ab5476d24fc4e16bfbc59b15a6579bd1951e4d4f94fe",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "documentation",
+        "enhancement",
+        "javascript",
+        "needs-triage"
+      ],
+      "number": 171,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "8fa8a37d22d55dd007c4bce6a4e3bd16a37a4dda2a266b65f3c70702de3583c0",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "php",
+        "priority: high"
+      ],
+      "number": 176,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "052db1260c2db33427311837a5c1c8ba48d126adc20d0a66382c196b0961ca5d",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: high"
+      ],
+      "number": 179,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "b206c8b0a374297630cb10ee734d0ec9e4ff6d8d16a587502e3725fef22d6e24",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "github_actions",
+        "javascript",
+        "priority: low"
+      ],
+      "number": 181,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "938904b127790ca137bb727ecd3533ccc0e38c5f3a8f3cd737eaf8a7eccae394",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: medium"
+      ],
+      "number": 183,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "99202f0eae0a3fe7fc8e21826bfa74efa23508ff7489d07f46a39c0261e63fa1",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 186,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "aafb070d50154318a09aaf3b30cea721db45cbb196bdfd2448834c3df82b4dbd",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "i18n",
+        "priority: low"
+      ],
+      "number": 188,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "5aab4a0af7928c2332f4d287fe084cdafc24293d751a57a50c162fe9b0a01a0e",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "i18n",
+        "priority: medium"
+      ],
+      "number": 189,
+      "repo": "magicsunday/webtrees-descendants-chart",
+      "sha256": "f390647b63298fd95d716ebadd3182ca5c319fab244839c62b5e49551878d48c",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "hardening"
+      ],
+      "number": 35,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "993cc1997b01f45ca79326b20194ce61356f0ce800aa76c5cab80eac0c5e1cd3",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "hardening"
+      ],
+      "number": 37,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "79b47aa093ec749128f5cb5d6c5eeee370a2c0328556a6240499069f66b4d8c0",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "enhancement"
+      ],
+      "number": 42,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "6b948108daddd193924abecb7b18b5fafeb02526b2c4e03f9ee01201d90f3685",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 50,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "625eb911c3e078deca1eb7254754ca0ecd07d48fb1598a2cda38307f012c7923",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation"
+      ],
+      "number": 52,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "b62aac03b8f29cc7616f4e2d1d4ff7169b4ba5260e81131e15afe0292dd191fd",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 58,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "7276125a71b1c84d252c89f4adeecd6657196c19b481d3b28363bcc6fbb59f4c",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "hardening"
+      ],
+      "number": 61,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "f06c2967370928aa131956e999843f7b9621b7a87f2aeeabd1ad1af3954bb2d6",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "hardening"
+      ],
+      "number": 64,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "7c4d3fd5bd0db16ee32cd26f44f214099f330c7d008e8f7e4435925c08d30a14",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "hardening"
+      ],
+      "number": 66,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "a0dd22d45e0c787f6098a88c0d43530aed2379191b37485e514456417556d803",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "hardening"
+      ],
+      "number": 74,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "ec18d2891db73aac5388e7b9b6c3d5148b93f2809c5abcacfe4428d78882fd8d",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation"
+      ],
+      "number": 80,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "189405d4bf086cbd9d7c88383a7fc89e83c8c893391363eaeb26240c364be688",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "good first issue"
+      ],
+      "number": 83,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "22b42e896d90e13727baacc6879aa8c96282e71debb919039783e326e5dc1e9b",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 86,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "cf6296826c77ae1e93ef0b2bb569c6a3f4c4f1d2419a8eb116c61e02c8ca54db",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 88,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "f4b8bac08e07cc66bbc91c5ec6ef9d431ff5376d5c9511aa51c150fcc9435e18",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 93,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "9e8c2224e86eaaf61a6596429a5ba6f3f5557f6e6d04a0038ff2e3b5869a9630",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation"
+      ],
+      "number": 105,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "13f774dd8d6dcd9b66658c462b8d69852215f2d8afd70da312dee78135115a1f",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "hardening"
+      ],
+      "number": 118,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "d5c93084992f90d1c49da884ec07e01cee62e9e89a79bb6dad591ad941518a66",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "hardening"
+      ],
+      "number": 124,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "4a95e7519ff3b08f036d978cf8c0dbc0576061d560ab1ee7fa6d04e9e4cb0e34",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation"
+      ],
+      "number": 126,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "60431e54456d6539556b10588f3b06d48914c6dc1168c421bdd62a0e6ba3572b",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 127,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "b26189dedcc076693267e4d1d3d4e5381339ace5fe6bb33c71c437c163548d58",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "hardening"
+      ],
+      "number": 133,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "4458bb0f787758f30a771ef46224b26bbb1954ef9cc53fa359ba376c4ced30df",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "good first issue"
+      ],
+      "number": 136,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "7cbce8e456a56cd751d70be0e8aea3c9c3767f68abfb7c7c78be4e053aa90738",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 137,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "bd60cf7e93e58c8e0797718cc508944a96ee0dcb86c95dd9f3d28a51dc33bd3f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation"
+      ],
+      "number": 143,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "249b39cc953366390cd589373adab2f0b4a0d52070ba9dc66de1250e6c63c996",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 144,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "1a1b6ef4dcac8fe26b440facf2a2690d7d3e93caf772e76eefea7ec5e28800f9",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 145,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "92535bb5749ea4cf1fe48e7f8d20f4bbdc4d46f647c01fff55ffc53477562911",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "hardening"
+      ],
+      "number": 147,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "cbecf52cbe5dc798cd0fa321c72370b112879660079c0d4aea8687681a0a83b3",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "hardening"
+      ],
+      "number": 174,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "eb2b6bdb1961c07c6a4fa3e9964a390595ea3e58a2033699bbce7ea6cac37877",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 224,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "94008ace5622b7aa1b1c509611b6aa45c5138d1fabeb9fa9331b715b39b31b30",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 232,
+      "repo": "magicsunday/webtrees-docker",
+      "sha256": "4b275c18dc4a1cdabd4ce3a16f296ad16e8a7b9ab97c5ac688243a21b8e26cec",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 18,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "c4bcdda18da5dc0a7fff55a55c163225070c51ebb59771f430eef72be5e890e2",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 32,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "376f7dae6951df137ad516aefc32344d51b9344b271ffd14566e23ec9bc9dcd0",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 102,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "3cd3029b452b4d62110c376e3c125308a8afe2b514b677b559b722ede4f7280d",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 104,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "f9ba62af82f11d95624beaed94aa33b1af57b1990552b3aebc1e84db4d6f0856",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "styling"
+      ],
+      "number": 115,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "721d1443168fe00676a7a05567d777a0884acba60c17e5c161c6e0c500e3ea01",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 174,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "906fd2e51c7cad0a3869bcfff836c36d1336ebfdc742a014701bb8d4b5b48617",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 177,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "597881ef8339152d80c8905ad9797aedb3330fb495490874ef4931195f281145",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 178,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "c1f149af7c436004bbf266b7ad2c02e93da1fd7cfa693787daf778f06eb588eb",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 186,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "07fc4d2d077a51f79fc3284d5d528723ed295300dd569780c7f58d14092d69b5",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 190,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "10ecdb1a923a32f4c69b0965801927c2ef45616c279557d0756307d36d4b82d2",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 191,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "69b06296cb35471f1b8c60506d1c7ca46cfcd24936e056aba1c4422e825a238d",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "awaiting feedback",
+        "bug",
+        "priority: high"
+      ],
+      "number": 200,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "936f32fd7ce9011c00155cea2e42ac5dd8f16718ae5b1f0b58134fca750c7bb9",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "i18n",
+        "priority: medium"
+      ],
+      "number": 210,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "4f9509d2bf46bc1ffa97a804a01c8009ab6ed0c983b2f3af1f6d97ceeca56756",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 223,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "59d04c92cb4b4875c0b3038433bf731fb90a363d54a144efe028d96a6f9c5ef7",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "i18n",
+        "priority: low"
+      ],
+      "number": 231,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "4120d31c1d0723dc71c2bcbfd4ae57a0ab716511c9c6b3ec7d38b5639a8371f6",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 232,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "130cf419f4c6a43cd05731ad6514627c111f33d6049900a37e7a921268f659e4",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 251,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "330e363365e2efa0ac8b78b87ffcf9dc35ab0b096224ab67c2c550b0d385b313",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 267,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "5c6afcb4a868a1119f8aebf1ca321d9272d7b5e27df18336cc1a89b650a8f285",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 270,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "7636165c23804cedf7028fecf57b2ae2409e33b4e8e4ab83292fe979d2e0ee68",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 271,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "52c4c2824c3260fc4d88548320bed8a152a6212542bd55edf2f3d50561e034e6",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 278,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "e91e9e1b56bf6c5d044e6935740acfae5fae6d715a36af10f759a16e9c292ff2",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 279,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "46c4d44e796b2a202302750093f432c5f4035a2d6cda5802cb6ce635192be27c",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 281,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "e0679391cf0d032fdfd8807ecc29c053d918127a8627f4122b779e5ce95b6f32",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: high"
+      ],
+      "number": 301,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "14bc221b6f3977e40df8885812ade54228a488cca72ec05e3e7e66da11dc2442",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 305,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "5381fb1b7c1a7ac042bd70590493ed45efc9547a17dfd9e522d34cb97e1318a9",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "javascript"
+      ],
+      "number": 315,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "fe1b6658e71c80acbc14579dea821dbddb631dad66ccbb211bdb58356cdd9ae1",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement",
+        "github_actions",
+        "priority: low"
+      ],
+      "number": 326,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "938904b127790ca137bb727ecd3533ccc0e38c5f3a8f3cd737eaf8a7eccae394",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: high"
+      ],
+      "number": 328,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "b206c8b0a374297630cb10ee734d0ec9e4ff6d8d16a587502e3725fef22d6e24",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "i18n",
+        "priority: medium",
+        "refactoring"
+      ],
+      "number": 336,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "37efdca2d10d36bd75d00014692dcf962d772ed44d5203006f2305709fa36025",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 341,
+      "repo": "magicsunday/webtrees-fan-chart",
+      "sha256": "6374874a5a0466455a23b3d09f30464b3f490a91401e81dd70d620b89983027d",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: medium"
+      ],
+      "number": 17,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "9c5971fe3a350d8de268d6cf87c3f4558899ec85c2f9c761c8622971e379c805",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 18,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "14b382631281135802d9610d8696495aa1bfb3367b21b31dbfb47d79a876e569",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 19,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "8e673fd937ba40f504a4c3b66f57cf142c21de3505a5b2f7bdbf02f1c95a9ce5",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: low"
+      ],
+      "number": 20,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "cf9cc3bd70d3e2bb90aad7046019b70276d69677cf3665e67ae5fa064b4ba69a",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: low"
+      ],
+      "number": 26,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "a4ec30c5101f949dd94f3f4cbdbf63eab17be8a46b649135cc244a60b7f52edd",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 29,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "cacdb91bd7511badacc91492414f3798ca2f0f9008895d27db97e9a362ab1e81",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 31,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "70b50679e548fedb29f8d0a9f8c66df1a44314732b7acc1f866ad3a4b7547fb4",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 32,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "18d15824fce47e672ead5ecb9e2d8489c3d13ba6a98b4f5c3563823d6bacd5ce",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: low"
+      ],
+      "number": 35,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "9745865cc1282e7011eb9345f5e2e4f57fe843a3451fbdfa3d0b8de91faf639f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 37,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "ac7862797018c849f52bd62f27fa1b6e8a0b2da1d9ff86f9fadf6585feba865e",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 39,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "12b537789a29e89a5945c31665172ec0b1c3ef1e818963372adda8fe3938ca38",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 40,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "835a076ff0e52e96fe1c83ab8302302354d1502413aca2f681d3ea03d13e79fc",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 43,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "cb20b8b709db6ea8dac12f7c9a4f39e413b696a5389869a6001c981fa0fa4a05",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: low"
+      ],
+      "number": 44,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "e22091235dc6fd02b442627732ee5596cdd8798e7d401053b6b3048a6646c2d3",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 50,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "e7228c25fa75b8f4aa06c64fdd2ad00d69e70188bc6ff173114c9da0c7190ae1",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: low"
+      ],
+      "number": 53,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "781a29d930bb2cd531a7dc750be3b583dbb1954048ecf1e4d2d56922d0842f40",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: high"
+      ],
+      "number": 56,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "81204135185041fe1eae044bcaa65e714b27338f1cb92667a3daa2a28047f647",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 58,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "204cd4bd5db8b05c85e401b7b152c6ec26d1d62dda8cd3853b5043df0b48d248",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 60,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "6dc5835ea729f7d4824a7afe1e5fb9b5176fc4701acd76a1bc78c64a77b6d50b",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 63,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "cc89ea2b22f6e7c69a2a103fcd61e0f39b844f373e0b7fb705d316bfd634b988",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement"
+      ],
+      "number": 66,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "79530e21ca0e0f50062ccd7bf8731cc1a71673c88ab4f984fabf92978208a84b",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "php",
+        "priority: high"
+      ],
+      "number": 68,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "c6f33959dd2c0799145d0ce3e33aeb3101cc11b1019b96bfc255b14bc7d47d3f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "github_actions",
+        "priority: low"
+      ],
+      "number": 70,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "bc4b973950234e3dd1552b31b3522493c334ec0b861a6a429cc5aa9f280aa539",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: high"
+      ],
+      "number": 72,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "02585227936157b6c17e7773e70487454007f3bd6098b77fe87ca957b100c380",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 74,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "c762d2b93d5a9620d6697c2ad10091dacb32cc654821abeea4cafc2d85dfdf12",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 76,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "9411b2f5e91d9587722369cfa624cbfa7ad79331026c7e216414f7ec559dd1bc",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 77,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "b5745c48fc2253cb60ecbe28ee5f317c85138cd783ccfee9a93c0b7bab7b7e42",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 79,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "f14ad8064d16b395e526e6b19aa0287c9e9309b8653ebb588333fe2e55977109",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 81,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "4ebc4d84370aa7d3078ccc9c7544d00fc0eb2cc2e45f50606f74aff778aeb367",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 82,
+      "repo": "magicsunday/webtrees-module-base",
+      "sha256": "1122eb28768b23c8268b4973fe51a9637d694d257c28e86f288349317859e504",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 17,
+      "repo": "magicsunday/webtrees-module-installer-plugin",
+      "sha256": "be5ec43411e005c7df4da93345845be9a060215cbda24ce243c1b2d610792377",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 19,
+      "repo": "magicsunday/webtrees-module-installer-plugin",
+      "sha256": "bc9237d8663e22201b315e82cee3b9070382f458581b95369fa9d6909336cf3e",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 22,
+      "repo": "magicsunday/webtrees-module-installer-plugin",
+      "sha256": "45b4ae57141a8448ed753b91cc3875c04fd40c02e37962595ff87b1f780ad7eb",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: high"
+      ],
+      "number": 24,
+      "repo": "magicsunday/webtrees-module-installer-plugin",
+      "sha256": "052db1260c2db33427311837a5c1c8ba48d126adc20d0a66382c196b0961ca5d",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement",
+        "github_actions",
+        "priority: low"
+      ],
+      "number": 26,
+      "repo": "magicsunday/webtrees-module-installer-plugin",
+      "sha256": "bc4b973950234e3dd1552b31b3522493c334ec0b861a6a429cc5aa9f280aa539",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 4,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "6224a982f45b6d200b72899e838bb8d309ee0eee351e51d9cb6674575c03ad13",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 15,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "ab5b192520fedee47d48dc892d31358b49f687f2d757be72570e38dfbb92eccb",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 16,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "774ffae79ea54d618780f04c6b683a2df2d9c85b24277f958f4500810da6f029",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 26,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "9dec02b6da9d0020a76813dcedaece5f4df379a74002a35d81d0dccf2b966c77",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 28,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "10e8fc6fcaf731e350d76ab4f55b40b5a49fed16de75b6bfa0502d806e474540",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 31,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "d27e210e8c75a9b6d59a758610d8704b0ead3e9b8b53581c0bfa8e9afaaeb928",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 43,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "8d6b740720a89ed618cc495f4833f18142300edc8103cb909fb4cd85cb9f48a0",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 44,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "1bcc65a2f6a3eefcf7e3e252394465b1c3389045492f795d49e32a3b72a36afe",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 48,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "faceef88dd874d4d2eac0eadd06913b07979cbd4a5569f92f6d96b489bb14198",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 51,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "291766c492f12b75b184863bbd86ff9fbf546442f1dc59e71f25584af5d9fbfd",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 56,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "110b88b89a5eedd66b5e451f4e9f8175a4bf206b2d85d878e39ade19c0b51e64",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 57,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "df382e8149b85d0f27884b4d61dede62647b7f6ef522ae129a2a9f71adc0080a",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 59,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "77ddf811c2ddf271036073169e6cf241d190aea79669e0a20d5528b8ce86f31c",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 61,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "42d9810f41e6f6b7fc56b171dee6882507da143f3e016589cefa788ac852bfe4",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 62,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "b5c3e9f29eeca4278892ce977c4131dc694db4136db557679408297730a85739",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 63,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "692e1b3eaa70ae7cc0fdd71bf4b43a29a1da0ec046727ed7fde0f5085e50113b",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 67,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "0f9eeffa5576e596e4217e017bd2a460d84d1c3303ad1aa96e3e227494180e70",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 70,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "9ddf9dc3755d1fbc7670e4eba657d77be5922f649a2c37a3ba6db93b86bb07ca",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 71,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "7d0d9694d2a418e1f86539ce9c11e1de322d989856eebf77dd26ead153de110b",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 76,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "78b2a2910c10345f1afb304057c63c9622f6c167d08563cdd569e58a76017f73",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 77,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "c44e3b6963d8be35ef92d96d8c1d76e9bb20f1d94e85ab9fc834f61440804f0c",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 98,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "6a04294cb396790615e51cb11a118a3a7cbf458f267db65bc4a61a497c7091a3",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 107,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "3451e59de80eebfbe0d73afd71686c660bd25fb3d87c6626e413f1d81fc1da43",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 117,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "0f57fc0cd1e4ce54874b7f560f5d0badafd15eb401d7dc635e2231b37ab16006",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 135,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "c832d50d55164156d0b164f6877c03c88baa8552da1d9d0f47cf06659dd8a333",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "php"
+      ],
+      "number": 142,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "3ff7b138b0dcd84e5755848360ead90b816803e2b986e5a8c948250fead6d8e8",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement",
+        "php"
+      ],
+      "number": 145,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "60e0d53b52fd6f77981188457da198a402e99ae3b1df6316fb55437a952dd7b2",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement",
+        "github_actions",
+        "priority: low"
+      ],
+      "number": 149,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "c4a16c5fde648c5f1ffec771e318f41e3e6b4e006de2c51a48a4cee6a933f3e9",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: high"
+      ],
+      "number": 151,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "6907041c4d04107a364e8f044a9b4a4869c2f3d8886b86ea5686eb74bf18a526",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "github_actions",
+        "priority: low"
+      ],
+      "number": 155,
+      "repo": "magicsunday/webtrees-obituary-matcher",
+      "sha256": "f91ecfbe9dcceadea807b6d8bf0ffb1384a0c1d9d408157a3b089c888ddad0ab",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "needs design",
+        "priority: low"
+      ],
+      "number": 20,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "afdb52bf8833f5ee988da10813966588556cdbbeff60d280f5f60e07da60597d",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 26,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "f020cb299bd60957c299ab745b2f9bd01fc266b1f54a1f957fb7813ce5b0cae7",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 45,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "ee1df5f2641cf507f279b80a36c21b4e48650295532c1b4c0a03caef44675b4a",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "upstream"
+      ],
+      "number": 81,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "5339afaa9e52e04f544975ae5c2181edf32e0111bad06ee64ab007a6741edbee",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "upstream"
+      ],
+      "number": 83,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "e0257ab86eca3f8d1c0d2b45b309684cbcaa729c63ef75d8ed992cf78ba5a7cd",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 86,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "621782f613337388a73355d0f39ecd0ba67c1fe9b82061781ee39efd32575917",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 90,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "77493e1602942b0b106273213acf631780aba78437d2ffb42506ca658c72978d",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 111,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "59d04c92cb4b4875c0b3038433bf731fb90a363d54a144efe028d96a6f9c5ef7",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "javascript",
+        "priority: high"
+      ],
+      "number": 117,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "bc6828f1f9606b84d0a580db005a281716f2b06cd6b91c08e83820e11da3dbc5",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 118,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "387c8cfcb07a1b0854c328bf40604b241939f3487959b3564fe76db7852e5941",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: low"
+      ],
+      "number": 120,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "ec583ad647287d3e84abd98db2ef870aa148bed398b144dd41b45a72f3ba6772",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "javascript",
+        "priority: low"
+      ],
+      "number": 124,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "10111c469ae31eb051218771e44b08f9894c2fe96fe9f311a72a37e2696f0c97",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "javascript",
+        "priority: low",
+        "styling"
+      ],
+      "number": 125,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "ccecf64063b3b63ac18eff7bab041520c3d019eb19621cb8b7210e91aca97fc9",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 139,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "410ec6e10378c51dac5c4ec70d36d356073bbbb11356a155d98ca64f8c397ad5",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 140,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "db350764142c3420f476568c26266572c506ca6e4d7a7463a4df669cd654b746",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "javascript",
+        "priority: medium"
+      ],
+      "number": 144,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "e2b7247f7ac3d782da59768f1e8c08778a163cff768c15e7a41f2ff1be7b49c9",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 145,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "cb5ad217d13a78a4600b2ad28105d5a735644bafa04acf3b15c722f548a18ad3",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 146,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "46c4d44e796b2a202302750093f432c5f4035a2d6cda5802cb6ce635192be27c",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 147,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "b1398b61f0afba54653f185b9f24dfded24338242ac583d2c2581e2db116826b",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 148,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "e0679391cf0d032fdfd8807ecc29c053d918127a8627f4122b779e5ce95b6f32",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 150,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "a62ce19da23b59891929262e284027062adc3eea6499e5c6ca0ee37c31b9e138",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 153,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "e0e0bd913c19c3d589e36eaab54bdb5706106a30772933386a5d06ecd297d851",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 154,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "7581b6daae6ece34ddac570f2f346242b66d3ebff7857298c0b2a7ac8e3bf4ad",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 161,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "12253a124150b36eb40d570110c8e140bed60839b3fdf53be2843e2e0ef39204",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 163,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "befbaf4823f40cacda5e1a5b702bfd2a91c1983a886f910661f6dff84a53d53e",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: high"
+      ],
+      "number": 171,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "14bc221b6f3977e40df8885812ade54228a488cca72ec05e3e7e66da11dc2442",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: high",
+        "priority: medium"
+      ],
+      "number": 191,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "052db1260c2db33427311837a5c1c8ba48d126adc20d0a66382c196b0961ca5d",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: high"
+      ],
+      "number": 194,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "b206c8b0a374297630cb10ee734d0ec9e4ff6d8d16a587502e3725fef22d6e24",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "dependencies",
+        "priority: medium"
+      ],
+      "number": 199,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "99202f0eae0a3fe7fc8e21826bfa74efa23508ff7489d07f46a39c0261e63fa1",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "i18n",
+        "priority: low"
+      ],
+      "number": 202,
+      "repo": "magicsunday/webtrees-pedigree-chart",
+      "sha256": "5aab4a0af7928c2332f4d287fe084cdafc24293d751a57a50c162fe9b0a01a0e",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement"
+      ],
+      "number": 17,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "3c7ec748ce81d4a0280dec1048f14b0190962746c8bebf1aa30398cb4941c55d",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "needs design"
+      ],
+      "number": 21,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "9f549099e10a97a64182c34e1d652097309fa6b5c3079ff2ee89403ddccb64da",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "needs design",
+        "priority: high"
+      ],
+      "number": 35,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "f8552004e8faf28ef2ae59e6633f71ad3f077fbd4e038543dd036403623a22f8",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "needs design",
+        "priority: medium"
+      ],
+      "number": 41,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "078107d5d9de1796bc78af668fa0c1e877d8ff515afaaf815c5f652c206fd419",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug"
+      ],
+      "number": 47,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "d5a23c5d8a6332a651379a155894930c013563eaa843fcdc3472b4ab2a9a7952",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 54,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "a097714172e57df721ba6a4c9cb682404c6a3e5e50aa4b0a56db9a2b16aed650",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 58,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "06e4df02c2ca010c6e41d759c268909ea7407c4b98fc87c21766bb607f15f542",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 59,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "bd05ef18205fc2f53d7fc40eaabcb2c826a5b61f2d95353e2cfca1c3c1022235",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 64,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "6400c1db01602e49edf4d84c14463cdde1d3a7d22ec30370a1b4cffb8494f497",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: high"
+      ],
+      "number": 66,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "1aa54b765929b87a061c92f352116b2d998360206b1aa43b11d695f990290884",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "needs design",
+        "priority: low"
+      ],
+      "number": 70,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "611d8a2800af9333513efc4b8b353e7cc0f5cb5c1ad49fcac054c3a0cd0d4f25",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 71,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "eba99ee89fc61f008494e68a5e25d524084b3cf63a22641ff66293b002e52af0",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 90,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "c4e1ca62b4c82859df7b9582f60a8398eb5388d9d7c9035ed183b62c6c310eea",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 103,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "6ae86e8bf9d892720f9fc5954bd4f59682e4450ad648c3234e30c4e304a121fb",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 106,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "b8447b766bc2897f661d39087b14c0fa1a17f979c670e97e0fdab3fe034c8419",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 114,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "72b65e0584e1944be71516492cdf9ec4e7c51df2ff170001e0e672f77e9b0c2d",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 150,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "832eac209c32a900a3f3563c87c06a77c7d81409691609398e6bec42a133d780",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 169,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "41fc0e7ce15f407501568fbaca856d0efc7494ec61681fb683da71b1e905991a",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 174,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "6908600665b644bb541f2ae426f03bdddf238d0a2b06258784e23bd7709510d9",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 177,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "63fc15c6a5c7957213c44346ac003902c4e6841d0bc190f5e791170c6117b918",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 181,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "a5f6e9a0f16d51b63a9696d149bf7c2803fd9896ae2a4fe57c040f0bef10c2e3",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 184,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "0e437102f1d4ef1d93cd76e548ef2ffef62e6b67c2e410094a61fe0f06f3ec13",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "needs design",
+        "priority: low"
+      ],
+      "number": 196,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "6a739e86286082f21aacc868a0e113bc4c6f92027e72ea91fd93ca86ec1fafc6",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 220,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "ac0cbe35817cee51edca5e76a89cb5248f105d17403779cfd42e8d3949ef7791",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 234,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "eb4f07908d99da9e991d521a17260f7a1b2fd370919c35fb23951b1d9cd22277",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 236,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "71bf3b9c8fee8b4347ec71ef3a0d04aba63bbefef626a985cc5fa2696b423c2f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 246,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "1d5f1dde9e09f8e3aadc8f6cbf8610eeede47ce371d59c5c52a75e1a7ae6fd11",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 249,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "196fed5c71104d169976c4027c8d1bc158477c6a6400fa1f92410ce8743b4bb1",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: medium"
+      ],
+      "number": 259,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "267d29146cd632f01c070fddf90070017f8cb1b4a8a211ba78b696d270b61f9f",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 278,
+      "repo": "magicsunday/webtrees-statistics",
+      "sha256": "808b1a3ad24090d74d827d583ea62aa9a08ccc10dfb761967db0f2cd9f7c6b4e",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 13,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "2b374f1a145afca76d7ec97e9443c202328282868a2e5a50f3b4f7b1c0268600",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: critical"
+      ],
+      "number": 22,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "469a4061ad508632ec29ba404b673a12c6fb1a502a48364519355016a127a4d8",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 23,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "cfce4f5f9d3fde7995ac0695e3f5d7166cfd6ce930b5802fd9e883aa480e69a6",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high",
+        "question"
+      ],
+      "number": 24,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "64fbad9ec5f88b2169612c7c9a03d60c36bc3615dab90393861ef2b07522794e",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 25,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "a083eec55de204cf8948c1810533926047a12e320fe95dc0ce50be605b9d2104",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 26,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "272b835249bc6f127b917f48a62a7a3980e9492baefe3f519f1993a98c62478a",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: medium"
+      ],
+      "number": 27,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "166ef83a7f38b668b729ba1fe607bbb945e905005b87a918744f1b54b22d746b",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 28,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "96fe280f69132a8e84ac65dbb15ad91065a1450ef05b01f3ee94020ce6574793",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 29,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "427c5ae2bf541ffaf7a736aef299112628d86dfb3faebc4346c6f3aa2b32b891",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 30,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "40a1a4b4c82417ad50563c8fd2a310edb5a5a03151a8046da58adc0abaa213c1",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 31,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "7f57c1f3bacc4746578615d76cf36655e431dd4af53d082a3eb0e684d13232a6",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 42,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "cbc008a9e19c60df48b6d5c23f7712cd0ba808aa5837f7416ddf7fbc5321f279",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: medium"
+      ],
+      "number": 43,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "8d5fa39439e3cc0ef5cbc11be32c736bbf64f2215c6cc804dffff5c19924ebea",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 44,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "458b30923bc02c7c4765727a8c178021fca853906c85579d54bb44f3d07d9cdb",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 57,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "a3979649d2e8c56626d0570e33daf335621ed6be405a991368c3740793d0b75e",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: high"
+      ],
+      "number": 59,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "c97dfd8f2f97283249888e16169cd09eaae6bc3eb885efdb3426f361702047b0",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 62,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "db2f15d18aa160ec5ac9b9f0689f80622ec02a562e5b650439c6f8f6a736263c",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "php",
+        "priority: high"
+      ],
+      "number": 64,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "052db1260c2db33427311837a5c1c8ba48d126adc20d0a66382c196b0961ca5d",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "bug",
+        "priority: low"
+      ],
+      "number": 68,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "561cafa4720a843bed3f31ce87cef7e953bbeb3ec713afad7a0d343f8740d6f4",
+      "split": "dev"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: low"
+      ],
+      "number": 72,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "ae4f8e771f88f316aac550bac5de71cbecce8917c98720299771b4a991151e21",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "priority: medium"
+      ],
+      "number": 74,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "ec7cb4a83f7b665c961ac177a6443255b68685c1be7dec2aac5826f614695ecd",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "enhancement",
+        "php",
+        "priority: low"
+      ],
+      "number": 75,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "344903b081029b0abc7425f2ac84ad673c2844f80ee7d3865779fbc22238415d",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "dependencies",
+        "enhancement",
+        "github_actions",
+        "priority: low"
+      ],
+      "number": 77,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "bc4b973950234e3dd1552b31b3522493c334ec0b861a6a429cc5aa9f280aa539",
+      "split": "holdout"
+    },
+    {
+      "hard": false,
+      "maintainer_labels": [
+        "documentation",
+        "priority: medium"
+      ],
+      "number": 81,
+      "repo": "magicsunday/xmlmapper",
+      "sha256": "92046fb4488d32cc52d1167638712086decef840e33b184d19230bae3e5c449a",
+      "split": "holdout"
+    }
+  ],
+  "owner": "magicsunday",
+  "seed": "labeler-eval-1",
+  "version": 1
+}

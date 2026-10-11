@@ -2,3 +2,4 @@
 # first tracked Python source in this repo, so nothing ignored these before.
 __pycache__/
 *.pyc
+.github/eval/.tmp-*
