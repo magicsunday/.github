@@ -15,6 +15,10 @@ cache directory that `build` fills. `judge` refuses an issue whose hash
 no longer matches and `run` records such a call as failed, so an edited issue never
 changes a result unnoticed.
 
+Every command that reads the manifest refuses an entry whose repository belongs to
+another owner than the one frozen in it, because the tool reads with your own gh
+login and a pull request may edit the manifest.
+
 The label side is not frozen. The label names and descriptions of a repository are
 read from GitHub when the cache is filled, and each result stores the names it was
 offered. A label renamed or re-described after the label lists were cached changes
