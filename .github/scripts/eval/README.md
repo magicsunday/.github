@@ -73,7 +73,7 @@ private to your user.
 
 `judge` and `run` need `ANTHROPIC_API_KEY`. `run` goes through the library of
 the workflow (`ai-issue-labeler.sh`) for the request, the confidence step and the
-guard, so a measurement uses the code that runs in production. Hard cases are run
+guard, so a measurement uses the library code of the workflow step. Hard cases are run
 several times. `run` continues an interrupted results file and runs a call again
 whose last result was not ok.
 
@@ -85,7 +85,8 @@ type labels stays in the set, but it has no convention gold for the type.
 ## Metrics
 
 Every issue counts once, with its first run. An issue whose first run did not end
-ok is left out. The report counts as `not_ok` every call of the chosen split whose
+ok is left out, and so is an issue the referee has not judged yet when the text gold
+is used. The report counts as `not_ok` every call of the chosen split whose
 latest result did not end ok, whatever its run.
 
 - Type: accuracy and a confusion matrix.

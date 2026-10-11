@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Runs the AI issue labeler pipeline for one issue, the way the workflow step
-# does it, and prints one JSON line. labeler_eval.py calls it.
+# Runs the AI issue labeler pipeline for one issue and prints one JSON line.
+# It calls the library functions of the workflow step in the same order. The HTTP
+# timeout is longer and the workflow's skip for an empty label set is not repeated.
+# labeler_eval.py calls it.
 #
 #   run-one.sh offered  LABELS_FILE
 #       prints the names the labeler is offered after its label filters
