@@ -54,6 +54,17 @@ HARD_PATTERNS = (
     re.compile(r"\b(improve|support|allow|make it possible)\b", re.IGNORECASE),
 )
 
+def api_opener():
+    """An opener that speaks https only. It has no file or ftp handler and does not
+    follow a redirect, so the key goes to the one fixed URL and nowhere else."""
+    opener = urllib.request.OpenerDirector()
+    for handler in (urllib.request.HTTPSHandler(), urllib.request.UnknownHandler(),
+                    urllib.request.HTTPDefaultErrorHandler(), urllib.request.HTTPErrorProcessor()):
+        opener.add_handler(handler)
+    return opener
+
+
+OPENER = api_opener()
 MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 
 # The referee answers "none" where the text establishes no type or priority.
@@ -588,7 +599,7 @@ def call_messages(request):
         )
         last_attempt = attempt == ATTEMPTS - 1
         try:
-            with urllib.request.urlopen(http_request, timeout=120) as response:
+            with OPENER.open(http_request, timeout=120) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
             if error.code not in TRANSIENT_STATUSES or last_attempt:

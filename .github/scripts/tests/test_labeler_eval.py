@@ -664,6 +664,15 @@ class ClassifyRetryTest(unittest.TestCase):
         self.assertEqual((labeler_eval.ATTEMPTS, labeler_eval.ATTEMPTS - 1), (calls, sleeps))
 
 
+class ApiOpenerTest(unittest.TestCase):
+    def test_the_opener_follows_no_redirect_and_opens_no_file(self):
+        kinds = {type(handler) for handler in labeler_eval.OPENER.handlers}
+        self.assertNotIn(labeler_eval.urllib.request.HTTPRedirectHandler, kinds)
+        self.assertNotIn(labeler_eval.urllib.request.FileHandler, kinds)
+        with self.assertRaises(labeler_eval.urllib.error.URLError):
+            labeler_eval.OPENER.open("file:///etc/hostname")
+
+
 class CallMessagesTest(unittest.TestCase):
     def setUp(self):
         patcher = mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "key-test"})
@@ -679,13 +688,13 @@ class CallMessagesTest(unittest.TestCase):
     def test_a_dropped_connection_is_retried(self):
         response = mock.MagicMock()
         response.__enter__.return_value.read.return_value = b'{"ok": true}'
-        with mock.patch.object(labeler_eval.urllib.request, "urlopen",
+        with mock.patch.object(labeler_eval.OPENER, "open",
                                side_effect=[labeler_eval.urllib.error.URLError("down"), response]):
             self.assertEqual({"ok": True}, labeler_eval.call_messages({}))
         self.assertEqual(1, self.sleep.call_count)
 
     def test_the_wait_grows_between_attempts(self):
-        with mock.patch.object(labeler_eval.urllib.request, "urlopen",
+        with mock.patch.object(labeler_eval.OPENER, "open",
                                side_effect=TimeoutError("slow")):
             with self.assertRaises(RuntimeError):
                 labeler_eval.call_messages({})
@@ -695,13 +704,13 @@ class CallMessagesTest(unittest.TestCase):
         self.assertEqual(sorted(set(delays)), delays)
 
     def test_a_transient_status_that_stays_is_an_error_with_its_code(self):
-        with mock.patch.object(labeler_eval.urllib.request, "urlopen",
+        with mock.patch.object(labeler_eval.OPENER, "open",
                                side_effect=[self._http_error(529)] * labeler_eval.ATTEMPTS):
             with self.assertRaisesRegex(RuntimeError, "HTTP 529"):
                 labeler_eval.call_messages({})
 
     def test_a_connection_that_stays_down_is_an_error(self):
-        with mock.patch.object(labeler_eval.urllib.request, "urlopen",
+        with mock.patch.object(labeler_eval.OPENER, "open",
                                side_effect=TimeoutError("slow")) as opener:
             with self.assertRaisesRegex(RuntimeError, "API not reachable"):
                 labeler_eval.call_messages({})
@@ -709,7 +718,7 @@ class CallMessagesTest(unittest.TestCase):
         self.assertEqual(labeler_eval.ATTEMPTS - 1, self.sleep.call_count)
 
     def test_a_client_error_is_not_retried_and_carries_the_reason(self):
-        with mock.patch.object(labeler_eval.urllib.request, "urlopen",
+        with mock.patch.object(labeler_eval.OPENER, "open",
                                side_effect=self._http_error(400)) as opener:
             with self.assertRaisesRegex(RuntimeError, "HTTP 400: the reason"):
                 labeler_eval.call_messages({})
@@ -718,7 +727,7 @@ class CallMessagesTest(unittest.TestCase):
     def test_a_transient_status_is_retried(self):
         response = mock.MagicMock()
         response.__enter__.return_value.read.return_value = b"{}"
-        with mock.patch.object(labeler_eval.urllib.request, "urlopen",
+        with mock.patch.object(labeler_eval.OPENER, "open",
                                side_effect=[self._http_error(529), response]):
             self.assertEqual({}, labeler_eval.call_messages({}))
 
