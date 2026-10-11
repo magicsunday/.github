@@ -24,8 +24,9 @@ LIBRARY_FILE="${REPO_ROOT}/.github/scripts/lib/ai-issue-labeler.sh"
 require_files_or_bail "ai issue labeler step run test" "${WORKFLOW_FILE}" "${LIBRARY_FILE}"
 
 # A knob that is already set in the caller's environment must not steer a run.
-unset FAIL_FUNCTION POST_FAILS GH_FETCH_FAILS CURL_FAILS ISSUE_READ_FAILS \
-    STEP_NO_BODY ISSUE_LABELS LABELS_FIXTURE ISSUE_BODY
+KNOBS=(FAIL_FUNCTION POST_FAILS GH_FETCH_FAILS CURL_FAILS ISSUE_READ_FAILS
+    STEP_NO_BODY ISSUE_LABELS LABELS_FIXTURE ISSUE_BODY)
+unset "${KNOBS[@]}"
 
 WORK_DIR="$(mktemp -d)" || exit 1
 trap 'rm -rf "${WORK_DIR}"' EXIT
@@ -101,7 +102,7 @@ case "$*" in *"-w "*) printf '\n%s' "${RESPONSE_STATUS}" ;; esac
 STUB
 chmod +x "${WORK_DIR}/bin/gh" "${WORK_DIR}/bin/curl"
 
-# Two pages, one array each, the way `gh api --paginate` prints them.
+# One array per page, the way `gh api --paginate` prints them.
 cat >"${WORK_DIR}/labels.json" <<'JSON'
 [
     {"name": "bug", "description": "Something is broken"},
@@ -130,8 +131,13 @@ run_step() {
     rm -f "${WORK_DIR}/posted.json" "${WORK_DIR}/request.json" "${WORK_DIR}/argv"
     local body_args=(ISSUE_BODY="It crashes.")
     [ -z "${STEP_NO_BODY:-}" ] || body_args=()
-    env \
-        PATH="${WORK_DIR}/bin:${PATH}" \
+    # The step sees only what is passed here, plus the knobs a case has set.
+    local knob_args=() name
+    for name in "${KNOBS[@]}"; do
+        [ -z "${!name+x}" ] || knob_args+=("${name}=${!name}")
+    done
+    env -i \
+        PATH="${WORK_DIR}/bin:${PATH}" HOME="${WORK_DIR}" TMPDIR="${WORK_DIR}" \
         TRACE_FILE="${WORK_DIR}/trace" \
         POSTED_FILE="${WORK_DIR}/posted.json" \
         REAL_LIBRARY_FILE="${LIBRARY_FILE}" \
@@ -143,7 +149,8 @@ run_step() {
         GH_TOKEN=token-gh REPO=owner/repo ISSUE_NUMBER=7 \
         ISSUE_TITLE="Crash on start" "${body_args[@]+"${body_args[@]}"}" \
         ANTHROPIC_API_KEY=key-anthropic SCRIPT_LIB="${WORK_DIR}/lib" \
-        bash "${WORK_DIR}/step.sh" >"${WORK_DIR}/output" 2>"${WORK_DIR}/errput"
+        "${knob_args[@]+"${knob_args[@]}"}" \
+        bash "${WORK_DIR}/step.sh" </dev/null >"${WORK_DIR}/output" 2>"${WORK_DIR}/errput"
     echo "$?" >"${WORK_DIR}/status"
 }
 
@@ -190,7 +197,7 @@ status() {
 
 BEFORE_REQUEST='gh api repos/owner/repo/labels --paginate | drop_pull_request_only_labels | drop_maintainer_set_labels | build_ai_labeler_request | curl'
 
-# A successful answer runs every stage in order. The two filters sit before
+# A successful answer runs every stage in order. The filters sit before
 # the request, the confidence step sits between the answer and the guard and
 # the labels are written last.
 tool_response bug 0.95 >"${WORK_DIR}/response.json"
