@@ -799,6 +799,24 @@ class CommandJudgeTest(unittest.TestCase):
         self.assertEqual({"o/r#2"}, set(gold))
         self.assertEqual({"type": "none", "priority": "priority: low", "topics": ["i18n", "ui"]}, gold["o/r#2"])
 
+    def test_an_answer_without_topics_is_stored_as_no_topics(self):
+        manifest = {"owner": "o", "issues": [{"repo": "o/r", "number": 1, "sha256": "x"}]}
+        with tempfile.TemporaryDirectory() as work:
+            manifest_path = os.path.join(work, "set.json")
+            gold_path = os.path.join(work, "gold.json")
+            labeler_eval.write_json(manifest_path, manifest)
+            args = mock.Mock(manifest=manifest_path, gold=gold_path, cache_dir=work, model="m", workers=1)
+            with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "k"}), \
+                    mock.patch.object(labeler_eval, "offered_labels", return_value=["bug"]), \
+                    mock.patch.object(labeler_eval, "load_issue", return_value=("t", "b")), \
+                    mock.patch.object(labeler_eval, "call_messages", return_value={}), \
+                    mock.patch.object(labeler_eval, "tool_input",
+                                      return_value={"type": "bug", "priority": "none"}), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                labeler_eval.command_judge(args)
+            gold = labeler_eval.read_json(gold_path)
+        self.assertEqual({"type": "bug", "priority": "none", "topics": []}, gold["o/r#1"])
+
     def test_a_missing_key_stops_before_any_issue_is_judged(self):
         with tempfile.TemporaryDirectory() as work:
             args = mock.Mock(manifest=os.path.join(work, "set.json"), gold=os.path.join(work, "g.json"),
