@@ -156,6 +156,7 @@ class RunOneTest(unittest.TestCase):
     def test_the_request_leaves_out_the_hidden_labels(self):
         self._classify(tool_response("bug", 0.95))
         request = self._read("stdin")
+        self.assertIn("needs-triage", request)
         self.assertNotIn("dependencies", request)
         self.assertNotIn("status: accepted", request)
 

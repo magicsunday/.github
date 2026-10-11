@@ -48,7 +48,7 @@ FALLBACK_LABEL = "needs-triage"
 # failing builds, and wording that sits between a bug and an enhancement.
 HARD_PATTERNS = (
     re.compile(r"\b(proposal|propose|idea|rfc|should we|consider)\b", re.IGNORECASE),
-    re.compile(r"\b(build|ci|pipeline|workflow)\b.*\b(fail|broken|red)", re.IGNORECASE),
+    re.compile(r"\b(build|ci|pipeline|workflow)\b.*\b(fail\w*|broken|red)\b", re.IGNORECASE),
     re.compile(r"\b(fail(s|ed|ing)?|broken|regression)\b.*\b(build|ci|pipeline)", re.IGNORECASE),
     re.compile(r"\b(improve|support|allow|make it possible)\b", re.IGNORECASE),
 )
@@ -242,7 +242,8 @@ def stability(runs_by_issue):
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RUN_ONE = os.path.join(SCRIPT_DIR, "run-one.sh")
-REPO_PATTERN = re.compile(r"(?!\.+/)[\w.-]+/(?!\.+$)[\w.-]+")
+# One owner/name pair without "__", so that the file name made of it is unique.
+REPO_PATTERN = re.compile(r"(?!\.+/)(?!.*__)[\w.-]+/(?!\.+$)[\w.-]+")
 TRANSIENT_STATUSES = {429, 500, 502, 503, 504, 529}
 
 # A call that never got an HTTP status, for example on a dropped connection, is
@@ -293,7 +294,7 @@ def issue_path(cache_dir, repo, number):
 def labels_path(cache_dir, repo):
     if not REPO_PATTERN.fullmatch(repo):
         raise ValueError("not a valid repository: {!r}".format(repo))
-    return os.path.join(cache_dir, "labels__{}.json".format(repo.replace("/", "__")))
+    return os.path.join(cache_dir, "{}.labels.json".format(repo.replace("/", "__")))
 
 
 def fetch_candidates(owner):
@@ -671,12 +672,24 @@ def pairs_for(manifest, results, gold_kind, text_gold, split):
     return pairs, hard_runs
 
 
+TOKEN_PATTERN = re.compile(r"(input|output)_tokens=(\d+)")
+
+
+def token_totals(results):
+    """Sums the tokens of every call in the results file, retries included."""
+    totals = {"input": 0, "output": 0}
+    for record in results.values():
+        for kind, count in TOKEN_PATTERN.findall(record.get("usage", "")):
+            totals[kind] += int(count)
+    return totals
+
+
 def command_report(args):
     manifest = read_json(args.manifest)
     results = read_results(args.results)
     text_gold = read_json(args.gold) if args.gold else {}
     failed = sum(1 for record in results.values() if record.get("status") != "ok")
-    report = {"calls": len(results), "not_ok": failed}
+    report = {"calls": len(results), "not_ok": failed, "tokens": token_totals(results)}
     for kind in ("convention", "text"):
         if kind == "text" and not text_gold:
             continue

@@ -8,6 +8,7 @@ import io
 import json
 import os
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -601,6 +602,12 @@ class ClassifyRetryTest(unittest.TestCase):
         self.assertEqual("ok", result["status"])
         self.assertEqual((2, 1), (calls, sleeps))
 
+    def test_each_server_side_status_is_retried(self):
+        for status in (500, 502, 503, 504):
+            with self.subTest(status=status):
+                result, calls, _ = self._run([{"status": "error", "http": status}, {"status": "ok", "labels": []}])
+                self.assertEqual(("ok", 2), (result["status"], calls))
+
     def test_a_rate_limit_status_is_retried(self):
         result, calls, _ = self._run([{"status": "error", "http": 429}, {"status": "ok", "labels": []}])
         self.assertEqual(("ok", 2), (result["status"], calls))
@@ -775,12 +782,53 @@ class CommandJudgeTest(unittest.TestCase):
         self.assertEqual({"type": "none", "priority": "priority: low", "topics": ["i18n", "ui"]}, gold["o/r#2"])
 
 
+class RunPoolTest(unittest.TestCase):
+    def test_an_interruption_cancels_the_queued_calls_and_is_raised(self):
+        started = []
+
+        def work(item):
+            started.append(item)
+            time.sleep(0.05)
+            return item
+
+        def handle(_future):
+            raise KeyboardInterrupt
+
+        with self.assertRaises(KeyboardInterrupt):
+            labeler_eval.run_pool(1, list(range(8)), work, handle)
+        self.assertLessEqual(len(started), 3)
+
+
+class TokenTotalsTest(unittest.TestCase):
+    def test_the_tokens_of_every_call_are_summed(self):
+        results = {
+            "a": {"usage": "stop_reason=tool_use input_tokens=10 output_tokens=5 thinking_tokens=unknown"},
+            "b": {"usage": "stop_reason=tool_use input_tokens=7 output_tokens=3 thinking_tokens=unknown"},
+            "c": {"status": "error"},
+        }
+        self.assertEqual({"input": 17, "output": 8}, labeler_eval.token_totals(results))
+
+
+class HardPatternTest(unittest.TestCase):
+    def test_red_is_a_word_of_its_own(self):
+        self.assertTrue(labeler_eval.is_hard("The build is red", ""))
+        self.assertFalse(labeler_eval.is_hard("The build log is required", ""))
+
+
 class IssuePathTest(unittest.TestCase):
     def test_an_identifier_that_could_leave_the_cache_is_refused(self):
         for repo, number in (("o/r", "../../x"), ("o/r", True), ("../r", 1), ("o/r/s", 1), ("o", 1)):
             with self.subTest(repo=repo, number=number):
                 with self.assertRaises(ValueError):
                     labeler_eval.issue_path("/cache", repo, number)
+
+    def test_two_identifiers_never_share_a_file(self):
+        with self.assertRaises(ValueError):
+            labeler_eval.issue_path("/cache", "a__b/c", 1)
+        self.assertNotEqual(
+            labeler_eval.issue_path("/cache", "labels/foo", 1),
+            labeler_eval.labels_path("/cache", "foo/1"),
+        )
 
     def test_a_repository_name_that_could_leave_the_cache_is_refused_for_labels(self):
         with self.assertRaises(ValueError):
