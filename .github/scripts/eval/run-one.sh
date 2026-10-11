@@ -39,9 +39,9 @@ filtered_labels() {
 # LABELER_EVAL_MODEL when one is set.
 build_request() {
     local request
-    request=$(build_ai_labeler_request "$@")
+    request=$(build_ai_labeler_request "$@") || return 1
     if [ -n "${LABELER_EVAL_MODEL:-}" ]; then
-        request=$(jq -c --arg model "${LABELER_EVAL_MODEL}" '.model = $model' <<<"${request}")
+        request=$(jq -c --arg model "${LABELER_EVAL_MODEL}" '.model = $model' <<<"${request}") || return 1
     fi
     printf '%s' "${request}"
 }

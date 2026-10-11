@@ -82,9 +82,10 @@ whose last result was not ok.
 library, so two models can be measured on the same frozen issues. The choice only
 applies to the evaluation. The workflow keeps the model of its library. Each result
 records the model that produced it, and the report lists the models of the chosen
-split under `models`. A results file keeps one model: `run` stops when the file
-already holds results of another, so use one results file per model and compare the
-two reports.
+split under `models`. A results file keeps one model. `run` stops when the file
+holds results of another model, and results written before this option, which name
+no model, count as another one. Use one results file per model and compare the two
+reports.
 
 `build` samples with a seed. The same seed on an unchanged set of issues gives the
 same sample, and an issue keeps its split when other issues are added. Only the

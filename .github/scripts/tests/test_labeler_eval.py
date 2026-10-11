@@ -845,22 +845,25 @@ class CommandRunModelTest(unittest.TestCase):
         args = mock.Mock(manifest=manifest_path, results=results_path, cache_dir=work, split="dev",
                          repeats=1, hard_repeats=1, workers=1, model=model)
         with mock.patch.object(labeler_eval, "offered_labels", return_value=["bug"]), \
-                mock.patch.object(labeler_eval, "run_helper", return_value={"model": "library-model"}), \
+                mock.patch.object(labeler_eval, "run_helper", return_value={"model": "library-model"}) as helper, \
                 mock.patch.object(labeler_eval, "classify",
                                   return_value={"status": "ok", "labels": ["bug"]}) as classify, \
                 contextlib.redirect_stdout(io.StringIO()):
             labeler_eval.command_run(args)
+        self.helper = helper
         return labeler_eval.read_results(results_path), classify
 
     def test_a_chosen_model_reaches_the_call_and_every_record(self):
         with tempfile.TemporaryDirectory() as work:
             results, classify = self._run(work, "model-under-test")
+        self.helper.assert_not_called()
         self.assertEqual("model-under-test", classify.call_args.args[2])
         self.assertEqual("model-under-test", results["o/r#1@0"]["model"])
 
     def test_without_a_chosen_model_the_records_name_the_library_model(self):
         with tempfile.TemporaryDirectory() as work:
             results, classify = self._run(work, None)
+        self.helper.assert_called_once_with(["model"])
         self.assertIsNone(classify.call_args.args[2])
         self.assertEqual("library-model", results["o/r#1@0"]["model"])
 
@@ -873,11 +876,32 @@ class CommandRunModelTest(unittest.TestCase):
             with open(os.path.join(work, "results.jsonl"), encoding="utf-8") as handle:
                 self.assertEqual(old + "\n", handle.read())
 
-    def test_records_without_a_model_do_not_block_a_continued_run(self):
+    def test_records_without_a_model_stop_the_run_as_results_of_an_unknown_model(self):
         old = json.dumps({"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "ok", "labels": []})
         with tempfile.TemporaryDirectory() as work:
+            with self.assertRaisesRegex(SystemExit, "unknown"):
+                self._run(work, "model-under-test", old + "\n")
+            with open(os.path.join(work, "results.jsonl"), encoding="utf-8") as handle:
+                self.assertEqual(old + "\n", handle.read())
+
+    def test_a_results_file_of_the_same_model_is_continued(self):
+        old = json.dumps({"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "ok", "labels": [],
+                          "model": "model-under-test"})
+        with tempfile.TemporaryDirectory() as work:
             results, _ = self._run(work, "model-under-test", old + "\n")
-        self.assertEqual("model-under-test", results["o/r#1@0"]["model"])
+        self.assertEqual({"o/r#9@0", "o/r#1@0"}, set(results))
+
+    def test_the_library_model_guards_a_results_file_when_no_model_is_chosen(self):
+        other = json.dumps({"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "ok", "labels": [],
+                            "model": "other-model"})
+        same = json.dumps({"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "ok", "labels": [],
+                           "model": "library-model"})
+        with tempfile.TemporaryDirectory() as work:
+            with self.assertRaisesRegex(SystemExit, "other-model"):
+                self._run(work, None, other + "\n")
+        with tempfile.TemporaryDirectory() as work:
+            results, _ = self._run(work, None, same + "\n")
+        self.assertEqual({"o/r#9@0", "o/r#1@0"}, set(results))
 
 
 class CommandJudgeTest(unittest.TestCase):
@@ -1070,7 +1094,8 @@ class CommandResumeTest(unittest.TestCase):
         return labeler_eval.read_results(results_path), classify
 
     def test_a_call_that_ended_ok_is_not_run_again(self):
-        done = json.dumps({"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "ok", "labels": ["bug"]})
+        done = json.dumps({"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "ok", "labels": ["bug"],
+                           "model": "m"})
         with tempfile.TemporaryDirectory() as work:
             results, classify = self._run(work, done + "\n")
         self.assertEqual(1, classify.call_count)

@@ -434,6 +434,11 @@ def result_key(entry, run_index):
     return "{}@{}".format(issue_key(entry["repo"], entry["number"]), run_index)
 
 
+def result_models(records):
+    """The models that the result records name. A record without one counts as unknown."""
+    return {record.get("model", "unknown") for record in records}
+
+
 def read_results(path):
     """Reads the result lines by id, the last line of an id wins.
 
@@ -508,7 +513,7 @@ def command_run(args):
     manifest = read_json(args.manifest)
     existing = read_results(args.results)
     model = args.model or run_helper(["model"])["model"]
-    earlier = sorted({record["model"] for record in existing.values() if record.get("model", model) != model})
+    earlier = sorted(result_models(existing.values()) - {model})
     if earlier:
         sys.exit("{} holds results of {}, not of {}. Use another results file.".format(
             args.results, ", ".join(earlier), model))
@@ -739,7 +744,7 @@ def command_report(args):
     results_in_split = {name: record for name, record in results.items() if record.get("key") in keys}
     failed = sum(1 for record in results_in_split.values() if record.get("status") != "ok")
     report = {"calls": len(results_in_split), "not_ok": failed, "tokens": token_totals(results_in_split),
-              "models": sorted({record.get("model", "unknown") for record in results_in_split.values()})}
+              "models": sorted(result_models(results_in_split.values()))}
     for kind in ("convention", "text"):
         if kind == "text" and not text_gold:
             continue
