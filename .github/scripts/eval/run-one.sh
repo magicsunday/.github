@@ -11,9 +11,10 @@
 #       A failure of the guard aborts the script with a non-zero exit instead.
 #
 # LABELS_FILE holds the {name, description} array of the repository labels.
-# classify needs ANTHROPIC_API_KEY in the environment. The key reaches curl
-# through a header file descriptor, so it never shows up in the process list. The issue starts with no
-# labels of its own, so the type and priority guard has nothing to leave alone.
+# classify needs ANTHROPIC_API_KEY in the environment and stops without it. The
+# key reaches curl through a header file descriptor, so it never shows up in the
+# process list. The issue starts with no labels of its own, so the type and
+# priority guard has nothing to leave alone.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,6 +34,7 @@ case "${mode}" in
         filtered_labels "${2:?labels file}" | jq -c '[.[].name]'
         ;;
     classify)
+        : "${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is not set}"
         repo="${2:?repo}"
         title=$(cat "${3:?title file}")
         body=$(cat "${4:?body file}")

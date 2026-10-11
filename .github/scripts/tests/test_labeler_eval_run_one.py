@@ -169,6 +169,23 @@ class RunOneTest(unittest.TestCase):
         self.assertNotIn("dependencies", request)
         self.assertNotIn("status: accepted", request)
 
+    def test_a_missing_key_stops_the_script_before_any_request(self):
+        self._write("response", tool_response("bug", 0.95))
+        environment = dict(
+            os.environ,
+            PATH=os.path.join(self.work, "bin") + os.pathsep + os.environ["PATH"],
+            STUB_ARGV=self.paths["argv"], STUB_HEADERS=self.paths["headers"], STUB_STDIN=self.paths["stdin"],
+            STUB_RESPONSE=self.paths["response"], STUB_STATUS="200",
+        )
+        environment.pop("ANTHROPIC_API_KEY", None)
+        completed = subprocess.run(
+            ["bash", RUN_ONE, "classify", "o/r", self.paths["title"], self.paths["body"], self.paths["labels.json"]],
+            capture_output=True, text=True, env=environment, check=False,
+        )
+        self.assertNotEqual(0, completed.returncode)
+        self.assertIn("ANTHROPIC_API_KEY", completed.stderr)
+        self.assertFalse(os.path.exists(self.paths["argv"]))
+
     def test_an_unknown_mode_fails_with_status_2(self):
         self.assertEqual(2, self._run("nonsense").returncode)
 
