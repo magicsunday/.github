@@ -81,6 +81,8 @@ ok, whatever its run or split.
 - The rate of the `needs-triage` fallback and the labels per issue. A label
   outside the offered set is not measured, because the request never offers one
   and the pipeline drops it.
+- Tokens: the input and output tokens of the calls in the results file, which
+  gives the cost of a run.
 - Stability: the mean share of the repeated runs of a hard case that agree with
   its most common label set.
 
