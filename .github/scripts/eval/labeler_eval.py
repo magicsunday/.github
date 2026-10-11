@@ -33,6 +33,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 TYPE_LABELS = ("bug", "enhancement", "documentation")
@@ -244,8 +245,9 @@ def stability(runs_by_issue):
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RUN_ONE = os.path.join(SCRIPT_DIR, "run-one.sh")
-# One owner/name pair without "__", so that the file name made of it is unique.
-REPO_PATTERN = re.compile(r"(?!\.+/)(?!.*__)[\w.-]+/(?!\.+$)[\w.-]+")
+# One owner/name pair. It also ends up in a gh api path, so it holds no query or
+# fragment character.
+REPO_PATTERN = re.compile(r"(?!\.+/)[\w.-]+/(?!\.+$)[\w.-]+")
 TRANSIENT_STATUSES = {429, 500, 502, 503, 504, 529}
 
 # A call that never got an HTTP status, for example on a dropped connection, is
@@ -286,12 +288,13 @@ def write_json(path, value):
 
 
 def valid_repo(repo):
-    """An owner/name pair that maps to a file name no other pair maps to. The
-    underscore at a segment edge is refused because it would merge with the
-    double underscore that stands for the slash."""
-    if not REPO_PATTERN.fullmatch(repo):
-        return False
-    return not any(part.startswith("_") or part.endswith("_") for part in repo.split("/"))
+    return isinstance(repo, str) and REPO_PATTERN.fullmatch(repo) is not None
+
+
+def repo_stem(repo):
+    """The repository as a file name part. The slash is escaped, so two
+    repositories never share a stem."""
+    return urllib.parse.quote(repo, safe="")
 
 
 def issue_path(cache_dir, repo, number):
@@ -299,13 +302,13 @@ def issue_path(cache_dir, repo, number):
     identifiers must not be able to leave the cache directory."""
     if isinstance(number, bool) or not isinstance(number, int) or not valid_repo(repo):
         raise ValueError("not a valid issue identifier: {!r} #{!r}".format(repo, number))
-    return os.path.join(cache_dir, "{}__{}.json".format(repo.replace("/", "__"), number))
+    return os.path.join(cache_dir, "{}__{}.json".format(repo_stem(repo), number))
 
 
 def labels_path(cache_dir, repo):
     if not valid_repo(repo):
         raise ValueError("not a valid repository: {!r}".format(repo))
-    return os.path.join(cache_dir, "{}.labels.json".format(repo.replace("/", "__")))
+    return os.path.join(cache_dir, "{}.labels.json".format(repo_stem(repo)))
 
 
 def fetch_candidates(owner):
@@ -454,11 +457,11 @@ def repair_results_tail(path):
     cut = content.rfind(b"\n") + 1
     try:
         json.loads(content[cut:])
-        repaired = content + b"\n"
     except ValueError:
-        repaired = content[:cut]
-    with open(path, "wb") as sink:
-        sink.write(repaired)
+        os.truncate(path, cut)
+        return
+    with open(path, "ab") as sink:
+        sink.write(b"\n")
 
 
 def plan_jobs(entries, repeats, hard_repeats, results):
