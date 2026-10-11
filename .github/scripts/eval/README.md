@@ -47,7 +47,7 @@ check, never to tune.
 labeler_eval.py build  --owner OWNER --manifest MANIFEST --cache-dir CACHE
 labeler_eval.py fetch  --manifest MANIFEST --cache-dir CACHE
 labeler_eval.py judge  --manifest MANIFEST --cache-dir CACHE --gold GOLD
-labeler_eval.py run    --manifest MANIFEST --cache-dir CACHE --results RESULTS --split dev
+labeler_eval.py run    --manifest MANIFEST --cache-dir CACHE --results RESULTS --split dev [--model MODEL]
 labeler_eval.py report --manifest MANIFEST --results RESULTS --gold GOLD --split dev
 ```
 
@@ -77,6 +77,14 @@ the workflow (`ai-issue-labeler.sh`) for the request, the confidence step and th
 guard, so a measurement uses the library code of the workflow step. Hard cases are run
 several times. `run` continues an interrupted results file and runs a call again
 whose last result was not ok.
+
+`run --model MODEL` classifies with another model than the one of the workflow
+library, so two models can be measured on the same frozen issues. The choice only
+applies to the evaluation. The workflow keeps the model of its library. Each result
+records the model that produced it, and the report lists the models of the chosen
+split under `models`. A results file keeps one model: `run` stops when the file
+already holds results of another, so use one results file per model and compare the
+two reports.
 
 `build` samples with a seed. The same seed on an unchanged set of issues gives the
 same sample, and an issue keeps its split when other issues are added. Only the

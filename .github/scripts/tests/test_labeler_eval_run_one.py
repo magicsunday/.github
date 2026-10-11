@@ -79,7 +79,7 @@ class RunOneTest(unittest.TestCase):
         with open(self.paths[name], encoding="utf-8") as handle:
             return handle.read()
 
-    def _run(self, *arguments, status="200", fail=False):
+    def _run(self, *arguments, status="200", fail=False, model=None):
         environment = dict(
             os.environ,
             PATH=os.path.join(self.work, "bin") + os.pathsep + os.environ["PATH"],
@@ -89,6 +89,8 @@ class RunOneTest(unittest.TestCase):
         )
         if fail:
             environment["STUB_FAIL"] = "1"
+        if model is not None:
+            environment["LABELER_EVAL_MODEL"] = model
         return subprocess.run(["bash", RUN_ONE, *arguments], capture_output=True, text=True,
                               env=environment, check=False)
 
@@ -186,6 +188,33 @@ class RunOneTest(unittest.TestCase):
         self.assertNotEqual(0, completed.returncode)
         self.assertIn("ANTHROPIC_API_KEY", completed.stderr)
         self.assertFalse(os.path.exists(self.paths["argv"]))
+
+    def test_the_model_mode_prints_the_model_the_request_carries(self):
+        completed = self._run("model")
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        printed = json.loads(completed.stdout)["model"]
+        self.assertTrue(printed)
+        self._classify(tool_response("bug", 0.95))
+        self.assertEqual(printed, json.loads(self._read("stdin"))["model"])
+
+    def test_a_chosen_model_reaches_the_request_and_the_model_mode(self):
+        self._classify(tool_response("bug", 0.95), model="model-under-test")
+        self.assertEqual("model-under-test", json.loads(self._read("stdin"))["model"])
+        completed = self._run("model", model="model-under-test")
+        self.assertEqual({"model": "model-under-test"}, json.loads(completed.stdout))
+
+    def test_a_chosen_model_leaves_the_rest_of_the_request_alone(self):
+        self._classify(tool_response("bug", 0.95))
+        default_request = json.loads(self._read("stdin"))
+        self._classify(tool_response("bug", 0.95), model="model-under-test")
+        chosen_request = json.loads(self._read("stdin"))
+        default_request.pop("model")
+        chosen_request.pop("model")
+        self.assertEqual(default_request, chosen_request)
+
+    def test_an_empty_chosen_model_keeps_the_library_model(self):
+        default = json.loads(self._run("model").stdout)["model"]
+        self.assertEqual({"model": default}, json.loads(self._run("model", model="").stdout))
 
     def test_an_unknown_mode_fails_with_status_2(self):
         self.assertEqual(2, self._run("nonsense").returncode)
