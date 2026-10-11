@@ -121,6 +121,10 @@ class RunOneTest(unittest.TestCase):
         self.assertEqual({"status": "error", "http": 529},
                          self._classify('{"type":"error"}', status="529"))
 
+    def test_a_client_error_status_is_reported_with_its_code(self):
+        self.assertEqual({"status": "error", "http": 400},
+                         self._classify('{"type":"error"}', status="400"))
+
     def test_an_answer_without_a_tool_call_is_reported_with_the_usage(self):
         result = self._classify(json.dumps({"stop_reason": "max_tokens", "content": [],
                                             "usage": {"input_tokens": 10, "output_tokens": 1024}}))
@@ -131,7 +135,9 @@ class RunOneTest(unittest.TestCase):
     def test_an_unreadable_answer_is_reported(self):
         answer = {"stop_reason": "tool_use", "usage": {"input_tokens": 1, "output_tokens": 1},
                   "content": [{"type": "tool_use", "name": "assign_labels", "input": {"labels": 5}}]}
-        self.assertEqual("unreadable_answer", self._classify(json.dumps(answer))["status"])
+        result = self._classify(json.dumps(answer))
+        self.assertEqual("unreadable_answer", result["status"])
+        self.assertIn("input_tokens=1", result["usage"])
 
     def test_a_failing_curl_is_reported_as_an_error_without_a_status(self):
         self.assertEqual({"status": "error", "http": 0}, self._classify("{}", fail=True))

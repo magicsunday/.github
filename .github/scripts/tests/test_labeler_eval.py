@@ -245,6 +245,10 @@ class MetricsTest(unittest.TestCase):
         )
         self.assertEqual(1, metrics["critical_over_calls"])
 
+    def test_critical_is_one_step_above_high(self):
+        metrics = labeler_eval.compute_metrics([_pair(["priority: high"], ["priority: critical"])])
+        self.assertEqual(1.0, metrics["priority_mean_distance"])
+
     def test_topic_precision_and_recall(self):
         metrics = labeler_eval.compute_metrics(
             [_pair(["i18n", "ui"], ["i18n", "build"], {"i18n", "ui", "build"})]
@@ -601,6 +605,10 @@ class ClassifyRetryTest(unittest.TestCase):
         self.assertEqual("ok", result["status"])
         self.assertEqual((2, 1), (calls, sleeps))
 
+    def test_a_rate_limit_status_is_retried(self):
+        result, calls, _ = self._run([{"status": "error", "http": 429}, {"status": "ok", "labels": []}])
+        self.assertEqual(("ok", 2), (result["status"], calls))
+
     def test_a_transient_status_is_retried(self):
         result, calls, _ = self._run([{"status": "error", "http": 529}, {"status": "ok", "labels": []}])
         self.assertEqual("ok", result["status"])
@@ -673,6 +681,11 @@ class RunHelperTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "boom"):
                 labeler_eval.run_helper(["x"])
 
+    def test_a_failing_helper_is_an_error_even_with_output(self):
+        with mock.patch.object(labeler_eval.subprocess, "run", return_value=self._completed(1, '{"a": 1}\n', "bad")):
+            with self.assertRaisesRegex(RuntimeError, "bad"):
+                labeler_eval.run_helper(["x"])
+
     def test_empty_output_is_an_error(self):
         with mock.patch.object(labeler_eval.subprocess, "run", return_value=self._completed(0, "\n")):
             with self.assertRaisesRegex(RuntimeError, "no output"):
@@ -705,6 +718,24 @@ class CommandRunTest(unittest.TestCase):
         self.assertEqual("exception", results["o/r#1@0"]["status"])
         self.assertIn("edited", results["o/r#1@0"]["error"])
         self.assertEqual("ok", results["o/r#2@0"]["status"])
+
+
+class CommandRunRepeatsTest(unittest.TestCase):
+    def test_each_repeat_of_a_hard_case_is_recorded_under_its_own_run(self):
+        manifest = {"issues": [{"repo": "o/r", "number": 1, "hard": True, "split": "dev"}]}
+        with tempfile.TemporaryDirectory() as work:
+            manifest_path = os.path.join(work, "set.json")
+            results_path = os.path.join(work, "results.jsonl")
+            labeler_eval.write_json(manifest_path, manifest)
+            args = mock.Mock(manifest=manifest_path, results=results_path, cache_dir=work, split="dev",
+                             repeats=1, hard_repeats=3, workers=1)
+            with mock.patch.object(labeler_eval, "offered_labels", return_value=["bug"]), \
+                    mock.patch.object(labeler_eval, "classify", return_value={"status": "ok", "labels": ["bug"]}), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                labeler_eval.command_run(args)
+            results = labeler_eval.read_results(results_path)
+        self.assertEqual({"o/r#1@0", "o/r#1@1", "o/r#1@2"}, set(results))
+        self.assertEqual([0, 1, 2], sorted(record["run"] for record in results.values()))
 
 
 class CommandJudgeTest(unittest.TestCase):
