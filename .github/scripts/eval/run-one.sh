@@ -5,8 +5,10 @@
 #   run-one.sh offered  LABELS_FILE
 #       prints the names the labeler is offered after its two label filters
 #   run-one.sh classify REPO TITLE_FILE BODY_FILE LABELS_FILE
-#       prints {"status":"ok","labels":[...],"usage":"..."}, or a status of
-#       "error" with the HTTP status, or "no_tool_call" with the usage line
+#       prints {"status":"ok","labels":[...],"usage":"..."}. Any other status
+#       is "error" with the HTTP status (0 when curl itself failed),
+#       "no_tool_call" or "unreadable_answer", the last two with the usage line.
+#       A failure of the guard aborts the script with a non-zero exit instead.
 #
 # LABELS_FILE holds the {name, description} array of the repository labels.
 # classify needs ANTHROPIC_API_KEY in the environment. The issue starts with no
@@ -59,8 +61,7 @@ case "${mode}" in
 
         tool_input=$(apply_label_confidence "${tool_input}" 2>/dev/null) \
             || { jq -cn --arg usage "${usage}" '{status: "unreadable_answer", usage: $usage}'; exit 0; }
-        selected=$(resolve_labels_to_apply "${tool_input}" "${labels_json}" "[]") \
-            || { jq -cn --arg usage "${usage}" '{status: "guard_failed", usage: $usage}'; exit 0; }
+        selected=$(resolve_labels_to_apply "${tool_input}" "${labels_json}" "[]")
 
         if [ -n "${selected}" ]; then
             labels=$(jq -R . <<<"${selected}" | jq -cs .)

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # Exercises the pure core of labeler_eval.py: the sampling, the split, the gold
 # reduction and the metrics (issue #192). The commands that fetch issues or call
-# the API are not run here, they need the network and a key.
+# the API are not run here. They need the network and a key.
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import tempfile
@@ -37,6 +39,23 @@ class HashAndSplitTest(unittest.TestCase):
         self.assertNotEqual(base, labeler_eval.content_hash("t2", "b"))
         self.assertNotEqual(base, labeler_eval.content_hash("t", "b2"))
 
+    def test_the_hash_is_pinned_for_a_known_text(self):
+        self.assertEqual(
+            "45777c14d90fa79dc6ce71ceb6f81cced62c929c472199547cfd939a54e954c6",
+            labeler_eval.content_hash("Title", "Body"),
+        )
+
+    def test_the_split_is_pinned_for_known_issues(self):
+        self.assertEqual(
+            ['dev', 'dev', 'holdout', 'holdout', 'dev', 'dev', 'dev', 'holdout', 'dev', 'dev', 'dev', 'holdout', 'dev', 'holdout', 'dev', 'holdout'],
+            [labeler_eval.split_of("o/r", number, "seed-1", 33) for number in range(1, 17)],
+        )
+
+    def test_the_seed_changes_the_split(self):
+        first = [labeler_eval.split_of("o/r", n, "one", 50) for n in range(1, 60)]
+        second = [labeler_eval.split_of("o/r", n, "two", 50) for n in range(1, 60)]
+        self.assertNotEqual(first, second)
+
     def test_a_missing_body_hashes_like_an_empty_one(self):
         self.assertEqual(labeler_eval.content_hash("t", ""), labeler_eval.content_hash("t", None))
 
@@ -62,6 +81,10 @@ class HardCaseTest(unittest.TestCase):
     def test_failing_build_is_hard_in_either_order(self):
         self.assertTrue(labeler_eval.is_hard("The CI build fails", ""))
         self.assertTrue(labeler_eval.is_hard("Failing build on main", ""))
+
+    def test_improvement_wording_is_hard(self):
+        self.assertTrue(labeler_eval.is_hard("Improve the output", ""))
+        self.assertTrue(labeler_eval.is_hard("Title", "Make it possible to export"))
 
     def test_plain_text_is_not_hard(self):
         self.assertFalse(labeler_eval.is_hard("Typo in the readme", "Fix a typo."))
@@ -98,6 +121,18 @@ class SampleIssuesTest(unittest.TestCase):
         second = {e["number"] for e in labeler_eval.sample_issues(candidates, "two", 5, 33, 0)}
         self.assertNotEqual(first, second)
 
+    def test_the_manifest_is_sorted_by_repository_and_number(self):
+        candidates = [_issue("a/c", n) for n in (9, 2)] + [_issue("a/b", n) for n in (7, 3)]
+        manifest = labeler_eval.sample_issues(candidates, "seed", 10, 33, 0)
+        self.assertEqual([("a/b", 3), ("a/b", 7), ("a/c", 2), ("a/c", 9)],
+                         [(e["repo"], e["number"]) for e in manifest])
+
+    def test_plain_issues_do_not_use_up_the_hard_budget(self):
+        candidates = [_issue("a/b", n, title="Typo {}".format(n)) for n in range(1, 6)]
+        candidates += [_issue("a/b", n, title="Proposal {}".format(n)) for n in range(6, 9)]
+        manifest = labeler_eval.sample_issues(candidates, "seed", 20, 33, 2)
+        self.assertEqual(2, sum(1 for entry in manifest if entry["hard"]))
+
     def test_the_hard_budget_is_respected(self):
         candidates = [_issue("a/b", n, title="Proposal {}".format(n)) for n in range(1, 8)]
         manifest = labeler_eval.sample_issues(candidates, "seed", 10, 33, 3)
@@ -124,6 +159,19 @@ class GoldTest(unittest.TestCase):
         gold = labeler_eval.gold_from_labels(["bug", "enhancement"], self.OFFERED)
         self.assertIsNone(gold["type"])
 
+    def test_two_priorities_leave_the_priority_open(self):
+        gold = labeler_eval.gold_from_labels(["priority: high", "priority: low"], self.OFFERED)
+        self.assertIsNone(gold["priority"])
+
+    def test_a_priority_outside_the_known_ones_is_no_gold(self):
+        gold = labeler_eval.gold_from_labels(["priority: blocker"], {"priority: blocker"})
+        self.assertIsNone(gold["priority"])
+        self.assertEqual([], gold["topics"])
+
+    def test_topics_are_sorted(self):
+        gold = labeler_eval.gold_from_labels(["ui", "i18n"], self.OFFERED)
+        self.assertEqual(["i18n", "ui"], gold["topics"])
+
     def test_the_fallback_label_is_no_gold(self):
         gold = labeler_eval.gold_from_labels(["bug", "needs-triage"], self.OFFERED)
         self.assertEqual([], gold["topics"])
@@ -131,6 +179,9 @@ class GoldTest(unittest.TestCase):
     def test_the_priority_is_lowercased(self):
         gold = labeler_eval.gold_from_labels(["Priority: High"], {"Priority: High"})
         self.assertEqual("priority: high", gold["priority"])
+
+    def test_the_prediction_keeps_all_its_labels(self):
+        self.assertEqual(["bug", "ghost"], labeler_eval.predicted_shape(["bug", "ghost"])["labels"])
 
     def test_the_prediction_notes_the_fallback(self):
         shape = labeler_eval.predicted_shape(["needs-triage"])
@@ -145,7 +196,6 @@ def _pair(gold_labels, predicted_labels, offered=None):
         labeler_eval.gold_from_labels(gold_labels, offered),
         labeler_eval.predicted_shape(predicted_labels),
         offered,
-        len(predicted_labels),
     )
 
 
@@ -215,19 +265,49 @@ class MetricsTest(unittest.TestCase):
                     labeler_eval.gold_from_labels(["bug"], {"bug"}),
                     labeler_eval.predicted_shape(["needs-triage"]),
                     {"bug", "needs-triage"},
-                    1,
                 ),
                 (
                     labeler_eval.gold_from_labels(["bug"], {"bug"}),
                     labeler_eval.predicted_shape(["bug", "ghost"]),
                     {"bug"},
-                    2,
                 ),
             ]
         )
         self.assertEqual(0.5, metrics["fallback_rate"])
         self.assertEqual(1, metrics["forbidden_labels"])
         self.assertEqual(1.5, metrics["labels_per_issue"])
+
+    def test_forbidden_labels_cover_types_priorities_and_the_fallback(self):
+        metrics = labeler_eval.compute_metrics(
+            [_pair(["bug"], ["bug", "enhancement", "priority: high", "needs-triage"], {"bug"})]
+        )
+        self.assertEqual(3, metrics["forbidden_labels"])
+
+    def test_a_referee_none_is_an_answer_for_the_type(self):
+        gold = {"type": "none", "priority": None, "topics": []}
+        wrong = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["bug"]), {"bug"})])
+        right = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["i18n"]), {"i18n"})])
+        self.assertEqual(0.0, wrong["type_accuracy"])
+        self.assertEqual(1.0, right["type_accuracy"])
+        self.assertEqual({"none -> bug": 1}, wrong["type_confusion"])
+
+    def test_a_referee_none_is_an_answer_for_the_priority(self):
+        gold = {"type": None, "priority": "none", "topics": []}
+        wrong = labeler_eval.compute_metrics(
+            [(gold, labeler_eval.predicted_shape(["priority: high"]), {"priority: high"})]
+        )
+        right = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["i18n"]), {"i18n"})])
+        self.assertEqual(0.0, wrong["priority_exact"])
+        self.assertEqual(1.0, right["priority_exact"])
+        self.assertIsNone(wrong["priority_mean_distance"])
+
+    def test_no_gold_at_all_leaves_the_field_out(self):
+        gold = {"type": None, "priority": None, "topics": []}
+        metrics = labeler_eval.compute_metrics(
+            [(gold, labeler_eval.predicted_shape(["bug", "priority: high"]), {"bug", "priority: high"})]
+        )
+        self.assertIsNone(metrics["type_accuracy"])
+        self.assertIsNone(metrics["priority_exact"])
 
     def test_an_empty_input_gives_no_ratios(self):
         metrics = labeler_eval.compute_metrics([])
@@ -344,6 +424,23 @@ class PairsForTest(unittest.TestCase):
         _, hard_runs = labeler_eval.pairs_for(self.MANIFEST, results, "convention", {}, "dev")
         self.assertEqual({"o/r#1": [["bug"], ["bug", "i18n"]]}, {k: sorted(v) for k, v in hard_runs.items()})
 
+    def test_a_plain_issue_never_feeds_the_stability(self):
+        results = dict([self._result(2, 0, ["bug"]), self._result(2, 1, ["bug"])])
+        _, hard_runs = labeler_eval.pairs_for(self.MANIFEST, results, "convention", {}, "holdout")
+        self.assertEqual({}, hard_runs)
+
+    def test_a_pair_carries_the_prediction_and_the_offered_labels(self):
+        results = dict([self._result(1, 0, ["bug", "ghost"])])
+        (gold, predicted, offered), = labeler_eval.pairs_for(self.MANIFEST, results, "convention", {}, "dev")[0]
+        self.assertEqual(["bug", "ghost"], predicted["labels"])
+        self.assertEqual({"bug", "i18n"}, offered)
+
+    def test_the_text_gold_keeps_priority_and_topics(self):
+        results = dict([self._result(1, 0, ["bug"])])
+        gold = {"o/r#1": {"type": "none", "priority": "priority: low", "topics": ["i18n"]}}
+        pairs, _ = labeler_eval.pairs_for(self.MANIFEST, results, "text", gold, "dev")
+        self.assertEqual({"type": "none", "priority": "priority: low", "topics": ["i18n"]}, pairs[0][0])
+
     def test_only_the_first_run_of_an_issue_enters_the_metrics(self):
         results = dict([self._result(1, 0, ["bug"]), self._result(1, 1, ["bug"]), self._result(1, 2, ["bug"])])
         pairs, hard_runs = labeler_eval.pairs_for(self.MANIFEST, results, "convention", {}, "dev")
@@ -368,19 +465,303 @@ class RefereeTest(unittest.TestCase):
     def test_the_request_offers_the_labels_and_the_text(self):
         request = labeler_eval.judge_request("m", "Title", "Body", ["bug", "i18n"])
         schema = request["tools"][0]["input_schema"]
-        self.assertEqual(["bug", "i18n"], schema["properties"]["topics"]["items"]["enum"])
+        self.assertEqual(["i18n"], schema["properties"]["topics"]["items"]["enum"])
         self.assertIn("none", schema["properties"]["type"]["enum"])
         self.assertIn("- i18n", request["system"])
         self.assertIn("Issue title:\nTitle\n\nIssue body:\nBody", request["messages"][0]["content"])
         self.assertEqual({"type": "auto"}, request["tool_choice"])
 
+    def test_the_request_is_complete(self):
+        request = labeler_eval.judge_request("the-model", "T", "B", ["bug", "priority: low", "needs-triage", "ui"])
+        tool = request["tools"][0]
+        self.assertEqual("the-model", request["model"])
+        self.assertEqual(4000, request["max_tokens"])
+        self.assertTrue(tool["strict"])
+        self.assertEqual(["type", "priority", "topics"], tool["input_schema"]["required"])
+        self.assertFalse(tool["input_schema"]["additionalProperties"])
+        properties = tool["input_schema"]["properties"]
+        self.assertEqual(["bug", "enhancement", "documentation", "none"], properties["type"]["enum"])
+        self.assertEqual(
+            ["priority: low", "priority: medium", "priority: high", "priority: critical", "none"],
+            properties["priority"]["enum"],
+        )
+        self.assertEqual(["ui"], properties["topics"]["items"]["enum"])
+
     def test_the_tool_input_is_found_by_name(self):
         answer = {"content": [{"type": "text", "text": "x"}, {"type": "tool_use", "name": "report_gold", "input": {"a": 1}}]}
         self.assertEqual({"a": 1}, labeler_eval.tool_input(answer, "report_gold"))
 
-    def test_an_answer_without_the_call_is_an_error(self):
+    def test_a_call_to_another_tool_is_not_taken(self):
+        answer = {"content": [{"type": "tool_use", "name": "other", "input": {"a": 1}}], "stop_reason": "tool_use"}
         with self.assertRaisesRegex(RuntimeError, "no report_gold call"):
+            labeler_eval.tool_input(answer, "report_gold")
+
+    def test_an_answer_without_the_call_is_an_error(self):
+        with self.assertRaisesRegex(RuntimeError, r"no report_gold call \(stop reason end_turn\)"):
             labeler_eval.tool_input({"content": [], "stop_reason": "end_turn"}, "report_gold")
+
+
+class WriteJsonTest(unittest.TestCase):
+    def test_the_file_is_replaced_and_no_temporary_file_stays(self):
+        with tempfile.TemporaryDirectory() as work:
+            path = os.path.join(work, "out.json")
+            labeler_eval.write_json(path, {"b": 1, "a": 2})
+            labeler_eval.write_json(path, {"a": 3})
+            self.assertEqual({"a": 3}, labeler_eval.read_json(path))
+            self.assertEqual(["out.json"], os.listdir(work))
+
+    def test_a_value_that_cannot_be_encoded_leaves_the_old_file(self):
+        with tempfile.TemporaryDirectory() as work:
+            path = os.path.join(work, "out.json")
+            labeler_eval.write_json(path, {"a": 1})
+            with self.assertRaises(TypeError):
+                labeler_eval.write_json(path, {"a": object()})
+            self.assertEqual({"a": 1}, labeler_eval.read_json(path))
+            self.assertEqual(["out.json"], os.listdir(work))
+
+
+class ResultsFileTest(unittest.TestCase):
+    def _write(self, work, text):
+        path = os.path.join(work, "results.jsonl")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        return path
+
+    def test_a_cut_off_last_line_is_ignored(self):
+        with tempfile.TemporaryDirectory() as work:
+            path = self._write(work, '{"id": "a", "status": "ok"}\n{"id": "b", "sta')
+            self.assertEqual({"a"}, set(labeler_eval.read_results(path)))
+
+    def test_a_broken_line_in_the_middle_is_an_error(self):
+        with tempfile.TemporaryDirectory() as work:
+            path = self._write(work, '{"id": "a"}\n{broken\n{"id": "c"}\n')
+            with self.assertRaises(ValueError):
+                labeler_eval.read_results(path)
+
+    def test_the_last_line_of_an_id_wins(self):
+        with tempfile.TemporaryDirectory() as work:
+            path = self._write(work, '{"id": "a", "status": "error"}\n{"id": "a", "status": "ok"}\n')
+            self.assertEqual("ok", labeler_eval.read_results(path)["a"]["status"])
+
+    def test_a_missing_newline_is_added_before_appending(self):
+        with tempfile.TemporaryDirectory() as work:
+            path = self._write(work, '{"id": "a"}')
+            labeler_eval.ensure_trailing_newline(path)
+            with open(path, encoding="utf-8") as handle:
+                self.assertEqual('{"id": "a"}\n', handle.read())
+
+    def test_a_complete_file_and_a_missing_file_stay_as_they_are(self):
+        with tempfile.TemporaryDirectory() as work:
+            path = self._write(work, '{"id": "a"}\n')
+            labeler_eval.ensure_trailing_newline(path)
+            labeler_eval.ensure_trailing_newline(os.path.join(work, "missing.jsonl"))
+            with open(path, encoding="utf-8") as handle:
+                self.assertEqual('{"id": "a"}\n', handle.read())
+            self.assertEqual(["results.jsonl"], os.listdir(work))
+
+
+class PlanJobsTest(unittest.TestCase):
+    ENTRIES = [
+        {"repo": "o/r", "number": 1, "hard": False},
+        {"repo": "o/r", "number": 2, "hard": True},
+    ]
+
+    def test_repeats_follow_the_hard_flag(self):
+        jobs = labeler_eval.plan_jobs(self.ENTRIES, 1, 3, {})
+        self.assertEqual([("o/r", 1, 0), ("o/r", 2, 0), ("o/r", 2, 1), ("o/r", 2, 2)],
+                         [(e["repo"], e["number"], i) for e, i in jobs])
+
+    def test_a_finished_call_is_not_planned_again(self):
+        results = {"o/r#1@0": {"status": "ok"}}
+        jobs = labeler_eval.plan_jobs(self.ENTRIES, 1, 1, results)
+        self.assertEqual([2], [e["number"] for e, _ in jobs])
+
+    def test_a_failed_call_is_planned_again(self):
+        results = {"o/r#1@0": {"status": "error"}, "o/r#2@0": {"status": "exception"}}
+        jobs = labeler_eval.plan_jobs(self.ENTRIES, 1, 1, results)
+        self.assertEqual([1, 2], [e["number"] for e, _ in jobs])
+
+
+class ClassifyRetryTest(unittest.TestCase):
+    ENTRY = {"repo": "o/r", "number": 3, "sha256": labeler_eval.content_hash("t", "b")}
+
+    def _run(self, answers):
+        with tempfile.TemporaryDirectory() as cache:
+            labeler_eval.write_json(labeler_eval.issue_path(cache, "o/r", 3), {"title": "t", "body": "b"})
+            with mock.patch.object(labeler_eval, "run_helper", side_effect=answers) as helper, \
+                    mock.patch.object(labeler_eval.time, "sleep") as sleep:
+                result = labeler_eval.classify(cache, self.ENTRY)
+        return result, helper.call_count, sleep.call_count
+
+    def test_a_dropped_connection_is_retried(self):
+        result, calls, sleeps = self._run([{"status": "error", "http": 0}, {"status": "ok", "labels": []}])
+        self.assertEqual("ok", result["status"])
+        self.assertEqual((2, 1), (calls, sleeps))
+
+    def test_a_transient_status_is_retried(self):
+        result, calls, _ = self._run([{"status": "error", "http": 529}, {"status": "ok", "labels": []}])
+        self.assertEqual("ok", result["status"])
+        self.assertEqual(2, calls)
+
+    def test_another_status_is_not_retried(self):
+        result, calls, sleeps = self._run([{"status": "error", "http": 400}])
+        self.assertEqual("error", result["status"])
+        self.assertEqual((1, 0), (calls, sleeps))
+
+    def test_the_last_attempt_does_not_sleep(self):
+        result, calls, sleeps = self._run([{"status": "error", "http": 0}] * labeler_eval.ATTEMPTS)
+        self.assertEqual("error", result["status"])
+        self.assertEqual((labeler_eval.ATTEMPTS, labeler_eval.ATTEMPTS - 1), (calls, sleeps))
+
+
+class CallMessagesTest(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "key-test"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        sleeper = mock.patch.object(labeler_eval.time, "sleep")
+        self.sleep = sleeper.start()
+        self.addCleanup(sleeper.stop)
+
+    def _http_error(self, code):
+        return labeler_eval.urllib.error.HTTPError("u", code, "m", {}, io.BytesIO(b"the reason"))
+
+    def test_a_dropped_connection_is_retried(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"ok": true}'
+        with mock.patch.object(labeler_eval.urllib.request, "urlopen",
+                               side_effect=[labeler_eval.urllib.error.URLError("down"), response]):
+            self.assertEqual({"ok": True}, labeler_eval.call_messages({}))
+        self.assertEqual(1, self.sleep.call_count)
+
+    def test_a_connection_that_stays_down_is_an_error(self):
+        with mock.patch.object(labeler_eval.urllib.request, "urlopen",
+                               side_effect=TimeoutError("slow")) as opener:
+            with self.assertRaisesRegex(RuntimeError, "API not reachable"):
+                labeler_eval.call_messages({})
+        self.assertEqual(labeler_eval.ATTEMPTS, opener.call_count)
+        self.assertEqual(labeler_eval.ATTEMPTS - 1, self.sleep.call_count)
+
+    def test_a_client_error_is_not_retried_and_carries_the_reason(self):
+        with mock.patch.object(labeler_eval.urllib.request, "urlopen",
+                               side_effect=self._http_error(400)) as opener:
+            with self.assertRaisesRegex(RuntimeError, "HTTP 400: the reason"):
+                labeler_eval.call_messages({})
+        self.assertEqual(1, opener.call_count)
+
+    def test_a_transient_status_is_retried(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b"{}"
+        with mock.patch.object(labeler_eval.urllib.request, "urlopen",
+                               side_effect=[self._http_error(529), response]):
+            self.assertEqual({}, labeler_eval.call_messages({}))
+
+
+class RunHelperTest(unittest.TestCase):
+    def _completed(self, code, out, err=""):
+        return mock.Mock(returncode=code, stdout=out, stderr=err)
+
+    def test_the_last_output_line_is_decoded(self):
+        with mock.patch.object(labeler_eval.subprocess, "run", return_value=self._completed(0, 'noise\n{"a": 1}\n')):
+            self.assertEqual({"a": 1}, labeler_eval.run_helper(["x"]))
+
+    def test_a_failure_carries_the_error_output(self):
+        with mock.patch.object(labeler_eval.subprocess, "run", return_value=self._completed(2, "", "boom")):
+            with self.assertRaisesRegex(RuntimeError, "boom"):
+                labeler_eval.run_helper(["x"])
+
+    def test_empty_output_is_an_error(self):
+        with mock.patch.object(labeler_eval.subprocess, "run", return_value=self._completed(0, "\n")):
+            with self.assertRaisesRegex(RuntimeError, "no output"):
+                labeler_eval.run_helper(["x"])
+
+
+class CommandRunTest(unittest.TestCase):
+    def test_one_broken_call_does_not_lose_the_others(self):
+        manifest = {"issues": [
+            {"repo": "o/r", "number": 1, "hard": False, "split": "dev"},
+            {"repo": "o/r", "number": 2, "hard": False, "split": "dev"},
+        ]}
+
+        def classify(_cache, entry):
+            if entry["number"] == 1:
+                raise RuntimeError("edited")
+            return {"status": "ok", "labels": ["bug"]}
+
+        with tempfile.TemporaryDirectory() as work:
+            manifest_path = os.path.join(work, "set.json")
+            results_path = os.path.join(work, "results.jsonl")
+            labeler_eval.write_json(manifest_path, manifest)
+            args = mock.Mock(manifest=manifest_path, results=results_path, cache_dir=work, split="dev",
+                             repeats=1, hard_repeats=1, workers=2)
+            with mock.patch.object(labeler_eval, "offered_labels", return_value=["bug"]), \
+                    mock.patch.object(labeler_eval, "classify", side_effect=classify), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                labeler_eval.command_run(args)
+            results = labeler_eval.read_results(results_path)
+        self.assertEqual("exception", results["o/r#1@0"]["status"])
+        self.assertIn("edited", results["o/r#1@0"]["error"])
+        self.assertEqual("ok", results["o/r#2@0"]["status"])
+
+
+class CommandJudgeTest(unittest.TestCase):
+    def test_a_failed_issue_stays_open_and_the_others_are_kept(self):
+        manifest = {"issues": [{"repo": "o/r", "number": 1, "sha256": "x"}, {"repo": "o/r", "number": 2, "sha256": "x"}]}
+
+        def load(_cache, entry):
+            if entry["number"] == 1:
+                raise RuntimeError("edited")
+            return "t", "b"
+
+        answer = {"type": "none", "priority": "priority: low", "topics": ["ui", "i18n"]}
+        with tempfile.TemporaryDirectory() as work:
+            manifest_path = os.path.join(work, "set.json")
+            gold_path = os.path.join(work, "gold.json")
+            labeler_eval.write_json(manifest_path, manifest)
+            args = mock.Mock(manifest=manifest_path, gold=gold_path, cache_dir=work, model="m", workers=2)
+            with mock.patch.object(labeler_eval, "offered_labels", return_value=["ui", "i18n"]), \
+                    mock.patch.object(labeler_eval, "load_issue", side_effect=load), \
+                    mock.patch.object(labeler_eval, "call_messages", return_value={}), \
+                    mock.patch.object(labeler_eval, "tool_input", return_value=answer), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                labeler_eval.command_judge(args)
+            gold = labeler_eval.read_json(gold_path)
+        self.assertEqual({"o/r#2"}, set(gold))
+        self.assertEqual({"type": "none", "priority": "priority: low", "topics": ["i18n", "ui"]}, gold["o/r#2"])
+
+
+class CommandFetchTest(unittest.TestCase):
+    def _manifest(self, work, sha):
+        path = os.path.join(work, "set.json")
+        labeler_eval.write_json(path, {"issues": [{"repo": "o/r", "number": 1, "sha256": sha}]})
+        return path
+
+    def _gh(self, arguments):
+        if arguments[1].endswith("/issues/1"):
+            return json.dumps({"title": "t", "body": None})
+        return "[]"
+
+    def test_a_fresh_cache_is_filled_and_checked(self):
+        with tempfile.TemporaryDirectory() as work:
+            manifest = self._manifest(work, labeler_eval.content_hash("t", ""))
+            args = mock.Mock(manifest=manifest, cache_dir=os.path.join(work, "cache"))
+            with mock.patch.object(labeler_eval, "run_gh", side_effect=self._gh), \
+                    contextlib.redirect_stdout(io.StringIO()) as out:
+                labeler_eval.command_fetch(args)
+            self.assertIn("1 issues, 0 changed", out.getvalue())
+            self.assertTrue(os.path.exists(labeler_eval.issue_path(args.cache_dir, "o/r", 1)))
+            self.assertTrue(os.path.exists(labeler_eval.labels_path(args.cache_dir, "o/r")))
+
+    def test_an_edited_issue_fails_the_command_and_keeps_the_manifest(self):
+        with tempfile.TemporaryDirectory() as work:
+            manifest = self._manifest(work, "0" * 64)
+            args = mock.Mock(manifest=manifest, cache_dir=os.path.join(work, "cache"))
+            with mock.patch.object(labeler_eval, "run_gh", side_effect=self._gh), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+                with self.assertRaises(SystemExit):
+                    labeler_eval.command_fetch(args)
+            self.assertIn("o/r#1 changed", err.getvalue())
+            self.assertEqual("0" * 64, labeler_eval.read_json(manifest)["issues"][0]["sha256"])
 
 
 if __name__ == "__main__":
