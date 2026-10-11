@@ -54,8 +54,9 @@ labeler_eval.py report --manifest MANIFEST --results RESULTS --gold GOLD --split
 The tool is Python. `run-one.sh` is the only shell file of the tool, a thin shim, because the
 labeler library it has to measure is a bash library.
 
-`fetch` fills the cache on a fresh checkout from the committed manifest and fails
-when an issue was edited since it was frozen. `build` is for a new set and
+`fetch` downloads the issues that are missing from the cache and fails when a
+downloaded text no longer matches its hash. A text already in the cache is only
+checked against its hash, not against GitHub. `build` is for a new set and
 refuses to replace an existing manifest unless `--force` is given.
 
 The referee answers `none` where the text establishes no type or no priority.
