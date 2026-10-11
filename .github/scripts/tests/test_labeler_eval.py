@@ -195,7 +195,6 @@ def _pair(gold_labels, predicted_labels, offered=None):
     return (
         labeler_eval.gold_from_labels(gold_labels, offered),
         labeler_eval.predicted_shape(predicted_labels),
-        offered,
     )
 
 
@@ -236,7 +235,7 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual(1.0, metrics["priority_mean_distance"])
         self.assertEqual(0.0, metrics["priority_exact"])
 
-    def test_critical_over_calls_count_even_without_a_priority_gold(self):
+    def test_critical_over_calls_need_a_priority_gold_that_is_not_critical(self):
         metrics = labeler_eval.compute_metrics(
             [
                 _pair(["bug"], ["bug", "priority: critical"]),
@@ -244,7 +243,7 @@ class MetricsTest(unittest.TestCase):
                 _pair(["priority: high"], ["priority: critical"]),
             ]
         )
-        self.assertEqual(2, metrics["critical_over_calls"])
+        self.assertEqual(1, metrics["critical_over_calls"])
 
     def test_topic_precision_and_recall(self):
         metrics = labeler_eval.compute_metrics(
@@ -258,35 +257,26 @@ class MetricsTest(unittest.TestCase):
         self.assertIsNone(metrics["topic_precision"])
         self.assertIsNone(metrics["topic_recall"])
 
-    def test_fallback_rate_forbidden_labels_and_labels_per_issue(self):
+    def test_fallback_rate_and_labels_per_issue(self):
         metrics = labeler_eval.compute_metrics(
             [
                 (
                     labeler_eval.gold_from_labels(["bug"], {"bug"}),
                     labeler_eval.predicted_shape(["needs-triage"]),
-                    {"bug", "needs-triage"},
                 ),
                 (
                     labeler_eval.gold_from_labels(["bug"], {"bug"}),
                     labeler_eval.predicted_shape(["bug", "ghost"]),
-                    {"bug"},
                 ),
             ]
         )
         self.assertEqual(0.5, metrics["fallback_rate"])
-        self.assertEqual(1, metrics["forbidden_labels"])
         self.assertEqual(1.5, metrics["labels_per_issue"])
-
-    def test_forbidden_labels_cover_types_priorities_and_the_fallback(self):
-        metrics = labeler_eval.compute_metrics(
-            [_pair(["bug"], ["bug", "enhancement", "priority: high", "needs-triage"], {"bug"})]
-        )
-        self.assertEqual(3, metrics["forbidden_labels"])
 
     def test_a_referee_none_is_an_answer_for_the_type(self):
         gold = {"type": "none", "priority": None, "topics": []}
-        wrong = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["bug"]), {"bug"})])
-        right = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["i18n"]), {"i18n"})])
+        wrong = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["bug"]))])
+        right = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["i18n"]))])
         self.assertEqual(0.0, wrong["type_accuracy"])
         self.assertEqual(1.0, right["type_accuracy"])
         self.assertEqual({"none -> bug": 1}, wrong["type_confusion"])
@@ -294,9 +284,9 @@ class MetricsTest(unittest.TestCase):
     def test_a_referee_none_is_an_answer_for_the_priority(self):
         gold = {"type": None, "priority": "none", "topics": []}
         wrong = labeler_eval.compute_metrics(
-            [(gold, labeler_eval.predicted_shape(["priority: high"]), {"priority: high"})]
+            [(gold, labeler_eval.predicted_shape(["priority: high"]))]
         )
-        right = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["i18n"]), {"i18n"})])
+        right = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["i18n"]))])
         self.assertEqual(0.0, wrong["priority_exact"])
         self.assertEqual(1.0, right["priority_exact"])
         self.assertIsNone(wrong["priority_mean_distance"])
@@ -304,7 +294,7 @@ class MetricsTest(unittest.TestCase):
     def test_no_gold_at_all_leaves_the_field_out(self):
         gold = {"type": None, "priority": None, "topics": []}
         metrics = labeler_eval.compute_metrics(
-            [(gold, labeler_eval.predicted_shape(["bug", "priority: high"]), {"bug", "priority: high"})]
+            [(gold, labeler_eval.predicted_shape(["bug", "priority: high"]))]
         )
         self.assertIsNone(metrics["type_accuracy"])
         self.assertIsNone(metrics["priority_exact"])
@@ -429,11 +419,10 @@ class PairsForTest(unittest.TestCase):
         _, hard_runs = labeler_eval.pairs_for(self.MANIFEST, results, "convention", {}, "holdout")
         self.assertEqual({}, hard_runs)
 
-    def test_a_pair_carries_the_prediction_and_the_offered_labels(self):
+    def test_a_pair_carries_the_prediction(self):
         results = dict([self._result(1, 0, ["bug", "ghost"])])
-        (gold, predicted, offered), = labeler_eval.pairs_for(self.MANIFEST, results, "convention", {}, "dev")[0]
+        (gold, predicted), = labeler_eval.pairs_for(self.MANIFEST, results, "convention", {}, "dev")[0]
         self.assertEqual(["bug", "ghost"], predicted["labels"])
-        self.assertEqual({"bug", "i18n"}, offered)
 
     def test_the_text_gold_keeps_priority_and_topics(self):
         results = dict([self._result(1, 0, ["bug"])])
@@ -510,6 +499,12 @@ class WriteJsonTest(unittest.TestCase):
             self.assertEqual({"a": 3}, labeler_eval.read_json(path))
             self.assertEqual(["out.json"], os.listdir(work))
 
+    def test_the_file_is_readable_for_others(self):
+        with tempfile.TemporaryDirectory() as work:
+            path = os.path.join(work, "out.json")
+            labeler_eval.write_json(path, {"a": 1})
+            self.assertEqual(0o644, os.stat(path).st_mode & 0o777)
+
     def test_a_value_that_cannot_be_encoded_leaves_the_old_file(self):
         with tempfile.TemporaryDirectory() as work:
             path = os.path.join(work, "out.json")
@@ -546,15 +541,23 @@ class ResultsFileTest(unittest.TestCase):
     def test_a_missing_newline_is_added_before_appending(self):
         with tempfile.TemporaryDirectory() as work:
             path = self._write(work, '{"id": "a"}')
-            labeler_eval.ensure_trailing_newline(path)
+            labeler_eval.repair_results_tail(path)
             with open(path, encoding="utf-8") as handle:
                 self.assertEqual('{"id": "a"}\n', handle.read())
+
+    def test_a_cut_off_last_line_is_removed_before_appending(self):
+        with tempfile.TemporaryDirectory() as work:
+            path = self._write(work, '{"id": "a"}\n{"id": "b", "sta')
+            labeler_eval.repair_results_tail(path)
+            with open(path, "a", encoding="utf-8") as sink:
+                sink.write('{"id": "c"}\n')
+            self.assertEqual({"a", "c"}, set(labeler_eval.read_results(path)))
 
     def test_a_complete_file_and_a_missing_file_stay_as_they_are(self):
         with tempfile.TemporaryDirectory() as work:
             path = self._write(work, '{"id": "a"}\n')
-            labeler_eval.ensure_trailing_newline(path)
-            labeler_eval.ensure_trailing_newline(os.path.join(work, "missing.jsonl"))
+            labeler_eval.repair_results_tail(path)
+            labeler_eval.repair_results_tail(os.path.join(work, "missing.jsonl"))
             with open(path, encoding="utf-8") as handle:
                 self.assertEqual('{"id": "a"}\n', handle.read())
             self.assertEqual(["results.jsonl"], os.listdir(work))
@@ -728,6 +731,25 @@ class CommandJudgeTest(unittest.TestCase):
             gold = labeler_eval.read_json(gold_path)
         self.assertEqual({"o/r#2"}, set(gold))
         self.assertEqual({"type": "none", "priority": "priority: low", "topics": ["i18n", "ui"]}, gold["o/r#2"])
+
+
+class CommandBuildTest(unittest.TestCase):
+    def test_an_existing_manifest_is_not_replaced_without_force(self):
+        with tempfile.TemporaryDirectory() as work:
+            path = os.path.join(work, "set.json")
+            labeler_eval.write_json(path, {"issues": []})
+            with self.assertRaises(SystemExit):
+                labeler_eval.main(["build", "--owner", "o", "--manifest", path, "--cache-dir", work])
+            self.assertEqual({"issues": []}, labeler_eval.read_json(path))
+
+
+class TopicsSchemaTest(unittest.TestCase):
+    def test_an_empty_topic_set_gives_an_array_that_must_stay_empty(self):
+        self.assertEqual({"type": "array", "maxItems": 0}, labeler_eval.topics_schema({"bug", "enhancement"}))
+
+    def test_topics_give_an_enum_of_their_names(self):
+        schema = labeler_eval.topics_schema({"bug", "i18n"})
+        self.assertEqual(["i18n"], schema["items"]["enum"])
 
 
 class CommandFetchTest(unittest.TestCase):

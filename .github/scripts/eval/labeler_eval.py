@@ -23,6 +23,7 @@ Only the standard library is used, so there is nothing to pin.
 import argparse
 import concurrent.futures
 import hashlib
+import http.client
 import json
 import os
 import random
@@ -134,7 +135,8 @@ def gold_from_labels(labels, offered):
 
     Only labels the labeler was offered count, so a label that the filters hide
     from the request is no gold either. A priority label outside the four known
-    ones, and a second type or priority label, leave that field open.
+    ones is ignored, and a second type or known priority label leaves that field
+    open.
     """
     kept = [label for label in labels if label in offered and label != FALLBACK_LABEL]
     types = [label for label in kept if label_kind(label) == "type"]
@@ -160,11 +162,13 @@ def _ratio(numerator, denominator):
 
 
 def compute_metrics(pairs):
-    """Computes the metrics over pairs of (gold, predicted, offered).
+    """Computes the metrics over pairs of (gold, predicted).
 
     gold comes from gold_from_labels or from the referee, predicted from
     predicted_shape. A gold of None means there is no gold for that field, the
     referee's "none" is an answer: the labeler is right to leave the field out.
+    A label outside the offered set cannot show up in a result, the pipeline
+    drops it, so there is no metric for it.
     """
     type_hits = type_total = 0
     confusion = {}
@@ -172,11 +176,10 @@ def compute_metrics(pairs):
     distance_total = 0
     critical_over_calls = 0
     topic_true_positive = topic_predicted = topic_gold = 0
-    fallbacks = labels_total = forbidden = 0
+    fallbacks = labels_total = 0
 
-    for gold, predicted, offered in pairs:
+    for gold, predicted in pairs:
         labels_total += len(predicted["labels"])
-        forbidden += sum(1 for label in predicted["labels"] if label not in offered)
         if predicted["fallback"]:
             fallbacks += 1
 
@@ -194,7 +197,11 @@ def compute_metrics(pairs):
             if gold["priority"] in PRIORITY_ORDER and predicted_priority in PRIORITY_ORDER:
                 priority_both += 1
                 distance_total += abs(PRIORITY_ORDER[gold["priority"]] - PRIORITY_ORDER[predicted_priority])
-        if predicted_priority == "priority: critical" and gold["priority"] != "priority: critical":
+        if (
+            predicted_priority == "priority: critical"
+            and gold["priority"] is not None
+            and gold["priority"] != "priority: critical"
+        ):
             critical_over_calls += 1
 
         topic_gold += len(gold["topics"])
@@ -212,7 +219,6 @@ def compute_metrics(pairs):
         "topic_precision": _ratio(topic_true_positive, topic_predicted),
         "topic_recall": _ratio(topic_true_positive, topic_gold),
         "fallback_rate": _ratio(fallbacks, issue_count),
-        "forbidden_labels": forbidden,
         "labels_per_issue": _ratio(labels_total, issue_count),
     }
 
@@ -268,6 +274,7 @@ def write_json(path, value):
         with os.fdopen(handle, "w", encoding="utf-8") as sink:
             json.dump(value, sink, indent=2, sort_keys=True, ensure_ascii=False)
             sink.write("\n")
+        os.chmod(temporary, 0o644)
         os.replace(temporary, path)
     except BaseException:
         os.unlink(temporary)
@@ -333,6 +340,8 @@ def selected(manifest, split):
 
 
 def command_build(args):
+    if os.path.exists(args.manifest) and not args.force:
+        raise SystemExit("{} exists, a new build would replace the frozen set. Use --force.".format(args.manifest))
     candidates = fetch_candidates(args.owner)
     entries = sample_issues(candidates, args.seed, args.per_repo_cap, args.holdout_percent, args.hard_cap)
     by_key = {issue_key(item["repo"], item["number"]): item for item in candidates}
@@ -351,10 +360,10 @@ def command_build(args):
     print("froze {} issues".format(len(entries)))
 
 
-def run_helper(arguments, environment=None):
+def run_helper(arguments):
     completed = subprocess.run(
         ["bash", RUN_ONE] + arguments, capture_output=True, text=True, check=False,
-        timeout=180, env=dict(os.environ, **(environment or {})),
+        timeout=180,
     )
     lines = completed.stdout.strip().splitlines()
     if completed.returncode != 0 or not lines:
@@ -411,15 +420,26 @@ def read_results(path):
     return results
 
 
-def ensure_trailing_newline(path):
-    """Makes sure the next appended line starts on a line of its own."""
-    if os.path.exists(path) and os.path.getsize(path) > 0:
-        with open(path, "rb") as handle:
-            handle.seek(-1, os.SEEK_END)
-            ends_with_newline = handle.read(1) == b"\n"
-        if not ends_with_newline:
-            with open(path, "ab") as sink:
-                sink.write(b"\n")
+def repair_results_tail(path):
+    """Makes sure the next appended line starts on a line of its own.
+
+    A last line that was cut off by a killed run is removed, a complete last line
+    that only lacks its newline gets one.
+    """
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return
+    with open(path, "rb") as handle:
+        content = handle.read()
+    if content.endswith(b"\n"):
+        return
+    cut = content.rfind(b"\n") + 1
+    try:
+        json.loads(content[cut:])
+        repaired = content + b"\n"
+    except ValueError:
+        repaired = content[:cut]
+    with open(path, "wb") as sink:
+        sink.write(repaired)
 
 
 def plan_jobs(entries, repeats, hard_repeats, results):
@@ -453,12 +473,16 @@ def command_run(args):
             record.update({"status": "exception", "error": str(error)[:300]})
         return record
 
-    ensure_trailing_newline(args.results)
+    repair_results_tail(args.results)
     with open(args.results, "a", encoding="utf-8") as sink, \
             concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
-        for future in concurrent.futures.as_completed([pool.submit(work, job) for job in jobs]):
-            sink.write(json.dumps(future.result(), sort_keys=True) + "\n")
-            sink.flush()
+        try:
+            for future in concurrent.futures.as_completed([pool.submit(work, job) for job in jobs]):
+                sink.write(json.dumps(future.result(), sort_keys=True) + "\n")
+                sink.flush()
+        except BaseException:  # an interruption must not keep paying for the queued calls
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise
     print("ran {} calls".format(len(jobs)))
 
 
@@ -476,6 +500,13 @@ def topic_names(offered):
     return [name for name in offered if label_kind(name) == "topic" and name != FALLBACK_LABEL]
 
 
+def topics_schema(offered):
+    names = topic_names(offered)
+    if not names:
+        return {"type": "array", "maxItems": 0}
+    return {"type": "array", "items": {"type": "string", "enum": names}}
+
+
 def judge_request(model, title, body, offered):
     return {
         "model": model,
@@ -490,7 +521,7 @@ def judge_request(model, title, body, offered):
                 "properties": {
                     "type": {"type": "string", "enum": list(TYPE_LABELS) + [NO_ANSWER]},
                     "priority": {"type": "string", "enum": list(PRIORITY_ORDER) + [NO_ANSWER]},
-                    "topics": {"type": "array", "items": {"type": "string", "enum": topic_names(offered)}},
+                    "topics": topics_schema(offered),
                 },
                 "required": ["type", "priority", "topics"],
                 "additionalProperties": False,
@@ -519,7 +550,7 @@ def call_messages(request):
             if error.code not in TRANSIENT_STATUSES or last_attempt:
                 reason = error.read().decode("utf-8", "replace")[:300]
                 raise RuntimeError("API answered HTTP {}: {}".format(error.code, reason)) from None
-        except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException) as error:
             if last_attempt:
                 raise RuntimeError("API not reachable: {}".format(error)) from None
         if not last_attempt:
@@ -581,15 +612,19 @@ def command_judge(args):
 
     failed = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
-        for future in concurrent.futures.as_completed([pool.submit(work, entry) for entry in todo]):
-            try:
-                key, value = future.result()
-            except Exception as error:  # the issue stays open and is judged again next time
-                failed += 1
-                print("judge failed: {}".format(str(error)[:300]), file=sys.stderr)
-                continue
-            gold[key] = value
-            write_json(args.gold, gold)
+        try:
+            for future in concurrent.futures.as_completed([pool.submit(work, entry) for entry in todo]):
+                try:
+                    key, value = future.result()
+                except Exception as error:  # the issue stays open and is judged again next time
+                    failed += 1
+                    print("judge failed: {}".format(str(error)[:300]), file=sys.stderr)
+                    continue
+                gold[key] = value
+                write_json(args.gold, gold)
+        except BaseException:  # an interruption must not keep paying for the queued calls
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise
     print("judged {} issues, {} failed".format(len(todo) - failed, failed))
 
 
@@ -609,15 +644,14 @@ def pairs_for(manifest, results, gold_kind, text_gold, split):
             hard_runs.setdefault(record["key"], []).append(record["labels"])
         if record["run"] != 0:
             continue
-        offered = set(record["offered"])
         if gold_kind == "text":
             if record["key"] not in text_gold:
                 continue
             raw = text_gold[record["key"]]
             gold = {"type": raw["type"], "priority": raw["priority"], "topics": raw["topics"]}
         else:
-            gold = gold_from_labels(entry["maintainer_labels"], offered)
-        pairs.append((gold, predicted_shape(record["labels"]), offered))
+            gold = gold_from_labels(entry["maintainer_labels"], set(record["offered"]))
+        pairs.append((gold, predicted_shape(record["labels"])))
     return pairs, hard_runs
 
 
@@ -648,6 +682,7 @@ def parse_args(argv):
     build.add_argument("--per-repo-cap", type=int, default=30)
     build.add_argument("--holdout-percent", type=int, default=33)
     build.add_argument("--hard-cap", type=int, default=40)
+    build.add_argument("--force", action="store_true", help="replace an existing manifest")
 
     fetch = sub.add_parser("fetch", help="fill the cache for a frozen manifest and check the hashes")
     fetch.add_argument("--manifest", required=True)
