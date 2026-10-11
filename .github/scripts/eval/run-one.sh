@@ -3,7 +3,7 @@
 # does it, and prints one JSON line. labeler_eval.py calls it.
 #
 #   run-one.sh offered  LABELS_FILE
-#       prints the names the labeler is offered after its two label filters
+#       prints the names the labeler is offered after its label filters
 #   run-one.sh classify REPO TITLE_FILE BODY_FILE LABELS_FILE
 #       prints {"status":"ok","labels":[...],"usage":"..."}. Any other status
 #       is "error" with the HTTP status (0 when curl itself failed),

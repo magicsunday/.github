@@ -14,6 +14,15 @@ set. The texts are not in the repository. They sit in a
 cache directory that `build` fills. `run` and `judge` refuse an issue whose hash
 no longer matches, so an edited issue never changes a result unnoticed.
 
+The label side is not frozen. The label names and descriptions of a repository are
+read from GitHub when the cache is filled, and each result stores the names it was
+offered. A label renamed or re-described after the freeze changes what `run` offers,
+so compare runs only while the labels of the repositories are unchanged.
+
+Hard cases are picked in the order of the sorted issues until the cap is used up,
+so they sit in the first repositories by name. The stability numbers describe those
+repositories, not the whole set.
+
 The holdout is untouched while a change is developed. Run it once for a final
 check, never to tune.
 
@@ -62,8 +71,8 @@ type labels stays in the set, but it has no convention gold for the type.
 ## Metrics
 
 Every issue counts once, with its first run. An issue whose first run did not end
-ok is left out. The report counts every call of the results file that did not end
-ok as `not_ok`, whatever its run or split.
+ok is left out. The report counts as `not_ok` every call whose latest result did not end
+ok, whatever its run or split.
 
 - Type: accuracy and a confusion matrix.
 - Priority: exact accuracy, the mean distance and the number of over-calls of
