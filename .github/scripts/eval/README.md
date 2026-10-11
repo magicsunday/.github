@@ -17,8 +17,9 @@ changes a result unnoticed.
 
 The label side is not frozen. The label names and descriptions of a repository are
 read from GitHub when the cache is filled, and each result stores the names it was
-offered. A label renamed or re-described after the freeze changes what `run` offers,
-so compare runs only while the labels of the repositories are unchanged.
+offered. A label renamed or re-described after the label lists were cached changes
+what `run` offers once the cache is filled again, so compare runs only while the
+cached label lists are the same.
 
 Hard cases are picked in the order of the sorted issues until the cap is used up,
 so they sit in the first repositories by name. The stability numbers describe those
