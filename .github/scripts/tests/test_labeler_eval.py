@@ -628,7 +628,7 @@ class ClassifyRetryTest(unittest.TestCase):
     def test_the_helper_gets_the_repository_the_texts_and_the_label_cache_in_order(self):
         seen = {}
 
-        def helper(arguments):
+        def helper(arguments, model=None):
             with open(arguments[2], encoding="utf-8") as handle:
                 seen["title"] = handle.read()
             with open(arguments[3], encoding="utf-8") as handle:
@@ -643,6 +643,16 @@ class ClassifyRetryTest(unittest.TestCase):
             labels = labeler_eval.labels_path(cache, "o/r")
         self.assertEqual(("classify", "o/r", labels), (seen["arguments"][0], seen["arguments"][1], seen["arguments"][4]))
         self.assertEqual(("t", "b"), (seen["title"], seen["body"]))
+
+    def test_the_chosen_model_reaches_every_attempt(self):
+        with tempfile.TemporaryDirectory() as cache:
+            labeler_eval.write_json(labeler_eval.issue_path(cache, "o/r", 3), {"title": "t", "body": "b"})
+            with mock.patch.object(labeler_eval, "run_helper",
+                                   side_effect=[{"status": "error", "http": 529}, {"status": "ok", "labels": []}]) as helper, \
+                    mock.patch.object(labeler_eval.time, "sleep"):
+                labeler_eval.classify(cache, self.ENTRY, "model-under-test")
+        self.assertEqual(["model-under-test", "model-under-test"],
+                         [call.kwargs.get("model") for call in helper.call_args_list])
 
     def test_a_rate_limit_status_is_retried(self):
         result, calls, _ = self._run([{"status": "error", "http": 429}, {"status": "ok", "labels": []}])
@@ -760,6 +770,19 @@ class RunHelperTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "no output"):
                 labeler_eval.run_helper(["x"])
 
+    def test_a_chosen_model_reaches_the_environment_of_the_helper(self):
+        with mock.patch.object(labeler_eval.subprocess, "run",
+                               return_value=self._completed(0, '{"a": 1}\n')) as run:
+            labeler_eval.run_helper(["x"], model="model-under-test")
+        self.assertEqual("model-under-test", run.call_args.kwargs["env"]["LABELER_EVAL_MODEL"])
+        self.assertEqual(os.environ["PATH"], run.call_args.kwargs["env"]["PATH"])
+
+    def test_without_a_chosen_model_the_environment_is_left_alone(self):
+        with mock.patch.object(labeler_eval.subprocess, "run",
+                               return_value=self._completed(0, '{"a": 1}\n')) as run:
+            labeler_eval.run_helper(["x"])
+        self.assertIsNone(run.call_args.kwargs.get("env"))
+
 
 class CommandRunTest(unittest.TestCase):
     def test_one_broken_call_does_not_lose_the_others(self):
@@ -768,7 +791,7 @@ class CommandRunTest(unittest.TestCase):
             {"repo": "o/r", "number": 2, "hard": False, "split": "dev"},
         ]}
 
-        def classify(_cache, entry):
+        def classify(_cache, entry, _model):
             if entry["number"] == 1:
                 raise RuntimeError("edited")
             return {"status": "ok", "labels": ["bug"]}
@@ -778,7 +801,7 @@ class CommandRunTest(unittest.TestCase):
             results_path = os.path.join(work, "results.jsonl")
             labeler_eval.write_json(manifest_path, manifest)
             args = mock.Mock(manifest=manifest_path, results=results_path, cache_dir=work, split="dev",
-                             repeats=1, hard_repeats=1, workers=2)
+                             repeats=1, hard_repeats=1, workers=2, model="m")
             with mock.patch.object(labeler_eval, "offered_labels", return_value=["bug"]), \
                     mock.patch.object(labeler_eval, "classify", side_effect=classify), \
                     contextlib.redirect_stdout(io.StringIO()):
@@ -797,7 +820,7 @@ class CommandRunRepeatsTest(unittest.TestCase):
             results_path = os.path.join(work, "results.jsonl")
             labeler_eval.write_json(manifest_path, manifest)
             args = mock.Mock(manifest=manifest_path, results=results_path, cache_dir=work, split="dev",
-                             repeats=1, hard_repeats=3, workers=1)
+                             repeats=1, hard_repeats=3, workers=1, model="m")
             with mock.patch.object(labeler_eval, "offered_labels", return_value=["bug"]), \
                     mock.patch.object(labeler_eval, "classify", return_value={"status": "ok", "labels": ["bug"]}), \
                     contextlib.redirect_stdout(io.StringIO()):
@@ -808,6 +831,77 @@ class CommandRunRepeatsTest(unittest.TestCase):
         for record in results.values():
             self.assertEqual("o/r#1", record["key"])
             self.assertEqual(["bug"], record["offered"])
+
+
+class CommandRunModelTest(unittest.TestCase):
+    MANIFEST = {"owner": "o", "issues": [{"repo": "o/r", "number": 1, "hard": False, "split": "dev"}]}
+
+    def _run(self, work, model, existing=""):
+        manifest_path = os.path.join(work, "set.json")
+        results_path = os.path.join(work, "results.jsonl")
+        labeler_eval.write_json(manifest_path, self.MANIFEST)
+        with open(results_path, "w", encoding="utf-8") as handle:
+            handle.write(existing)
+        args = mock.Mock(manifest=manifest_path, results=results_path, cache_dir=work, split="dev",
+                         repeats=1, hard_repeats=1, workers=1, model=model)
+        with mock.patch.object(labeler_eval, "offered_labels", return_value=["bug"]), \
+                mock.patch.object(labeler_eval, "run_helper", return_value={"model": "library-model"}) as helper, \
+                mock.patch.object(labeler_eval, "classify",
+                                  return_value={"status": "ok", "labels": ["bug"]}) as classify, \
+                contextlib.redirect_stdout(io.StringIO()):
+            labeler_eval.command_run(args)
+        self.helper = helper
+        return labeler_eval.read_results(results_path), classify
+
+    def test_a_chosen_model_reaches_the_call_and_every_record(self):
+        with tempfile.TemporaryDirectory() as work:
+            results, classify = self._run(work, "model-under-test")
+        self.helper.assert_not_called()
+        self.assertEqual("model-under-test", classify.call_args.args[2])
+        self.assertEqual("model-under-test", results["o/r#1@0"]["model"])
+
+    def test_without_a_chosen_model_the_records_name_the_library_model(self):
+        with tempfile.TemporaryDirectory() as work:
+            results, classify = self._run(work, None)
+        self.helper.assert_called_once_with(["model"])
+        self.assertIsNone(classify.call_args.args[2])
+        self.assertEqual("library-model", results["o/r#1@0"]["model"])
+
+    def test_a_results_file_of_another_model_is_not_continued(self):
+        old = json.dumps({"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "ok", "labels": [],
+                          "model": "other-model"})
+        with tempfile.TemporaryDirectory() as work:
+            with self.assertRaisesRegex(SystemExit, "other-model"):
+                self._run(work, "model-under-test", old + "\n")
+            with open(os.path.join(work, "results.jsonl"), encoding="utf-8") as handle:
+                self.assertEqual(old + "\n", handle.read())
+
+    def test_records_without_a_model_stop_the_run_as_results_of_an_unknown_model(self):
+        old = json.dumps({"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "ok", "labels": []})
+        with tempfile.TemporaryDirectory() as work:
+            with self.assertRaisesRegex(SystemExit, "unknown"):
+                self._run(work, "model-under-test", old + "\n")
+            with open(os.path.join(work, "results.jsonl"), encoding="utf-8") as handle:
+                self.assertEqual(old + "\n", handle.read())
+
+    def test_a_results_file_of_the_same_model_is_continued(self):
+        old = json.dumps({"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "ok", "labels": [],
+                          "model": "model-under-test"})
+        with tempfile.TemporaryDirectory() as work:
+            results, _ = self._run(work, "model-under-test", old + "\n")
+        self.assertEqual({"o/r#9@0", "o/r#1@0"}, set(results))
+
+    def test_the_library_model_guards_a_results_file_when_no_model_is_chosen(self):
+        other = json.dumps({"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "ok", "labels": [],
+                            "model": "other-model"})
+        same = json.dumps({"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "ok", "labels": [],
+                           "model": "library-model"})
+        with tempfile.TemporaryDirectory() as work:
+            with self.assertRaisesRegex(SystemExit, "other-model"):
+                self._run(work, None, other + "\n")
+        with tempfile.TemporaryDirectory() as work:
+            results, _ = self._run(work, None, same + "\n")
+        self.assertEqual({"o/r#9@0", "o/r#1@0"}, set(results))
 
 
 class CommandJudgeTest(unittest.TestCase):
@@ -967,6 +1061,17 @@ class TypeCaseTest(unittest.TestCase):
         self.assertEqual(1.0, metrics["type_accuracy"])
 
 
+class ParseArgumentsRunModelTest(unittest.TestCase):
+    BASE = ["run", "--manifest", "m", "--cache-dir", "c", "--results", "r"]
+
+    def test_run_takes_a_model(self):
+        self.assertEqual("model-under-test",
+                         labeler_eval.parse_args(self.BASE + ["--model", "model-under-test"]).model)
+
+    def test_run_has_no_model_by_default(self):
+        self.assertIsNone(labeler_eval.parse_args(self.BASE).model)
+
+
 class CommandResumeTest(unittest.TestCase):
     MANIFEST = {"owner": "o", "issues": [
         {"repo": "o/r", "number": 1, "hard": False, "split": "dev"},
@@ -980,7 +1085,7 @@ class CommandResumeTest(unittest.TestCase):
         with open(results_path, "w", encoding="utf-8") as handle:
             handle.write(existing)
         args = mock.Mock(manifest=manifest_path, results=results_path, cache_dir=work, split="dev",
-                         repeats=1, hard_repeats=1, workers=1)
+                         repeats=1, hard_repeats=1, workers=1, model="m")
         with mock.patch.object(labeler_eval, "offered_labels", return_value=["bug"]), \
                 mock.patch.object(labeler_eval, "classify",
                                   return_value={"status": "ok", "labels": ["bug"]}) as classify, \
@@ -989,7 +1094,8 @@ class CommandResumeTest(unittest.TestCase):
         return labeler_eval.read_results(results_path), classify
 
     def test_a_call_that_ended_ok_is_not_run_again(self):
-        done = json.dumps({"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "ok", "labels": ["bug"]})
+        done = json.dumps({"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "ok", "labels": ["bug"],
+                           "model": "m"})
         with tempfile.TemporaryDirectory() as work:
             results, classify = self._run(work, done + "\n")
         self.assertEqual(1, classify.call_count)
@@ -1038,6 +1144,35 @@ class CommandReportTest(unittest.TestCase):
     def test_not_ok_counts_the_calls_whose_latest_result_failed(self):
         report = self._report(with_gold=False)
         self.assertEqual((4, 1), (report["calls"], report["not_ok"]))
+
+    def test_the_report_names_the_models_of_the_calls_of_its_split(self):
+        self.assertEqual(["unknown"], self._report(with_gold=False)["models"])
+
+    def test_the_report_names_each_model_once_in_order(self):
+        records = [
+            {"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "ok", "labels": [], "offered": ["bug"], "model": "b-model"},
+            {"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "ok", "labels": [], "offered": ["bug"], "model": "a-model"},
+            {"id": "o/r#5@0", "key": "o/r#5", "run": 0, "status": "ok", "labels": [], "offered": ["bug"], "model": "a-model"},
+            {"id": "o/r#7@0", "key": "o/r#7", "run": 0, "status": "ok", "labels": [], "offered": ["bug"], "model": "holdout-model"},
+        ]
+        manifest = {"owner": "o", "issues": [
+            {"repo": "o/r", "number": 1, "hard": False, "split": "dev", "maintainer_labels": []},
+            {"repo": "o/r", "number": 9, "hard": False, "split": "dev", "maintainer_labels": []},
+            {"repo": "o/r", "number": 5, "hard": False, "split": "dev", "maintainer_labels": []},
+            {"repo": "o/r", "number": 7, "hard": False, "split": "holdout", "maintainer_labels": []},
+        ]}
+        with tempfile.TemporaryDirectory() as work:
+            manifest_path = os.path.join(work, "set.json")
+            results_path = os.path.join(work, "results.jsonl")
+            labeler_eval.write_json(manifest_path, manifest)
+            with open(results_path, "w", encoding="utf-8") as handle:
+                for record in records:
+                    handle.write(json.dumps(record) + "\n")
+            args = mock.Mock(manifest=manifest_path, results=results_path, split="dev", gold=None)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                labeler_eval.command_report(args)
+        self.assertEqual(["a-model", "b-model"], json.loads(out.getvalue())["models"])
 
     def test_the_report_counts_only_the_calls_of_its_split(self):
         dev = self._report(with_gold=False, split="dev")

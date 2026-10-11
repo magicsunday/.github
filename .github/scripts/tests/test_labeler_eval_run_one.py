@@ -9,6 +9,7 @@ import stat
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 RUN_ONE = os.path.join(_HERE, "..", "eval", "run-one.sh")
@@ -57,6 +58,11 @@ def tool_response(label, confidence):
 
 class RunOneTest(unittest.TestCase):
     def setUp(self):
+        # A model exported in the shell of the developer must not steer these tests.
+        environment_patch = mock.patch.dict(os.environ)
+        environment_patch.start()
+        self.addCleanup(environment_patch.stop)
+        os.environ.pop("LABELER_EVAL_MODEL", None)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.work = self._tmp.name
@@ -79,7 +85,7 @@ class RunOneTest(unittest.TestCase):
         with open(self.paths[name], encoding="utf-8") as handle:
             return handle.read()
 
-    def _run(self, *arguments, status="200", fail=False):
+    def _run(self, *arguments, status="200", fail=False, model=None):
         environment = dict(
             os.environ,
             PATH=os.path.join(self.work, "bin") + os.pathsep + os.environ["PATH"],
@@ -89,6 +95,8 @@ class RunOneTest(unittest.TestCase):
         )
         if fail:
             environment["STUB_FAIL"] = "1"
+        if model is not None:
+            environment["LABELER_EVAL_MODEL"] = model
         return subprocess.run(["bash", RUN_ONE, *arguments], capture_output=True, text=True,
                               env=environment, check=False)
 
@@ -185,6 +193,79 @@ class RunOneTest(unittest.TestCase):
         )
         self.assertNotEqual(0, completed.returncode)
         self.assertIn("ANTHROPIC_API_KEY", completed.stderr)
+        self.assertFalse(os.path.exists(self.paths["argv"]))
+
+    def test_the_model_mode_prints_the_model_the_request_carries(self):
+        completed = self._run("model")
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        printed = json.loads(completed.stdout)["model"]
+        self.assertTrue(printed)
+        self._classify(tool_response("bug", 0.95))
+        self.assertEqual(printed, json.loads(self._read("stdin"))["model"])
+
+    def test_a_chosen_model_reaches_the_request_and_the_model_mode(self):
+        self._classify(tool_response("bug", 0.95), model="model-under-test")
+        self.assertEqual("model-under-test", json.loads(self._read("stdin"))["model"])
+        completed = self._run("model", model="model-under-test")
+        self.assertEqual({"model": "model-under-test"}, json.loads(completed.stdout))
+
+    def test_a_chosen_model_leaves_the_rest_of_the_request_alone(self):
+        self._classify(tool_response("bug", 0.95))
+        default_request = json.loads(self._read("stdin"))
+        self._classify(tool_response("bug", 0.95), model="model-under-test")
+        chosen_request = json.loads(self._read("stdin"))
+        default_request.pop("model")
+        chosen_request.pop("model")
+        self.assertEqual(default_request, chosen_request)
+
+    def test_an_empty_chosen_model_keeps_the_library_model(self):
+        default = json.loads(self._run("model").stdout)["model"]
+        self.assertEqual({"model": default}, json.loads(self._run("model", model="").stdout))
+
+    def _run_with_failing_library(self, *arguments, builder="return 3", model=None):
+        """Runs a copy of the shim next to a library whose request builder is replaced."""
+        tree = os.path.join(self.work, "tree")
+        os.makedirs(os.path.join(tree, "eval"))
+        os.makedirs(os.path.join(tree, "lib"))
+        shim = os.path.join(tree, "eval", "run-one.sh")
+        with open(RUN_ONE, encoding="utf-8") as source, open(shim, "w", encoding="utf-8") as target:
+            target.write(source.read())
+        with open(os.path.join(tree, "lib", "ai-issue-labeler.sh"), "w", encoding="utf-8") as library:
+            library.write(
+                "drop_pull_request_only_labels() { cat <<<\"$1\"; }\n"
+                "drop_maintainer_set_labels() { cat <<<\"$1\"; }\n"
+                "build_ai_labeler_request() { " + builder + "; }\n"
+            )
+        environment = dict(
+            os.environ,
+            PATH=os.path.join(self.work, "bin") + os.pathsep + os.environ["PATH"],
+            ANTHROPIC_API_KEY="key-test",
+            STUB_ARGV=self.paths["argv"], STUB_HEADERS=self.paths["headers"], STUB_STDIN=self.paths["stdin"],
+            STUB_RESPONSE=self.paths["response"], STUB_STATUS="200",
+        )
+        if model is not None:
+            environment["LABELER_EVAL_MODEL"] = model
+        return subprocess.run(["bash", shim, *arguments], capture_output=True, text=True,
+                              env=environment, check=False)
+
+    def test_a_failing_request_builder_stops_the_model_mode(self):
+        completed = self._run_with_failing_library("model")
+        self.assertNotEqual(0, completed.returncode)
+        self.assertEqual("", completed.stdout)
+
+    def test_a_failing_request_builder_stops_classify_before_any_request(self):
+        self._write("response", tool_response("bug", 0.95))
+        completed = self._run_with_failing_library(
+            "classify", "o/r", self.paths["title"], self.paths["body"], self.paths["labels.json"])
+        self.assertNotEqual(0, completed.returncode)
+        self.assertFalse(os.path.exists(self.paths["argv"]))
+
+    def test_a_request_the_model_cannot_be_set_in_stops_classify_before_any_request(self):
+        self._write("response", tool_response("bug", 0.95))
+        completed = self._run_with_failing_library(
+            "classify", "o/r", self.paths["title"], self.paths["body"], self.paths["labels.json"],
+            builder="echo 'not json'", model="model-under-test")
+        self.assertNotEqual(0, completed.returncode)
         self.assertFalse(os.path.exists(self.paths["argv"]))
 
     def test_an_unknown_mode_fails_with_status_2(self):

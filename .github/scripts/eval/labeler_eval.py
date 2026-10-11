@@ -393,10 +393,12 @@ def command_build(args):
     print("froze {} issues".format(len(entries)))
 
 
-def run_helper(arguments):
+def run_helper(arguments, model=None):
+    """Runs run-one.sh. A chosen model replaces the model of the classify request."""
+    environment = dict(os.environ, LABELER_EVAL_MODEL=model) if model else None
     completed = subprocess.run(
         ["bash", RUN_ONE] + arguments, capture_output=True, text=True, check=False,
-        timeout=180,
+        timeout=180, env=environment,
     )
     output = completed.stdout.strip()
     if completed.returncode != 0 or not output:
@@ -409,7 +411,7 @@ def offered_labels(cache_dir, repo):
     return run_helper(["offered", labels_path(cache_dir, repo)])
 
 
-def classify(cache_dir, entry):
+def classify(cache_dir, entry, model=None):
     """Runs the labeler pipeline once, retrying transient API failures."""
     title, body = load_issue(cache_dir, entry)
     with tempfile.TemporaryDirectory() as work:
@@ -420,7 +422,7 @@ def classify(cache_dir, entry):
                 handle.write(text)
         for attempt in range(ATTEMPTS):
             result = run_helper(["classify", entry["repo"], title_file, body_file,
-                                 labels_path(cache_dir, entry["repo"])])
+                                 labels_path(cache_dir, entry["repo"])], model=model)
             if result.get("status") != "error" or result.get("http") not in RETRIED_STATUSES:
                 return result
             if attempt < ATTEMPTS - 1:
@@ -430,6 +432,11 @@ def classify(cache_dir, entry):
 
 def result_key(entry, run_index):
     return "{}@{}".format(issue_key(entry["repo"], entry["number"]), run_index)
+
+
+def result_models(records):
+    """The models that the result records name. A record without one counts as unknown."""
+    return {record.get("model", "unknown") for record in records}
 
 
 def read_results(path):
@@ -504,16 +511,21 @@ def run_pool(workers, items, work, handle):
 
 def command_run(args):
     manifest = read_json(args.manifest)
-    jobs = plan_jobs(selected(manifest, args.split), args.repeats, args.hard_repeats,
-                     read_results(args.results))
+    existing = read_results(args.results)
+    model = args.model or run_helper(["model"])["model"]
+    earlier = sorted(result_models(existing.values()) - {model})
+    if earlier:
+        sys.exit("{} holds results of {}, not of {}. Use another results file.".format(
+            args.results, ", ".join(earlier), model))
+    jobs = plan_jobs(selected(manifest, args.split), args.repeats, args.hard_repeats, existing)
     offered = {repo: offered_labels(args.cache_dir, repo) for repo in sorted({e["repo"] for e, _ in jobs})}
 
     def work(job):
         entry, index = job
         record = {"id": result_key(entry, index), "key": issue_key(entry["repo"], entry["number"]),
-                  "run": index, "offered": offered[entry["repo"]]}
+                  "run": index, "offered": offered[entry["repo"]], "model": model}
         try:
-            record.update(classify(args.cache_dir, entry))
+            record.update(classify(args.cache_dir, entry, args.model))
         except Exception as error:  # one broken call must not lose the others
             record.update({"status": "exception", "error": str(error)[:300]})
         return record
@@ -731,7 +743,8 @@ def command_report(args):
     keys = {issue_key(e["repo"], e["number"]) for e in selected(manifest, args.split)}
     results_in_split = {name: record for name, record in results.items() if record.get("key") in keys}
     failed = sum(1 for record in results_in_split.values() if record.get("status") != "ok")
-    report = {"calls": len(results_in_split), "not_ok": failed, "tokens": token_totals(results_in_split)}
+    report = {"calls": len(results_in_split), "not_ok": failed, "tokens": token_totals(results_in_split),
+              "models": sorted(result_models(results_in_split.values()))}
     for kind in ("convention", "text"):
         if kind == "text" and not text_gold:
             continue
@@ -774,6 +787,7 @@ def parse_args(argv):
     run.add_argument("--hard-repeats", type=int, default=5)
     run.add_argument("--split", choices=("dev", "holdout", "all"), default="dev")
     run.add_argument("--workers", type=int, default=4)
+    run.add_argument("--model", help="classify with this model instead of the one of the workflow library")
 
     report = sub.add_parser("report", help="compute the metrics")
     report.add_argument("--manifest", required=True)

@@ -11,6 +11,11 @@
 #       is "error" with the HTTP status (0 when curl itself failed),
 #       "no_tool_call" or "unreadable_answer", the last two with the usage line.
 #       A failure of the guard aborts the script with a non-zero exit instead.
+#   run-one.sh model
+#       prints {"model":"..."}, the model the classify request names
+#
+# LABELER_EVAL_MODEL, when set and not empty, replaces the model of the classify
+# request and nothing else, so two models can be measured on the same issues.
 #
 # LABELS_FILE holds the {name, description} array of the repository labels.
 # classify needs ANTHROPIC_API_KEY in the environment and stops without it. The
@@ -30,10 +35,24 @@ filtered_labels() {
     drop_maintainer_set_labels "$labels_json"
 }
 
+# Prints the classify request the library builds, with the model of
+# LABELER_EVAL_MODEL when one is set.
+build_request() {
+    local request
+    request=$(build_ai_labeler_request "$@") || return 1
+    if [ -n "${LABELER_EVAL_MODEL:-}" ]; then
+        request=$(jq -c --arg model "${LABELER_EVAL_MODEL}" '.model = $model' <<<"${request}") || return 1
+    fi
+    printf '%s' "${request}"
+}
+
 mode="${1:?mode}"
 case "${mode}" in
     offered)
         filtered_labels "${2:?labels file}" | jq -c '[.[].name]'
+        ;;
+    model)
+        build_request "o/r" "" "" "[]" | jq -c '{model: .model}'
         ;;
     classify)
         : "${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is not set}"
@@ -42,7 +61,7 @@ case "${mode}" in
         body=$(cat "${4:?body file}")
         labels_json=$(filtered_labels "${5:?labels file}")
 
-        request_body=$(build_ai_labeler_request "${repo}" "${title}" "${body}" "${labels_json}")
+        request_body=$(build_request "${repo}" "${title}" "${body}" "${labels_json}")
         http_response=$(curl -sS --connect-timeout 10 --max-time 60 -w '\n%{http_code}' \
             https://api.anthropic.com/v1/messages \
             -H "Content-Type: application/json" \
