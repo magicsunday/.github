@@ -33,18 +33,8 @@ trap 'rm -rf "${WORK_DIR}"' EXIT
 
 mkdir -p "${WORK_DIR}/bin" "${WORK_DIR}/lib"
 
-# Writes the run script of the "Classify and label the issue" step to "$2".
-python3 - "${WORKFLOW_FILE}" "${WORK_DIR}/step.sh" <<'PY' || exit 1
-import sys
-import yaml
-
-for job in (yaml.safe_load(open(sys.argv[1], encoding="utf-8")).get("jobs") or {}).values():
-    for step in job.get("steps") or []:
-        if step.get("name") == "Classify and label the issue":
-            open(sys.argv[2], "w", encoding="utf-8").write(step["run"])
-            sys.exit(0)
-sys.exit("step not found")
-PY
+# The run script of the "Classify and label the issue" step.
+workflow_step_run "${WORKFLOW_FILE}" "Classify and label the issue" >"${WORK_DIR}/step.sh" || exit 1
 
 # The library under test, with every function the step calls wrapped so that
 # a call is recorded in the trace before the real function runs. A run can

@@ -26,19 +26,9 @@ require_files_or_bail "ai issue labeler step test" "${WORKFLOW_FILE}"
 # workflow "$1", one statement per line, stripped of surrounding whitespace,
 # with comment lines dropped.
 step_script() {
-    python3 - "$1" <<'PY'
-import sys
-import yaml
-
-for job in (yaml.safe_load(open(sys.argv[1], encoding="utf-8")).get("jobs") or {}).values():
-    for step in job.get("steps") or []:
-        if step.get("name") != "Classify and label the issue":
-            continue
-        for line in (step.get("run") or "").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                print(line)
-PY
+    workflow_step_run "$1" "Classify and label the issue" \
+        | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+        | grep -v -e '^$' -e '^#'
 }
 
 # Prints the number of the first line of "$2" that starts with "$1", or
