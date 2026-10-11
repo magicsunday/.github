@@ -1,37 +1,30 @@
 {
   "magicsunday/.github#103": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
-    "type": "documentation"
+    "priority": "none",
+    "topics": [],
+    "type": "none"
   },
   "magicsunday/.github#106": {
     "priority": "priority: low",
-    "topics": [
-      "documentation"
-    ],
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/.github#107": {
-    "priority": null,
+    "priority": "priority: low",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "enhancement"
   },
   "magicsunday/.github#109": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/.github#114": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "hardening",
-      "security"
+      "hardening"
     ],
     "type": "enhancement"
   },
@@ -44,79 +37,69 @@
     "type": "bug"
   },
   "magicsunday/.github#138": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
+      "hardening",
       "refactoring"
     ],
     "type": "bug"
   },
   "magicsunday/.github#139": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening",
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/.github#142": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/.github#146": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/.github#151": {
-    "priority": null,
+    "priority": "none",
     "topics": [],
-    "type": null
+    "type": "none"
   },
   "magicsunday/.github#157": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/.github#164": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/.github#171": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/.github#176": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/.github#178": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/.github#183": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug"
+      "hardening"
     ],
     "type": "bug"
   },
@@ -129,57 +112,48 @@
     "type": "enhancement"
   },
   "magicsunday/.github#194": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/.github#196": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/.github#197": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/.github#30": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "performance"
     ],
     "type": "enhancement"
   },
   "magicsunday/.github#34": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/.github#45": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/.github#60": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/.github#83": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening",
       "refactoring"
@@ -187,253 +161,221 @@
     "type": "enhancement"
   },
   "magicsunday/.github#87": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/.github#90": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening",
       "security"
     ],
     "type": "enhancement"
   },
   "magicsunday/.github#91": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/.github#98": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/coderabbit#4": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/coderabbit#6": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/coding-standard#11": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/coding-standard#132": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/coding-standard#139": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/coding-standard#144": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/coding-standard#152": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/coding-standard#160": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
+      "hardening",
       "security"
     ],
     "type": "bug"
   },
   "magicsunday/coding-standard#183": {
-    "priority": null,
-    "topics": [
-      "documentation",
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/coding-standard#192": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement"
+      "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/coding-standard#207": {
     "priority": "priority: high",
     "topics": [
-      "bug"
+      "upstream"
     ],
     "type": "bug"
   },
   "magicsunday/coding-standard#209": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/coding-standard#213": {
-    "priority": null,
+    "priority": "none",
     "topics": [],
-    "type": null
+    "type": "none"
   },
   "magicsunday/coding-standard#215": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/coding-standard#219": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "documentation",
-      "enhancement"
+      "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/coding-standard#226": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/coding-standard#32": {
     "priority": "priority: low",
     "topics": [
-      "enhancement",
-      "priority: low"
+      "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/coding-standard#34": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/coding-standard#48": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/coding-standard#51": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/coding-standard#52": {
-    "priority": null,
+    "priority": "priority: low",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/coding-standard#60": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
-    "type": "bug"
+    "type": "none"
   },
   "magicsunday/coding-standard#61": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/coding-standard#62": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/coding-standard#71": {
-    "priority": null,
+    "priority": "none",
     "topics": [
+      "hardening",
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/coding-standard#74": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "refactoring"
-    ],
-    "type": null
-  },
-  "magicsunday/coding-standard#77": {
-    "priority": null,
-    "topics": [
-      "enhancement",
       "refactoring"
     ],
     "type": "enhancement"
   },
+  "magicsunday/coding-standard#77": {
+    "priority": "none",
+    "topics": [],
+    "type": "enhancement"
+  },
   "magicsunday/coding-standard#81": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/coding-standard#83": {
     "priority": "priority: low",
     "topics": [
-      "documentation",
       "hardening",
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/coding-standard#91": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/coding-standard#96": {
@@ -441,17 +383,17 @@
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/coding-standard#98": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/gedcom-parser#123": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening",
       "security"
@@ -459,93 +401,74 @@
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#132": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#14": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement"
+      "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#15": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#16": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening",
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#163": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#168": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#17": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/gedcom-parser#18": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#180": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/gedcom-parser#183": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/gedcom-parser#189": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#191": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug"
+      "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/gedcom-parser#195": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening",
       "refactoring"
@@ -553,121 +476,100 @@
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#207": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/gedcom-parser#209": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#21": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#214": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug"
+      "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/gedcom-parser#23": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/gedcom-parser#237": {
-    "priority": null,
+    "priority": "none",
     "topics": [],
-    "type": null
+    "type": "none"
   },
   "magicsunday/gedcom-parser#26": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/gedcom-parser#29": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/gedcom-parser#30": {
-    "priority": null,
+    "priority": "none",
     "topics": [
+      "hardening",
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/gedcom-parser#31": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/gedcom-parser#33": {
     "priority": "priority: high",
-    "topics": [
-      "bug",
-      "priority: high"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/gedcom-parser#47": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "i18n"
     ],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#56": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#67": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#69": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/gedcom-parser#9": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "i18n"
     ],
     "type": "bug"
   },
   "magicsunday/imagemeta#1016": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "DNG",
       "TIFF",
@@ -676,7 +578,7 @@
     "type": "enhancement"
   },
   "magicsunday/imagemeta#1100": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "TIFF",
       "spec gap"
@@ -684,7 +586,7 @@
     "type": "enhancement"
   },
   "magicsunday/imagemeta#1113": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "ICC",
       "hardening",
@@ -693,16 +595,15 @@
     "type": "enhancement"
   },
   "magicsunday/imagemeta#1143": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "ISO-BMFF",
-      "hardening",
-      "spec gap"
+      "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/imagemeta#1171": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "ISO-BMFF",
       "QuickTime",
@@ -712,17 +613,16 @@
     "type": "enhancement"
   },
   "magicsunday/imagemeta#1175": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "ISO-BMFF",
       "QuickTime",
-      "bug",
       "spec gap"
     ],
     "type": "bug"
   },
   "magicsunday/imagemeta#1184": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "EXIF",
       "TIFF",
@@ -731,52 +631,52 @@
     "type": "enhancement"
   },
   "magicsunday/imagemeta#1220": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "XMP",
-      "bug"
+      "spec gap"
     ],
     "type": "bug"
   },
   "magicsunday/imagemeta#1234": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "XMP",
       "hardening",
       "spec gap"
     ],
-    "type": "enhancement"
+    "type": "bug"
   },
   "magicsunday/imagemeta#1246": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "ISO-BMFF",
       "QuickTime",
+      "hardening",
       "spec gap"
     ],
-    "type": "bug"
+    "type": "enhancement"
   },
   "magicsunday/imagemeta#1284": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "DNG",
-      "TIFF",
       "spec gap"
     ],
     "type": "enhancement"
   },
   "magicsunday/imagemeta#1307": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "EXIF",
       "JPEG",
       "TIFF",
       "spec gap"
     ],
-    "type": "enhancement"
+    "type": "bug"
   },
   "magicsunday/imagemeta#1399": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "JPEG",
       "MPF",
@@ -785,7 +685,7 @@
     "type": "enhancement"
   },
   "magicsunday/imagemeta#1541": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "EXIF",
       "TIFF",
@@ -794,24 +694,23 @@
     "type": "enhancement"
   },
   "magicsunday/imagemeta#1652": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "EXIF",
-      "TIFF",
-      "bug"
+      "TIFF"
     ],
     "type": "bug"
   },
   "magicsunday/imagemeta#1743": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "QuickTime",
       "refactoring"
     ],
-    "type": null
+    "type": "enhancement"
   },
   "magicsunday/imagemeta#1786": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "EXIF",
       "format script"
@@ -819,64 +718,54 @@
     "type": "enhancement"
   },
   "magicsunday/imagemeta#1818": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "ICC",
       "ISO-BMFF",
-      "MPF",
       "QuickTime",
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/imagemeta#2265": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "ISO-BMFF",
       "QuickTime",
-      "XMP",
-      "enhancement"
+      "XMP"
     ],
     "type": "enhancement"
   },
   "magicsunday/imagemeta#2303": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "DNG",
-      "bug",
       "robustness"
     ],
     "type": "bug"
   },
   "magicsunday/imagemeta#2354": {
     "priority": "priority: low",
-    "topics": [
-      "bug",
-      "priority: low"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/imagemeta#577": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "EXIF",
       "TIFF",
-      "documentation",
-      "enhancement",
       "spec gap"
     ],
     "type": "enhancement"
   },
   "magicsunday/imagemeta#580": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/imagemeta#695": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "ISO-BMFF",
       "spec gap"
@@ -884,17 +773,17 @@
     "type": "bug"
   },
   "magicsunday/imagemeta#706": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "ISO-BMFF",
       "QuickTime",
-      "bug",
+      "i18n",
       "spec gap"
     ],
     "type": "bug"
   },
   "magicsunday/imagemeta#756": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "ISO-BMFF",
       "QuickTime",
@@ -903,190 +792,149 @@
     "type": "bug"
   },
   "magicsunday/imagemeta#761": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "EXIF",
       "spec gap"
     ],
-    "type": null
+    "type": "enhancement"
   },
   "magicsunday/imagemeta#835": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "ISO-BMFF",
-      "bug",
       "spec gap"
     ],
     "type": "bug"
   },
   "magicsunday/imagemeta#848": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "XMP",
-      "bug",
       "spec gap"
     ],
     "type": "bug"
   },
   "magicsunday/imagemeta#925": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "EXIF",
       "spec gap"
     ],
-    "type": "bug"
+    "type": "enhancement"
   },
   "magicsunday/jsonmapper#100": {
-    "priority": null,
-    "topics": [
-      "bug",
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/jsonmapper#105": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/jsonmapper#106": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/jsonmapper#112": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/jsonmapper#116": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
-      "hardening",
-      "security"
+      "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/jsonmapper#123": {
     "priority": "priority: low",
-    "topics": [
-      "documentation"
-    ],
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/jsonmapper#128": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "security"
     ],
     "type": "bug"
   },
   "magicsunday/jsonmapper#129": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/jsonmapper#130": {
-    "priority": "priority: low",
+    "priority": "none",
     "topics": [
-      "documentation",
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/jsonmapper#146": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/jsonmapper#148": {
     "priority": "priority: high",
-    "topics": [
-      "bug",
-      "priority: high"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/jsonmapper#149": {
     "priority": "priority: high",
-    "topics": [
-      "bug"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/jsonmapper#153": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/jsonmapper#53": {
     "priority": "priority: critical",
-    "topics": [
-      "bug",
-      "priority: critical"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/jsonmapper#57": {
     "priority": "priority: critical",
-    "topics": [
-      "bug",
-      "priority: critical"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/jsonmapper#58": {
     "priority": "priority: high",
-    "topics": [
-      "bug",
-      "priority: high"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/jsonmapper#62": {
     "priority": "priority: medium",
-    "topics": [
-      "bug",
-      "priority: medium"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/jsonmapper#66": {
     "priority": "priority: low",
     "topics": [
-      "bug"
+      "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/jsonmapper#67": {
     "priority": "priority: low",
     "topics": [
-      "bug",
-      "hardening",
-      "priority: low"
+      "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/jsonmapper#69": {
     "priority": "priority: low",
     "topics": [
-      "documentation",
       "hardening",
       "security"
     ],
@@ -1095,182 +943,149 @@
   "magicsunday/jsonmapper#70": {
     "priority": "priority: low",
     "topics": [
-      "documentation",
       "hardening",
       "security"
     ],
     "type": "documentation"
   },
   "magicsunday/jsonmapper#71": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/jsonmapper#72": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "performance",
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/jsonmapper#78": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening",
       "security"
     ],
     "type": "enhancement"
   },
   "magicsunday/jsonmapper#80": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/jsonmapper#81": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/jsonmapper#83": {
     "priority": "priority: critical",
-    "topics": [
-      "bug",
-      "priority: critical"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/jsonmapper#85": {
     "priority": "priority: high",
     "topics": [
-      "bug"
+      "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/jsonmapper#86": {
     "priority": "priority: critical",
-    "topics": [
-      "bug"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/jsonmapper#87": {
     "priority": "priority: high",
     "topics": [
-      "bug",
       "refactoring"
     ],
     "type": "bug"
   },
   "magicsunday/magicsunday#4": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/photo-memories#774": {
     "priority": "priority: high",
-    "topics": [
-      "bug"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/photo-memories#781": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/photo-memories#783": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/photo-memories#784": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/photo-memories#786": {
     "priority": "priority: high",
-    "topics": [
-      "bug"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/photo-memories#790": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "upstream"
     ],
     "type": "bug"
   },
   "magicsunday/photo-memories#791": {
     "priority": "priority: high",
-    "topics": [
-      "bug"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/photo-memories#793": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/photo-renamer#103": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/photo-renamer#104": {
-    "priority": "priority: high",
+    "priority": "none",
     "topics": [
-      "bug",
-      "priority: high",
       "refactoring"
     ],
-    "type": "bug"
+    "type": "none"
   },
   "magicsunday/photo-renamer#109": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/photo-renamer#113": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
-      "hardening"
+      "hardening",
+      "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/photo-renamer#117": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "upstream"
     ],
     "type": "bug"
@@ -1278,24 +1093,18 @@
   "magicsunday/photo-renamer#121": {
     "priority": "priority: high",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/photo-renamer#123": {
     "priority": "priority: high",
-    "topics": [
-      "bug"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/photo-renamer#124": {
     "priority": "priority: high",
-    "topics": [
-      "bug",
-      "priority: high"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/photo-renamer#127": {
@@ -1310,49 +1119,41 @@
   "magicsunday/photo-renamer#128": {
     "priority": "priority: medium",
     "topics": [
-      "bug",
-      "performance",
-      "priority: medium"
+      "performance"
     ],
     "type": "bug"
   },
   "magicsunday/photo-renamer#129": {
     "priority": "priority: medium",
     "topics": [
-      "bug",
-      "hardening",
-      "priority: medium"
+      "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/photo-renamer#131": {
     "priority": "priority: medium",
     "topics": [
-      "bug",
-      "hardening",
-      "priority: medium"
+      "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/photo-renamer#133": {
     "priority": "priority: medium",
     "topics": [
-      "documentation"
+      "hardening"
     ],
     "type": "documentation"
   },
   "magicsunday/photo-renamer#134": {
     "priority": "priority: low",
     "topics": [
-      "priority: low",
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/photo-renamer#136": {
     "priority": "priority: high",
     "topics": [
-      "hardening",
       "security",
       "upstream"
     ],
@@ -1364,7 +1165,7 @@
       "hardening",
       "security"
     ],
-    "type": null
+    "type": "bug"
   },
   "magicsunday/photo-renamer#139": {
     "priority": "priority: medium",
@@ -1372,12 +1173,11 @@
       "hardening",
       "security"
     ],
-    "type": "enhancement"
+    "type": "bug"
   },
   "magicsunday/photo-renamer#141": {
     "priority": "priority: medium",
     "topics": [
-      "bug",
       "refactoring"
     ],
     "type": "bug"
@@ -1385,9 +1185,7 @@
   "magicsunday/photo-renamer#142": {
     "priority": "priority: medium",
     "topics": [
-      "bug",
-      "hardening",
-      "priority: medium"
+      "hardening"
     ],
     "type": "bug"
   },
@@ -1396,35 +1194,30 @@
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "enhancement"
   },
   "magicsunday/photo-renamer#144": {
     "priority": "priority: medium",
     "topics": [
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/photo-renamer#146": {
     "priority": "priority: medium",
     "topics": [
-      "enhancement",
-      "hardening",
-      "priority: medium"
+      "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/photo-renamer#148": {
     "priority": "priority: high",
-    "topics": [
-      "bug"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/photo-renamer#149": {
     "priority": "priority: medium",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
@@ -1434,7 +1227,7 @@
     "topics": [
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/photo-renamer#152": {
     "priority": "priority: medium",
@@ -1446,87 +1239,74 @@
   "magicsunday/photo-renamer#167": {
     "priority": "priority: high",
     "topics": [
-      "performance",
-      "priority: high"
+      "performance"
     ],
     "type": "enhancement"
   },
   "magicsunday/photo-renamer#82": {
     "priority": "priority: high",
-    "topics": [
-      "bug"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/photo-renamer#83": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement"
+      "upstream"
     ],
     "type": "enhancement"
   },
   "magicsunday/photo-renamer#99": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/typo3-migration-analyzer#10": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/typo3-migration-analyzer#11": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/typo3-migration-analyzer#16": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "upstream"
     ],
     "type": "bug"
   },
   "magicsunday/typo3-migration-analyzer#18": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/typo3-migration-analyzer#6": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/typo3-migration-analyzer#7": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/typo3-migration-analyzer#9": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-chart-lib#101": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening",
       "refactoring"
@@ -1534,120 +1314,111 @@
     "type": "enhancement"
   },
   "magicsunday/webtrees-chart-lib#103": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#106": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-chart-lib#107": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-chart-lib#13": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement"
+      "styling"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-chart-lib#22": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-chart-lib#23": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-chart-lib#24": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#25": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "refactoring"
+      "refactoring",
+      "styling"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#40": {
     "priority": "priority: medium",
-    "topics": [
-      "bug",
-      "upstream"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-chart-lib#43": {
-    "priority": "priority: low",
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#45": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#46": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#47": {
-    "priority": "priority: low",
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#48": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "documentation",
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#50": {
     "priority": "priority: low",
     "topics": [
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#51": {
     "priority": "priority: low",
     "topics": [
-      "priority: low",
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#53": {
     "priority": "priority: low",
@@ -1657,341 +1428,288 @@
     "type": "enhancement"
   },
   "magicsunday/webtrees-chart-lib#55": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-chart-lib#58": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "documentation",
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-chart-lib#61": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-chart-lib#64": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#65": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#66": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#68": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#69": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-chart-lib#76": {
     "priority": "priority: low",
-    "topics": [
-      "bug",
-      "priority: low"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-chart-lib#78": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/webtrees-chart-lib#89": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-chart-lib#98": {
-    "priority": null,
+    "priority": "none",
     "topics": [
+      "hardening",
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-descendants-chart#112": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-descendants-chart#131": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-descendants-chart#133": {
-    "priority": null,
-    "topics": [],
-    "type": null
+    "priority": "none",
+    "topics": [
+      "refactoring"
+    ],
+    "type": "none"
   },
   "magicsunday/webtrees-descendants-chart#134": {
     "priority": "priority: low",
-    "topics": [
-      "enhancement",
-      "priority: low"
-    ],
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#135": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement"
+      "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#137": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "hardening",
       "refactoring",
       "upstream"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-descendants-chart#141": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-descendants-chart#143": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-descendants-chart#145": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#147": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#149": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-descendants-chart#160": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#171": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-descendants-chart#176": {
-    "priority": null,
-    "topics": [
-      "bug",
-      "upstream"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-descendants-chart#179": {
     "priority": "priority: high",
     "topics": [
-      "bug",
-      "security",
       "upstream"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-descendants-chart#181": {
-    "priority": null,
+    "priority": "none",
     "topics": [
+      "hardening",
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#183": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-descendants-chart#186": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#188": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "i18n"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-descendants-chart#189": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "documentation",
       "hardening",
       "i18n"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#24": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#3": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#39": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#40": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#55": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "i18n"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-descendants-chart#72": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-descendants-chart#73": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-descendants-chart#79": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#83": {
     "priority": "priority: low",
-    "topics": [
-      "enhancement",
-      "priority: low"
-    ],
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-descendants-chart#87": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening",
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-docker#105": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/webtrees-docker#118": {
-    "priority": null,
-    "topics": [
-      "bug",
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-docker#124": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-docker#126": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/webtrees-docker#127": {
@@ -2002,133 +1720,101 @@
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#133": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-docker#136": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-docker#137": {
     "priority": "priority: low",
-    "topics": [
-      "enhancement"
-    ],
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#143": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/webtrees-docker#144": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#145": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#147": {
-    "priority": "priority: high",
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-docker#174": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-docker#224": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#232": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug"
+      "refactoring"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-docker#35": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "documentation",
-      "enhancement",
       "hardening",
       "security"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#37": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#42": {
-    "priority": null,
-    "topics": [
-      "documentation",
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#50": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "styling"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#52": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/webtrees-docker#58": {
-    "priority": null,
-    "topics": [
-      "enhancement",
-      "refactoring"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#61": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#64": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening",
       "refactoring"
@@ -2136,251 +1822,211 @@
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#66": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#74": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "hardening",
       "security"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-docker#80": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/webtrees-docker#83": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "performance"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-docker#86": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-docker#88": {
     "priority": "priority: low",
-    "topics": [
-      "bug",
-      "priority: low"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-docker#93": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-fan-chart#102": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "i18n"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-fan-chart#104": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-fan-chart#115": {
     "priority": "priority: low",
-    "topics": [
-      "enhancement",
-      "priority: low"
-    ],
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-fan-chart#174": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-fan-chart#177": {
     "priority": "priority: low",
-    "topics": [
-      "enhancement",
-      "priority: low"
-    ],
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-fan-chart#178": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug"
+      "styling"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-fan-chart#18": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "styling"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-fan-chart#186": {
     "priority": "priority: high",
-    "topics": [
-      "bug"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-fan-chart#190": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-fan-chart#191": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-fan-chart#200": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-fan-chart#210": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "i18n"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-fan-chart#223": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-fan-chart#231": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "i18n"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-fan-chart#232": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-fan-chart#251": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "documentation",
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-fan-chart#267": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-fan-chart#270": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
-    "type": null
+    "type": "enhancement"
   },
   "magicsunday/webtrees-fan-chart#271": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-fan-chart#278": {
     "priority": "priority: low",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-fan-chart#279": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-fan-chart#281": {
-    "priority": null,
+    "priority": "none",
+    "topics": [
+      "hardening",
+      "refactoring",
+      "upstream"
+    ],
+    "type": "none"
+  },
+  "magicsunday/webtrees-fan-chart#301": {
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
-  },
-  "magicsunday/webtrees-fan-chart#301": {
-    "priority": null,
-    "topics": [
-      "bug",
-      "upstream"
-    ],
-    "type": "bug"
+    "type": "none"
   },
   "magicsunday/webtrees-fan-chart#305": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-fan-chart#315": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-fan-chart#32": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-fan-chart#326": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
@@ -2389,246 +2035,210 @@
   "magicsunday/webtrees-fan-chart#328": {
     "priority": "priority: high",
     "topics": [
-      "bug",
+      "security",
       "upstream"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-fan-chart#336": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "documentation",
       "hardening",
       "i18n"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-fan-chart#341": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "priority: medium",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#17": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "question",
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-module-base#18": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-module-base#19": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-module-base#20": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/webtrees-module-base#26": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "documentation",
       "refactoring"
     ],
     "type": "documentation"
   },
   "magicsunday/webtrees-module-base#29": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-module-base#31": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#32": {
-    "priority": null,
-    "topics": [
-      "enhancement",
-      "hardening"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#35": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/webtrees-module-base#37": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#39": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#40": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-module-base#43": {
     "priority": "priority: low",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-module-base#44": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "documentation",
-      "hardening"
+      "hardening",
+      "security"
     ],
     "type": "documentation"
   },
   "magicsunday/webtrees-module-base#50": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#53": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/webtrees-module-base#56": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#58": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#60": {
     "priority": "priority: high",
-    "topics": [
-      "bug"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-module-base#63": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening",
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#66": {
-    "priority": null,
+    "priority": "none",
     "topics": [],
-    "type": null
+    "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#68": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-module-base#70": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
-      "hardening"
+      "hardening",
+      "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#72": {
     "priority": "priority: high",
     "topics": [
-      "bug",
       "upstream"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-module-base#74": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-module-base#76": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "i18n"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-module-base#77": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
-      "i18n",
-      "refactoring"
+      "i18n"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#79": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "i18n"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#81": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "i18n"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-base#82": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening",
       "i18n",
@@ -2637,81 +2247,69 @@
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-installer-plugin#17": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-installer-plugin#19": {
     "priority": "priority: high",
     "topics": [
-      "bug",
-      "priority: high",
       "refactoring"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-module-installer-plugin#22": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-module-installer-plugin#24": {
-    "priority": null,
-    "topics": [
-      "bug",
-      "upstream"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-module-installer-plugin#26": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "hardening"
+      "hardening",
+      "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#107": {
     "priority": "priority: high",
-    "topics": [
-      "bug"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-obituary-matcher#117": {
     "priority": "priority: low",
-    "topics": [
-      "enhancement"
-    ],
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#135": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#142": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#145": {
-    "priority": null,
+    "priority": "none",
     "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#149": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
@@ -2721,44 +2319,37 @@
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-obituary-matcher#151": {
     "priority": "priority: high",
     "topics": [
-      "bug",
-      "security",
       "upstream"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-obituary-matcher#155": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#16": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-obituary-matcher#26": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "performance"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#28": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#31": {
@@ -2769,197 +2360,165 @@
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#4": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#43": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#44": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "hardening",
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-obituary-matcher#48": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#51": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-obituary-matcher#56": {
-    "priority": null,
-    "topics": [
-      "enhancement",
-      "hardening"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#57": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement"
+      "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#59": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-obituary-matcher#61": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#62": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#63": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#67": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "documentation",
       "hardening"
     ],
     "type": "documentation"
   },
   "magicsunday/webtrees-obituary-matcher#70": {
-    "priority": "priority: low",
+    "priority": "none",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-obituary-matcher#71": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-obituary-matcher#76": {
-    "priority": "priority: medium",
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-obituary-matcher#77": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "i18n"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-obituary-matcher#98": {
     "priority": "priority: low",
-    "topics": [
-      "enhancement",
-      "priority: low"
-    ],
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-pedigree-chart#111": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-pedigree-chart#117": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-pedigree-chart#118": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-pedigree-chart#120": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-pedigree-chart#124": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-pedigree-chart#125": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "styling"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-pedigree-chart#139": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-pedigree-chart#140": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "upstream"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-pedigree-chart#144": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening",
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-pedigree-chart#145": {
     "priority": "priority: low",
@@ -2967,80 +2526,76 @@
       "i18n",
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-pedigree-chart#146": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement"
+      "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-pedigree-chart#147": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-pedigree-chart#148": {
-    "priority": null,
+    "priority": "none",
     "topics": [
+      "hardening",
       "refactoring",
       "upstream"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/webtrees-pedigree-chart#150": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-pedigree-chart#153": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening",
       "refactoring"
     ],
-    "type": null
+    "type": "enhancement"
   },
   "magicsunday/webtrees-pedigree-chart#154": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-pedigree-chart#161": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-pedigree-chart#163": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-pedigree-chart#171": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring",
       "upstream"
     ],
-    "type": null
+    "type": "bug"
   },
   "magicsunday/webtrees-pedigree-chart#191": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "upstream"
     ],
     "type": "bug"
@@ -3048,58 +2603,45 @@
   "magicsunday/webtrees-pedigree-chart#194": {
     "priority": "priority: high",
     "topics": [
-      "bug",
-      "security",
       "upstream"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-pedigree-chart#199": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-pedigree-chart#20": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-pedigree-chart#202": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "i18n"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-pedigree-chart#26": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-pedigree-chart#45": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-pedigree-chart#81": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-pedigree-chart#83": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "question"
     ],
     "type": "bug"
@@ -3107,69 +2649,57 @@
   "magicsunday/webtrees-pedigree-chart#86": {
     "priority": "priority: low",
     "topics": [
-      "enhancement",
       "i18n"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-pedigree-chart#90": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "hardening",
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-statistics#103": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "refactoring"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-statistics#106": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-statistics#114": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "performance"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-statistics#150": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-statistics#169": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
       "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#17": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#174": {
     "priority": "priority: low",
-    "topics": [
-      "bug"
-    ],
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-statistics#177": {
@@ -3177,13 +2707,11 @@
     "topics": [
       "hardening"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-statistics#181": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-statistics#184": {
@@ -3191,226 +2719,183 @@
     "topics": [
       "i18n"
     ],
-    "type": null
+    "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#196": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-statistics#21": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#220": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement"
+      "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#234": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "performance"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#236": {
-    "priority": "priority: low",
+    "priority": "none",
     "topics": [
-      "bug",
-      "hardening",
-      "priority: low"
+      "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-statistics#246": {
     "priority": "priority: low",
     "topics": [
-      "bug",
-      "refactoring"
+      "refactoring",
+      "styling"
     ],
-    "type": null
+    "type": "bug"
   },
   "magicsunday/webtrees-statistics#249": {
-    "priority": null,
+    "priority": "none",
     "topics": [],
-    "type": null
+    "type": "none"
   },
   "magicsunday/webtrees-statistics#259": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/webtrees-statistics#278": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/webtrees-statistics#35": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#41": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#47": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-statistics#54": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#58": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#59": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#64": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#66": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#70": {
     "priority": "priority: low",
-    "topics": [
-      "enhancement",
-      "priority: low"
-    ],
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/webtrees-statistics#71": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/webtrees-statistics#90": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "refactoring"
     ],
     "type": "bug"
   },
   "magicsunday/xmlmapper#13": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/xmlmapper#22": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/xmlmapper#23": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/xmlmapper#24": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
-      "documentation",
       "security"
     ],
     "type": "bug"
   },
   "magicsunday/xmlmapper#25": {
-    "priority": null,
-    "topics": [
-      "bug",
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/xmlmapper#26": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
-      "documentation"
+      "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/xmlmapper#27": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   },
   "magicsunday/xmlmapper#28": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "documentation",
       "refactoring"
     ],
-    "type": "enhancement"
+    "type": "none"
   },
   "magicsunday/xmlmapper#29": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement"
+      "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/xmlmapper#30": {
-    "priority": null,
-    "topics": [
-      "documentation",
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/xmlmapper#31": {
@@ -3418,105 +2903,85 @@
     "topics": [
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/xmlmapper#42": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/xmlmapper#43": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/xmlmapper#44": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "hardening"
     ],
     "type": "bug"
   },
   "magicsunday/xmlmapper#57": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/xmlmapper#59": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/xmlmapper#62": {
-    "priority": null,
+    "priority": "none",
     "topics": [
       "refactoring"
     ],
     "type": "enhancement"
   },
   "magicsunday/xmlmapper#64": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "bug",
       "upstream"
     ],
     "type": "bug"
   },
   "magicsunday/xmlmapper#68": {
-    "priority": null,
-    "topics": [
-      "bug"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "bug"
   },
   "magicsunday/xmlmapper#72": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
-      "hardening",
-      "question"
+      "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/xmlmapper#74": {
-    "priority": null,
-    "topics": [
-      "enhancement"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "enhancement"
   },
   "magicsunday/xmlmapper#75": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "documentation",
       "refactoring"
     ],
-    "type": null
+    "type": "none"
   },
   "magicsunday/xmlmapper#77": {
-    "priority": null,
+    "priority": "none",
     "topics": [
-      "enhancement",
-      "hardening",
-      "refactoring"
+      "hardening"
     ],
     "type": "enhancement"
   },
   "magicsunday/xmlmapper#81": {
-    "priority": null,
-    "topics": [
-      "documentation"
-    ],
+    "priority": "none",
+    "topics": [],
     "type": "documentation"
   }
 }
