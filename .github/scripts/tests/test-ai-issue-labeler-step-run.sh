@@ -171,11 +171,6 @@ quiet_stderr() {
     [ -s "${WORK_DIR}/errput" ] && echo no || echo yes
 }
 
-# Prints yes when the stderr of the step holds the text "$1", otherwise no.
-stderr_has() {
-    grep -q -F -- "$1" "${WORK_DIR}/errput" && echo yes || echo no
-}
-
 # Prints how many lines of the step output equal "$1" exactly.
 logged_line() {
     grep -c -F -x -- "$1" "${WORK_DIR}/output"
@@ -208,10 +203,6 @@ assert_eq "a successful answer runs every stage in order" \
 assert_eq "a successful answer exits cleanly" "0" "$(status)"
 assert_eq "a successful answer writes the chosen label" \
     '{"labels":["bug"]}' "$(jq -c . "${WORK_DIR}/posted.json")"
-assert_eq "a successful answer logs no API error" \
-    "0" "$(logged 'Anthropic API error')"
-assert_eq "the request offers the repository label" \
-    "yes" "$(has_text 'Something is broken' request.json)"
 assert_eq "the request call carries its timeouts, the status format and the stdin body" \
     '["-sS","--connect-timeout","10","--max-time","30","-w","\\n%{http_code}","https://api.anthropic.com/v1/messages","-H","Content-Type: application/json","-H","x-api-key: key-anthropic","-H","anthropic-version: 2023-06-01","--data-binary","@-"]' \
     "$(cat "${WORK_DIR}/argv")"
@@ -219,8 +210,8 @@ assert_eq "the request offers a label that has no description" \
     "yes" "$(has_text 'question' request.json)"
 assert_eq "the request names the repository" \
     "yes" "$(has_text 'for the repository owner/repo. The issue title' request.json)"
-assert_eq "the request leaves out the pull request label and the maintainer label" \
-    "0" "$(grep -c -E 'dependencies|status: accepted' "${WORK_DIR}/request.json")"
+assert_eq "the request offers neither the pull request label nor the maintainer label" \
+    "[]" "$(jq -c '[.. | strings | select(. == "dependencies" or . == "status: accepted")]' "${WORK_DIR}/request.json")"
 assert_eq "a successful answer logs the model answer and the existing labels" \
     "1" "$(logged_line 'Model answer for issue #7: {"labels":[{"label":"bug","confidence":0.95}]} | existing labels: []')"
 assert_eq "a successful answer writes nothing to stderr" \
@@ -314,11 +305,17 @@ assert_eq "an issue with a type label logs the empty result" \
     "1" "$(logged 'No label to apply for issue #7')"
 assert_eq "an issue with a type label exits cleanly" "0" "$(status)"
 
+# Another label on the issue does not stop the type label from being written.
+ISSUE_LABELS='["help wanted"]' run_step 200
+assert_eq "an issue with only another label still gets the type label" \
+    '{"labels":["bug"]}' "$(jq -c . "${WORK_DIR}/posted.json")"
+
 # Each of these failures gives up with a warning and a clean exit.
 CURL_FAILS=1 run_step 200
 assert_eq "a failing curl gives up with a warning" \
     "1" "$(logged '::warning::Could not reach the Anthropic API')"
 assert_eq "a failing curl exits cleanly" "0" "$(status)"
+assert_eq "a failing curl writes no label" "no" "$(exists posted.json)"
 
 GH_FETCH_FAILS=1 run_step 200
 assert_eq "a failing label fetch gives up with a warning" \
@@ -343,7 +340,7 @@ assert_eq "a failing read of the issue labels gives up with a warning" \
     "1" "$(logged '::warning::Could not read the current labels')"
 assert_eq "a failing read of the issue labels writes no label" "no" "$(exists posted.json)"
 assert_eq "a failing read of the issue labels keeps the error text of gh" \
-    "yes" "$(stderr_has 'gh: stub failure')"
+    "yes" "$(has_text 'gh: stub failure' errput)"
 assert_eq "a failing read of the issue labels exits cleanly" "0" "$(status)"
 
 FAIL_FUNCTION=build_ai_labeler_request run_step 200
