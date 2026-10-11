@@ -101,6 +101,7 @@ class RunOneTest(unittest.TestCase):
 
     def test_offered_drops_the_pull_request_label_and_the_maintainer_label(self):
         completed = self._run("offered", self.paths["labels.json"])
+        self.assertEqual(0, completed.returncode, completed.stderr)
         self.assertEqual(["bug", "needs-triage", "i18n"], json.loads(completed.stdout))
 
     def test_a_confident_answer_gives_its_label_and_the_usage(self):

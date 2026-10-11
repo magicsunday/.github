@@ -690,6 +690,7 @@ class CallMessagesTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 labeler_eval.call_messages({})
         delays = [call.args[0] for call in self.sleep.call_args_list]
+        self.assertEqual(labeler_eval.ATTEMPTS - 1, len(delays))
         self.assertTrue(all(delay > 0 for delay in delays))
         self.assertEqual(sorted(set(delays)), delays)
 
@@ -996,10 +997,13 @@ class CommandReportTest(unittest.TestCase):
         manifest = {"owner": "o", "issues": [
             {"repo": "o/r", "number": 1, "hard": False, "split": "dev", "maintainer_labels": ["bug"]},
             {"repo": "o/r", "number": 9, "hard": False, "split": "dev", "maintainer_labels": []},
+            {"repo": "o/r", "number": 7, "hard": False, "split": "holdout", "maintainer_labels": []},
         ]}
         error = {"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "error", "http": 529}
         ok = {"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "ok", "labels": ["bug"],
-              "offered": ["bug"]}
+              "offered": ["bug"], "usage": "input_tokens=10 output_tokens=5"}
+        holdout = {"id": "o/r#7@0", "key": "o/r#7", "run": 0, "status": "ok", "labels": [],
+                   "offered": ["bug"], "usage": "input_tokens=100 output_tokens=50"}
         failed_other = {"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "error", "http": 0}
         with tempfile.TemporaryDirectory() as work:
             manifest_path = os.path.join(work, "set.json")
@@ -1008,7 +1012,7 @@ class CommandReportTest(unittest.TestCase):
             labeler_eval.write_json(manifest_path, manifest)
             labeler_eval.write_json(gold_path, {"o/r#1": {"type": "bug", "priority": None, "topics": []}})
             with open(results_path, "w", encoding="utf-8") as handle:
-                for record in (error, ok, failed_other):
+                for record in (error, ok, failed_other, holdout):
                     handle.write(json.dumps(record) + "\n")
             args = mock.Mock(manifest=manifest_path, results=results_path, split=split,
                              gold=gold_path if with_gold else None)
@@ -1022,9 +1026,11 @@ class CommandReportTest(unittest.TestCase):
         self.assertEqual((2, 1), (report["calls"], report["not_ok"]))
 
     def test_the_report_counts_only_the_calls_of_its_split(self):
-        report = self._report(with_gold=False, split="holdout")
-        self.assertEqual((0, 0), (report["calls"], report["not_ok"]))
-        self.assertEqual({"input": 0, "output": 0}, report["tokens"])
+        dev = self._report(with_gold=False, split="dev")
+        holdout = self._report(with_gold=False, split="holdout")
+        self.assertEqual({"input": 10, "output": 5}, dev["tokens"])
+        self.assertEqual((1, 0), (holdout["calls"], holdout["not_ok"]))
+        self.assertEqual({"input": 100, "output": 50}, holdout["tokens"])
 
     def test_the_text_kind_needs_a_gold_file(self):
         self.assertNotIn("text", self._report(with_gold=False))
