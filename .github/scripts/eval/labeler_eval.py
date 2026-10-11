@@ -135,7 +135,7 @@ def gold_from_labels(labels, offered):
     """Reduces a label list to the shape the metrics compare.
 
     Only labels the labeler was offered count, so a label that the filters hide
-    from the request is no gold either. A priority label outside the four known
+    from the request is no gold either. A priority label outside the known
     ones is ignored, and a second type or known priority label leaves that field
     open.
     """

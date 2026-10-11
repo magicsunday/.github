@@ -92,7 +92,7 @@ latest result did not end ok, whatever its run.
 
 - Type: accuracy and a confusion matrix.
 - Priority: exact accuracy, the mean distance and the number of over-calls of
-  `critical`.
+  `critical`. An over-call counts only for an issue that has a priority gold.
 - Topics: precision and recall.
 - The rate of the `needs-triage` fallback and the labels per issue. A label
   outside the offered set is not measured, because the request never offers one
