@@ -11,8 +11,9 @@ repositories of one account, archived repositories and forks left out. For each
 issue it holds the repository, the number, a hash of the title and the body, the
 split (`dev` or `holdout`), a flag for hard cases and the labels the maintainers
 set. The texts are not in the repository. They sit in a
-cache directory that `build` fills. `run` and `judge` refuse an issue whose hash
-no longer matches, so an edited issue never changes a result unnoticed.
+cache directory that `build` fills. `judge` refuses an issue whose hash
+no longer matches and `run` records such a call as failed, so an edited issue never
+changes a result unnoticed.
 
 The label side is not frozen. The label names and descriptions of a repository are
 read from GitHub when the cache is filled, and each result stores the names it was
@@ -80,8 +81,8 @@ type labels stays in the set, but it has no convention gold for the type.
 ## Metrics
 
 Every issue counts once, with its first run. An issue whose first run did not end
-ok is left out. The report counts as `not_ok` every call whose latest result did not end
-ok, whatever its run or split.
+ok is left out. The report counts as `not_ok` every call of the chosen split whose
+latest result did not end ok, whatever its run.
 
 - Type: accuracy and a confusion matrix.
 - Priority: exact accuracy, the mean distance and the number of over-calls of
