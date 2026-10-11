@@ -61,6 +61,11 @@ issue without any convention gold for a field is left out of that metric.
 --force` has frozen a new set, delete the old gold file first, otherwise an edited
 issue keeps the answer of its earlier text.
 
+The results file is tied to the frozen set in the same way. After `build --force`,
+start a new results file, because a call that already ended ok for an issue number
+is not run again. The cache directory holds the label lists unchecked, so keep it
+private to your user.
+
 `judge` and `run` need `ANTHROPIC_API_KEY`. `run` goes through the library of
 the workflow (`ai-issue-labeler.sh`) for the request, the confidence step and the
 guard, so a measurement uses the code that runs in production. Hard cases are run
@@ -85,8 +90,9 @@ ok, whatever its run or split.
 - The rate of the `needs-triage` fallback and the labels per issue. A label
   outside the offered set is not measured, because the request never offers one
   and the pipeline drops it.
-- Tokens: the input and output tokens of the calls in the results file, which
-  gives the cost of a run.
+- Tokens: the input and output tokens of the latest result of every call. A call
+  that was run again counts with its last answer only, so the sum is a floor for
+  the cost of a run.
 - Stability: the mean share of the repeated runs of a hard case that agree with
   its most common label set.
 
