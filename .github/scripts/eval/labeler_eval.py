@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Frozen evaluation set and metrics for the AI issue labeler (issue #192).
 
-Five subcommands share one manifest, `.github/eval/labeler-set.json`:
+The subcommands share one manifest, `.github/eval/labeler-set.json`:
 
   build   samples issues of the public repositories of an account and freezes
           them as a manifest of numbers, content hashes, splits and the labels
@@ -143,7 +143,7 @@ def gold_from_labels(labels, offered):
     priorities = [label.lower() for label in kept if label.lower() in PRIORITY_ORDER]
     topics = sorted(label for label in kept if label_kind(label) == "topic")
     return {
-        "type": types[0] if len(types) == 1 else None,
+        "type": types[0].lower() if len(types) == 1 else None,
         "priority": priorities[0] if len(priorities) == 1 else None,
         "topics": topics,
     }
@@ -165,8 +165,8 @@ def compute_metrics(pairs):
     """Computes the metrics over pairs of (gold, predicted).
 
     gold comes from gold_from_labels or from the referee, predicted from
-    predicted_shape. A gold of None means there is no gold for that field, the
-    referee's "none" is an answer: the labeler is right to leave the field out.
+    predicted_shape. A gold of None means there is no gold for that field. The
+    referee's "none" is an answer, so the labeler is right to leave the field out.
     A label outside the offered set cannot show up in a result, the pipeline
     drops it, so there is no metric for it.
     """
@@ -242,6 +242,7 @@ def stability(runs_by_issue):
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RUN_ONE = os.path.join(SCRIPT_DIR, "run-one.sh")
+REPO_PATTERN = re.compile(r"(?!\.+/)[\w.-]+/(?!\.+$)[\w.-]+")
 TRANSIENT_STATUSES = {429, 500, 502, 503, 504, 529}
 
 # A call that never got an HTTP status, for example on a dropped connection, is
@@ -282,10 +283,16 @@ def write_json(path, value):
 
 
 def issue_path(cache_dir, repo, number):
+    """The cache file of an issue. The manifest is edited by pull requests, so its
+    identifiers must not be able to leave the cache directory."""
+    if isinstance(number, bool) or not isinstance(number, int) or not REPO_PATTERN.fullmatch(repo):
+        raise ValueError("not a valid issue identifier: {!r} #{!r}".format(repo, number))
     return os.path.join(cache_dir, "{}__{}.json".format(repo.replace("/", "__"), number))
 
 
 def labels_path(cache_dir, repo):
+    if not REPO_PATTERN.fullmatch(repo):
+        raise ValueError("not a valid repository: {!r}".format(repo))
     return os.path.join(cache_dir, "labels__{}.json".format(repo.replace("/", "__")))
 
 
@@ -457,6 +464,18 @@ def plan_jobs(entries, repeats, hard_repeats, results):
     return jobs
 
 
+def run_pool(workers, items, work, handle):
+    """Runs work over the items on a thread pool and hands each finished future to
+    handle. An interruption cancels the calls that are still queued."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        try:
+            for future in concurrent.futures.as_completed([pool.submit(work, item) for item in items]):
+                handle(future)
+        except BaseException:  # an interruption must not keep paying for the queued calls
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise
+
+
 def command_run(args):
     manifest = read_json(args.manifest)
     jobs = plan_jobs(selected(manifest, args.split), args.repeats, args.hard_repeats,
@@ -474,15 +493,13 @@ def command_run(args):
         return record
 
     repair_results_tail(args.results)
-    with open(args.results, "a", encoding="utf-8") as sink, \
-            concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
-        try:
-            for future in concurrent.futures.as_completed([pool.submit(work, job) for job in jobs]):
-                sink.write(json.dumps(future.result(), sort_keys=True) + "\n")
-                sink.flush()
-        except BaseException:  # an interruption must not keep paying for the queued calls
-            pool.shutdown(wait=False, cancel_futures=True)
-            raise
+
+    with open(args.results, "a", encoding="utf-8") as sink:
+        def record_result(future):
+            sink.write(json.dumps(future.result(), sort_keys=True) + "\n")
+            sink.flush()
+
+        run_pool(args.workers, jobs, work, record_result)
     print("ran {} calls".format(len(jobs)))
 
 
@@ -611,20 +628,19 @@ def command_judge(args):
         }
 
     failed = 0
-    with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
+
+    def record_answer(future):
+        nonlocal failed
         try:
-            for future in concurrent.futures.as_completed([pool.submit(work, entry) for entry in todo]):
-                try:
-                    key, value = future.result()
-                except Exception as error:  # the issue stays open and is judged again next time
-                    failed += 1
-                    print("judge failed: {}".format(str(error)[:300]), file=sys.stderr)
-                    continue
-                gold[key] = value
-                write_json(args.gold, gold)
-        except BaseException:  # an interruption must not keep paying for the queued calls
-            pool.shutdown(wait=False, cancel_futures=True)
-            raise
+            key, value = future.result()
+        except Exception as error:  # the issue stays open and is judged again next time
+            failed += 1
+            print("judge failed: {}".format(str(error)[:300]), file=sys.stderr)
+            return
+        gold[key] = value
+        write_json(args.gold, gold)
+
+    run_pool(args.workers, todo, work, record_answer)
     print("judged {} issues, {} failed".format(len(todo) - failed, failed))
 
 

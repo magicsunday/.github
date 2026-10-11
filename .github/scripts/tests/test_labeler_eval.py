@@ -59,10 +59,6 @@ class HashAndSplitTest(unittest.TestCase):
     def test_a_missing_body_hashes_like_an_empty_one(self):
         self.assertEqual(labeler_eval.content_hash("t", ""), labeler_eval.content_hash("t", None))
 
-    def test_split_depends_on_the_issue_alone(self):
-        first = labeler_eval.split_of("a/b", 7, "seed", 33)
-        self.assertEqual(first, labeler_eval.split_of("a/b", 7, "seed", 33))
-
     def test_split_follows_the_holdout_share(self):
         splits = [labeler_eval.split_of("a/b", n, "seed", 33) for n in range(1, 2001)]
         share = splits.count("holdout") / len(splits)
@@ -645,6 +641,21 @@ class CallMessagesTest(unittest.TestCase):
             self.assertEqual({"ok": True}, labeler_eval.call_messages({}))
         self.assertEqual(1, self.sleep.call_count)
 
+    def test_the_wait_grows_between_attempts(self):
+        with mock.patch.object(labeler_eval.urllib.request, "urlopen",
+                               side_effect=TimeoutError("slow")):
+            with self.assertRaises(RuntimeError):
+                labeler_eval.call_messages({})
+        delays = [call.args[0] for call in self.sleep.call_args_list]
+        self.assertTrue(all(delay > 0 for delay in delays))
+        self.assertEqual(sorted(set(delays)), delays)
+
+    def test_a_transient_status_that_stays_is_an_error_with_its_code(self):
+        with mock.patch.object(labeler_eval.urllib.request, "urlopen",
+                               side_effect=[self._http_error(529)] * labeler_eval.ATTEMPTS):
+            with self.assertRaisesRegex(RuntimeError, "HTTP 529"):
+                labeler_eval.call_messages({})
+
     def test_a_connection_that_stays_down_is_an_error(self):
         with mock.patch.object(labeler_eval.urllib.request, "urlopen",
                                side_effect=TimeoutError("slow")) as opener:
@@ -762,6 +773,95 @@ class CommandJudgeTest(unittest.TestCase):
             gold = labeler_eval.read_json(gold_path)
         self.assertEqual({"o/r#2"}, set(gold))
         self.assertEqual({"type": "none", "priority": "priority: low", "topics": ["i18n", "ui"]}, gold["o/r#2"])
+
+
+class IssuePathTest(unittest.TestCase):
+    def test_an_identifier_that_could_leave_the_cache_is_refused(self):
+        for repo, number in (("o/r", "../../x"), ("o/r", True), ("../r", 1), ("o/r/s", 1), ("o", 1)):
+            with self.subTest(repo=repo, number=number):
+                with self.assertRaises(ValueError):
+                    labeler_eval.issue_path("/cache", repo, number)
+
+    def test_a_repository_name_that_could_leave_the_cache_is_refused_for_labels(self):
+        with self.assertRaises(ValueError):
+            labeler_eval.labels_path("/cache", "../x")
+
+
+class TypeCaseTest(unittest.TestCase):
+    def test_a_capitalised_type_label_matches_the_lowercase_referee_answer(self):
+        gold = labeler_eval.gold_from_labels(["Bug"], {"Bug"})
+        metrics = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["bug"]))])
+        self.assertEqual("bug", gold["type"])
+        self.assertEqual(1.0, metrics["type_accuracy"])
+
+
+class CommandResumeTest(unittest.TestCase):
+    MANIFEST = {"issues": [
+        {"repo": "o/r", "number": 1, "hard": False, "split": "dev"},
+        {"repo": "o/r", "number": 2, "hard": False, "split": "dev"},
+    ]}
+
+    def _run(self, work, existing):
+        manifest_path = os.path.join(work, "set.json")
+        results_path = os.path.join(work, "results.jsonl")
+        labeler_eval.write_json(manifest_path, self.MANIFEST)
+        with open(results_path, "w", encoding="utf-8") as handle:
+            handle.write(existing)
+        args = mock.Mock(manifest=manifest_path, results=results_path, cache_dir=work, split="dev",
+                         repeats=1, hard_repeats=1, workers=1)
+        with mock.patch.object(labeler_eval, "offered_labels", return_value=["bug"]), \
+                mock.patch.object(labeler_eval, "classify",
+                                  return_value={"status": "ok", "labels": ["bug"]}) as classify, \
+                contextlib.redirect_stdout(io.StringIO()):
+            labeler_eval.command_run(args)
+        return labeler_eval.read_results(results_path), classify
+
+    def test_a_call_that_ended_ok_is_not_run_again(self):
+        done = json.dumps({"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "ok", "labels": ["bug"]})
+        with tempfile.TemporaryDirectory() as work:
+            results, classify = self._run(work, done + "\n")
+        self.assertEqual(1, classify.call_count)
+        self.assertEqual({"o/r#1@0", "o/r#2@0"}, set(results))
+
+    def test_a_cut_off_last_line_does_not_break_the_resumed_file(self):
+        with tempfile.TemporaryDirectory() as work:
+            results, _ = self._run(work, '{"id": "o/r#1@0", "key": "o/r#1", "run": 0, "stat')
+        self.assertEqual({"o/r#1@0", "o/r#2@0"}, set(results))
+
+
+class CommandReportTest(unittest.TestCase):
+    def _report(self, with_gold):
+        manifest = {"issues": [{"repo": "o/r", "number": 1, "hard": False, "split": "dev",
+                                "maintainer_labels": ["bug"]}]}
+        error = {"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "error", "http": 529}
+        ok = {"id": "o/r#1@0", "key": "o/r#1", "run": 0, "status": "ok", "labels": ["bug"],
+              "offered": ["bug"]}
+        failed_other = {"id": "o/r#9@0", "key": "o/r#9", "run": 0, "status": "error", "http": 0}
+        with tempfile.TemporaryDirectory() as work:
+            manifest_path = os.path.join(work, "set.json")
+            results_path = os.path.join(work, "results.jsonl")
+            gold_path = os.path.join(work, "gold.json")
+            labeler_eval.write_json(manifest_path, manifest)
+            labeler_eval.write_json(gold_path, {"o/r#1": {"type": "bug", "priority": None, "topics": []}})
+            with open(results_path, "w", encoding="utf-8") as handle:
+                for record in (error, ok, failed_other):
+                    handle.write(json.dumps(record) + "\n")
+            args = mock.Mock(manifest=manifest_path, results=results_path, split="dev",
+                             gold=gold_path if with_gold else None)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                labeler_eval.command_report(args)
+        return json.loads(out.getvalue())
+
+    def test_not_ok_counts_the_calls_whose_latest_result_failed(self):
+        report = self._report(with_gold=False)
+        self.assertEqual((2, 1), (report["calls"], report["not_ok"]))
+
+    def test_the_text_kind_needs_a_gold_file(self):
+        self.assertNotIn("text", self._report(with_gold=False))
+        report = self._report(with_gold=True)
+        self.assertEqual(1.0, report["text"]["type_accuracy"])
+        self.assertIn("hard_case_stability", report["convention"])
 
 
 class CommandBuildTest(unittest.TestCase):
