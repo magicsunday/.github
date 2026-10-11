@@ -481,6 +481,12 @@ class RefereeTest(unittest.TestCase):
         self.assertEqual(["bug", "none"], properties["type"]["enum"])
         self.assertEqual(["priority: high", "none"], properties["priority"]["enum"])
 
+    def test_a_repository_without_topic_labels_leaves_topics_out_of_the_request(self):
+        schema = labeler_eval.judge_request("m", "T", "B", ["bug"])["tools"][0]["input_schema"]
+        self.assertNotIn("topics", schema["properties"])
+        self.assertEqual(["type", "priority"], schema["required"])
+        self.assertNotIn("maxItems", json.dumps(schema))
+
     def test_the_tool_input_is_found_by_name(self):
         answer = {"content": [{"type": "text", "text": "x"}, {"type": "tool_use", "name": "report_gold", "input": {"a": 1}}]}
         self.assertEqual({"a": 1}, labeler_eval.tool_input(answer, "report_gold"))
@@ -972,8 +978,8 @@ class CommandBuildTest(unittest.TestCase):
 
 
 class TopicsSchemaTest(unittest.TestCase):
-    def test_an_empty_topic_set_gives_an_array_that_must_stay_empty(self):
-        self.assertEqual({"type": "array", "maxItems": 0}, labeler_eval.topics_schema({"bug", "enhancement"}))
+    def test_a_repository_without_topic_labels_has_no_topics_property(self):
+        self.assertIsNone(labeler_eval.topics_schema({"bug", "enhancement"}))
 
     def test_topics_give_an_enum_of_their_names(self):
         schema = labeler_eval.topics_schema({"bug", "i18n"})

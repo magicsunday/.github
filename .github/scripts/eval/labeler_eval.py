@@ -12,7 +12,7 @@ The subcommands share one manifest, `.github/eval/labeler-set.json`:
   judge   asks a referee model what the title and the body alone establish, the
           second kind of gold. The referee sees the same title and body as the
           labeler and the names of the offered labels, nothing else.
-  run     sends every frozen issue through the labeler pipeline of
+  run     sends the issues of the chosen split through the labeler pipeline of
           `.github/scripts/lib/ai-issue-labeler.sh`, hard cases several times,
           and appends one result line per call.
   report  compares the results with both kinds of gold and prints the metrics.
@@ -530,9 +530,14 @@ def topic_names(offered):
 
 
 def topics_schema(offered):
+    """The schema of the topics answer, or None for a repository without topic labels.
+
+    A strict tool schema does not accept an array size limit, so a repository
+    without topic labels leaves the property out and its answer counts as no topics.
+    """
     names = topic_names(offered)
     if not names:
-        return {"type": "array", "maxItems": 0}
+        return None
     return {"type": "array", "items": {"type": "string", "enum": names}}
 
 
@@ -541,6 +546,13 @@ def judge_request(model, title, body, offered):
     offered_names = {name.lower() for name in offered}
     types = [name for name in TYPE_LABELS if name in offered_names]
     priorities = [name for name in PRIORITY_ORDER if name in offered_names]
+    properties = {
+        "type": {"type": "string", "enum": types + [NO_ANSWER]},
+        "priority": {"type": "string", "enum": priorities + [NO_ANSWER]},
+    }
+    topics = topics_schema(offered)
+    if topics is not None:
+        properties["topics"] = topics
     return {
         "model": model,
         "max_tokens": 4000,
@@ -551,12 +563,8 @@ def judge_request(model, title, body, offered):
             "strict": True,
             "input_schema": {
                 "type": "object",
-                "properties": {
-                    "type": {"type": "string", "enum": types + [NO_ANSWER]},
-                    "priority": {"type": "string", "enum": priorities + [NO_ANSWER]},
-                    "topics": topics_schema(offered),
-                },
-                "required": ["type", "priority", "topics"],
+                "properties": properties,
+                "required": list(properties),
                 "additionalProperties": False,
             },
         }],
@@ -642,7 +650,7 @@ def command_judge(args):
         return issue_key(entry["repo"], entry["number"]), {
             "type": answer["type"],
             "priority": answer["priority"],
-            "topics": sorted(answer["topics"]),
+            "topics": sorted(answer.get("topics", [])),
         }
 
     failed = 0
