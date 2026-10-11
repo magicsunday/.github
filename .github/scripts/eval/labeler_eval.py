@@ -535,8 +535,8 @@ def topic_names(offered):
 def topics_schema(offered):
     """The schema of the topics answer, or None for a repository without topic labels.
 
-    A strict tool schema does not accept an array size limit, so a repository
-    without topic labels leaves the property out and its answer counts as no topics.
+    A repository without topic labels leaves the property out of the schema and its
+    answer counts as no topics.
     """
     names = topic_names(offered)
     if not names:

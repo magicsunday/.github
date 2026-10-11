@@ -51,7 +51,7 @@ labeler_eval.py run    --manifest MANIFEST --cache-dir CACHE --results RESULTS -
 labeler_eval.py report --manifest MANIFEST --results RESULTS --gold GOLD --split dev
 ```
 
-The tool is Python. `run-one.sh` is the only shell file of the tool, a thin shim, because the
+The tool is Python. `run-one.sh` is the only shell file in the directory of the tool, a thin shim, because the
 labeler library it has to measure is a bash library.
 
 `fetch` downloads the issues that are missing from the cache and fails when a
