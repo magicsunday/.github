@@ -243,6 +243,11 @@ class MetricsTest(unittest.TestCase):
         )
         self.assertEqual(1, metrics["critical_over_calls"])
 
+    def test_a_referee_none_does_not_excuse_a_critical_prediction(self):
+        gold = {"type": None, "priority": "none", "topics": []}
+        metrics = labeler_eval.compute_metrics([(gold, labeler_eval.predicted_shape(["priority: critical"]))])
+        self.assertEqual(1, metrics["critical_over_calls"])
+
     def test_critical_is_one_step_above_high(self):
         metrics = labeler_eval.compute_metrics([_pair(["priority: high"], ["priority: critical"])])
         self.assertEqual(1.0, metrics["priority_mean_distance"])
@@ -620,6 +625,25 @@ class ClassifyRetryTest(unittest.TestCase):
                 result, calls, _ = self._run([{"status": "error", "http": status}, {"status": "ok", "labels": []}])
                 self.assertEqual(("ok", 2), (result["status"], calls))
 
+    def test_the_helper_gets_the_repository_the_texts_and_the_label_cache_in_order(self):
+        seen = {}
+
+        def helper(arguments):
+            with open(arguments[2], encoding="utf-8") as handle:
+                seen["title"] = handle.read()
+            with open(arguments[3], encoding="utf-8") as handle:
+                seen["body"] = handle.read()
+            seen["arguments"] = arguments
+            return {"status": "ok", "labels": []}
+
+        with tempfile.TemporaryDirectory() as cache:
+            labeler_eval.write_json(labeler_eval.issue_path(cache, "o/r", 3), {"title": "t", "body": "b"})
+            with mock.patch.object(labeler_eval, "run_helper", side_effect=helper):
+                labeler_eval.classify(cache, self.ENTRY)
+            labels = labeler_eval.labels_path(cache, "o/r")
+        self.assertEqual(("classify", "o/r", labels), (seen["arguments"][0], seen["arguments"][1], seen["arguments"][4]))
+        self.assertEqual(("t", "b"), (seen["title"], seen["body"]))
+
     def test_a_rate_limit_status_is_retried(self):
         result, calls, _ = self._run([{"status": "error", "http": 429}, {"status": "ok", "labels": []}])
         self.assertEqual(("ok", 2), (result["status"], calls))
@@ -771,6 +795,9 @@ class CommandRunRepeatsTest(unittest.TestCase):
             results = labeler_eval.read_results(results_path)
         self.assertEqual({"o/r#1@0", "o/r#1@1", "o/r#1@2"}, set(results))
         self.assertEqual([0, 1, 2], sorted(record["run"] for record in results.values()))
+        for record in results.values():
+            self.assertEqual("o/r#1", record["key"])
+            self.assertEqual(["bug"], record["offered"])
 
 
 class CommandJudgeTest(unittest.TestCase):
@@ -798,6 +825,35 @@ class CommandJudgeTest(unittest.TestCase):
             gold = labeler_eval.read_json(gold_path)
         self.assertEqual({"o/r#2"}, set(gold))
         self.assertEqual({"type": "none", "priority": "priority: low", "topics": ["i18n", "ui"]}, gold["o/r#2"])
+
+    def test_the_request_carries_the_texts_and_the_answer_is_read_by_tool_name(self):
+        manifest = {"owner": "o", "issues": [{"repo": "o/r", "number": 1, "sha256": "x"}]}
+        requests = []
+        sentinel = {"content": "sentinel"}
+
+        def call(request):
+            requests.append(request)
+            return sentinel
+
+        with tempfile.TemporaryDirectory() as work:
+            manifest_path = os.path.join(work, "set.json")
+            labeler_eval.write_json(manifest_path, manifest)
+            args = mock.Mock(manifest=manifest_path, gold=os.path.join(work, "g.json"), cache_dir=work,
+                             model="m", workers=1)
+            with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "k"}), \
+                    mock.patch.object(labeler_eval, "offered_labels", return_value=["bug", "ui"]), \
+                    mock.patch.object(labeler_eval, "load_issue", return_value=("TITLE-TEXT", "BODY-TEXT")), \
+                    mock.patch.object(labeler_eval, "call_messages", side_effect=call), \
+                    mock.patch.object(labeler_eval, "tool_input",
+                                      return_value={"type": "bug", "priority": "none", "topics": []}) as reader, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                labeler_eval.command_judge(args)
+        reader.assert_called_once_with(sentinel, "report_gold")
+        content = requests[0]["messages"][0]["content"]
+        self.assertLess(content.index("TITLE-TEXT"), content.index("BODY-TEXT"))
+        self.assertIn("Issue title:\nTITLE-TEXT", content)
+        self.assertIn("Issue body:\nBODY-TEXT", content)
+        self.assertIn("- ui", requests[0]["system"])
 
     def test_an_answer_without_topics_is_stored_as_no_topics(self):
         manifest = {"owner": "o", "issues": [{"repo": "o/r", "number": 1, "sha256": "x"}]}
@@ -879,11 +935,14 @@ class IssuePathTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     labeler_eval.issue_path("/cache", repo, number)
 
-    def test_two_identifiers_never_share_a_file(self):
-        for repo in ("a__b/c", "a_/b", "a/_b"):
-            with self.subTest(repo=repo):
-                with self.assertRaises(ValueError):
-                    labeler_eval.issue_path("/cache", repo, 1)
+    def test_repositories_that_differ_only_in_underscores_get_their_own_files(self):
+        issues = [("a__b", "c"), ("a", "b__c"), ("a_", "b"), ("a", "_b"), ("a", "b"), ("a", "b__1")]
+        paths = [labeler_eval.issue_path("/cache", "{}/{}".format(owner, name), 1) for owner, name in issues]
+        paths.append(labeler_eval.issue_path("/cache", "a/b__1", 2))
+        labels = [labeler_eval.labels_path("/cache", "{}/{}".format(owner, name)) for owner, name in issues]
+        self.assertEqual(len(paths), len(set(paths)))
+        self.assertEqual(len(labels), len(set(labels)))
+        self.assertFalse(set(paths) & set(labels))
 
     def test_a_repository_name_that_could_leave_the_cache_is_refused_for_labels(self):
         with self.assertRaises(ValueError):
