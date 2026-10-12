@@ -99,7 +99,8 @@ Workflows not listed here take no inputs.
 | `yamllint.yml` | `paths` — space-separated YAML paths to lint | `.github/workflows/` |
 | `i18n.yml` | `lang-dir` — root directory holding the per-locale catalogues | `resources/lang` |
 | | `check-pipeline` — run `make lang` and fail on a non-empty diff | `false` |
-| | `node-image` — image whose gettext must match the local `make lang` | `node:24-alpine` |
+| | `node-image` — Alpine-based image whose gettext must match the local `make lang` | `node:24-alpine` |
+| | `lang-setup` — shell snippet run in the checkout root inside that container before `make lang`, for example a PHP and Composer install. It runs in a child shell, so files and installed tools persist, an exported variable or a changed directory does not | *(none)* |
 | `bundle-freshness.yml` | `bundle-dir` — directory whose committed artefacts must match a rebuild | `resources/js` |
 | | `node-image` — image whose Node/Rollup must match the local `make build` | `node:24-alpine` |
 | `php-quality.yml` | `php-versions` — JSON array of PHP versions for the build matrix | `["8.3", "8.4", "8.5"]` |

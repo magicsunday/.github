@@ -27,7 +27,10 @@ name: i18n (reusable)
 # The generated .pot template is gitignored and never appears in the tree, so
 # it needs no special handling. Callers invoke this via
 # `uses: magicsunday/.github/.github/workflows/i18n.yml@main` and may override
-# `lang-dir` if their catalogues live outside `resources/lang`.
+# `lang-dir` if their catalogues live outside `resources/lang`. A pipeline that
+# needs more than gettext (a PHP tool, for example) sets `node-image` to the
+# Alpine-based image its local `make lang` runs in and installs the rest through
+# `lang-setup`.
 on:
     workflow_call:
         inputs:
@@ -40,9 +43,13 @@ on:
                 type: boolean
                 default: false
             node-image:
-                description: 'Container image whose gettext/msgfmt must match the maintainer''s local `make lang`.'
+                description: 'Container image whose gettext/msgfmt must match the maintainer''s local `make lang`. It has to be Alpine-based, because the job installs the toolchain with `apk`.'
                 type: string
                 default: 'node:24-alpine'
+            lang-setup:
+                description: 'Shell snippet run inside the pipeline container, in the checkout root, after the gettext install and before `make lang` (for example a PHP and Composer install for a pipeline that calls a PHP tool). Empty runs nothing. It runs in a child shell, so files and installed tools persist for `make lang`, an exported variable or a changed directory does not.'
+                type: string
+                default: ''
 
 permissions:
     contents: read
@@ -135,6 +142,7 @@ jobs:
               timeout-minutes: 15
               env:
                   NODE_IMAGE: ${{ inputs.node-image }}
+                  LANG_SETUP: ${{ inputs.lang-setup }}
               run: |
                   set -euo pipefail
 
@@ -144,14 +152,21 @@ jobs:
                   # catalogue (a host gettext of a different version would
                   # reflow PO lines and trip a phantom diff). COMPOSE_RUN is
                   # emptied so each recipe runs in this container instead of
-                  # spawning a nested `docker compose` service; the
-                  # fuzzy-resolver (python3) runs in the same container, so no
+                  # spawning a nested `docker compose` service. Every step
+                  # of the pipeline runs in the same container, so no
                   # host/container ownership split corrupts the PO files.
                   # `set -e` + visible apk stderr so a failed toolchain
                   # install aborts loudly instead of later in an opaque way.
-                  docker run --rm -v "$PWD":/app -w /app "$NODE_IMAGE" sh -c '
+                  #
+                  # `lang-setup` is passed through the environment, never
+                  # interpolated into the script, and runs in the checkout
+                  # root before `make lang`.
+                  docker run --rm -e LANG_SETUP -v "$PWD":/app -w /app "$NODE_IMAGE" sh -c '
                       set -e
                       apk add --no-cache make bash gettext python3 >/dev/null
+                      if [ -n "$LANG_SETUP" ]; then
+                          sh -ec "$LANG_SETUP"
+                      fi
                       make lang COMPOSE_RUN=
                   '
 
