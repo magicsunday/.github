@@ -6,4 +6,4 @@
 # Regenerate after bumping the version below: search AGENTS.md for
 # "hash-locked closure" for the exact command (platform/pip-tools pins and
 # working directory matter — don't improvise a shorter one).
-pip-tools==7.6.1
+pip-tools==7.6.2
