@@ -84,7 +84,7 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   different architecture (e.g. Apple Silicon) resolves different wheels/hashes
   than the runner installs and `--only-binary=:all:` then fails the install rather
   than silently degrading:
-  `docker run --rm --platform linux/amd64 -v "$PWD/.github/requirements:/work" -w /work python:3.12 bash -c "pip install pip-tools==7.6.1 && pip-compile --allow-unsafe --generate-hashes --output-file=<name>.txt <name>.in"`
+  `docker run --rm --platform linux/amd64 -v "$PWD/.github/requirements:/work" -w /work python:3.12 bash -c "pip install pip-tools==7.6.2 && pip-compile --allow-unsafe --generate-hashes --output-file=<name>.txt <name>.in"`
   (run from the repo root — the mount source is relative to the caller's `$PWD`).
   Pinning the `pip-tools` version too avoids tool-version-driven hash churn
   between two regenerations of the same `.in`, so a genuine dependency change
@@ -95,25 +95,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   platform and Python version actually match what CI installs against (run
   from the repo root, same as the regenerate command above):
   `docker run --rm --platform linux/amd64 -v "$PWD/.github/requirements:/work" -w /work python:3.12 pip install --only-binary=:all: --require-hashes -r <name>.txt`.
-  (pip-compile's
-  own header may record `--no-index` even though this command hits the real
-  index: `get_compile_command()` in `pip-tools` 7.6.1's `utils.py` omits an
-  option from the reconstructed header only when `option.default == value`; for
-  the plain `--no-index` flag, `option.default` is `click`'s internal
-  `Sentinel.UNSET` marker while the resolved value is `False` when the flag is
-  unset, so the two never compare equal and the flag is always re-emitted —
-  confirmed against the currently-resolved `click` — **run the re-derivation
-  command in a container with a genuinely fresh, unconstrained `pip install
-  pip-tools==7.6.1` (`click>=8`, no upper bound, so it floats to whatever is
-  current), never against a pre-installed or manually version-pinned `click`**:
-  an older `click` (checked: 8.1.3, 8.4.2) resolves the same option's default
-  to the plain bool `False` instead of `Sentinel.UNSET`, which looks like this
-  claim is false but only means the test environment was stale, not that the
-  claim is wrong for what actually installs today. Re-derive with
-  `python3 -c "from piptools.scripts.compile import cli; print(next(o for o in cli.params if o.name == 'no_index').default)"`
-  inside the pinned image — `Sentinel.UNSET` reproduces this, `False` means a
-  newer `click` fixed it and the header claim above no longer holds; this is
-  not evidence the committed file was produced by a different command.) Never
+  The header that `pip-compile` writes into a `.txt` records the command that
+  produced it, and the freshness check below compares it byte for byte, so a
+  `pip-tools` bump can change every header without changing any pin. Regenerate
+  all closures then, not only the one whose `.in` changed. Never
   hand-edit a `.txt` — the next compile overwrites
   it, and a hand-added line carries no hash. The install steps pass
   `--require-hashes` together with `--only-binary=:all:`, so a resolved package
