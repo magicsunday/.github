@@ -98,4 +98,28 @@ assert_eq "a name that is only a prefix of another key does not match" \
     "$(effective_update_type "$(deps_json "${PATCH}")" '-        "@magicsunday/coding-standard-extra": "github:a/b#3.6.0",
 +        "@magicsunday/coding-standard-extra": "github:a/b#3.8.0",' "${MAJOR}")"
 
+# The patches come from the pages of the pull request files API. Evidence
+# that is missing for one manifest must not be replaced by the evidence of
+# another one, so a manifest without a patch empties the whole answer.
+pages_json() {
+    jq -cn --argjson files "$1" '[$files]'
+}
+
+assert_eq "the patches of every package.json are returned" \
+    "-a
++b
+-c
++d" \
+    "$(package_json_patches "$(pages_json '[{"filename":"package.json","patch":"-a\n+b"},{"filename":"packages/x/package.json","patch":"-c\n+d"}]')")"
+
+assert_eq "a file that is not a package.json is ignored, with or without a patch" \
+    "-a
++b" \
+    "$(package_json_patches "$(pages_json '[{"filename":"package.json","patch":"-a\n+b"},{"filename":"package-lock.json"},{"filename":"notpackage.json","patch":"-z"}]')")"
+
+assert_eq "malformed file pages empty the answer" \
+    "" \
+    "$(set -e; package_json_patches 'not json' 2>/dev/null)"
+
+
 report_and_exit "auto-merge update-type tests"

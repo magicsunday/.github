@@ -30,6 +30,51 @@ jobs:
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
+            # The metadata action reports the HIGHEST update type of a group, and
+            # it counts every bump of a git-pinned dependency (`github:owner/repo#X.Y.Z`)
+            # as a major one, because Dependabot gives such a pin's new version as
+            # a commit hash. One git pin therefore keeps a whole group of minor and
+            # patch bumps from merging. The classification below reads the tag of
+            # the pin from the package.json patch instead. The workflow reads its
+            # own scripts from a second checkout at its own revision, the same
+            # way `code-scanning.yml` does. An empty `job.workflow_sha` would
+            # make the checkout fall back to the default branch without a
+            # message, so both values are asserted before the checkout.
+            - name: Check the shared-checkout preconditions
+              env:
+                  WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+                  WORKFLOW_SHA: ${{ job.workflow_sha }}
+              run: |
+                  set -euo pipefail
+                  test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
+                  test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
+
+            - name: Check out the shared scripts
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
+                  path: .magicsunday-shared
+                  sparse-checkout: .github/scripts/lib
+                  persist-credentials: false
+
+            - name: Classify the update type
+              id: classify
+              env:
+                  DEPENDENCIES_JSON: ${{ steps.metadata.outputs.updated-dependencies-json }}
+                  GROUP_UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+                  PULL_REQUEST_FILES: repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  set -euo pipefail
+                  test -f .magicsunday-shared/.github/scripts/lib/auto-merge-update-type.sh || { echo "::error::The shared checkout does not contain the classification script."; exit 1; }
+                  source .magicsunday-shared/.github/scripts/lib/auto-merge-update-type.sh
+                  files="$(gh api --paginate --slurp "$PULL_REQUEST_FILES")"
+                  patch="$(package_json_patches "$files")"
+                  update_type="$(effective_update_type "${DEPENDENCIES_JSON:-[]}" "$patch" "$GROUP_UPDATE_TYPE")"
+                  echo "Update type of the group: $update_type (reported by the metadata action: $GROUP_UPDATE_TYPE)"
+                  echo "update-type=$update_type" >> "$GITHUB_OUTPUT"
+
             # Patch and minor bumps merge automatically; majors are left for a
             # human to review. The exception is the shared repository's own `pip`
             # manifests: `.github/requirements/*.txt` hold the tool versions the
@@ -52,8 +97,8 @@ jobs:
               if: >-
                   (github.repository != 'magicsunday/.github' ||
                   steps.metadata.outputs.package-ecosystem == 'github_actions') &&
-                  (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-                  steps.metadata.outputs.update-type == 'version-update:semver-minor')
+                  (steps.classify.outputs.update-type == 'version-update:semver-patch' ||
+                  steps.classify.outputs.update-type == 'version-update:semver-minor')
               env:
                   PR_URL: ${{ github.event.pull_request.html_url }}
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

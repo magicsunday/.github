@@ -119,3 +119,15 @@ effective_update_type() {
         *) echo "unknown" ;;
     esac
 }
+
+# Prints the patches of the package.json files of a pull request, out of the
+# pages of the files API ("$1", an array of pages). Prints nothing when a
+# package.json entry has no patch or the pages are malformed. Evidence of one
+# manifest must not stand in for a manifest that cannot be inspected, and an
+# empty answer leaves every pin unclassified.
+package_json_patches() {
+    jq -r 'add // []
+        | [.[] | select((.filename | split("/") | last) == "package.json")]
+        | .[].patch // empty' \
+        <<<"$1" 2>/dev/null || true
+}
