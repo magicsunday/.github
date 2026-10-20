@@ -375,6 +375,12 @@ assert_eq "a files answer below its limit is read" \
 assert_eq "a group with a git pin is told so" \
     "0" \
     "$(has_git_pin "$(deps_json "${PATCH}")" >/dev/null 2>&1; echo $?)"
+near_miss_hashes=("${HASH}a" "${HASH:1}" "v${HASH}" "${HASH^^}")
+for near_miss in "${near_miss_hashes[@]}"; do
+    assert_eq "a version that is no commit hash holds no git pin: ${near_miss}" \
+        "1" \
+        "$(has_git_pin "[{\"dependencyName\":\"x\",\"newVersion\":\"${near_miss}\"}]" >/dev/null 2>&1; echo $?)"
+done
 for no_pin in '[]' '[{"dependencyName":"x","newVersion":"1.0.0"}]' '[{"dependencyName":"x","newVersion":null}]' '[{"dependencyName":"x"}]' 'not json' ''; do
     assert_eq "a group without a git pin is told so: ${no_pin}" \
         "1" \
@@ -508,6 +514,10 @@ assert_eq "the classify step passes the group type through without a dependency 
 assert_eq "the classify step does not call the files API for a group without a git pin" \
     "0|update-type=${MINOR}" \
     "$(run_classify_step '[{"dependencyName":"x","updateType":"version-update:semver-minor","newVersion":"1.0.0"}]' "${MINOR}" '[[]]' fail)"
+
+assert_eq "the classify step does not call the files API for a version that is no commit hash" \
+    "0|update-type=${MINOR}" \
+    "$(run_classify_step "[{\"dependencyName\":\"x\",\"updateType\":\"version-update:semver-minor\",\"newVersion\":\"${HASH}a\"}]" "${MINOR}" '[[]]' fail)"
 
 assert_eq "the classify step does not publish when the files call fails" \
     "1|" \
