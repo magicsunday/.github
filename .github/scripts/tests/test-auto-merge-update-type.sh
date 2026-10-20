@@ -336,6 +336,42 @@ assert_eq "a pin that keeps its source is classified by its tags" \
     "$(effective_update_type "${single_pin_json}" '-        "pin": "github:owner/original#1.0.0",
 +        "pin": "github:owner/original#1.1.0",' "${MAJOR}")"
 
+# A declaration whose value sits on the line after its key keeps the key as an
+# unchanged context line. It still counts as a declaration of its name.
+assert_eq "a declaration split over two lines counts as a second declaration" \
+    "unknown" \
+    "$(effective_update_type "${single_pin_json}" '     "dependencies": {
+-        "pin": "github:owner/repo#2.0.0",
++        "pin": "github:owner/repo#2.1.0",
+     },
+     "devDependencies": {
+         "pin":
+-            "github:owner/repo#1.0.0"
++            "github:owner/repo#2.1.0"
+     }' "${MAJOR}")"
+
+assert_eq "an unchanged declaration of the same name next to the pin cannot be classified" \
+    "unknown" \
+    "$(effective_update_type "${single_pin_json}" '         "pin": "github:owner/repo#1.0.0",
+-        "pin": "github:owner/repo#2.0.0",
++        "pin": "github:owner/repo#2.1.0",' "${MAJOR}")"
+
+# A patch field of another type than string is no evidence, and a listing that
+# reaches the limit of the files answer may be cut off.
+assert_eq "a patch of another type than string empties the answer" \
+    "" \
+    "$(package_json_patches "$(pages_json '[{"filename":"package.json","patch":"-a\n+b"},{"filename":"packages/x/package.json","patch":{}}]')")"
+
+full_pages="$(jq -cn '[[range(0; 2999) | {filename: ("file" + tostring + ".txt")}] + [{filename: "package.json", patch: "-a\n+b"}]]')"
+short_pages="$(jq -cn '[[range(0; 2998) | {filename: ("file" + tostring + ".txt")}] + [{filename: "package.json", patch: "-a\n+b"}]]')"
+assert_eq "a files answer that reached its limit empties the answer" \
+    "" \
+    "$(package_json_patches "${full_pages}")"
+assert_eq "a files answer below its limit is read" \
+    "-a
++b" \
+    "$(package_json_patches "${short_pages}")"
+
 # Only a group that holds a git pin needs the patches.
 assert_eq "a group with a git pin is told so" \
     "0" \

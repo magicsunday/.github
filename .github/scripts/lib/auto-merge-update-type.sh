@@ -11,20 +11,23 @@
 
 readonly _AUTO_MERGE_HASH_PATTERN='^[0-9a-f]{40}$'
 readonly _AUTO_MERGE_UNIT_SEPARATOR=$'\x1f'
+# The files API answers with at most this many files for a pull request.
+_AUTO_MERGE_FILES_LIMIT=3000
 
 # Prints the source and the tag of dependency "$2" as `source#tag` on the side
 # "$3" of the package.json patch "$1" (`-` for the old line, `+` for the new
-# one). Prints nothing unless the quoted key occurs exactly once on that side,
-# and then only the value of that key counts. A name that occurs in several
-# sections, or twice on one line, or a pin that follows a branch or carries no
-# numeric tag of up to three components cannot be classified.
+# one). Unchanged lines belong to both sides, so a declaration whose value sits
+# on the next line still counts. Prints nothing unless the quoted key occurs
+# exactly once on that side, and then only the value of that key counts. A name
+# that occurs in several sections, or twice on one line, or a pin that follows
+# a branch or carries no numeric tag cannot be classified.
 _pin_tag() {
     local patch="$1"
     local name="$2"
     local side="$3"
 
     printf '%s\n' "${patch}" | sed -E 's/"[[:space:]]+:/":/g' | awk -v side="${side}" -v key="\"${name}\":" '
-        substr($0, 1, 1) == side {
+        substr($0, 1, 1) == side || substr($0, 1, 1) == " " {
             rest = $0
             while ((position = index(rest, key)) > 0) {
                 occurrences++
@@ -174,13 +177,16 @@ effective_update_type() {
 
 # Prints the patches of the package.json files of a pull request, out of the
 # pages of the files API ("$1", an array of pages). Prints nothing when a
-# package.json entry has no patch or the pages are malformed. Evidence of one
-# manifest must not stand in for a manifest that cannot be inspected, and an
-# empty answer leaves every pin unclassified.
+# package.json entry has no patch of type string, when the answer reached the
+# limit of the files API and may be cut off, or when the pages are malformed.
+# Evidence of one manifest must not stand in for a manifest that cannot be
+# inspected, and an empty answer leaves every pin unclassified.
 package_json_patches() {
-    jq -r 'add // []
-        | [.[] | select((.filename | split("/") | last) == "package.json")]
-        | if any(.[]; (.patch // null) == null) then empty else .[].patch end' \
+    jq -r --argjson limit "${_AUTO_MERGE_FILES_LIMIT}" 'add // []
+        | if length >= $limit then empty else
+            [.[] | select((.filename | split("/") | last) == "package.json")]
+            | if any(.[]; (.patch | type) != "string") then empty else .[].patch end
+          end' \
         <<<"$1" 2>/dev/null || true
 }
 
