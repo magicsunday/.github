@@ -14,7 +14,7 @@
 ## Checklist
 
 - [ ] Tests added or updated for the changed behavior
-- [ ] Documentation updated where relevant (README, inline docs)
+- [ ] README.md, AGENTS.md and inline docs checked against the change and updated where they describe it, also for changes that do not look documentation related
 - [ ] The project's own CI gate passes locally (see the repository's README/CONTRIBUTING for the exact command)
 
 ## How to verify
