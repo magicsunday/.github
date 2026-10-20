@@ -175,6 +175,6 @@ effective_update_type() {
 package_json_patches() {
     jq -r 'add // []
         | [.[] | select((.filename | split("/") | last) == "package.json")]
-        | .[].patch // empty' \
+        | if any(.[]; (.patch // null) == null) then empty else .[].patch end' \
         <<<"$1" 2>/dev/null || true
 }

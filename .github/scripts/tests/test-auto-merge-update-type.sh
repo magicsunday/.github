@@ -201,6 +201,10 @@ assert_eq "the patches of every package.json are returned" \
 +d" \
     "$(package_json_patches "$(pages_json '[{"filename":"package.json","patch":"-a\n+b"},{"filename":"packages/x/package.json","patch":"-c\n+d"}]')")"
 
+assert_eq "a package.json without a patch empties the answer" \
+    "" \
+    "$(package_json_patches "$(pages_json '[{"filename":"package.json","patch":"-a\n+b"},{"filename":"packages/x/package.json"}]')")"
+
 assert_eq "a file that is not a package.json is ignored, with or without a patch" \
     "-a
 +b" \
@@ -209,6 +213,14 @@ assert_eq "a file that is not a package.json is ignored, with or without a patch
 assert_eq "malformed file pages empty the answer" \
     "" \
     "$(set -e; package_json_patches 'not json' 2>/dev/null)"
+
+# One pin, two manifests, the second without a patch: the second one could
+# hold a major bump of the same dependency, so the group cannot be classified.
+omitted_patch="$(package_json_patches "$(pages_json '[{"filename":"packages/current/package.json","patch":"-        \"pin\": \"github:owner/repo#2.0.0\",\n+        \"pin\": \"github:owner/repo#2.1.0\","},{"filename":"packages/legacy/package.json"}]')")"
+single_pin_json="$(jq -cn '[{dependencyName: "pin", updateType: "version-update:semver-major", prevVersion: "2.0.0", newVersion: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]')"
+assert_eq "a pin is not classified while a manifest patch is missing" \
+    "unknown" \
+    "$(effective_update_type "${single_pin_json}" "${omitted_patch}" "${MAJOR}")"
 
 # The auto-merge step must decide on the classified type. Reading the group
 # type of the metadata action again would bring the original defect back, and
