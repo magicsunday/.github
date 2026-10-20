@@ -298,6 +298,18 @@ assert_eq "a pin is not classified while a manifest patch is missing" \
     "unknown" \
     "$(effective_update_type "${single_pin_json}" "${omitted_patch}" "${MAJOR}")"
 
+# A member without a string version is no pin. A group made of such members
+# keeps the type of the action, also in a caller that runs under errexit.
+for no_version in '{"dependencyName": "x", "updateType": "version-update:semver-minor", "newVersion": null}' '{"dependencyName": "x", "updateType": "version-update:semver-minor"}'; do
+    assert_eq "a member without a version keeps the group type: ${no_version}" \
+        "${MINOR}" \
+        "$(set -e; effective_update_type "[${no_version}]" '' "${MINOR}" 2>&1)"
+done
+
+assert_eq "a member without a version next to a pin is read by its own type" \
+    "${MINOR}" \
+    "$(effective_update_type "$(jq -cn --arg hash "${HASH}" '[{dependencyName: "@magicsunday/coding-standard", updateType: "version-update:semver-major", prevVersion: "3.6.0", newVersion: $hash}, {dependencyName: "x", updateType: "version-update:semver-minor", newVersion: null}]')" "$(pin_patch 3.6.0 3.8.0)" "${MAJOR}")"
+
 # The workflow assigns the answer in a step that runs under errexit, so every
 # answer, also an unclassifiable one, has to end with a zero status.
 returns_zero() {

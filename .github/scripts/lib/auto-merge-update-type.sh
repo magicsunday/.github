@@ -123,7 +123,7 @@ effective_update_type() {
         || { echo "unknown"; return 0; }
 
     pins="$(jq -r --arg pattern "${_AUTO_MERGE_HASH_PATTERN}" \
-        '[.[] | select((.newVersion // "" | type == "string") and (.newVersion | test($pattern)))] | length' \
+        '[.[] | select((.newVersion | type == "string") and (.newVersion | test($pattern)))] | length' \
         <<<"${dependencies_json}")"
 
     if [ "${pins}" = "0" ]; then
@@ -134,7 +134,7 @@ effective_update_type() {
     # Two entries of one name share one manifest change, so the second entry
     # has no tag pair of its own and the group cannot be classified.
     repeated="$(jq -r --arg pattern "${_AUTO_MERGE_HASH_PATTERN}" \
-        '[.[] | select((.newVersion // "" | type == "string") and (.newVersion | test($pattern))) | (.dependencyName // "")]
+        '[.[] | select((.newVersion | type == "string") and (.newVersion | test($pattern))) | (.dependencyName // "")]
             | length - (unique | length)' \
         <<<"${dependencies_json}")"
 
