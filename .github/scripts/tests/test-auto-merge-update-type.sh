@@ -31,8 +31,8 @@ pin_patch() {
         '         "jscpd": "5.4.1"'
 }
 
-# The updated-dependencies-json of a group: the git pin as Dependabot reports
-# it (the new version is a commit hash) plus one registry dependency.
+# The updated-dependencies-json of a group. It holds the git pin as Dependabot
+# reports it (the new version is a commit hash) plus one registry dependency.
 deps_json() {
     jq -cn --arg registry_type "$1" --arg hash "${HASH}" '[
         {dependencyName: "@magicsunday/coding-standard", updateType: "version-update:semver-major", prevVersion: "3.6.0", newVersion: $hash},
@@ -101,9 +101,8 @@ assert_eq "a name that is only a prefix of another key does not match" \
     "$(effective_update_type "$(deps_json "${PATCH}")" '-        "@magicsunday/coding-standard-extra": "github:a/b#3.6.0",
 +        "@magicsunday/coding-standard-extra": "github:a/b#3.8.0",' "${MAJOR}")"
 
-# A malformed answer of the metadata action must hold the pull request, also
-# in the way the workflow calls the function: inside a command substitution,
-# where `set -e` of the caller does not apply.
+# A malformed dependency list must hold the pull request, also in the way the
+# workflow calls the function, inside a command substitution.
 for malformed in 'not json' '{"a":1}' '[1]' 'null' ''; do
     assert_eq "malformed dependency list '${malformed}' holds the pull request" \
         "unknown" \
@@ -126,7 +125,7 @@ assert_eq "a zero-padded tag against a patch bump is patch" \
     "${PATCH}" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3.6 3.6.1)" "${MAJOR}")"
 
-# Two pins on one line, as in a minified package.json: each pin reads its own
+# Two pins on one line, as in a minified package.json. Each pin reads its own
 # value, so the major bump of the first one is not hidden by the second one.
 two_pins_json="$(jq -cn '[
     {dependencyName: "breaking", updateType: "version-update:semver-major", prevVersion: "1.0.0", newVersion: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
@@ -144,8 +143,8 @@ assert_eq "the same pin twice on one line cannot be classified" \
     "$(effective_update_type "$(deps_json "${PATCH}")" '-{"a":{"@magicsunday/coding-standard":"github:m/c#3.6.0"},"b":{"@magicsunday/coding-standard":"github:m/c#3.6.0"}}
 +{"a":{"@magicsunday/coding-standard":"github:m/c#3.8.0"},"b":{"@magicsunday/coding-standard":"github:m/c#3.8.0"}}' "${MAJOR}")"
 
-# A pin that moves to a lower tag is no bump. Dependabot can propose an older
-# tag for a git pin, and such a group must not merge as a minor update.
+# A pin that moves to a lower tag is no bump, so such a group must not merge as
+# a minor or patch update.
 assert_eq "a minor downgrade of a git pin cannot be classified" \
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.5.0 1.3.0)" "${MAJOR}")"
@@ -166,7 +165,7 @@ assert_eq "a zero-padded patch component is read as a decimal number" \
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.2.08 1.2.8)" "${MAJOR}")"
 
-assert_eq "a tag component of more than nine digits cannot be classified" \
+assert_eq "an overlong tag component cannot be classified" \
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.2.1000000000 1.2.1000000001)" "${MAJOR}")"
 
@@ -178,7 +177,7 @@ for missing_type in '{"dependencyName": "jscpd", "newVersion": "5.4.1"}' '{"depe
         "$(effective_update_type "$(jq -cn --argjson sibling "${missing_type}" --arg hash "${HASH}" '[{dependencyName: "@magicsunday/coding-standard", updateType: "version-update:semver-major", prevVersion: "3.6.0", newVersion: $hash}, $sibling]')" "$(pin_patch 3.6.0 3.8.0)" "${MAJOR}")"
 done
 
-assert_eq "a major component of more than nine digits cannot be classified" \
+assert_eq "an overlong major component cannot be classified" \
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1000000000.0.0 1000000001.0.0)" "${MAJOR}")"
 
@@ -186,7 +185,7 @@ assert_eq "a one-component new tag against its zero-padded form is the same tag"
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3.0 3)" "${MAJOR}")"
 
-# Unknown ranks above a major: a major pin next to a member without a type
+# Unknown ranks above a major. A major pin next to a member without a type
 # stays open as unknown, not as a plain major.
 assert_eq "a major pin next to a member without a type is unknown" \
     "unknown" \
@@ -211,8 +210,8 @@ assert_eq "an unscoped name does not read the tag pair of a scoped key" \
     "$(effective_update_type "${unscoped_json}" '-        "@magicsunday/coding-standard": "github:magicsunday/coding-standard#3.6.0",
 +        "@magicsunday/coding-standard": "github:magicsunday/coding-standard#3.8.0",' "${MAJOR}")"
 
-# Components that start with a zero and hold an eight or a nine are no octal
-# numbers, in every component of both tags.
+# Components that start with a zero are read as decimal numbers, also when the
+# digits would not be valid octal, in every component of both tags.
 assert_eq "zero-padded major components are read as decimal numbers" \
     "${MAJOR}" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 08.0.0 09.0.0)" "${MAJOR}")"
@@ -290,7 +289,7 @@ assert_eq "a manifest without a patch on a later page empties the answer" \
     "" \
     "$(package_json_patches '[[{"filename":"package.json","patch":"-a\n+b"}],[{"filename":"packages/x/package.json"}]]')"
 
-# One pin, two manifests, the second without a patch: the second one could
+# One pin, two manifests, the second without a patch. The second one could
 # hold a major bump of the same dependency, so the group cannot be classified.
 omitted_patch="$(package_json_patches "$(pages_json '[{"filename":"packages/current/package.json","patch":"-        \"pin\": \"github:owner/repo#2.0.0\",\n+        \"pin\": \"github:owner/repo#2.1.0\","},{"filename":"packages/legacy/package.json"}]')")"
 single_pin_json="$(jq -cn '[{dependencyName: "pin", updateType: "version-update:semver-major", prevVersion: "2.0.0", newVersion: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]')"
@@ -335,6 +334,80 @@ assert_eq "a pin that keeps its source is classified by its tags" \
     "${MINOR}" \
     "$(effective_update_type "${single_pin_json}" '-        "pin": "github:owner/original#1.0.0",
 +        "pin": "github:owner/original#1.1.0",' "${MAJOR}")"
+
+# A declaration whose value sits on the line after its key keeps the key as an
+# unchanged context line. It still counts as a declaration of its name.
+assert_eq "a declaration split over two lines counts as a second declaration" \
+    "unknown" \
+    "$(effective_update_type "${single_pin_json}" '     "dependencies": {
+-        "pin": "github:owner/repo#2.0.0",
++        "pin": "github:owner/repo#2.1.0",
+     },
+     "devDependencies": {
+         "pin":
+-            "github:owner/repo#1.0.0"
++            "github:owner/repo#2.1.0"
+     }' "${MAJOR}")"
+
+assert_eq "an unchanged declaration of the same name next to the pin cannot be classified" \
+    "unknown" \
+    "$(effective_update_type "${single_pin_json}" '         "pin": "github:owner/repo#1.0.0",
+-        "pin": "github:owner/repo#2.0.0",
++        "pin": "github:owner/repo#2.1.0",' "${MAJOR}")"
+
+# A patch field of another type than string is no evidence, and a listing that
+# reaches the limit of the files answer may be cut off.
+assert_eq "a patch of another type than string empties the answer" \
+    "" \
+    "$(package_json_patches "$(pages_json '[{"filename":"package.json","patch":"-a\n+b"},{"filename":"packages/x/package.json","patch":{}}]')")"
+
+full_pages="$(jq -cn '[[range(0; 2999) | {filename: ("file" + tostring + ".txt")}] + [{filename: "package.json", patch: "-a\n+b"}]]')"
+short_pages="$(jq -cn '[[range(0; 2998) | {filename: ("file" + tostring + ".txt")}] + [{filename: "package.json", patch: "-a\n+b"}]]')"
+assert_eq "a files answer that reached its limit empties the answer" \
+    "" \
+    "$(package_json_patches "${full_pages}")"
+assert_eq "a files answer below its limit is read" \
+    "-a
++b" \
+    "$(package_json_patches "${short_pages}")"
+
+# Only a group that holds a git pin needs the patches.
+assert_eq "a group with a git pin is told so" \
+    "0" \
+    "$(has_git_pin "$(deps_json "${PATCH}")" >/dev/null 2>&1; echo $?)"
+near_miss_hashes=("${HASH}a" "${HASH:1}" "v${HASH}" "${HASH^^}")
+for near_miss in "${near_miss_hashes[@]}"; do
+    assert_eq "a version that is no commit hash holds no git pin: ${near_miss}" \
+        "1" \
+        "$(has_git_pin "[{\"dependencyName\":\"x\",\"newVersion\":\"${near_miss}\"}]" >/dev/null 2>&1; echo $?)"
+done
+for no_pin in '[]' '[{"dependencyName":"x","newVersion":"1.0.0"}]' '[{"dependencyName":"x","newVersion":null}]' '[{"dependencyName":"x"}]' 'not json' ''; do
+    assert_eq "a group without a git pin is told so: ${no_pin}" \
+        "1" \
+        "$(has_git_pin "${no_pin}" >/dev/null 2>&1; echo $?)"
+done
+
+# A list that holds a hash next to entries that are no pin is still told so, and
+# an entry of the wrong shape does not hide a pin behind it.
+hash_entry="{\"dependencyName\":\"x\",\"newVersion\":\"${HASH}\"}"
+for with_pin in "[1, ${hash_entry}]" "[{\"newVersion\":null}, ${hash_entry}]" "[{\"newVersion\":5}, ${hash_entry}]"; do
+    assert_eq "a pin behind an entry of the wrong shape is found: ${with_pin}" \
+        "0" \
+        "$(has_git_pin "${with_pin}" >/dev/null 2>&1; echo $?)"
+done
+assert_eq "an object that is no list is told to hold no pin" \
+    "1" \
+    "$(has_git_pin "{\"a\":${hash_entry}}" >/dev/null 2>&1; echo $?)"
+
+# An unknown kind of type is not passed on as it is.
+assert_eq "a member with a type that is no semver type holds the group as unknown" \
+    "unknown" \
+    "$(effective_update_type "$(jq -cn --arg hash "${HASH}" '[{dependencyName: "@magicsunday/coding-standard", updateType: "version-update:semver-major", prevVersion: "3.6.0", newVersion: $hash}, {dependencyName: "x", updateType: "version-update:semver-foo", newVersion: "1.0.0"}]')" "$(pin_patch 3.6.0 3.8.0)" "${MAJOR}")"
+
+# Sourcing the library again must stay silent.
+assert_eq "sourcing the library twice prints nothing" \
+    "" \
+    "$(bash -c 'source "$1"; source "$1"' _ "${SCRIPT_DIR}/../lib/auto-merge-update-type.sh" 2>&1)"
 
 # The workflow assigns the answer in a step that runs under errexit, so every
 # answer, also an unclassifiable one, has to end with a zero status.
@@ -398,11 +471,7 @@ assert_contains "the classify step sources the file of the shared checkout" \
 # Running the run block of the classify step against a stubbed gh and a fake
 # output file shows what the step publishes, with the inputs wired as the
 # workflow does. The block is cut out of the workflow file itself.
-classify_run_body="$(awk '
-    /- name: Classify the update type/ { found = 1 }
-    found && /run: \|/ { in_run = 1; next }
-    in_run { sub(/^                  /, ""); print; if ($0 ~ /GITHUB_OUTPUT/) exit }
-' "${WORKFLOW_FILE}")"
+classify_run_body="$(workflow_step_run "${WORKFLOW_FILE}" "Classify the update type")" || exit 1
 
 # Prints "status|published" for one run of the step. Arguments: the dependency
 # list, the group type, the pages the stub answers with and, when set, a flag
@@ -441,6 +510,14 @@ assert_eq "the classify step publishes the type of a pin group from the tags" \
 assert_eq "the classify step passes the group type through without a dependency list" \
     "0|update-type=${MINOR}" \
     "$(run_classify_step '' "${MINOR}" '[[]]')"
+
+assert_eq "the classify step does not call the files API for a group without a git pin" \
+    "0|update-type=${MINOR}" \
+    "$(run_classify_step '[{"dependencyName":"x","updateType":"version-update:semver-minor","newVersion":"1.0.0"}]' "${MINOR}" '[[]]' fail)"
+
+assert_eq "the classify step does not call the files API for a version that is no commit hash" \
+    "0|update-type=${MINOR}" \
+    "$(run_classify_step "[{\"dependencyName\":\"x\",\"updateType\":\"version-update:semver-minor\",\"newVersion\":\"${HASH}a\"}]" "${MINOR}" '[[]]' fail)"
 
 assert_eq "the classify step does not publish when the files call fails" \
     "1|" \

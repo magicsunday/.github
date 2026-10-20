@@ -33,8 +33,10 @@ jobs:
             # A group with a git-pinned dependency is classified from the tag of
             # the pin, see `.github/scripts/lib/auto-merge-update-type.sh`. The
             # script comes from a second checkout at the revision of this
-            # workflow, as in `code-scanning.yml`, and the precondition step
-            # fails loudly when either value of that checkout is empty.
+            # workflow. Its inputs are those of `code-scanning.yml`, limited to
+            # the script directory, and the precondition step fails loudly when
+            # either value of that checkout is empty. The patches of the pull
+            # request are fetched only for a group that holds a git pin.
             - name: Check the shared-checkout preconditions
               env:
                   WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
@@ -64,8 +66,11 @@ jobs:
                   set -euo pipefail
                   test -f .magicsunday-shared/.github/scripts/lib/auto-merge-update-type.sh || { echo "::error::The shared checkout does not contain the classification script."; exit 1; }
                   source .magicsunday-shared/.github/scripts/lib/auto-merge-update-type.sh
-                  files="$(gh api --paginate --slurp "$PULL_REQUEST_FILES")"
-                  patch="$(package_json_patches "$files")"
+                  patch=""
+                  if has_git_pin "${DEPENDENCIES_JSON:-[]}"; then
+                      files="$(gh api --paginate --slurp "$PULL_REQUEST_FILES")"
+                      patch="$(package_json_patches "$files")"
+                  fi
                   update_type="$(effective_update_type "${DEPENDENCIES_JSON:-[]}" "$patch" "$GROUP_UPDATE_TYPE")"
                   echo "Update type of the group: $update_type (reported by the metadata action: $GROUP_UPDATE_TYPE)"
                   echo "update-type=$update_type" >> "$GITHUB_OUTPUT"
