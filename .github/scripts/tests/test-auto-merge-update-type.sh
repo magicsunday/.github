@@ -170,6 +170,12 @@ assert_eq "a tag component of more than nine digits cannot be classified" \
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.2.1000000000 1.2.1000000001)" "${MAJOR}")"
 
+# Unknown ranks above a major: a major pin next to a member without a type
+# stays open as unknown, not as a plain major.
+assert_eq "a major pin next to a member without a type is unknown" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "")" "$(pin_patch 3.6.0 4.0.0)" "${MINOR}")"
+
 # Two metadata entries of one name share one manifest change, so the second
 # one has no tag pair of its own. The group cannot be classified then.
 same_name_json="$(jq -cn '[
