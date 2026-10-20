@@ -116,9 +116,10 @@ effective_update_type() {
     local name update_type new_version dependency_type old_pin new_pin
     local highest="version-update:semver-patch"
 
-    # Under `set -e` a failing command inside a command substitution does not
-    # stop the caller, so a malformed list answers `unknown` right here. The
-    # filters below cannot fail on a list that passed this check.
+    # The workflow calls this function inside a command substitution, which
+    # does not inherit errexit, so a failing filter would not stop the function
+    # but leave its answer empty. A malformed list therefore answers `unknown`
+    # right here, and the filters below cannot fail on a list that passed.
     jq -e 'type == "array" and all(.[]; type == "object")' >/dev/null 2>&1 <<<"${dependencies_json}" \
         || { echo "unknown"; return 0; }
 
