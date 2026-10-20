@@ -4,35 +4,38 @@
 # its test drive the same file rather than two copies that can drift apart.
 #
 # Dependabot reports the new version of a git-pinned dependency
-# (`github:owner/repo#X.Y.Z`) as a commit hash, and the metadata action
-# compares the first dot-separated segment of the old version with that hash,
-# so every bump of such a pin counts as a major one. The group-wide update
-# type is the highest one of the group, so one git pin makes the whole group
-# a major update. This file classifies such a group from the tag in the
+# (`github:owner/repo#X.Y.Z`) as a commit hash, which the metadata action
+# classifies as a major update, and a group takes the highest type of its
+# dependencies. A group with such a pin is classified here from the tag in the
 # package.json patch instead.
 
 readonly _AUTO_MERGE_HASH_PATTERN='^[0-9a-f]{40}$'
 readonly _AUTO_MERGE_UNIT_SEPARATOR=$'\x1f'
 
-# Prints the tag of the package.json line for dependency "$2" on the side "$3"
-# of the patch "$1" (`-` for the old line, `+` for the new one). Prints
-# nothing unless exactly one such line carries a tag of up to three numeric
-# components, because a name that occurs in several sections or a pin that
-# follows a branch cannot be classified.
+# Prints the tag of dependency "$2" on the side "$3" of the package.json patch
+# "$1" (`-` for the old line, `+` for the new one). Prints nothing unless the
+# quoted key occurs exactly once on that side, and then only the value of that
+# key counts. A name that occurs in several sections, or twice on one line, or
+# a pin that follows a branch or carries no numeric tag of up to three
+# components cannot be classified.
 _pin_tag() {
     local patch="$1"
     local name="$2"
     local side="$3"
-    local lines
 
-    lines="$(printf '%s\n' "${patch}" | awk -v side="${side}" -v key="\"${name}\":" \
-        'substr($0, 1, 1) == side && index($0, key) { print }')"
-
-    if [ -z "${lines}" ] || [ "$(printf '%s\n' "${lines}" | wc -l)" -ne 1 ]; then
-        return 0
-    fi
-
-    printf '%s\n' "${lines}" | sed -nE 's/.*#v?([0-9]+(\.[0-9]+){0,2})".*/\1/p'
+    printf '%s\n' "${patch}" | awk -v side="${side}" -v key="\"${name}\":" '
+        substr($0, 1, 1) == side {
+            rest = $0
+            while ((position = index(rest, key)) > 0) {
+                occurrences++
+                rest = substr(rest, position + length(key))
+                if (occurrences == 1) {
+                    value = rest
+                }
+            }
+        }
+        END { if (occurrences == 1) { print value } }
+    ' | sed -nE 's/^[[:space:]]*"[^"]*#v?([0-9]+(\.[0-9]+){0,2})".*/\1/p'
 }
 
 # Prints the update type that the move from tag "$1" to tag "$2" amounts to,
@@ -87,17 +90,28 @@ effective_update_type() {
     local dependencies_json="$1"
     local patch="$2"
     local group_type="$3"
-    local pins
+    local pins rows
     local name update_type new_version dependency_type old_tag new_tag
     local highest="version-update:semver-patch"
 
+    # Under `set -e` a failing command inside a command substitution does not
+    # stop the caller, so a malformed list answers `unknown` right here. The
+    # filters below cannot fail on a list that passed this check.
+    jq -e 'type == "array" and all(.[]; type == "object")' >/dev/null 2>&1 <<<"${dependencies_json}" \
+        || { echo "unknown"; return 0; }
+
     pins="$(jq -r --arg pattern "${_AUTO_MERGE_HASH_PATTERN}" \
-        '[.[] | select((.newVersion // "") | test($pattern))] | length' <<<"${dependencies_json}")"
+        '[.[] | select((.newVersion // "" | type == "string") and (.newVersion | test($pattern)))] | length' \
+        <<<"${dependencies_json}")"
 
     if [ "${pins}" = "0" ]; then
         echo "${group_type}"
         return 0
     fi
+
+    rows="$(jq -r --arg separator "${_AUTO_MERGE_UNIT_SEPARATOR}" \
+        '.[] | [(.dependencyName // ""), (.updateType // ""), (.newVersion // "")] | map(tostring) | join($separator)' \
+        <<<"${dependencies_json}")"
 
     while IFS="${_AUTO_MERGE_UNIT_SEPARATOR}" read -r name update_type new_version; do
         if [[ "${new_version}" =~ ${_AUTO_MERGE_HASH_PATTERN} ]]; then
@@ -111,8 +125,7 @@ effective_update_type() {
         if [ "$(_update_type_rank "${dependency_type}")" -gt "$(_update_type_rank "${highest}")" ]; then
             highest="${dependency_type}"
         fi
-    done < <(jq -r --arg separator "${_AUTO_MERGE_UNIT_SEPARATOR}" \
-        '.[] | [.dependencyName, (.updateType // ""), (.newVersion // "")] | join($separator)' <<<"${dependencies_json}")
+    done <<<"${rows}"
 
     case "${highest}" in
         version-update:semver-patch | version-update:semver-minor | version-update:semver-major) echo "${highest}" ;;

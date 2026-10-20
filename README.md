@@ -65,10 +65,10 @@ and keeps auto-merging.
 `auto-merge-deps.yml` also checks this repository out a second time, to source
 `.github/scripts/lib/auto-merge-update-type.sh`. Dependabot reports the new
 version of a git-pinned dependency (`github:owner/repo#X.Y.Z`) as a commit hash,
-which makes the metadata action call every bump of such a pin a major one. For a
-group that contains a git pin, the workflow takes the update type of that pin
-from the tag in the pull request's `package.json` patch, and a pin whose tag it
-cannot read leaves the pull request open.
+which the metadata action would classify as a major update. For a group that
+contains a git pin, the workflow takes the update type of that pin from the tag
+in the pull request's `package.json` patch, and a group it cannot classify
+(an unreadable pin or a malformed dependency list) stays open.
 
 `code-scanning.yml` and `yamllint.yml` check this repository out a second time,
 at the revision of the workflow being executed, to read the pinned tool

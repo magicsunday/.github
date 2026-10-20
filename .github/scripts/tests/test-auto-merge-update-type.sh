@@ -13,6 +13,9 @@ source "${SCRIPT_DIR}/lib/harness.sh"
 # shellcheck source=../lib/auto-merge-update-type.sh
 source "${SCRIPT_DIR}/../lib/auto-merge-update-type.sh"
 
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)" || exit 1
+readonly WORKFLOW_FILE="${REPO_ROOT}/.github/workflows/auto-merge-deps.yml"
+
 readonly HASH="6d769850d4ded756bc7fccf3d7966a586e123027"
 readonly MAJOR="version-update:semver-major"
 readonly MINOR="version-update:semver-minor"
@@ -98,6 +101,49 @@ assert_eq "a name that is only a prefix of another key does not match" \
     "$(effective_update_type "$(deps_json "${PATCH}")" '-        "@magicsunday/coding-standard-extra": "github:a/b#3.6.0",
 +        "@magicsunday/coding-standard-extra": "github:a/b#3.8.0",' "${MAJOR}")"
 
+# A malformed answer of the metadata action must hold the pull request, also
+# in the way the workflow calls the function: inside a command substitution,
+# where `set -e` of the caller does not apply.
+for malformed in 'not json' '{"a":1}' '[1]' 'null' ''; do
+    assert_eq "malformed dependency list '${malformed}' holds the pull request" \
+        "unknown" \
+        "$(set -e; effective_update_type "${malformed}" "" "${MAJOR}" 2>/dev/null)"
+done
+
+assert_eq "a group without a git pin returns the group type, not a recomputed one" \
+    "${MAJOR}" \
+    "$(effective_update_type '[{"dependencyName":"jscpd","updateType":"version-update:semver-patch","prevVersion":"5.4.0","newVersion":"5.4.1"}]' '' "${MAJOR}")"
+
+assert_eq "a non-string version of a dependency does not break the classification" \
+    "${MINOR}" \
+    "$(set -e; effective_update_type '[{"dependencyName":"rollup","updateType":"version-update:semver-minor","newVersion":1}]' '' "${MINOR}")"
+
+assert_eq "a short tag against its zero-padded form is the same tag" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3.6 3.6.0)" "${MAJOR}")"
+
+assert_eq "a zero-padded tag against a patch bump is patch" \
+    "${PATCH}" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3.6 3.6.1)" "${MAJOR}")"
+
+# Two pins on one line, as in a minified package.json: each pin reads its own
+# value, so the major bump of the first one is not hidden by the second one.
+two_pins_json="$(jq -cn '[
+    {dependencyName: "breaking", updateType: "version-update:semver-major", prevVersion: "1.0.0", newVersion: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+    {dependencyName: "safe", updateType: "version-update:semver-major", prevVersion: "1.0.0", newVersion: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+]')"
+two_pins_patch='-{"dependencies":{"breaking":"github:owner/breaking#1.0.0","safe":"github:owner/safe#1.0.0"}}
++{"dependencies":{"breaking":"github:owner/breaking#2.0.0","safe":"github:owner/safe#1.1.0"}}'
+
+assert_eq "two pins on one line are read per key" \
+    "${MAJOR}" \
+    "$(effective_update_type "${two_pins_json}" "${two_pins_patch}" "${MAJOR}")"
+
+assert_eq "the same pin twice on one line cannot be classified" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" '-{"a":{"@magicsunday/coding-standard":"github:m/c#3.6.0"},"b":{"@magicsunday/coding-standard":"github:m/c#3.6.0"}}
++{"a":{"@magicsunday/coding-standard":"github:m/c#3.8.0"},"b":{"@magicsunday/coding-standard":"github:m/c#3.8.0"}}' "${MAJOR}")"
+
 # The patches come from the pages of the pull request files API. Evidence
 # that is missing for one manifest must not be replaced by the evidence of
 # another one, so a manifest without a patch empties the whole answer.
@@ -121,5 +167,25 @@ assert_eq "malformed file pages empty the answer" \
     "" \
     "$(set -e; package_json_patches 'not json' 2>/dev/null)"
 
+# The auto-merge step must decide on the classified type. Reading the group
+# type of the metadata action again would bring the original defect back, and
+# no assertion on the function above would notice.
+enable_step="$(extract_block '- name: Enable auto-merge for patch' 'run: gh pr merge' "${WORKFLOW_FILE}")"
+assert_eq "the auto-merge condition reads the classified type" \
+    "2" \
+    "$(printf '%s\n' "${enable_step}" | grep -c 'steps.classify.outputs.update-type ==')"
+assert_eq "the auto-merge condition does not read the group type of the metadata action" \
+    "0" \
+    "$(printf '%s\n' "${enable_step}" | grep -c 'steps.metadata.outputs.update-type')"
+classify_step="$(extract_block '- name: Classify the update type' 'update-type=' "${WORKFLOW_FILE}")"
+assert_contains "the classify step sources the tested library file and reads the patches through it" \
+    "${classify_step}" \
+    'lib/auto-merge-update-type.sh' \
+    'package_json_patches'
+# The needle is the literal workflow text, so the dollar sign must not expand.
+# shellcheck disable=SC2016
+assert_contains "the classify step publishes its result as the step output" \
+    "${classify_step}" \
+    'update-type=$update_type'
 
 report_and_exit "auto-merge update-type tests"

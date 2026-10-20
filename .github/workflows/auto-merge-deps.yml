@@ -30,16 +30,11 @@ jobs:
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
-            # The metadata action reports the HIGHEST update type of a group, and
-            # it counts every bump of a git-pinned dependency (`github:owner/repo#X.Y.Z`)
-            # as a major one, because Dependabot gives such a pin's new version as
-            # a commit hash. One git pin therefore keeps a whole group of minor and
-            # patch bumps from merging. The classification below reads the tag of
-            # the pin from the package.json patch instead. The workflow reads its
-            # own scripts from a second checkout at its own revision, the same
-            # way `code-scanning.yml` does. An empty `job.workflow_sha` would
-            # make the checkout fall back to the default branch without a
-            # message, so both values are asserted before the checkout.
+            # A group with a git-pinned dependency is classified from the tag of
+            # the pin, see `.github/scripts/lib/auto-merge-update-type.sh`. The
+            # script comes from a second checkout at the revision of this
+            # workflow, as in `code-scanning.yml`, and the precondition step
+            # fails loudly when either value of that checkout is empty.
             - name: Check the shared-checkout preconditions
               env:
                   WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
