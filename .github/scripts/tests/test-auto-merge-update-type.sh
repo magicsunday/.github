@@ -187,6 +187,56 @@ assert_eq "two metadata entries of one pin name cannot be classified" \
     "$(effective_update_type "${same_name_json}" '-        "pin": "github:owner/repo#1.0.0",
 +        "pin": "github:owner/repo#1.1.0",' "${MAJOR}")"
 
+# A name that is the suffix of another key of the manifest must not read the
+# tag pair of that other key.
+unscoped_json="$(jq -cn --arg hash "${HASH}" '[{dependencyName: "coding-standard", updateType: "version-update:semver-major", prevVersion: "3.6.0", newVersion: $hash}]')"
+assert_eq "an unscoped name does not read the tag pair of a scoped key" \
+    "unknown" \
+    "$(effective_update_type "${unscoped_json}" '-        "@magicsunday/coding-standard": "github:magicsunday/coding-standard#3.6.0",
++        "@magicsunday/coding-standard": "github:magicsunday/coding-standard#3.8.0",' "${MAJOR}")"
+
+# Components that start with a zero and hold an eight or a nine are no octal
+# numbers, in every component of both tags.
+assert_eq "zero-padded major components are read as decimal numbers" \
+    "${MAJOR}" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 08.0.0 09.0.0)" "${MAJOR}")"
+
+assert_eq "zero-padded minor components are read as decimal numbers" \
+    "${MINOR}" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3.08.0 3.09.0)" "${MAJOR}")"
+
+assert_eq "zero-padded patch components are read as decimal numbers" \
+    "${PATCH}" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.2.08 1.2.09)" "${MAJOR}")"
+
+# Missing components count as zero on both sides.
+assert_eq "a one-component tag against a patch bump is a patch bump" \
+    "${PATCH}" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3 3.0.1)" "${MAJOR}")"
+
+assert_eq "a one-component tag against its zero-padded form is the same tag" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3 3.0)" "${MAJOR}")"
+
+assert_eq "a one-component new tag against a major bump is a major bump" \
+    "${MAJOR}" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3.6.0 4)" "${MAJOR}")"
+
+assert_eq "a full tag against its shortened form is the same tag" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3.6.0 3.6)" "${MAJOR}")"
+
+assert_eq "a tag with more components than the pattern admits cannot be classified" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.2.3.4 1.2.3.5)" "${MAJOR}")"
+
+# Only a string of exactly the length of a commit hash counts as one.
+for not_a_hash in "$(printf 'a%.0s' {1..39})" "$(printf 'a%.0s' {1..41})" "z$(printf 'a%.0s' {1..40})"; do
+    assert_eq "a ${#not_a_hash} character version is no commit hash" \
+        "${MAJOR}" \
+        "$(effective_update_type "$(jq -cn --arg version "${not_a_hash}" '[{dependencyName: "jscpd", updateType: "version-update:semver-major", prevVersion: "1.0.0", newVersion: $version}]')" '' "${MAJOR}")"
+done
+
 # The patches come from the pages of the pull request files API. Evidence
 # that is missing for one manifest must not be replaced by the evidence of
 # another one, so a manifest without a patch empties the whole answer.
