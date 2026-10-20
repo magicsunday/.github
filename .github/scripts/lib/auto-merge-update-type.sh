@@ -10,9 +10,9 @@
 
 _AUTO_MERGE_HASH_PATTERN='^[0-9a-f]{40}$'
 _AUTO_MERGE_UNIT_SEPARATOR=$'\x1f'
-# The one definition of a git pin for every jq filter below, which bind the
-# variable `pattern` to the hash pattern: an entry whose new version is a commit
-# hash.
+# The one definition of a git pin for every jq filter below. A pin is an entry
+# whose new version is a commit hash, and the filters bind the variable
+# `pattern` to the hash pattern.
 # shellcheck disable=SC2016 # `$pattern` is a jq variable, jq expands it and not the shell.
 _AUTO_MERGE_JQ_PIN='def is_pin: (.newVersion | type == "string") and (.newVersion | test($pattern));'
 # A files answer of at least this many files is treated as possibly cut off.
