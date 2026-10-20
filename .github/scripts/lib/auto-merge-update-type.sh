@@ -131,6 +131,18 @@ effective_update_type() {
         return 0
     fi
 
+    # Two entries of one name share one manifest change, so the second entry
+    # has no tag pair of its own and the group cannot be classified.
+    repeated="$(jq -r --arg pattern "${_AUTO_MERGE_HASH_PATTERN}" \
+        '[.[] | select((.newVersion // "" | type == "string") and (.newVersion | test($pattern))) | (.dependencyName // "")]
+            | length - (unique | length)' \
+        <<<"${dependencies_json}")"
+
+    if [ "${repeated}" != "0" ]; then
+        echo "unknown"
+        return 0
+    fi
+
     rows="$(jq -r --arg separator "${_AUTO_MERGE_UNIT_SEPARATOR}" \
         '.[] | [(.dependencyName // ""), (.updateType // ""), (.newVersion // "")] | map(tostring) | join($separator)' \
         <<<"${dependencies_json}")"

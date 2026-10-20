@@ -170,6 +170,17 @@ assert_eq "a tag component of more than nine digits cannot be classified" \
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.2.1000000000 1.2.1000000001)" "${MAJOR}")"
 
+# Two metadata entries of one name share one manifest change, so the second
+# one has no tag pair of its own. The group cannot be classified then.
+same_name_json="$(jq -cn '[
+    {dependencyName: "pin", updateType: "version-update:semver-major", prevVersion: "1.0.0", newVersion: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+    {dependencyName: "pin", updateType: "version-update:semver-major", prevVersion: "x", newVersion: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+]')"
+assert_eq "two metadata entries of one pin name cannot be classified" \
+    "unknown" \
+    "$(effective_update_type "${same_name_json}" '-        "pin": "github:owner/repo#1.0.0",
++        "pin": "github:owner/repo#1.1.0",' "${MAJOR}")"
+
 # The patches come from the pages of the pull request files API. Evidence
 # that is missing for one manifest must not be replaced by the evidence of
 # another one, so a manifest without a patch empties the whole answer.
