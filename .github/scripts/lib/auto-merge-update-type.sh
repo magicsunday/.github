@@ -4,9 +4,8 @@
 # its test drive the same file rather than two copies that can drift apart.
 #
 # Dependabot reports the new version of a git-pinned dependency
-# (`github:owner/repo#X.Y.Z`) as a commit hash, which the metadata action
-# classifies as a major update, and a group takes the highest type of its
-# dependencies. A group with such a pin is classified here from the tag in the
+# (`github:owner/repo#X.Y.Z`) as a commit hash, from which no update type can
+# be read. A group with such a pin is classified here from the tag in the
 # package.json patch instead.
 
 _AUTO_MERGE_HASH_PATTERN='^[0-9a-f]{40}$'
@@ -59,7 +58,7 @@ _tag_update_type() {
     IFS=. read -r new_major new_minor new_patch <<<"${new_tag}"
 
     # The base prefix keeps a leading zero from reading as octal. The tag
-    # pattern admits at most nine digits per component, so this cannot overflow.
+    # pattern bounds the length of a component, so this cannot overflow.
     old_major=$((10#${old_major}))
     old_minor=$((10#${old_minor:-0}))
     old_patch=$((10#${old_patch:-0}))
@@ -103,9 +102,9 @@ _update_type_rank() {
 
 # Prints the update type of a whole Dependabot group.
 #
-#   $1  updated-dependencies-json of the metadata action
+#   $1  the updated-dependencies-json that comes with the group
 #   $2  the package.json patch of the pull request (read only when needed)
-#   $3  the group update type that the metadata action reported
+#   $3  the update type that comes with the group
 #
 # Without a dependency whose new version is a commit hash, the type of the
 # action is printed unchanged. Otherwise the highest type of the group is
@@ -119,10 +118,8 @@ effective_update_type() {
     local name update_type new_version dependency_type old_pin new_pin
     local highest="version-update:semver-patch"
 
-    # The workflow calls this function inside a command substitution, which
-    # does not inherit errexit, so a failing filter would not stop the function
-    # but leave its answer empty. A malformed list therefore answers `unknown`
-    # right here, and the filters below cannot fail on a list that passed.
+    # A malformed list answers `unknown` right here, so the filters below never
+    # see one and the caller never gets an empty answer.
     jq -e 'type == "array" and all(.[]; type == "object")' >/dev/null 2>&1 <<<"${dependencies_json}" \
         || { echo "unknown"; return 0; }
 

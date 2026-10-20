@@ -31,8 +31,8 @@ pin_patch() {
         '         "jscpd": "5.4.1"'
 }
 
-# The updated-dependencies-json of a group: the git pin as Dependabot reports
-# it (the new version is a commit hash) plus one registry dependency.
+# The updated-dependencies-json of a group. It holds the git pin as Dependabot
+# reports it (the new version is a commit hash) plus one registry dependency.
 deps_json() {
     jq -cn --arg registry_type "$1" --arg hash "${HASH}" '[
         {dependencyName: "@magicsunday/coding-standard", updateType: "version-update:semver-major", prevVersion: "3.6.0", newVersion: $hash},
@@ -101,9 +101,8 @@ assert_eq "a name that is only a prefix of another key does not match" \
     "$(effective_update_type "$(deps_json "${PATCH}")" '-        "@magicsunday/coding-standard-extra": "github:a/b#3.6.0",
 +        "@magicsunday/coding-standard-extra": "github:a/b#3.8.0",' "${MAJOR}")"
 
-# A malformed answer of the metadata action must hold the pull request, also
-# in the way the workflow calls the function: inside a command substitution,
-# where `set -e` of the caller does not apply.
+# A malformed dependency list must hold the pull request, also in the way the
+# workflow calls the function, inside a command substitution.
 for malformed in 'not json' '{"a":1}' '[1]' 'null' ''; do
     assert_eq "malformed dependency list '${malformed}' holds the pull request" \
         "unknown" \
@@ -126,7 +125,7 @@ assert_eq "a zero-padded tag against a patch bump is patch" \
     "${PATCH}" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3.6 3.6.1)" "${MAJOR}")"
 
-# Two pins on one line, as in a minified package.json: each pin reads its own
+# Two pins on one line, as in a minified package.json. Each pin reads its own
 # value, so the major bump of the first one is not hidden by the second one.
 two_pins_json="$(jq -cn '[
     {dependencyName: "breaking", updateType: "version-update:semver-major", prevVersion: "1.0.0", newVersion: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
@@ -144,8 +143,8 @@ assert_eq "the same pin twice on one line cannot be classified" \
     "$(effective_update_type "$(deps_json "${PATCH}")" '-{"a":{"@magicsunday/coding-standard":"github:m/c#3.6.0"},"b":{"@magicsunday/coding-standard":"github:m/c#3.6.0"}}
 +{"a":{"@magicsunday/coding-standard":"github:m/c#3.8.0"},"b":{"@magicsunday/coding-standard":"github:m/c#3.8.0"}}' "${MAJOR}")"
 
-# A pin that moves to a lower tag is no bump. Dependabot can propose an older
-# tag for a git pin, and such a group must not merge as a minor update.
+# A pin that moves to a lower tag is no bump, so such a group must not merge as
+# a minor or patch update.
 assert_eq "a minor downgrade of a git pin cannot be classified" \
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.5.0 1.3.0)" "${MAJOR}")"
@@ -166,7 +165,7 @@ assert_eq "a zero-padded patch component is read as a decimal number" \
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.2.08 1.2.8)" "${MAJOR}")"
 
-assert_eq "a tag component of more than nine digits cannot be classified" \
+assert_eq "an overlong tag component cannot be classified" \
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.2.1000000000 1.2.1000000001)" "${MAJOR}")"
 
@@ -178,7 +177,7 @@ for missing_type in '{"dependencyName": "jscpd", "newVersion": "5.4.1"}' '{"depe
         "$(effective_update_type "$(jq -cn --argjson sibling "${missing_type}" --arg hash "${HASH}" '[{dependencyName: "@magicsunday/coding-standard", updateType: "version-update:semver-major", prevVersion: "3.6.0", newVersion: $hash}, $sibling]')" "$(pin_patch 3.6.0 3.8.0)" "${MAJOR}")"
 done
 
-assert_eq "a major component of more than nine digits cannot be classified" \
+assert_eq "an overlong major component cannot be classified" \
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1000000000.0.0 1000000001.0.0)" "${MAJOR}")"
 
@@ -186,7 +185,7 @@ assert_eq "a one-component new tag against its zero-padded form is the same tag"
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3.0 3)" "${MAJOR}")"
 
-# Unknown ranks above a major: a major pin next to a member without a type
+# Unknown ranks above a major. A major pin next to a member without a type
 # stays open as unknown, not as a plain major.
 assert_eq "a major pin next to a member without a type is unknown" \
     "unknown" \
@@ -211,8 +210,8 @@ assert_eq "an unscoped name does not read the tag pair of a scoped key" \
     "$(effective_update_type "${unscoped_json}" '-        "@magicsunday/coding-standard": "github:magicsunday/coding-standard#3.6.0",
 +        "@magicsunday/coding-standard": "github:magicsunday/coding-standard#3.8.0",' "${MAJOR}")"
 
-# Components that start with a zero and hold an eight or a nine are no octal
-# numbers, in every component of both tags.
+# Components that start with a zero are read as decimal numbers, also when the
+# digits would not be valid octal, in every component of both tags.
 assert_eq "zero-padded major components are read as decimal numbers" \
     "${MAJOR}" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 08.0.0 09.0.0)" "${MAJOR}")"
@@ -290,7 +289,7 @@ assert_eq "a manifest without a patch on a later page empties the answer" \
     "" \
     "$(package_json_patches '[[{"filename":"package.json","patch":"-a\n+b"}],[{"filename":"packages/x/package.json"}]]')"
 
-# One pin, two manifests, the second without a patch: the second one could
+# One pin, two manifests, the second without a patch. The second one could
 # hold a major bump of the same dependency, so the group cannot be classified.
 omitted_patch="$(package_json_patches "$(pages_json '[{"filename":"packages/current/package.json","patch":"-        \"pin\": \"github:owner/repo#2.0.0\",\n+        \"pin\": \"github:owner/repo#2.1.0\","},{"filename":"packages/legacy/package.json"}]')")"
 single_pin_json="$(jq -cn '[{dependencyName: "pin", updateType: "version-update:semver-major", prevVersion: "2.0.0", newVersion: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]')"
