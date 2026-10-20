@@ -12,12 +12,12 @@
 readonly _AUTO_MERGE_HASH_PATTERN='^[0-9a-f]{40}$'
 readonly _AUTO_MERGE_UNIT_SEPARATOR=$'\x1f'
 
-# Prints the tag of dependency "$2" on the side "$3" of the package.json patch
-# "$1" (`-` for the old line, `+` for the new one). Prints nothing unless the
-# quoted key occurs exactly once on that side, and then only the value of that
-# key counts. A name that occurs in several sections, or twice on one line, or
-# a pin that follows a branch or carries no numeric tag of up to three
-# components cannot be classified.
+# Prints the source and the tag of dependency "$2" as `source#tag` on the side
+# "$3" of the package.json patch "$1" (`-` for the old line, `+` for the new
+# one). Prints nothing unless the quoted key occurs exactly once on that side,
+# and then only the value of that key counts. A name that occurs in several
+# sections, or twice on one line, or a pin that follows a branch or carries no
+# numeric tag of up to three components cannot be classified.
 _pin_tag() {
     local patch="$1"
     local name="$2"
@@ -35,7 +35,7 @@ _pin_tag() {
             }
         }
         END { if (occurrences == 1) { print value } }
-    ' | sed -nE 's/^[[:space:]]*"[^"]*#v?([0-9]{1,9}(\.[0-9]{1,9}){0,2})".*/\1/p'
+    ' | sed -nE 's/^[[:space:]]*"([^"#]*)#v?([0-9]{1,9}(\.[0-9]{1,9}){0,2})".*/\1#\2/p'
 }
 
 # Prints the update type that the move from tag "$1" to tag "$2" amounts to.
@@ -113,7 +113,7 @@ effective_update_type() {
     local patch="$2"
     local group_type="$3"
     local pins repeated rows
-    local name update_type new_version dependency_type old_tag new_tag
+    local name update_type new_version dependency_type old_pin new_pin
     local highest="version-update:semver-patch"
 
     # Under `set -e` a failing command inside a command substitution does not
@@ -149,9 +149,13 @@ effective_update_type() {
 
     while IFS="${_AUTO_MERGE_UNIT_SEPARATOR}" read -r name update_type new_version; do
         if [[ "${new_version}" =~ ${_AUTO_MERGE_HASH_PATTERN} ]]; then
-            old_tag="$(_pin_tag "${patch}" "${name}" "-")"
-            new_tag="$(_pin_tag "${patch}" "${name}" "+")"
-            dependency_type="$(_tag_update_type "${old_tag}" "${new_tag}")"
+            old_pin="$(_pin_tag "${patch}" "${name}" "-")"
+            new_pin="$(_pin_tag "${patch}" "${name}" "+")"
+            if [ "${old_pin%%#*}" != "${new_pin%%#*}" ]; then
+                dependency_type="unknown"
+            else
+                dependency_type="$(_tag_update_type "${old_pin#*#}" "${new_pin#*#}")"
+            fi
         else
             dependency_type="${update_type:-unknown}"
         fi

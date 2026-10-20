@@ -324,6 +324,18 @@ assert_eq "a spaced key counts as a second declaration of the same name" \
 -        "pin" : "github:owner/repo#1.0.0",
 +        "pin" : "github:owner/repo#2.1.0",' "${MAJOR}")"
 
+# Tags of two different sources say nothing about each other, so a pin that
+# moves to another repository cannot be classified from its tags.
+assert_eq "a pin that changes its source cannot be classified" \
+    "unknown" \
+    "$(effective_update_type "${single_pin_json}" '-        "pin": "github:owner/original#1.0.0",
++        "pin": "github:owner/replacement#1.1.0",' "${MAJOR}")"
+
+assert_eq "a pin that keeps its source is classified by its tags" \
+    "${MINOR}" \
+    "$(effective_update_type "${single_pin_json}" '-        "pin": "github:owner/original#1.0.0",
++        "pin": "github:owner/original#1.1.0",' "${MAJOR}")"
+
 # The workflow assigns the answer in a step that runs under errexit, so every
 # answer, also an unclassifiable one, has to end with a zero status.
 returns_zero() {
