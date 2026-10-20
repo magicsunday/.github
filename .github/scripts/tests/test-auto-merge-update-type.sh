@@ -144,6 +144,32 @@ assert_eq "the same pin twice on one line cannot be classified" \
     "$(effective_update_type "$(deps_json "${PATCH}")" '-{"a":{"@magicsunday/coding-standard":"github:m/c#3.6.0"},"b":{"@magicsunday/coding-standard":"github:m/c#3.6.0"}}
 +{"a":{"@magicsunday/coding-standard":"github:m/c#3.8.0"},"b":{"@magicsunday/coding-standard":"github:m/c#3.8.0"}}' "${MAJOR}")"
 
+# A pin that moves to a lower tag is no bump. Dependabot can propose an older
+# tag for a git pin, and such a group must not merge as a minor update.
+assert_eq "a minor downgrade of a git pin cannot be classified" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.5.0 1.3.0)" "${MAJOR}")"
+
+assert_eq "a major downgrade of a git pin cannot be classified" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 2.0.0 1.0.0)" "${MAJOR}")"
+
+assert_eq "a patch downgrade of a git pin cannot be classified" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.3.2 1.3.1)" "${MAJOR}")"
+
+assert_eq "tags that are equal as numbers cannot be classified" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3.06.0 3.6.0)" "${MAJOR}")"
+
+assert_eq "a zero-padded patch component is read as a decimal number" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.2.08 1.2.8)" "${MAJOR}")"
+
+assert_eq "a tag component of more than nine digits cannot be classified" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.2.1000000000 1.2.1000000001)" "${MAJOR}")"
+
 # The patches come from the pages of the pull request files API. Evidence
 # that is missing for one manifest must not be replaced by the evidence of
 # another one, so a manifest without a patch empties the whole answer.

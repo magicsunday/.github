@@ -35,17 +35,19 @@ _pin_tag() {
             }
         }
         END { if (occurrences == 1) { print value } }
-    ' | sed -nE 's/^[[:space:]]*"[^"]*#v?([0-9]+(\.[0-9]+){0,2})".*/\1/p'
+    ' | sed -nE 's/^[[:space:]]*"[^"]*#v?([0-9]{1,9}(\.[0-9]{1,9}){0,2})".*/\1/p'
 }
 
-# Prints the update type that the move from tag "$1" to tag "$2" amounts to,
-# or `unknown` when a tag is missing or both are equal.
+# Prints the update type that the move from tag "$1" to tag "$2" amounts to.
+# Prints `unknown` when a tag is missing, when both tags are equal as numbers
+# and when the new tag is the lower one, because a downgrade is no bump.
 _tag_update_type() {
     local old_tag="$1"
     local new_tag="$2"
     local old_major old_minor old_patch new_major new_minor new_patch
+    local bump difference
 
-    if [ -z "${old_tag}" ] || [ -z "${new_tag}" ] || [ "${old_tag}" = "${new_tag}" ]; then
+    if [ -z "${old_tag}" ] || [ -z "${new_tag}" ]; then
         echo "unknown"
         return 0
     fi
@@ -53,15 +55,35 @@ _tag_update_type() {
     IFS=. read -r old_major old_minor old_patch <<<"${old_tag}"
     IFS=. read -r new_major new_minor new_patch <<<"${new_tag}"
 
-    if [ "${old_major}" != "${new_major}" ]; then
-        echo "version-update:semver-major"
-    elif [ "${old_minor:-0}" != "${new_minor:-0}" ]; then
-        echo "version-update:semver-minor"
-    elif [ "${old_patch:-0}" != "${new_patch:-0}" ]; then
-        echo "version-update:semver-patch"
+    # The base prefix keeps a leading zero from reading as octal. The tag
+    # pattern admits at most nine digits per component, so this cannot overflow.
+    old_major=$((10#${old_major}))
+    old_minor=$((10#${old_minor:-0}))
+    old_patch=$((10#${old_patch:-0}))
+    new_major=$((10#${new_major}))
+    new_minor=$((10#${new_minor:-0}))
+    new_patch=$((10#${new_patch:-0}))
+
+    if [ "${new_major}" -ne "${old_major}" ]; then
+        bump="major"
+        difference=$((new_major - old_major))
+    elif [ "${new_minor}" -ne "${old_minor}" ]; then
+        bump="minor"
+        difference=$((new_minor - old_minor))
+    elif [ "${new_patch}" -ne "${old_patch}" ]; then
+        bump="patch"
+        difference=$((new_patch - old_patch))
     else
         echo "unknown"
+        return 0
     fi
+
+    if [ "${difference}" -lt 0 ]; then
+        echo "unknown"
+        return 0
+    fi
+
+    echo "version-update:semver-${bump}"
 }
 
 # Ranks an update type for picking the highest one of a group. Everything
@@ -90,7 +112,7 @@ effective_update_type() {
     local dependencies_json="$1"
     local patch="$2"
     local group_type="$3"
-    local pins rows
+    local pins repeated rows
     local name update_type new_version dependency_type old_tag new_tag
     local highest="version-update:semver-patch"
 
