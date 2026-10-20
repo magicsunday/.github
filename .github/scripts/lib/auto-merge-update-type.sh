@@ -10,16 +10,17 @@
 
 _AUTO_MERGE_HASH_PATTERN='^[0-9a-f]{40}$'
 _AUTO_MERGE_UNIT_SEPARATOR=$'\x1f'
-# The files API answers with at most this many files for a pull request.
+# A files answer of at least this many files is treated as possibly cut off.
 _AUTO_MERGE_FILES_LIMIT=3000
 
 # Prints the source and the tag of dependency "$2" as `source#tag` on the side
 # "$3" of the package.json patch "$1" (`-` for the old line, `+` for the new
-# one). Unchanged lines belong to both sides, so a declaration whose value sits
-# on the next line still counts. Prints nothing unless the quoted key occurs
-# exactly once on that side, and then only the value of that key counts. A name
-# that occurs in several sections, or twice on one line, or a pin that follows
-# a branch or carries no numeric tag cannot be classified.
+# one). Unchanged lines belong to both sides, so the key of a declaration whose
+# value sits on the next line counts as a declaration, and such a pin has no
+# value to read. Prints nothing unless the quoted key occurs exactly once on
+# that side, and then only the value of that key counts. A name that occurs in
+# several sections, or twice on one line, or a pin that follows a branch or
+# carries no numeric tag cannot be classified.
 _pin_tag() {
     local patch="$1"
     local name="$2"

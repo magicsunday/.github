@@ -33,10 +33,10 @@ jobs:
             # A group with a git-pinned dependency is classified from the tag of
             # the pin, see `.github/scripts/lib/auto-merge-update-type.sh`. The
             # script comes from a second checkout at the revision of this
-            # workflow. Its inputs and the precondition step are those of
-            # `code-scanning.yml`, and the checkout is limited to the script
-            # directory. The patches of the pull request are fetched only for a
-            # group that holds a git pin.
+            # workflow. Its inputs are those of `code-scanning.yml`, limited to
+            # the script directory, and the precondition step fails loudly when
+            # either value of that checkout is empty. The patches of the pull
+            # request are fetched only for a group that holds a git pin.
             - name: Check the shared-checkout preconditions
               env:
                   WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
