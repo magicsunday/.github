@@ -363,15 +363,87 @@ assert_eq "the auto-merge condition reads the classified type" \
 assert_eq "the auto-merge condition does not read the group type of the metadata action" \
     "0" \
     "$(printf '%s\n' "${enable_step}" | grep -c 'steps.metadata.outputs.update-type')"
+assert_contains "the auto-merge condition admits the patch and the minor type" \
+    "${enable_step}" \
+    "steps.classify.outputs.update-type == 'version-update:semver-patch'" \
+    "steps.classify.outputs.update-type == 'version-update:semver-minor'"
+assert_eq "the auto-merge condition does not admit the major type" \
+    "0" \
+    "$(printf '%s\n' "${enable_step}" | grep -c 'semver-major')"
+
+# The wiring of the classify step, pinned where a change would break it without
+# any test of the function noticing.
 classify_step="$(extract_block '- name: Classify the update type' 'update-type=' "${WORKFLOW_FILE}")"
-assert_contains "the classify step sources the tested library file and reads the patches through it" \
-    "${classify_step}" \
-    'lib/auto-merge-update-type.sh' \
-    'package_json_patches'
-# The needle is the literal workflow text, so the dollar sign must not expand.
+checkout_step="$(extract_block '- name: Check out the shared scripts' 'persist-credentials' "${WORKFLOW_FILE}")"
+assert_eq "the classify step has exactly the id that the condition reads" \
+    "1" \
+    "$(printf '%s\n' "${classify_step}" | grep -c '^ *id: classify$')"
+# The needles are literal workflow text, so the dollar signs must not expand.
 # shellcheck disable=SC2016
-assert_contains "the classify step publishes its result as the step output" \
+assert_contains "the classify step binds its inputs and fails on any error" \
     "${classify_step}" \
-    'update-type=$update_type'
+    'DEPENDENCIES_JSON: ${{ steps.metadata.outputs.updated-dependencies-json }}' \
+    'GROUP_UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}' \
+    'set -euo pipefail'
+# shellcheck disable=SC2016
+assert_contains "the shared checkout is pinned to the revision of the workflow and lands where it is sourced" \
+    "${checkout_step}" \
+    'ref: ${{ job.workflow_sha }}' \
+    'path: .magicsunday-shared' \
+    'sparse-checkout: .github/scripts/lib'
+assert_contains "the classify step sources the file of the shared checkout" \
+    "${classify_step}" \
+    'source .magicsunday-shared/.github/scripts/lib/auto-merge-update-type.sh'
+
+# Running the run block of the classify step against a stubbed gh and a fake
+# output file shows what the step publishes, with the inputs wired as the
+# workflow does. The block is cut out of the workflow file itself.
+classify_run_body="$(awk '
+    /- name: Classify the update type/ { found = 1 }
+    found && /run: \|/ { in_run = 1; next }
+    in_run { sub(/^                  /, ""); print; if ($0 ~ /GITHUB_OUTPUT/) exit }
+' "${WORKFLOW_FILE}")"
+
+# Prints "status|published" for one run of the step. Arguments: the dependency
+# list, the group type, the pages the stub answers with and, when set, a flag
+# that makes the stub fail. The stub script text is written out as it is, so
+# nothing in it may expand.
+# shellcheck disable=SC2016
+run_classify_step() {
+    local work status
+    work="$(mktemp -d)"
+    mkdir -p "${work}/bin" "${work}/.magicsunday-shared/.github/scripts/lib"
+    cp "${SCRIPT_DIR}/../lib/auto-merge-update-type.sh" "${work}/.magicsunday-shared/.github/scripts/lib/"
+    printf '%s\n' \
+        '#!/usr/bin/env bash' \
+        'case "$*" in *"api --paginate --slurp repos/o/r/pulls/7/files"*) ;; *) echo "unexpected call: $*" >&2; exit 9 ;; esac' \
+        'if [ -n "${GH_STUB_FAIL:-}" ]; then exit 1; fi' \
+        'printf "%s\n" "${GH_STUB_PAGES}"' >"${work}/bin/gh"
+    chmod +x "${work}/bin/gh"
+    printf '%s\n' "${classify_run_body}" >"${work}/step.sh"
+    status=0
+    (
+        cd "${work}" || exit 1
+        PATH="${work}/bin:${PATH}" GITHUB_OUTPUT="${work}/published" PULL_REQUEST_FILES="repos/o/r/pulls/7/files" \
+            GH_TOKEN="token" DEPENDENCIES_JSON="$1" GROUP_UPDATE_TYPE="$2" GH_STUB_PAGES="$3" GH_STUB_FAIL="${4:-}" \
+            bash -eo pipefail step.sh >/dev/null 2>&1
+    ) || status=$?
+    printf '%s|%s' "${status}" "$(cat "${work}/published" 2>/dev/null)"
+    rm -rf "${work}"
+}
+
+pin_pages="$(jq -cn --arg patch "$(pin_patch 3.6.0 3.8.0)" '[[{filename: "package.json", patch: $patch}]]')"
+
+assert_eq "the classify step publishes the type of a pin group from the tags" \
+    "0|update-type=${MINOR}" \
+    "$(run_classify_step "$(deps_json "${PATCH}")" "${MAJOR}" "${pin_pages}")"
+
+assert_eq "the classify step passes the group type through without a dependency list" \
+    "0|update-type=${MINOR}" \
+    "$(run_classify_step '' "${MINOR}" '[[]]')"
+
+assert_eq "the classify step does not publish when the files call fails" \
+    "1|" \
+    "$(run_classify_step "$(deps_json "${PATCH}")" "${MAJOR}" "${pin_pages}" fail)"
 
 report_and_exit "auto-merge update-type tests"
