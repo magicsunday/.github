@@ -183,3 +183,12 @@ package_json_patches() {
         | if any(.[]; (.patch // null) == null) then empty else .[].patch end' \
         <<<"$1" 2>/dev/null || true
 }
+
+# Succeeds when the dependency list "$1" holds a dependency whose new version is
+# a commit hash, which is the only case that needs the patches of the pull
+# request.
+has_git_pin() {
+    jq -e --arg pattern "${_AUTO_MERGE_HASH_PATTERN}" \
+        'type == "array" and any(.[]; type == "object" and (.newVersion | type == "string") and (.newVersion | test($pattern)))' \
+        >/dev/null 2>&1 <<<"$1" || return 1
+}

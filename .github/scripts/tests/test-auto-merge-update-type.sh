@@ -336,6 +336,28 @@ assert_eq "a pin that keeps its source is classified by its tags" \
     "$(effective_update_type "${single_pin_json}" '-        "pin": "github:owner/original#1.0.0",
 +        "pin": "github:owner/original#1.1.0",' "${MAJOR}")"
 
+# Only a group that holds a git pin needs the patches.
+assert_eq "a group with a git pin is told so" \
+    "0" \
+    "$(has_git_pin "$(deps_json "${PATCH}")" >/dev/null 2>&1; echo $?)"
+for no_pin in '[]' '[{"dependencyName":"x","newVersion":"1.0.0"}]' '[{"dependencyName":"x","newVersion":null}]' '[{"dependencyName":"x"}]' 'not json' ''; do
+    assert_eq "a group without a git pin is told so: ${no_pin}" \
+        "1" \
+        "$(has_git_pin "${no_pin}" >/dev/null 2>&1; echo $?)"
+done
+
+# A list that holds a hash next to entries that are no pin is still told so, and
+# an entry of the wrong shape does not hide a pin behind it.
+hash_entry="{\"dependencyName\":\"x\",\"newVersion\":\"${HASH}\"}"
+for with_pin in "[1, ${hash_entry}]" "[{\"newVersion\":null}, ${hash_entry}]" "[{\"newVersion\":5}, ${hash_entry}]"; do
+    assert_eq "a pin behind an entry of the wrong shape is found: ${with_pin}" \
+        "0" \
+        "$(has_git_pin "${with_pin}" >/dev/null 2>&1; echo $?)"
+done
+assert_eq "an object that is no list is told to hold no pin" \
+    "1" \
+    "$(has_git_pin "{\"a\":${hash_entry}}" >/dev/null 2>&1; echo $?)"
+
 # The workflow assigns the answer in a step that runs under errexit, so every
 # answer, also an unclassifiable one, has to end with a zero status.
 returns_zero() {
@@ -441,6 +463,10 @@ assert_eq "the classify step publishes the type of a pin group from the tags" \
 assert_eq "the classify step passes the group type through without a dependency list" \
     "0|update-type=${MINOR}" \
     "$(run_classify_step '' "${MINOR}" '[[]]')"
+
+assert_eq "the classify step does not call the files API for a group without a git pin" \
+    "0|update-type=${MINOR}" \
+    "$(run_classify_step '[{"dependencyName":"x","updateType":"version-update:semver-minor","newVersion":"1.0.0"}]' "${MINOR}" '[[]]' fail)"
 
 assert_eq "the classify step does not publish when the files call fails" \
     "1|" \
