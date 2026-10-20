@@ -361,8 +361,10 @@ assert_eq "a patch of another type than string empties the answer" \
     "" \
     "$(package_json_patches "$(pages_json '[{"filename":"package.json","patch":"-a\n+b"},{"filename":"packages/x/package.json","patch":{}}]')")"
 
-full_pages="$(jq -cn '[[range(0; 2999) | {filename: ("file" + tostring + ".txt")}] + [{filename: "package.json", patch: "-a\n+b"}]]')"
-short_pages="$(jq -cn '[[range(0; 2998) | {filename: ("file" + tostring + ".txt")}] + [{filename: "package.json", patch: "-a\n+b"}]]')"
+# The fixtures follow the library constant. One package.json entry plus filler
+# files make exactly the limit, and one entry fewer.
+full_pages="$(jq -cn --argjson limit "${_AUTO_MERGE_FILES_LIMIT}" '[[range(0; $limit - 1) | {filename: ("file" + tostring + ".txt")}] + [{filename: "package.json", patch: "-a\n+b"}]]')"
+short_pages="$(jq -cn --argjson limit "${_AUTO_MERGE_FILES_LIMIT}" '[[range(0; $limit - 2) | {filename: ("file" + tostring + ".txt")}] + [{filename: "package.json", patch: "-a\n+b"}]]')"
 assert_eq "a files answer that reached its limit empties the answer" \
     "" \
     "$(package_json_patches "${full_pages}")"
