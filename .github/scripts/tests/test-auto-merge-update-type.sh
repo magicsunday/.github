@@ -170,6 +170,22 @@ assert_eq "a tag component of more than nine digits cannot be classified" \
     "unknown" \
     "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1.2.1000000000 1.2.1000000001)" "${MAJOR}")"
 
+# A group member whose type is absent or null cannot be classified, whatever
+# the type of the other members is.
+for missing_type in '{"dependencyName": "jscpd", "newVersion": "5.4.1"}' '{"dependencyName": "jscpd", "updateType": null, "newVersion": "5.4.1"}'; do
+    assert_eq "a member without a usable type holds the group: ${missing_type}" \
+        "unknown" \
+        "$(effective_update_type "$(jq -cn --argjson sibling "${missing_type}" --arg hash "${HASH}" '[{dependencyName: "@magicsunday/coding-standard", updateType: "version-update:semver-major", prevVersion: "3.6.0", newVersion: $hash}, $sibling]')" "$(pin_patch 3.6.0 3.8.0)" "${MAJOR}")"
+done
+
+assert_eq "a major component of more than nine digits cannot be classified" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 1000000000.0.0 1000000001.0.0)" "${MAJOR}")"
+
+assert_eq "a one-component new tag against its zero-padded form is the same tag" \
+    "unknown" \
+    "$(effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3.0 3)" "${MAJOR}")"
+
 # Unknown ranks above a major: a major pin next to a member without a type
 # stays open as unknown, not as a plain major.
 assert_eq "a major pin next to a member without a type is unknown" \
@@ -264,6 +280,16 @@ assert_eq "malformed file pages empty the answer" \
     "" \
     "$(set -e; package_json_patches 'not json' 2>/dev/null)"
 
+# The files API answers in pages, a manifest can sit on any of them.
+assert_eq "a manifest on a later page is read" \
+    "-a
++b" \
+    "$(package_json_patches '[[{"filename":"README.md"}],[{"filename":"package.json","patch":"-a\n+b"}]]')"
+
+assert_eq "a manifest without a patch on a later page empties the answer" \
+    "" \
+    "$(package_json_patches '[[{"filename":"package.json","patch":"-a\n+b"}],[{"filename":"packages/x/package.json"}]]')"
+
 # One pin, two manifests, the second without a patch: the second one could
 # hold a major bump of the same dependency, so the group cannot be classified.
 omitted_patch="$(package_json_patches "$(pages_json '[{"filename":"packages/current/package.json","patch":"-        \"pin\": \"github:owner/repo#2.0.0\",\n+        \"pin\": \"github:owner/repo#2.1.0\","},{"filename":"packages/legacy/package.json"}]')")"
@@ -271,6 +297,23 @@ single_pin_json="$(jq -cn '[{dependencyName: "pin", updateType: "version-update:
 assert_eq "a pin is not classified while a manifest patch is missing" \
     "unknown" \
     "$(effective_update_type "${single_pin_json}" "${omitted_patch}" "${MAJOR}")"
+
+# The workflow assigns the answer in a step that runs under errexit, so every
+# answer, also an unclassifiable one, has to end with a zero status.
+returns_zero() {
+    local description="$1"
+    shift
+    local status=0
+
+    "$@" >/dev/null 2>&1 || status=$?
+    assert_eq "${description} answers with a zero status" "0" "${status}"
+}
+
+returns_zero "a malformed dependency list" effective_update_type 'not json' '' "${MAJOR}"
+returns_zero "a group without a git pin" effective_update_type '[]' '' "${MINOR}"
+returns_zero "a group with repeated pin names" effective_update_type "${same_name_json}" '' "${MAJOR}"
+returns_zero "a group with a classified pin" effective_update_type "$(deps_json "${PATCH}")" "$(pin_patch 3.6.0 3.8.0)" "${MAJOR}"
+returns_zero "a group with an unclassifiable pin" effective_update_type "$(deps_json "${PATCH}")" '' "${MAJOR}"
 
 # The auto-merge step must decide on the classified type. Reading the group
 # type of the metadata action again would bring the original defect back, and
