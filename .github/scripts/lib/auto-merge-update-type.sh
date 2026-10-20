@@ -9,8 +9,8 @@
 # dependencies. A group with such a pin is classified here from the tag in the
 # package.json patch instead.
 
-readonly _AUTO_MERGE_HASH_PATTERN='^[0-9a-f]{40}$'
-readonly _AUTO_MERGE_UNIT_SEPARATOR=$'\x1f'
+_AUTO_MERGE_HASH_PATTERN='^[0-9a-f]{40}$'
+_AUTO_MERGE_UNIT_SEPARATOR=$'\x1f'
 # The files API answers with at most this many files for a pull request.
 _AUTO_MERGE_FILES_LIMIT=3000
 

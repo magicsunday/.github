@@ -394,6 +394,16 @@ assert_eq "an object that is no list is told to hold no pin" \
     "1" \
     "$(has_git_pin "{\"a\":${hash_entry}}" >/dev/null 2>&1; echo $?)"
 
+# An unknown kind of type is not passed on as it is.
+assert_eq "a member with a type that is no semver type holds the group as unknown" \
+    "unknown" \
+    "$(effective_update_type "$(jq -cn --arg hash "${HASH}" '[{dependencyName: "@magicsunday/coding-standard", updateType: "version-update:semver-major", prevVersion: "3.6.0", newVersion: $hash}, {dependencyName: "x", updateType: "version-update:semver-foo", newVersion: "1.0.0"}]')" "$(pin_patch 3.6.0 3.8.0)" "${MAJOR}")"
+
+# Sourcing the library again must stay silent.
+assert_eq "sourcing the library twice prints nothing" \
+    "" \
+    "$(bash -c 'source "$1"; source "$1"' _ "${SCRIPT_DIR}/../lib/auto-merge-update-type.sh" 2>&1)"
+
 # The workflow assigns the answer in a step that runs under errexit, so every
 # answer, also an unclassifiable one, has to end with a zero status.
 returns_zero() {
@@ -456,11 +466,7 @@ assert_contains "the classify step sources the file of the shared checkout" \
 # Running the run block of the classify step against a stubbed gh and a fake
 # output file shows what the step publishes, with the inputs wired as the
 # workflow does. The block is cut out of the workflow file itself.
-classify_run_body="$(awk '
-    /- name: Classify the update type/ { found = 1 }
-    found && /run: \|/ { in_run = 1; next }
-    in_run { sub(/^                  /, ""); print; if ($0 ~ /GITHUB_OUTPUT/) exit }
-' "${WORKFLOW_FILE}")"
+classify_run_body="$(workflow_step_run "${WORKFLOW_FILE}" "Classify the update type")" || exit 1
 
 # Prints "status|published" for one run of the step. Arguments: the dependency
 # list, the group type, the pages the stub answers with and, when set, a flag
