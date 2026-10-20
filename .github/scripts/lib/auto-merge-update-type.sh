@@ -23,7 +23,7 @@ _pin_tag() {
     local name="$2"
     local side="$3"
 
-    printf '%s\n' "${patch}" | awk -v side="${side}" -v key="\"${name}\":" '
+    printf '%s\n' "${patch}" | sed -E 's/"[[:space:]]+:/":/g' | awk -v side="${side}" -v key="\"${name}\":" '
         substr($0, 1, 1) == side {
             rest = $0
             while ((position = index(rest, key)) > 0) {

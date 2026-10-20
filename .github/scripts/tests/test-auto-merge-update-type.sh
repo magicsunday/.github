@@ -310,6 +310,20 @@ assert_eq "a member without a version next to a pin is read by its own type" \
     "${MINOR}" \
     "$(effective_update_type "$(jq -cn --arg hash "${HASH}" '[{dependencyName: "@magicsunday/coding-standard", updateType: "version-update:semver-major", prevVersion: "3.6.0", newVersion: $hash}, {dependencyName: "x", updateType: "version-update:semver-minor", newVersion: null}]')" "$(pin_patch 3.6.0 3.8.0)" "${MAJOR}")"
 
+# JSON allows white space between a key and its colon. Such a key counts like
+# any other and must neither hide a second declaration nor be missed.
+assert_eq "a key with white space before its colon is read" \
+    "${MINOR}" \
+    "$(effective_update_type "${single_pin_json}" '-        "pin" : "github:owner/repo#1.0.0",
++        "pin" : "github:owner/repo#1.1.0",' "${MAJOR}")"
+
+assert_eq "a spaced key counts as a second declaration of the same name" \
+    "unknown" \
+    "$(effective_update_type "${single_pin_json}" '-        "pin": "github:owner/repo#2.0.0",
++        "pin": "github:owner/repo#2.1.0",
+-        "pin" : "github:owner/repo#1.0.0",
++        "pin" : "github:owner/repo#2.1.0",' "${MAJOR}")"
+
 # The workflow assigns the answer in a step that runs under errexit, so every
 # answer, also an unclassifiable one, has to end with a zero status.
 returns_zero() {
