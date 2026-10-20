@@ -10,6 +10,11 @@
 
 _AUTO_MERGE_HASH_PATTERN='^[0-9a-f]{40}$'
 _AUTO_MERGE_UNIT_SEPARATOR=$'\x1f'
+# The one definition of a git pin for every jq filter below, which bind the
+# variable `pattern` to the hash pattern: an entry whose new version is a commit
+# hash.
+# shellcheck disable=SC2016 # `$pattern` is a jq variable, jq expands it and not the shell.
+_AUTO_MERGE_JQ_PIN='def is_pin: (.newVersion | type == "string") and (.newVersion | test($pattern));'
 # A files answer of at least this many files is treated as possibly cut off.
 _AUTO_MERGE_FILES_LIMIT=3000
 
@@ -115,7 +120,7 @@ effective_update_type() {
     local dependencies_json="$1"
     local patch="$2"
     local group_type="$3"
-    local pins repeated rows
+    local repeated rows
     local name update_type new_version dependency_type old_pin new_pin
     local highest="version-update:semver-patch"
 
@@ -124,11 +129,7 @@ effective_update_type() {
     jq -e 'type == "array" and all(.[]; type == "object")' >/dev/null 2>&1 <<<"${dependencies_json}" \
         || { echo "unknown"; return 0; }
 
-    pins="$(jq -r --arg pattern "${_AUTO_MERGE_HASH_PATTERN}" \
-        '[.[] | select((.newVersion | type == "string") and (.newVersion | test($pattern)))] | length' \
-        <<<"${dependencies_json}")"
-
-    if [ "${pins}" = "0" ]; then
+    if ! has_git_pin "${dependencies_json}"; then
         echo "${group_type}"
         return 0
     fi
@@ -136,8 +137,7 @@ effective_update_type() {
     # Two entries of one name share one manifest change, so the second entry
     # has no tag pair of its own and the group cannot be classified.
     repeated="$(jq -r --arg pattern "${_AUTO_MERGE_HASH_PATTERN}" \
-        '[.[] | select((.newVersion | type == "string") and (.newVersion | test($pattern))) | (.dependencyName // "")]
-            | length - (unique | length)' \
+        "${_AUTO_MERGE_JQ_PIN} [.[] | select(is_pin) | (.dependencyName // \"\")] | length - (unique | length)" \
         <<<"${dependencies_json}")"
 
     if [ "${repeated}" != "0" ]; then
@@ -193,6 +193,6 @@ package_json_patches() {
 # request.
 has_git_pin() {
     jq -e --arg pattern "${_AUTO_MERGE_HASH_PATTERN}" \
-        'type == "array" and any(.[]; type == "object" and (.newVersion | type == "string") and (.newVersion | test($pattern)))' \
+        "${_AUTO_MERGE_JQ_PIN} type == \"array\" and any(.[]; type == \"object\" and is_pin)" \
         >/dev/null 2>&1 <<<"$1" || return 1
 }
