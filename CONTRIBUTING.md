@@ -48,3 +48,12 @@ composer ci:test
 ## 5. Agent contributions
 
 If the repository defines explicit agent rules (e.g. `AGENTS.md`), do not duplicate or reinterpret them in PRs — those files take precedence. Any contribution prepared or modified by an LLM/agent must comply with them.
+
+## 6. Translations
+
+webtrees modules ship their own catalogues in `resources/lang/<locale>/messages.po`.
+
+- webtrees merges the compiled catalogue of a module over its own, so a filled entry for a text that webtrees core already translates replaces the core text in the whole installation, not only on the module's pages. Leave such entries empty so that core applies. Only translate texts that are specific to the module.
+- A repository that sets `check-core-overlap: true` for the `i18n.yml` workflow fails a pull request that fills a text which core translates in that locale. The annotation names the file, the line and the release of core that carries the text. Fuzzy entries are not compiled, so they do not count.
+- Do not edit `messages.mo` or the `.pot` template by hand. Run `make lang`, which extracts the texts, merges the catalogues and compiles them.
+- Source texts are written in American English like in core. British spellings belong in `en-GB`.

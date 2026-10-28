@@ -32,7 +32,7 @@ runs.
 <tr><td><code>label-sync.yml</code></td><td>Applies the canonical label set from <code>labels.yml</code></td><td><code>contents: read</code>, <code>issues: write</code></td></tr>
 <tr><td><code>commit-convention.yml</code></td><td>Enforces the commit-subject convention</td><td><code>contents: read</code>, <code>pull-requests: read</code></td></tr>
 <tr><td><code>yamllint.yml</code></td><td>Lints YAML against the house style (4-space indent)</td><td><code>contents: read</code></td></tr>
-<tr><td><code>i18n.yml</code></td><td>Enforces the catalogue layout; optional <code>make lang</code> freshness gate</td><td><code>contents: read</code></td></tr>
+<tr><td><code>i18n.yml</code></td><td>Enforces the catalogue layout, with an optional <code>make lang</code> freshness gate and an optional core text overlap check</td><td><code>contents: read</code></td></tr>
 <tr><td><code>bundle-freshness.yml</code></td><td>Verifies committed build artefacts match a clean rebuild</td><td><code>contents: read</code></td></tr>
 <tr><td><code>auto-merge-deps.yml</code></td><td>Auto-merges passing dependency bumps (patch and minor only; <code>pip</code> is excluded — see below)</td><td><code>contents: write</code>, <code>pull-requests: write</code></td></tr>
 <tr><td><code>ai-issue-labeler.yml</code></td><td>Classifies a newly opened issue via the Anthropic API against the caller's own live label set, leaves out the pull-request labels and the labels a maintainer sets, and applies the labels it is confident about (see below)</td><td><code>issues: write</code></td></tr>
@@ -108,6 +108,8 @@ Workflows not listed here take no inputs.
 | `yamllint.yml` | `paths` — space-separated YAML paths to lint | `.github/workflows/` |
 | `i18n.yml` | `lang-dir` — root directory holding the per-locale catalogues | `resources/lang` |
 | | `check-pipeline` — run `make lang` and fail on a non-empty diff | `false` |
+| | `check-core-overlap` — fail when a catalogue entry translates a text that webtrees core already translates in that locale. An empty or fuzzy entry is fine, a compiled one replaces the core text in the whole installation | `false` |
+| | `core-tags` — space-separated webtrees release tags to compare with, empty derives them from the `fisharebest/webtrees` constraint of `composer.json` (`~`, `^` and exact forms) | *(none)* |
 | | `node-image` — image whose gettext must match the local `make lang` | `node:24-alpine` |
 | `bundle-freshness.yml` | `bundle-dir` — directory whose committed artefacts must match a rebuild | `resources/js` |
 | | `node-image` — image whose Node/Rollup must match the local `make build` | `node:24-alpine` |

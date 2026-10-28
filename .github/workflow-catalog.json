@@ -28,7 +28,7 @@
         "permissions": ["contents: read"]
     },
     "i18n.yml": {
-        "purpose": "Enforces the catalogue layout; optional `make lang` freshness gate",
+        "purpose": "Enforces the catalogue layout, with an optional `make lang` freshness gate and an optional core text overlap check",
         "permissions": ["contents: read"]
     },
     "bundle-freshness.yml": {
