@@ -115,6 +115,26 @@ build_merge i18n/de/messages.po
 run_step pull_request i18n/
 assert_relevant "a custom language directory with a trailing slash is honoured" true
 
+build_merge i18n/de/messages.po
+run_step pull_request ./i18n
+assert_relevant "a custom language directory with a leading dot slash is honoured" true
+
+build_merge .github/workflows/i18n.yml
+run_step pull_request
+assert_relevant "a changed workflow file runs the check because it can set the core tags" true
+
+build_merge .github/dependabot.yml
+run_step pull_request
+assert_relevant "a file next to the workflows skips the check" false
+
+build_merge $'resources/lang/de/\303\251.po'
+run_step pull_request
+assert_relevant "a catalogue path with a non-ASCII name still runs the check" true
+
+build_merge $'resources/lang/de/tab\there.po'
+run_step pull_request
+assert_relevant "a catalogue path with a tab in its name still runs the check" true
+
 build_merge src/Thing.php
 run_step push
 assert_relevant "a push always runs the check" true

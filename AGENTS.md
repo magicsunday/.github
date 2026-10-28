@@ -329,9 +329,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   through its `test-*.sh` wrapper. The release tags come from the caller's
   `fisharebest/webtrees` constraint, or from `core-tags` when the constraint
   uses syntax the script does not resolve. A pull request can only create an
-  overlap by changing a catalogue or that constraint, so a separate
-  `core-overlap-scope` job lists the changed files and the check job runs only
-  when one of them is below `lang-dir` or is the root `composer.json`. Every
+  overlap by changing a catalogue, that constraint or the `core-tags` input
+  of a caller workflow, so a separate `core-overlap-scope` job lists the
+  changed files and the check job runs only when one of them is below
+  `lang-dir`, is the root `composer.json` or is a workflow file. Every
   other event, and a pull request whose changed files cannot be listed, runs
   the check. The check job keeps its name, so a repository can require it, and
   `test-i18n-core-overlap-scope.sh` pins both directions.
