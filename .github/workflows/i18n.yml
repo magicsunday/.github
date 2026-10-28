@@ -29,7 +29,7 @@ name: i18n (reusable)
 #      webtrees core already translates in that locale. webtrees merges a
 #      module's compiled catalogue over its own, so such an entry replaces the
 #      core text in the whole installation and goes stale when core rewords it.
-#      An empty entry is fine, it is not compiled and core applies. The core
+#      An empty entry is fine. It is not compiled and core applies. The core
 #      catalogues come from the webtrees release tags the module supports, read
 #      from its composer constraint on fisharebest/webtrees, or from
 #      `core-tags` when the constraint uses syntax the check does not resolve.
@@ -282,12 +282,23 @@ jobs:
 
                   echo "Comparing with webtrees core releases: ${tags[*]}"
 
-                  # A catalogue of a locale that core does not ship answers 404
-                  # and is skipped, any other failure stops the job so a
-                  # network problem never reads as a clean result.
+                  # The module locales are compared. The German catalogue is
+                  # fetched as well and must exist, because core ships it for
+                  # every release. Without it, a changed layout of the core
+                  # repository would answer 404 for everything and read as a
+                  # clean result, while a module that only has locales core
+                  # does not ship passes.
+                  locales=(de)
                   for locale_path in "$lang_dir"/*/messages.po; do
                       locale="$(basename "$(dirname "$locale_path")")"
-                      [[ "$locale" =~ ^[A-Za-z0-9_@-]+$ ]] || { echo "::error::The catalogue directory name '$locale' is not a locale tag."; exit 1; }
+                      [[ "$locale" =~ ^[A-Za-z0-9_@-]+$ ]] || { echo "::error::The catalogue directory name '${locale//[^A-Za-z0-9_@-]/?}' is not a locale tag."; exit 1; }
+                      locales+=("$locale")
+                  done
+
+                  # A locale that core does not ship answers 404 and is
+                  # skipped. Any other failure stops the job, so a network
+                  # problem never reads as a clean result.
+                  for locale in $(printf '%s\n' "${locales[@]}" | sort -u); do
                       for tag in "${tags[@]}"; do
                           target="$work/core/$tag/$locale/messages.po"
                           mkdir -p "$(dirname "$target")"
@@ -296,7 +307,10 @@ jobs:
                               "https://raw.githubusercontent.com/fisharebest/webtrees/$tag/resources/lang/$locale/messages.po")"
                           case "$status" in
                               200) ;;
-                              404) rm -f "$target" ;;
+                              404)
+                                  [ "$locale" != de ] || { echo "::error::The core catalogue of de is missing at $tag, so the layout of the core repository changed."; exit 1; }
+                                  rm -f "$target"
+                                  ;;
                               *) echo "::error::Fetching the core catalogue of $locale at $tag returned HTTP $status."; exit 1 ;;
                           esac
                       done

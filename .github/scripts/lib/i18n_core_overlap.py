@@ -106,8 +106,24 @@ def _entry_key(entry):
 
 
 def _is_translated(entry):
+    """Core side: its catalogue reader keeps a plural entry with any filled form."""
     if entry.msgstr_plural:
         return any(form != "" for form in entry.msgstr_plural.values())
+
+    return entry.msgstr != ""
+
+
+def _is_compiled(entry):
+    """Module side: what the module build compiles into its catalogue.
+
+    The build leaves out obsolete and fuzzy entries and every plural entry
+    whose first form is empty.
+    """
+    if entry.obsolete or entry.fuzzy:
+        return False
+
+    if entry.msgstr_plural:
+        return entry.msgstr_plural.get(0, "") != ""
 
     return entry.msgstr != ""
 
@@ -172,7 +188,7 @@ def find_violations(lang_dir, core_root):
         if not os.path.isfile(path):
             continue
 
-        if _LOCALE_RE.match(locale) is None:
+        if _LOCALE_RE.fullmatch(locale) is None:
             raise InputError("The catalogue directory name '%s' is not a locale tag." % _annotation_text(locale))
 
         core = _core_index(core_root, locale)
@@ -181,11 +197,7 @@ def find_violations(lang_dir, core_root):
             continue
 
         for entry in _load(path):
-            # The module build leaves fuzzy entries out of the compiled
-            # catalogue, so a fuzzy entry overrides nothing. A fuzzy entry of
-            # core still counts in the index, because core loads its catalogues
-            # without looking at that flag.
-            if entry.obsolete or entry.fuzzy or not _is_translated(entry):
+            if not _is_compiled(entry):
                 continue
 
             tags = core.get(_entry_key(entry))
@@ -207,12 +219,16 @@ def find_violations(lang_dir, core_root):
 
 
 def _cmd_tags(args):
-    with open(args.composer, encoding="utf-8") as handle:
-        composer = json.load(handle)
+    try:
+        with open(args.composer, encoding="utf-8") as handle:
+            composer = json.load(handle)
+    except (OSError, ValueError) as error:
+        raise InputError("Cannot read %s: %s" % (args.composer, error))
 
-    constraint = composer.get("require", {}).get("fisharebest/webtrees")
+    require = composer.get("require") if isinstance(composer, dict) else None
+    constraint = require.get("fisharebest/webtrees") if isinstance(require, dict) else None
 
-    if not constraint:
+    if not isinstance(constraint, str) or not constraint:
         raise InputError("%s does not require fisharebest/webtrees." % args.composer)
 
     with open(args.tags_file, encoding="utf-8") as handle:
@@ -229,7 +245,7 @@ def _cmd_check(args):
     for violation in violations:
         print(
             "::error file=%s,line=%d::The text '%s' is translated by webtrees core in %s "
-            "(release %s). Leave the translation empty so core applies, a filled entry "
+            "(release %s). Leave the translation empty so core applies. A filled entry "
             "replaces the core text in the whole installation."
             % (
                 _annotation_property(violation["file"]),

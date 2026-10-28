@@ -228,13 +228,33 @@ class FindViolationsTest(unittest.TestCase):
 
         self.assertEqual(1, len(overlap.find_violations(self.lang, self.core)))
 
-    def test_a_partly_filled_module_plural_of_a_fully_filled_core_plural_is_a_violation(self):
+    def test_a_module_plural_with_an_empty_first_form_is_not_compiled(self):
         self._core(
             "2.2.6", "nn", [_entry("%s child", msgid_plural="%s children", plural=["%s barn", "%s born"])]
         )
         self._module("nn", [_entry("%s child", msgid_plural="%s children", plural=["", "%s born"])])
 
+        self.assertEqual([], overlap.find_violations(self.lang, self.core))
+
+    def test_a_core_plural_with_an_empty_first_form_still_counts(self):
+        self._core("2.2.6", "nn", [_entry("%s child", msgid_plural="%s children", plural=["", "%s born"])])
+        self._module("nn", [_entry("%s child", msgid_plural="%s children", plural=["%s barn", "%s born"])])
+
         self.assertEqual(1, len(overlap.find_violations(self.lang, self.core)))
+
+    def test_every_core_release_that_translates_a_text_is_named(self):
+        self._core("2.2.0", "nn", [_entry("Details", "Detaljar")])
+        self._core("2.2.6", "nn", [_entry("Details", "Detaljar")])
+        self._module("nn", [_entry("Details", "Detaljar")])
+
+        self.assertEqual(["2.2.0", "2.2.6"], overlap.find_violations(self.lang, self.core)[0]["tags"])
+
+    def test_a_locale_directory_with_a_trailing_line_break_is_refused(self):
+        self._core("2.2.6", "nn", [_entry("Details", "Detaljar")])
+        self._module("nn\n", [_entry("Details", "")])
+
+        with self.assertRaises(overlap.InputError):
+            overlap.find_violations(self.lang, self.core)
 
     def test_a_fuzzy_module_entry_overrides_nothing(self):
         fuzzy = _entry("Details", "Detaljar")
@@ -400,6 +420,23 @@ class TagsCommandTest(unittest.TestCase):
 
         self.assertEqual(2, status)
         self.assertIn("::error::", out)
+
+    def test_a_missing_composer_file_exits_with_two(self):
+        status, out = self._run(os.path.join(self._tmp.name, "absent.json"))
+
+        self.assertEqual(2, status)
+        self.assertIn("::error::", out)
+
+    def test_a_composer_file_that_is_no_json_exits_with_two(self):
+        status, out = self._run(self._composer("not json"))
+
+        self.assertEqual(2, status)
+        self.assertIn("::error::", out)
+
+    def test_a_requirement_that_is_no_string_exits_with_two(self):
+        status, _ = self._run(self._composer('{"require": {"fisharebest/webtrees": 2}}'))
+
+        self.assertEqual(2, status)
 
     def test_an_unsupported_constraint_exits_with_two(self):
         status, _ = self._run(self._composer('{"require": {"fisharebest/webtrees": ">=2.2"}}'))
