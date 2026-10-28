@@ -333,8 +333,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   of a caller workflow, so a separate `core-overlap-scope` job lists the
   changed files and the check job runs only when one of them is below
   `lang-dir`, is the root `composer.json` or is a workflow file. Every
-  other event, and a pull request whose changed files cannot be listed, runs
-  the check. The check job keeps its name, so a repository can require it, and
+  other event, a pull request whose changed files cannot be listed and a
+  failed scope job run the check. The check job keeps its name, so a repository can require it, and
   `test-i18n-core-overlap-scope.sh` pins both directions.
 - **The `p/*` Semgrep rule packs `code-scanning.yml` scans with cannot be pinned or
   vendored.** The Semgrep Rules License v. 1.0 forbids distributing the rules or

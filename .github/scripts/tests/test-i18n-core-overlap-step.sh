@@ -51,7 +51,7 @@ assert workflow["jobs"]["core-overlap-scope"]["if"].strip() == "${{ inputs.check
 assert workflow["jobs"]["core-overlap"]["needs"] == "core-overlap-scope", "needs"
 assert (
     workflow["jobs"]["core-overlap"]["if"].strip()
-    == "${{ inputs.check-core-overlap && needs.core-overlap-scope.outputs.relevant == 'true' }}"
+    == "${{ !cancelled() && inputs.check-core-overlap && (needs.core-overlap-scope.result != 'success' || needs.core-overlap-scope.outputs.relevant == 'true') }}"
 ), "gate"
 EOF2
 

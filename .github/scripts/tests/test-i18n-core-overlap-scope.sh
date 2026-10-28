@@ -72,7 +72,7 @@ build_merge() {
 # Runs the step. Arguments: event name, language directory. The result is left
 # in $output_file as the content of GITHUB_OUTPUT and in $rc.
 run_step() {
-    local event="$1" lang_dir="${2:-resources/lang}"
+    local event="$1" lang_dir="${2-resources/lang}"
 
     output_file="${workdir}/github-output"
     : > "${output_file}"
@@ -126,6 +126,13 @@ assert_relevant "a changed workflow file runs the check because it can set the c
 build_merge .github/dependabot.yml
 run_step pull_request
 assert_relevant "a file next to the workflows skips the check" false
+
+build_merge src/Thing.php
+run_step pull_request .
+assert_relevant "catalogues at the repository root cannot be told apart, so every pull request runs the check" true
+
+run_step pull_request ''
+assert_relevant "an empty language directory runs the check" true
 
 build_merge $'resources/lang/de/\303\251.po'
 run_step pull_request
