@@ -24,7 +24,7 @@ name: i18n (reusable)
 #      `make lang` is still compile-only leave `check-pipeline` at its default
 #      (false) and the job is skipped.
 #
-#   4. Core overlap (HARD FAIL, opt-in via `check-core-overlap: true`): fails
+#   4. Core overlap (HARD FAIL, on by default, off via `check-core-overlap: false`): fails
 #      when a catalogue entry carries a non-empty translation for a text that
 #      webtrees core already translates in that locale. webtrees merges a
 #      module's compiled catalogue over its own, so such an entry replaces the
@@ -52,7 +52,7 @@ on:
             check-core-overlap:
                 description: 'Fail when a catalogue entry translates a text that webtrees core already translates.'
                 type: boolean
-                default: false
+                default: true
             core-tags:
                 description: 'Space-separated webtrees release tags to compare with. Empty derives them from the composer constraint.'
                 type: string

@@ -321,12 +321,14 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   against the release list, and the German catalogue of every release must
   exist, so a mistyped tag or a changed layout of the core repository never
   reads as clean while a module with only locales that core lacks passes. The
-  logic is
-  `scripts/lib/i18n_core_overlap.py`, which reads the catalogues through `polib`
-  (hash-locked in `requirements/polib.txt`) and is unit-tested by
-  `test_i18n_core_overlap.py` through its `test-*.sh` wrapper. The release tags
-  come from the caller's `fisharebest/webtrees` constraint, or from `core-tags`
-  when the constraint uses syntax the script does not resolve.
+  job is on by default, because the webtrees modules are the only callers of
+  `i18n.yml`, and a repository that is no webtrees module sets
+  `check-core-overlap: false`. The logic is `scripts/lib/i18n_core_overlap.py`,
+  which reads the catalogues through `polib` (hash-locked in
+  `requirements/polib.txt`) and is unit-tested by `test_i18n_core_overlap.py`
+  through its `test-*.sh` wrapper. The release tags come from the caller's
+  `fisharebest/webtrees` constraint, or from `core-tags` when the constraint
+  uses syntax the script does not resolve.
 - **The `p/*` Semgrep rule packs `code-scanning.yml` scans with cannot be pinned or
   vendored.** The Semgrep Rules License v. 1.0 forbids distributing the rules or
   making them available to others as a service, which a commit to this public,

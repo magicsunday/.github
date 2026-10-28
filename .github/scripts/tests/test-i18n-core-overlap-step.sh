@@ -34,6 +34,22 @@ with open(sys.argv[2], "w", encoding="utf-8") as handle:
     handle.write(step["run"])
 EOF
 
+# The job runs by default and only the input switches it off.
+python3 - "${WORKFLOW}" <<'EOF2' || fail "the core overlap job is not on by default or not gated by its input"
+import sys
+import yaml
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    workflow = yaml.safe_load(handle)
+
+# YAML 1.1 reads the key "on" as the boolean true.
+triggers = workflow.get("on", workflow.get(True))
+inputs = triggers["workflow_call"]["inputs"]
+assert inputs["check-core-overlap"]["default"] is True, "default"
+assert inputs["check-core-overlap"]["type"] == "boolean", "type"
+assert workflow["jobs"]["core-overlap"]["if"].strip() == "${{ inputs.check-core-overlap }}", "gate"
+EOF2
+
 # Stubs: git ls-remote prints the release list, curl serves a file from the
 # fixture directory named by the URL tail, or the status given in STUB_STATUS.
 mkdir -p "${workdir}/bin"
