@@ -1,0 +1,8 @@
+# Pinned polib version used by i18n_core_overlap.py to read gettext catalogues
+# instead of hand-parsing them (multi-line msgids, contexts and plural entries).
+#
+# polib.txt is the compiled, hash-locked closure, never hand-edit it.
+# Regenerate after bumping the version below: search AGENTS.md for
+# "hash-locked closure" for the exact command (platform/pip-tools pins and
+# working directory matter, don't improvise a shorter one).
+polib==1.2.0

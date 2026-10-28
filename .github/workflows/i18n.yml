@@ -24,6 +24,16 @@ name: i18n (reusable)
 #      `make lang` is still compile-only leave `check-pipeline` at its default
 #      (false) and the job is skipped.
 #
+#   4. Core overlap (HARD FAIL, opt-in via `check-core-overlap: true`): fails
+#      when a catalogue entry carries a non-empty translation for a text that
+#      webtrees core already translates in that locale. webtrees merges a
+#      module's compiled catalogue over its own, so such an entry replaces the
+#      core text in the whole installation and goes stale when core rewords it.
+#      An empty entry is fine, it is not compiled and core applies. The core
+#      catalogues come from the webtrees release tags the module supports, read
+#      from its composer constraint on fisharebest/webtrees, or from
+#      `core-tags` when the constraint uses syntax the check does not resolve.
+#
 # The generated .pot template is gitignored and never appears in the tree, so
 # it needs no special handling. Callers invoke this via
 # `uses: magicsunday/.github/.github/workflows/i18n.yml@main` and may override
@@ -39,6 +49,14 @@ on:
                 description: 'Run `make lang` and fail on a non-empty diff (source-driven pipeline only).'
                 type: boolean
                 default: false
+            check-core-overlap:
+                description: 'Fail when a catalogue entry translates a text that webtrees core already translates.'
+                type: boolean
+                default: false
+            core-tags:
+                description: 'Space-separated webtrees release tags to compare with. Empty derives them from the composer constraint.'
+                type: string
+                default: ''
             node-image:
                 description: 'Container image whose gettext/msgfmt must match the maintainer''s local `make lang`.'
                 type: string
@@ -179,3 +197,98 @@ jobs:
 
                   git --no-pager diff --cached
                   exit 1
+
+    core-overlap:
+        name: Core text overlap
+        if: ${{ inputs.check-core-overlap }}
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            - name: Set up Python
+              uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+              with:
+                  python-version: '3.12'
+
+            # The workspace holds the CALLER's checkout, so the check script
+            # and its pinned requirements come from the commit of this workflow
+            # itself. An undefined context property would interpolate to an
+            # empty string and silently degrade to the default branch, so both
+            # values are asserted first. The path is claimed rather than
+            # assumed free, because the final step deletes it.
+            - name: Check the shared-checkout preconditions
+              env:
+                  WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+                  WORKFLOW_SHA: ${{ job.workflow_sha }}
+              run: |
+                  set -euo pipefail
+                  test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
+                  test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
+                  { test ! -e .magicsunday-shared && test ! -L .magicsunday-shared; } || { echo "::error::This repository contains a path named '.magicsunday-shared', which the shared workflows reserve for their own checkout and delete again."; exit 1; }
+
+            - name: Check out the check script
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
+                  path: .magicsunday-shared
+                  persist-credentials: false
+
+            - name: Install polib
+              run: |
+                  set -euo pipefail
+                  pip install --quiet --only-binary=:all: --require-hashes -r .magicsunday-shared/.github/requirements/polib.txt
+
+            - name: Compare the catalogues with webtrees core
+              timeout-minutes: 15
+              env:
+                  LANG_DIR: ${{ inputs.lang-dir }}
+                  CORE_TAGS: ${{ inputs.core-tags }}
+              run: |
+                  set -euo pipefail
+
+                  lang_dir="${LANG_DIR%/}"
+                  script=.magicsunday-shared/.github/scripts/lib/i18n_core_overlap.py
+                  work="$(mktemp -d)"
+
+                  # Without an explicit list, the tags are the releases that the
+                  # composer constraint on fisharebest/webtrees covers.
+                  if [ -z "$CORE_TAGS" ]; then
+                      git ls-remote --tags --refs https://github.com/fisharebest/webtrees.git \
+                          | sed 's|.*refs/tags/||' > "$work/available-tags"
+                      CORE_TAGS="$(python3 "$script" tags --composer composer.json --tags-file "$work/available-tags")"
+                  fi
+
+                  echo "Comparing with webtrees core releases: $(echo "$CORE_TAGS" | tr '\n' ' ')"
+
+                  # A catalogue of a locale that core does not ship answers 404
+                  # and is skipped, any other failure stops the job so a
+                  # network problem never reads as a clean result.
+                  for locale_path in "$lang_dir"/*/messages.po; do
+                      locale="$(basename "$(dirname "$locale_path")")"
+                      for tag in $CORE_TAGS; do
+                          target="$work/core/$tag/$locale/messages.po"
+                          mkdir -p "$(dirname "$target")"
+                          status="$(curl --silent --show-error --location --retry 3 --retry-all-errors \
+                              --output "$target" --write-out '%{http_code}' \
+                              "https://raw.githubusercontent.com/fisharebest/webtrees/$tag/resources/lang/$locale/messages.po")"
+                          case "$status" in
+                              200) ;;
+                              404) rm -f "$target" ;;
+                              *) echo "::error::Fetching the core catalogue of $locale at $tag returned HTTP $status."; exit 1 ;;
+                          esac
+                      done
+                  done
+
+                  mkdir -p "$work/core"
+                  status=0
+                  python3 "$script" check --lang-dir "$lang_dir" --core-root "$work/core" || status=$?
+                  rm -rf .magicsunday-shared "$work"
+                  exit "$status"

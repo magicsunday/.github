@@ -309,6 +309,17 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   test here AND is run again by `commit-convention.yml` from that same
   checkout on the consumer's runner, so the one table also guards the
   consumer's effective locale — a single code path, not an inline copy.
+- **The core overlap job of `i18n.yml` compares module catalogues with webtrees core.**
+  webtrees merges a module's compiled catalogue over its own, so a filled entry
+  replaces the core text in the whole installation. The job fails on any
+  non-empty translation of a text that core translates in the same locale (the
+  key is context, msgid and plural msgid, so a singular entry never shadows a
+  core plural). An empty entry is fine because it is not compiled. The logic is
+  `scripts/lib/i18n_core_overlap.py`, which reads the catalogues through `polib`
+  (hash-locked in `requirements/polib.txt`) and is unit-tested by
+  `test_i18n_core_overlap.py` through its `test-*.sh` wrapper. The release tags
+  come from the caller's `fisharebest/webtrees` constraint, or from `core-tags`
+  when the constraint uses syntax the script does not resolve.
 - **The `p/*` Semgrep rule packs `code-scanning.yml` scans with cannot be pinned or
   vendored.** The Semgrep Rules License v. 1.0 forbids distributing the rules or
   making them available to others as a service, which a commit to this public,
