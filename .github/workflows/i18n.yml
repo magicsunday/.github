@@ -219,10 +219,9 @@ jobs:
 
             # The workspace holds the CALLER's checkout, so the check script
             # and its pinned requirements come from the commit of this workflow
-            # itself. An undefined context property would interpolate to an
-            # empty string and silently degrade to the default branch, so both
-            # values are asserted first. The path is claimed rather than
-            # assumed free, because the final step deletes it.
+            # itself. Both values are asserted first so an empty one never
+            # falls back to the default branch. The path is claimed rather
+            # than assumed free, because the final step deletes it.
             - name: Check the shared-checkout preconditions
               env:
                   WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
@@ -253,30 +252,46 @@ jobs:
                   CORE_TAGS: ${{ inputs.core-tags }}
               run: |
                   set -euo pipefail
+                  shopt -s nullglob
 
                   lang_dir="${LANG_DIR%/}"
                   script=.magicsunday-shared/.github/scripts/lib/i18n_core_overlap.py
                   work="$(mktemp -d)"
 
+                  git ls-remote --tags --refs https://github.com/fisharebest/webtrees.git \
+                      | sed 's|.*refs/tags/||' > "$work/available-tags"
+
                   # Without an explicit list, the tags are the releases that the
-                  # composer constraint on fisharebest/webtrees covers.
-                  if [ -z "$CORE_TAGS" ]; then
-                      git ls-remote --tags --refs https://github.com/fisharebest/webtrees.git \
-                          | sed 's|.*refs/tags/||' > "$work/available-tags"
-                      CORE_TAGS="$(python3 "$script" tags --composer composer.json --tags-file "$work/available-tags")"
+                  # composer constraint on fisharebest/webtrees covers. The
+                  # script reports an unusable constraint on stdout, so the
+                  # captured text is printed before the job stops.
+                  read -r -a tags <<< "${CORE_TAGS//$'\n'/ }"
+                  if [ "${#tags[@]}" -eq 0 ]; then
+                      derived="$(python3 "$script" tags --composer composer.json --tags-file "$work/available-tags")" || {
+                          printf '%s\n' "$derived"
+                          exit 1
+                      }
+                      mapfile -t tags <<< "$derived"
                   fi
 
-                  echo "Comparing with webtrees core releases: $(echo "$CORE_TAGS" | tr '\n' ' ')"
+                  # A tag that does not exist would answer 404 for every locale
+                  # and read as an empty comparison, so each one is checked first.
+                  for tag in "${tags[@]}"; do
+                      grep -Fxq -- "$tag" "$work/available-tags" || { echo "::error::'$tag' is not a webtrees release tag."; exit 1; }
+                  done
+
+                  echo "Comparing with webtrees core releases: ${tags[*]}"
 
                   # A catalogue of a locale that core does not ship answers 404
                   # and is skipped, any other failure stops the job so a
                   # network problem never reads as a clean result.
                   for locale_path in "$lang_dir"/*/messages.po; do
                       locale="$(basename "$(dirname "$locale_path")")"
-                      for tag in $CORE_TAGS; do
+                      [[ "$locale" =~ ^[A-Za-z0-9_@-]+$ ]] || { echo "::error::The catalogue directory name '$locale' is not a locale tag."; exit 1; }
+                      for tag in "${tags[@]}"; do
                           target="$work/core/$tag/$locale/messages.po"
                           mkdir -p "$(dirname "$target")"
-                          status="$(curl --silent --show-error --location --retry 3 --retry-all-errors \
+                          status="$(curl --silent --show-error --globoff --location --retry 3 --retry-all-errors \
                               --output "$target" --write-out '%{http_code}' \
                               "https://raw.githubusercontent.com/fisharebest/webtrees/$tag/resources/lang/$locale/messages.po")"
                           case "$status" in

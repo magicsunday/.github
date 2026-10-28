@@ -68,8 +68,8 @@ class SelectTagsTest(unittest.TestCase):
     def test_caret_on_a_zero_major_keeps_the_minor(self):
         self.assertEqual(["0.2.0", "0.2.5"], overlap.select_tags("^0.2.0", ["0.1.9", "0.2.0", "0.2.5", "0.3.0"]))
 
-    def test_a_partial_exact_version_names_a_release_line(self):
-        self.assertEqual(["2.2.0", "2.2.1", "2.2.6"], overlap.select_tags("2.2", _TAGS))
+    def test_a_partial_exact_version_is_the_zero_patch_release(self):
+        self.assertEqual(["2.2.0"], overlap.select_tags("2.2", _TAGS))
 
     def test_exact_version(self):
         self.assertEqual(["2.2.1"], overlap.select_tags("2.2.1", _TAGS))
@@ -221,6 +221,52 @@ class FindViolationsTest(unittest.TestCase):
         with self.assertRaises(overlap.InputError):
             overlap.find_violations(os.path.join(self._tmp.name, "absent"), self.core)
 
+    def test_a_plural_entry_with_one_filled_form_is_a_violation(self):
+        core = _entry("%s child", msgid_plural="%s children", plural=["%s barn", ""])
+        self._core("2.2.6", "nn", [core])
+        self._module("nn", [_entry("%s child", msgid_plural="%s children", plural=["%s barn", ""])])
+
+        self.assertEqual(1, len(overlap.find_violations(self.lang, self.core)))
+
+    def test_a_partly_filled_module_plural_of_a_fully_filled_core_plural_is_a_violation(self):
+        self._core(
+            "2.2.6", "nn", [_entry("%s child", msgid_plural="%s children", plural=["%s barn", "%s born"])]
+        )
+        self._module("nn", [_entry("%s child", msgid_plural="%s children", plural=["", "%s born"])])
+
+        self.assertEqual(1, len(overlap.find_violations(self.lang, self.core)))
+
+    def test_a_fuzzy_module_entry_overrides_nothing(self):
+        fuzzy = _entry("Details", "Detaljar")
+        fuzzy.flags.append("fuzzy")
+        self._core("2.2.6", "nn", [_entry("Details", "Detaljar")])
+        self._module("nn", [fuzzy])
+
+        self.assertEqual([], overlap.find_violations(self.lang, self.core))
+
+    def test_a_fuzzy_core_entry_still_counts(self):
+        fuzzy = _entry("Details", "Detaljar")
+        fuzzy.flags.append("fuzzy")
+        self._core("2.2.6", "nn", [fuzzy])
+        self._module("nn", [_entry("Details", "Detaljar")])
+
+        self.assertEqual(1, len(overlap.find_violations(self.lang, self.core)))
+
+    def test_a_core_root_without_any_catalogue_is_an_input_error(self):
+        os.makedirs(self.core)
+        self._module("nn", [_entry("Details", "Detaljar")])
+
+        with self.assertRaises(overlap.InputError):
+            overlap.find_violations(self.lang, self.core)
+
+    def test_a_catalogue_directory_that_is_no_locale_tag_is_an_input_error(self):
+        self._core("2.2.6", "nn", [_entry("Details", "Detaljar")])
+        self._module("nn", [_entry("Details", "")])
+        self._module("de\n::add-mask::x", [_entry("Details", "")])
+
+        with self.assertRaises(overlap.InputError):
+            overlap.find_violations(self.lang, self.core)
+
     def test_a_missing_core_root_is_an_input_error(self):
         self._module("nn", [_entry("Details", "Detaljar")])
 
@@ -280,13 +326,34 @@ class CheckCommandTest(unittest.TestCase):
 
         self.assertIn("1 catalogue entry override", err)
 
-    def test_annotation_text_is_escaped_and_capped(self):
-        text = overlap._annotation_text("50%\nline" + "x" * 200)
+    def test_annotation_text_is_capped(self):
+        self.assertEqual(80, len(overlap._annotation_text("x" * 200)))
+        self.assertEqual("x" * 80, overlap._annotation_text("x" * 80))
 
-        self.assertNotIn("\n", text)
-        self.assertIn("%25", text)
-        self.assertIn("%0A", text)
-        self.assertLessEqual(len(text), 90)
+    def test_annotation_text_is_escaped(self):
+        self.assertEqual("50%25%0Aline%0D", overlap._annotation_text("50%\nline\r"))
+
+    def test_an_annotation_property_escapes_the_separators(self):
+        self.assertEqual("a%2Cb%3Ac%0A%25", overlap._annotation_property("a,b:c\n%"))
+
+    def test_the_file_of_an_annotation_is_escaped(self):
+        self.lang = os.path.join(self._tmp.name, "la,ng")
+        _write(os.path.join(self.lang, "nn", "messages.po"), [_entry("Details", "Detaljar")])
+
+        _, out, _ = self._run()
+
+        self.assertIn("::error file=%s,line=" % overlap._annotation_property(
+            os.path.join(self.lang, "nn", "messages.po")), out)
+        self.assertIn("la%2Cng", out)
+
+    def test_an_error_line_is_escaped_without_a_cap(self):
+        self.lang = os.path.join(self._tmp.name, "absent" + "x" * 100 + "\n::add-mask::y")
+
+        status, out, _ = self._run()
+
+        self.assertEqual(2, status)
+        self.assertEqual(1, len(out.strip().split("\n")))
+        self.assertIn("%0A::add-mask::y", out)
 
     def test_an_unusable_input_exits_with_two(self):
         self.lang = os.path.join(self._tmp.name, "absent")

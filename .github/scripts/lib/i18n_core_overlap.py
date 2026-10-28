@@ -14,6 +14,7 @@ Two subcommands:
 Exit status: 0 clean, 1 violations found, 2 unusable input.
 """
 import argparse
+import glob
 import json
 import os
 import re
@@ -23,6 +24,10 @@ import polib
 
 # Annotation text is capped so a long msgid cannot flood the log.
 _MAX_TEXT = 80
+
+# A locale directory name ends up in a workflow command and in a URL, so only
+# the characters of a real locale tag are accepted.
+_LOCALE_RE = re.compile(r"^[A-Za-z0-9_@-]+$")
 
 _TAG_RE = re.compile(r"^\d+\.\d+\.\d+$")
 _CONSTRAINT_RE = re.compile(r"^(?P<op>[~^]?)(?P<ver>\d+(?:\.\d+){0,2})$")
@@ -45,8 +50,8 @@ def _tag_matches(tag, op, bound):
         return False
 
     if op == "":
-        # A partial version such as 2.2 names a whole release line.
-        return version[: len(bound)] == bound
+        # composer reads a partial version such as 2.2 as the exact release 2.2.0.
+        return version == padded
 
     if op == "~":
         # ~X.Y.Z allows patch releases of X.Y, ~X.Y allows minor releases of X.
@@ -118,9 +123,6 @@ def _core_index(core_root, locale):
     """Map every translated core key of a locale to the tags that translate it."""
     index = {}
 
-    if not os.path.isdir(core_root):
-        raise InputError("Core catalogue root %s does not exist." % core_root)
-
     for tag in sorted(os.listdir(core_root)):
         path = os.path.join(core_root, tag, locale, "messages.po")
 
@@ -136,16 +138,31 @@ def _core_index(core_root, locale):
     return index
 
 
-def _annotation_text(text):
-    text = text if len(text) <= _MAX_TEXT else text[: _MAX_TEXT - 3] + "..."
-
+def _escape(text):
     return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
+def _annotation_text(text):
+    return _escape(text if len(text) <= _MAX_TEXT else text[: _MAX_TEXT - 3] + "...")
+
+
+def _annotation_property(text):
+    """Escape a value for a property of a workflow command, such as file=."""
+    return _escape(text).replace(":", "%3A").replace(",", "%2C")
 
 
 def find_violations(lang_dir, core_root):
     """Return one record per module entry that overrides a core translation."""
     if not os.path.isdir(lang_dir):
         raise InputError("Catalogue directory %s does not exist." % lang_dir)
+
+    if not os.path.isdir(core_root):
+        raise InputError("Core catalogue root %s does not exist." % core_root)
+
+    # Without any core catalogue every module entry would pass, so a mistyped
+    # release tag must not read as a clean result.
+    if not glob.glob(os.path.join(glob.escape(core_root), "*", "*", "messages.po")):
+        raise InputError("No webtrees core catalogue was found in %s." % core_root)
 
     violations = []
 
@@ -155,13 +172,20 @@ def find_violations(lang_dir, core_root):
         if not os.path.isfile(path):
             continue
 
+        if _LOCALE_RE.match(locale) is None:
+            raise InputError("The catalogue directory name '%s' is not a locale tag." % _annotation_text(locale))
+
         core = _core_index(core_root, locale)
 
         if not core:
             continue
 
         for entry in _load(path):
-            if entry.obsolete or not _is_translated(entry):
+            # The module build leaves fuzzy entries out of the compiled
+            # catalogue, so a fuzzy entry overrides nothing. A fuzzy entry of
+            # core still counts in the index, because core loads its catalogues
+            # without looking at that flag.
+            if entry.obsolete or entry.fuzzy or not _is_translated(entry):
                 continue
 
             tags = core.get(_entry_key(entry))
@@ -208,7 +232,7 @@ def _cmd_check(args):
             "(release %s). Leave the translation empty so core applies, a filled entry "
             "replaces the core text in the whole installation."
             % (
-                violation["file"],
+                _annotation_property(violation["file"]),
                 violation["line"],
                 _annotation_text(violation["msgid"]),
                 violation["locale"],
@@ -249,7 +273,7 @@ def main(argv=None):
     try:
         return args.handler(args)
     except InputError as error:
-        print("::error::%s" % error)
+        print("::error::%s" % _escape(str(error)))
 
         return 2
 
