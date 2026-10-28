@@ -328,7 +328,14 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   `requirements/polib.txt`) and is unit-tested by `test_i18n_core_overlap.py`
   through its `test-*.sh` wrapper. The release tags come from the caller's
   `fisharebest/webtrees` constraint, or from `core-tags` when the constraint
-  uses syntax the script does not resolve.
+  uses syntax the script does not resolve. A pull request can only create an
+  overlap by changing a catalogue, that constraint or the `core-tags` input
+  of a caller workflow, so a separate `core-overlap-scope` job lists the
+  changed files and the check job runs only when one of them is below
+  `lang-dir`, is the root `composer.json` or is a workflow file. Every
+  other event, a pull request whose changed files cannot be listed and a
+  failed scope job run the check. The check job keeps its name, so a repository can require it, and
+  `test-i18n-core-overlap-scope.sh` pins both directions.
 - **The `p/*` Semgrep rule packs `code-scanning.yml` scans with cannot be pinned or
   vendored.** The Semgrep Rules License v. 1.0 forbids distributing the rules or
   making them available to others as a service, which a commit to this public,

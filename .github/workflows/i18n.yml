@@ -33,6 +33,12 @@ name: i18n (reusable)
 #      catalogues come from the webtrees release tags the module supports, read
 #      from its composer constraint on fisharebest/webtrees, or from
 #      `core-tags` when the constraint uses syntax the check does not resolve.
+#      On a pull request the check runs only when the pull request changes a
+#      file below `lang-dir`, the `composer.json` of the repository root or a
+#      workflow file, because nothing else can create an overlap. The
+#      catalogues, the constraint and the `core-tags` input decide the result.
+#      Every other event runs it, and so does a pull request whose changed
+#      files cannot be listed or whose scope job failed.
 #
 # The generated .pot template is gitignored and never appears in the tree, so
 # it needs no special handling. Callers invoke this via
@@ -198,9 +204,83 @@ jobs:
                   git --no-pager diff --cached
                   exit 1
 
+    # A pull request can only create an overlap by changing a catalogue or by
+    # changing what decides which core tags are compared. That is the webtrees
+    # constraint of the composer file or the `core-tags` input that the caller
+    # sets in one of its workflow files. This job reports whether the pull
+    # request touched one of these. Every other event, and any failure to read
+    # the change list, counts as relevant so the check never goes missing by
+    # accident.
+    core-overlap-scope:
+        name: Core text overlap scope
+        if: ${{ inputs.check-core-overlap }}
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        outputs:
+            relevant: ${{ steps.scope.outputs.relevant }}
+
+        steps:
+            # The checkout of a pull request is the merge commit of the base
+            # and the head. A shallow checkout that still reaches its first
+            # parent, the base, is enough. The diff of that parent against the
+            # merge commit lists exactly the files the pull request changes.
+            - name: Checkout
+              if: ${{ github.event_name == 'pull_request' }}
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 2
+                  persist-credentials: false
+
+            - name: Decide whether the check applies
+              id: scope
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+                  LANG_DIR: ${{ inputs.lang-dir }}
+              run: |
+                  set -euo pipefail
+
+                  if [ "${EVENT_NAME}" != "pull_request" ]; then
+                      echo "relevant=true" >> "${GITHUB_OUTPUT}"
+                      exit 0
+                  fi
+
+                  lang_dir="${LANG_DIR%/}"
+                  lang_dir="${lang_dir#./}"
+
+                  # Catalogues at the repository root cannot be told apart by a
+                  # path prefix, so every pull request runs the check.
+                  if [ -z "${lang_dir}" ] || [ "${lang_dir}" = "." ]; then
+                      echo "relevant=true" >> "${GITHUB_OUTPUT}"
+                      exit 0
+                  fi
+
+                  # NUL separated, so git does not quote a path and a path with
+                  # an unusual character still matches.
+                  changed_list="$(mktemp)"
+                  if ! git diff -z --name-only HEAD^1 HEAD > "${changed_list}"; then
+                      echo "::notice::Could not list the changed files, so the check runs."
+                      echo "relevant=true" >> "${GITHUB_OUTPUT}"
+                      exit 0
+                  fi
+
+                  relevant=false
+                  while IFS= read -r -d '' changed_path; do
+                      case "${changed_path}" in
+                          "${lang_dir}"/* | composer.json | .github/workflows/*) relevant=true ;;
+                      esac
+                  done < "${changed_list}"
+
+                  echo "relevant=${relevant}" >> "${GITHUB_OUTPUT}"
+
     core-overlap:
         name: Core text overlap
-        if: ${{ inputs.check-core-overlap }}
+        needs: core-overlap-scope
+        # A scope job that did not succeed must not switch the check off, so the
+        # job also runs then. A skipped job satisfies a required status check.
+        if: ${{ !cancelled() && inputs.check-core-overlap && (needs.core-overlap-scope.result != 'success' || needs.core-overlap-scope.outputs.relevant == 'true') }}
         runs-on: ubuntu-latest
 
         permissions:
