@@ -47,7 +47,12 @@ triggers = workflow.get("on", workflow.get(True))
 inputs = triggers["workflow_call"]["inputs"]
 assert inputs["check-core-overlap"]["default"] is True, "default"
 assert inputs["check-core-overlap"]["type"] == "boolean", "type"
-assert workflow["jobs"]["core-overlap"]["if"].strip() == "${{ inputs.check-core-overlap }}", "gate"
+assert workflow["jobs"]["core-overlap-scope"]["if"].strip() == "${{ inputs.check-core-overlap }}", "scope gate"
+assert workflow["jobs"]["core-overlap"]["needs"] == "core-overlap-scope", "needs"
+assert (
+    workflow["jobs"]["core-overlap"]["if"].strip()
+    == "${{ inputs.check-core-overlap && needs.core-overlap-scope.outputs.relevant == 'true' }}"
+), "gate"
 EOF2
 
 # Stubs: git ls-remote prints the release list, curl serves a file from the

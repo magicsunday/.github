@@ -108,7 +108,7 @@ Workflows not listed here take no inputs.
 | `yamllint.yml` | `paths` — space-separated YAML paths to lint | `.github/workflows/` |
 | `i18n.yml` | `lang-dir` — root directory holding the per-locale catalogues | `resources/lang` |
 | | `check-pipeline` — run `make lang` and fail on a non-empty diff | `false` |
-| | `check-core-overlap` — fail when a catalogue entry translates a text that webtrees core already translates in that locale. An empty or fuzzy entry is fine, a compiled one replaces the core text in the whole installation | `true` |
+| | `check-core-overlap` — fail when a catalogue entry translates a text that webtrees core already translates in that locale. An empty or fuzzy entry is fine, a compiled one replaces the core text in the whole installation. On a pull request the check runs when the pull request changes a file below `lang-dir` or the root `composer.json` | `true` |
 | | `core-tags` — space-separated webtrees release tags to compare with, empty derives them from the `fisharebest/webtrees` constraint of `composer.json` (`~`, `^` and exact forms) | *(none)* |
 | | `node-image` — image whose gettext must match the local `make lang` | `node:24-alpine` |
 | `bundle-freshness.yml` | `bundle-dir` — directory whose committed artefacts must match a rebuild | `resources/js` |

@@ -33,6 +33,10 @@ name: i18n (reusable)
 #      catalogues come from the webtrees release tags the module supports, read
 #      from its composer constraint on fisharebest/webtrees, or from
 #      `core-tags` when the constraint uses syntax the check does not resolve.
+#      On a pull request the check runs only when the pull request changes a
+#      file below `lang-dir` or the `composer.json` of the repository root,
+#      because nothing else can create an overlap. Every other event runs it,
+#      and so does a pull request whose changed files cannot be listed.
 #
 # The generated .pot template is gitignored and never appears in the tree, so
 # it needs no special handling. Callers invoke this via
@@ -198,9 +202,67 @@ jobs:
                   git --no-pager diff --cached
                   exit 1
 
+    # A pull request can only create an overlap by changing a catalogue or by
+    # changing the webtrees constraint that decides which core tags are
+    # compared. This job reports whether the pull request touched one of the
+    # two. Every other event, and any failure to read the change list, counts as
+    # relevant so the check never goes missing by accident.
+    core-overlap-scope:
+        name: Core text overlap scope
+        if: ${{ inputs.check-core-overlap }}
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        outputs:
+            relevant: ${{ steps.scope.outputs.relevant }}
+
+        steps:
+            # The checkout of a pull request is the merge commit of the base
+            # and the head. Two commits of history reach its first parent, the
+            # base, so the diff of that parent against the merge commit lists
+            # exactly the files the pull request changes.
+            - name: Checkout
+              if: ${{ github.event_name == 'pull_request' }}
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 2
+                  persist-credentials: false
+
+            - name: Decide whether the check applies
+              id: scope
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+                  LANG_DIR: ${{ inputs.lang-dir }}
+              run: |
+                  set -euo pipefail
+
+                  if [ "${EVENT_NAME}" != "pull_request" ]; then
+                      echo "relevant=true" >> "${GITHUB_OUTPUT}"
+                      exit 0
+                  fi
+
+                  lang_dir="${LANG_DIR%/}"
+                  if ! changed="$(git diff --name-only HEAD^1 HEAD)"; then
+                      echo "::notice::Could not list the changed files, so the check runs."
+                      echo "relevant=true" >> "${GITHUB_OUTPUT}"
+                      exit 0
+                  fi
+
+                  relevant=false
+                  while IFS= read -r changed_path; do
+                      case "${changed_path}" in
+                          "${lang_dir}"/* | composer.json) relevant=true ;;
+                      esac
+                  done <<< "${changed}"
+
+                  echo "relevant=${relevant}" >> "${GITHUB_OUTPUT}"
+
     core-overlap:
         name: Core text overlap
-        if: ${{ inputs.check-core-overlap }}
+        needs: core-overlap-scope
+        if: ${{ inputs.check-core-overlap && needs.core-overlap-scope.outputs.relevant == 'true' }}
         runs-on: ubuntu-latest
 
         permissions:
