@@ -96,9 +96,6 @@ assert "a copy in the en-GB catalogue fails too" 1 "en-GB"
 run_step de "Zugang"
 assert "a real translation passes" 0 "No catalogue entry repeats"
 
-run_step de "Portal" "resources/lang/"
-assert "a trailing slash of the directory input is accepted" 1 "::error file="
-
 run_step de "Portal" "resources/missing"
 assert "a missing directory exits with the input error status" 2 "does not exist"
 

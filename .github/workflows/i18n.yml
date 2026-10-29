@@ -1,7 +1,7 @@
 name: i18n (reusable)
 
 # Reusable translation-catalogue check for repositories that ship gettext
-# locales. Two concerns, deliberately different severities:
+# locales. The concerns below have deliberately different severities:
 #
 #   1. Layout (HARD FAIL): every tracked .po/.mo must live at
 #      <lang-dir>/<locale>/messages.{po,mo}. A catalogue committed anywhere
