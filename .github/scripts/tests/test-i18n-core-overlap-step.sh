@@ -57,14 +57,17 @@ EOF2
 
 # Stubs: git ls-remote prints the release list, curl serves a file from the
 # fixture directory named by the URL tail, or the status given in STUB_STATUS.
+# The git stub knows the one call the step makes and fails on any other, so a
+# changed or additional git command turns the test red.
 mkdir -p "${workdir}/bin"
 cat > "${workdir}/bin/git" <<'EOF'
 #!/usr/bin/env bash
-if [ "$1" = "ls-remote" ]; then
+if [ "$*" = "ls-remote --tags --refs https://github.com/fisharebest/webtrees.git" ]; then
     printf 'abc\trefs/tags/2.1.27\nabc\trefs/tags/2.2.0\nabc\trefs/tags/2.2.1\nabc\trefs/tags/2.3.0\n'
     exit 0
 fi
-exec /usr/bin/git "$@"
+echo "unexpected git call: $*" >&2
+exit 97
 EOF
 cat > "${workdir}/bin/curl" <<'EOF'
 #!/usr/bin/env bash
