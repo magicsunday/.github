@@ -6,9 +6,10 @@ a non-empty translation in a module replaces the core text of the same key in
 the whole installation. An entry with an empty translation is not compiled and
 lets core apply, so it is fine.
 
-Two subcommands:
+Three subcommands:
 
   tags     Print the webtrees release tags that a composer constraint covers.
+  locales  Print the locales that the module catalogues are written for.
   check    Compare module catalogues with the core catalogues of those tags.
 
 Exit status: 0 clean, 1 violations found, 2 unusable input.
@@ -26,7 +27,8 @@ import polib
 _MAX_TEXT = 80
 
 # A locale directory name ends up in a workflow command and in a URL, so only
-# the characters of a real locale tag are accepted.
+# the characters of a real locale tag are accepted. This is the one place that
+# decides, the workflow takes its locale list from the `locales` subcommand.
 _LOCALE_RE = re.compile(r"^[A-Za-z0-9_@-]+$")
 
 _TAG_RE = re.compile(r"^\d+\.\d+\.\d+$")
@@ -158,8 +160,12 @@ def _escape(text):
     return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
+def _capped(text):
+    return text if len(text) <= _MAX_TEXT else text[: _MAX_TEXT - 3] + "..."
+
+
 def _annotation_text(text):
-    return _escape(text if len(text) <= _MAX_TEXT else text[: _MAX_TEXT - 3] + "...")
+    return _escape(_capped(text))
 
 
 def _annotation_property(text):
@@ -167,10 +173,32 @@ def _annotation_property(text):
     return _escape(text).replace(":", "%3A").replace(",", "%2C")
 
 
-def find_violations(lang_dir, core_root):
-    """Return one record per module entry that overrides a core translation."""
+def list_locales(lang_dir):
+    """Return the sorted locales that have a catalogue below lang_dir.
+
+    A directory name that is no locale tag raises InputError, so no caller
+    works with a name that is unsafe in a workflow command or a URL.
+    """
     if not os.path.isdir(lang_dir):
         raise InputError("Catalogue directory %s does not exist." % lang_dir)
+
+    locales = []
+
+    for locale in sorted(os.listdir(lang_dir)):
+        if not os.path.isfile(os.path.join(lang_dir, locale, "messages.po")):
+            continue
+
+        if _LOCALE_RE.fullmatch(locale) is None:
+            raise InputError("The catalogue directory name '%s' is not a locale tag." % _capped(locale))
+
+        locales.append(locale)
+
+    return locales
+
+
+def find_violations(lang_dir, core_root):
+    """Return one record per module entry that overrides a core translation."""
+    locales = list_locales(lang_dir)
 
     if not os.path.isdir(core_root):
         raise InputError("Core catalogue root %s does not exist." % core_root)
@@ -182,15 +210,8 @@ def find_violations(lang_dir, core_root):
 
     violations = []
 
-    for locale in sorted(os.listdir(lang_dir)):
+    for locale in locales:
         path = os.path.join(lang_dir, locale, "messages.po")
-
-        if not os.path.isfile(path):
-            continue
-
-        if _LOCALE_RE.fullmatch(locale) is None:
-            raise InputError("The catalogue directory name '%s' is not a locale tag." % _annotation_text(locale))
-
         core = _core_index(core_root, locale)
 
         if not core:
@@ -239,6 +260,13 @@ def _cmd_tags(args):
     return 0
 
 
+def _cmd_locales(args):
+    for locale in list_locales(args.lang_dir):
+        print(locale)
+
+    return 0
+
+
 def _cmd_check(args):
     violations = find_violations(args.lang_dir, args.core_root)
 
@@ -278,6 +306,10 @@ def main(argv=None):
     tags.add_argument("--composer", required=True)
     tags.add_argument("--tags-file", required=True)
     tags.set_defaults(handler=_cmd_tags)
+
+    locales = commands.add_parser("locales")
+    locales.add_argument("--lang-dir", required=True)
+    locales.set_defaults(handler=_cmd_locales)
 
     check = commands.add_parser("check")
     check.add_argument("--lang-dir", required=True)
