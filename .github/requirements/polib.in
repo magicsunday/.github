@@ -1,4 +1,5 @@
-# Pinned polib version used by i18n_core_overlap.py to read gettext catalogues
+# Pinned polib version used by the i18n check scripts (i18n_core_overlap.py and
+# i18n_source_copies.py) to read gettext catalogues
 # instead of hand-parsing them (multi-line msgids, contexts and plural entries).
 #
 # polib.txt is the compiled, hash-locked closure, never hand-edit it.
