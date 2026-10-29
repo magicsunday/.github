@@ -72,11 +72,7 @@ def _cmd_check(args):
         )
 
     if copies:
-        print(
-            "%d catalogue entr%s repeat their source text."
-            % (len(copies), "y" if len(copies) == 1 else "ies"),
-            file=sys.stderr,
-        )
+        print("Catalogue entries that copy their source text: %d" % len(copies), file=sys.stderr)
 
         return 1
 

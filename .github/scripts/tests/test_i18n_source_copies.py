@@ -169,7 +169,7 @@ class MainTest(unittest.TestCase):
         self.assertIn("::error file=%s,line=" % path.replace(":", "%3A").replace(",", "%2C"), out)
         self.assertIn("'Portal'", out)
         self.assertIn("line=%d::" % portal_line, out)
-        self.assertIn("1 catalogue entry repeat", err)
+        self.assertIn("Catalogue entries that copy their source text: 1", err)
 
     def test_clean_catalogue_passes(self):
         with tempfile.TemporaryDirectory() as lang_dir:
