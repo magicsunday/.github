@@ -422,6 +422,15 @@ class LocalesCommandTest(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertEqual("nn\n", out)
 
+    def test_a_directory_without_a_catalogue_is_skipped_whatever_its_name(self):
+        self._module("nn")
+        os.makedirs(os.path.join(self.lang, "de,x"))
+
+        status, out = self._run()
+
+        self.assertEqual(0, status)
+        self.assertEqual("nn\n", out)
+
     def test_a_catalogue_directory_without_any_locale_prints_nothing(self):
         os.makedirs(self.lang)
 
