@@ -326,7 +326,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   `check-core-overlap: false`. The logic is `scripts/lib/i18n_core_overlap.py`,
   which reads the catalogues through `polib` (hash-locked in
   `requirements/polib.txt`) and is unit-tested by `test_i18n_core_overlap.py`
-  through its `test-*.sh` wrapper. The release tags come from the caller's
+  through its `test-*.sh` wrapper. The script also lists the module locales
+  (`locales` subcommand) and is the one place that refuses a catalogue
+  directory name that is no locale tag, because the workflow step builds its
+  request URLs from that list. The release tags come from the caller's
   `fisharebest/webtrees` constraint, or from `core-tags` when the constraint
   uses syntax the script does not resolve. A pull request can only create an
   overlap by changing a catalogue, that constraint or the `core-tags` input

@@ -242,17 +242,19 @@ jobs:
               run: |
                   set -euo pipefail
 
-                  if [ "${EVENT_NAME}" != "pull_request" ]; then
-                      echo "relevant=true" >> "${GITHUB_OUTPUT}"
-                      exit 0
-                  fi
-
-                  lang_dir="${LANG_DIR%/}"
-                  lang_dir="${lang_dir#./}"
+                  # Reduce the input to the repository-relative form by dropping
+                  # trailing slashes and leading dot slashes until neither is left.
+                  lang_dir="${LANG_DIR}"
+                  previous=""
+                  while [ "${lang_dir}" != "${previous}" ]; do
+                      previous="${lang_dir}"
+                      lang_dir="${lang_dir%/}"
+                      lang_dir="${lang_dir#./}"
+                  done
 
                   # Catalogues at the repository root cannot be told apart by a
                   # path prefix, so every pull request runs the check.
-                  if [ -z "${lang_dir}" ] || [ "${lang_dir}" = "." ]; then
+                  if [ "${EVENT_NAME}" != "pull_request" ] || [ -z "${lang_dir}" ] || [ "${lang_dir}" = "." ]; then
                       echo "relevant=true" >> "${GITHUB_OUTPUT}"
                       exit 0
                   fi
@@ -332,7 +334,6 @@ jobs:
                   CORE_TAGS: ${{ inputs.core-tags }}
               run: |
                   set -euo pipefail
-                  shopt -s nullglob
 
                   lang_dir="${LANG_DIR%/}"
                   script=.magicsunday-shared/.github/scripts/lib/i18n_core_overlap.py
@@ -367,13 +368,17 @@ jobs:
                   # every release. Without it, a changed layout of the core
                   # repository would answer 404 for everything and read as a
                   # clean result, while a module that only has locales core
-                  # does not ship passes.
-                  locales=(de)
-                  for locale_path in "$lang_dir"/*/messages.po; do
-                      locale="$(basename "$(dirname "$locale_path")")"
-                      [[ "$locale" =~ ^[A-Za-z0-9_@-]+$ ]] || { echo "::error::The catalogue directory name '${locale//[^A-Za-z0-9_@-]/?}' is not a locale tag."; exit 1; }
-                      locales+=("$locale")
-                  done
+                  # does not ship passes. The script lists the module locales
+                  # and refuses a directory name that is no locale tag, so
+                  # every name used below is safe in a URL. It reports a
+                  # refusal on stdout, so the captured text is printed before
+                  # the job stops.
+                  listed="$(python3 "$script" locales --lang-dir "$lang_dir")" || {
+                      printf '%s\n' "$listed"
+                      exit 1
+                  }
+                  read -r -a module_locales <<< "${listed//$'\n'/ }"
+                  locales=(de "${module_locales[@]}")
 
                   # A locale that core does not ship answers 404 and is
                   # skipped. Any other failure stops the job, so a network

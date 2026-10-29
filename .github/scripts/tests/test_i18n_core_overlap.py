@@ -347,7 +347,7 @@ class CheckCommandTest(unittest.TestCase):
         self.assertIn("1 catalogue entry override", err)
 
     def test_annotation_text_is_capped(self):
-        self.assertEqual(80, len(overlap._annotation_text("x" * 200)))
+        self.assertEqual("x" * 77 + "...", overlap._annotation_text("x" * 200))
         self.assertEqual("x" * 80, overlap._annotation_text("x" * 80))
 
     def test_annotation_text_is_escaped(self):
@@ -382,6 +382,87 @@ class CheckCommandTest(unittest.TestCase):
 
         self.assertEqual(2, status)
         self.assertIn("::error::", out)
+
+
+class LocalesCommandTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.lang = os.path.join(self._tmp.name, "lang")
+
+    def _run(self):
+        out = io.StringIO()
+
+        with contextlib.redirect_stdout(out):
+            status = overlap.main(["locales", "--lang-dir", self.lang])
+
+        return status, out.getvalue()
+
+    def _module(self, locale):
+        _write(os.path.join(self.lang, locale, "messages.po"), [_entry("Details", "")])
+
+    def test_the_locales_with_a_catalogue_are_printed_sorted(self):
+        self._module("nn")
+        self._module("de")
+        self._module("zh-Hans")
+        self._module("pt_BR")
+        self._module("ca@valencia")
+
+        status, out = self._run()
+
+        self.assertEqual(0, status)
+        self.assertEqual(["ca@valencia", "de", "nn", "pt_BR", "zh-Hans"], out.split("\n")[:-1])
+
+    def test_a_directory_without_a_catalogue_is_not_a_locale(self):
+        self._module("nn")
+        os.makedirs(os.path.join(self.lang, "notes"))
+
+        status, out = self._run()
+
+        self.assertEqual(0, status)
+        self.assertEqual("nn\n", out)
+
+    def test_a_directory_without_a_catalogue_is_skipped_whatever_its_name(self):
+        self._module("nn")
+        os.makedirs(os.path.join(self.lang, "de,x"))
+
+        status, out = self._run()
+
+        self.assertEqual(0, status)
+        self.assertEqual("nn\n", out)
+
+    def test_a_catalogue_directory_without_any_locale_prints_nothing(self):
+        os.makedirs(self.lang)
+
+        status, out = self._run()
+
+        self.assertEqual(0, status)
+        self.assertEqual("", out)
+
+    def test_a_directory_name_that_is_no_locale_tag_exits_with_two(self):
+        self._module("nn")
+        self._module("de,x")
+
+        status, out = self._run()
+
+        self.assertEqual(2, status)
+        self.assertIn("'de,x' is not a locale tag", out)
+        self.assertTrue(out.startswith("::error::"), "no locale is printed next to the refusal")
+
+    def test_a_directory_name_with_a_line_break_cannot_start_a_workflow_command(self):
+        self._module("de\n::add-mask::x")
+
+        status, out = self._run()
+
+        self.assertEqual(2, status)
+        self.assertEqual(1, len(out.strip().split("\n")))
+        self.assertIn("'de%0A::add-mask::x' is not a locale tag", out)
+
+    def test_a_missing_catalogue_directory_exits_with_two(self):
+        status, out = self._run()
+
+        self.assertEqual(2, status)
+        self.assertIn("does not exist", out)
 
 
 class TagsCommandTest(unittest.TestCase):

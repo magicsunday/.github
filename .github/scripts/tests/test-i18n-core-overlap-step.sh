@@ -57,14 +57,17 @@ EOF2
 
 # Stubs: git ls-remote prints the release list, curl serves a file from the
 # fixture directory named by the URL tail, or the status given in STUB_STATUS.
+# The git stub knows the one call the step makes and fails on any other, so a
+# changed or additional git command turns the test red.
 mkdir -p "${workdir}/bin"
 cat > "${workdir}/bin/git" <<'EOF'
 #!/usr/bin/env bash
-if [ "$1" = "ls-remote" ]; then
+if [ "$*" = "ls-remote --tags --refs https://github.com/fisharebest/webtrees.git" ]; then
     printf 'abc\trefs/tags/2.1.27\nabc\trefs/tags/2.2.0\nabc\trefs/tags/2.2.1\nabc\trefs/tags/2.3.0\n'
     exit 0
 fi
-exec /usr/bin/git "$@"
+echo "unexpected git call: $*" >&2
+exit 97
 EOF
 cat > "${workdir}/bin/curl" <<'EOF'
 #!/usr/bin/env bash
@@ -86,6 +89,7 @@ tail="${url#*webtrees/}"
 tag="${tail%%/*}"
 locale="${tail#*/resources/lang/}"
 locale="${locale%%/*}"
+echo "${url}" >> "${CURL_LOG}"
 source_file="${CORE_FIXTURES}/${tag}/${locale}/messages.po"
 if [ -f "${source_file}" ]; then
     cp "${source_file}" "${output}"
@@ -110,6 +114,7 @@ run_step() {
     local caller="${workdir}/caller"
 
     rm -rf "${caller}" "${workdir}/fixtures"
+    : > "${workdir}/curl.log"
     mkdir -p "${caller}"
     printf '{"require": {"fisharebest/webtrees": "%s"}}\n' "${constraint}" > "${caller}/composer.json"
     write_po "${caller}/resources/lang/${locale}/messages.po" "Details" "${msgstr}"
@@ -123,7 +128,7 @@ run_step() {
     ln -s "${REPO_ROOT}" "${caller}/.magicsunday-shared"
 
     out="$(cd "${caller}" && PATH="${workdir}/bin:${PATH}" LANG_DIR=resources/lang CORE_TAGS="${core_tags}" \
-        CORE_FIXTURES="${workdir}/fixtures" STUB_STATUS="${STUB_STATUS:-}" bash "${workdir}/step.sh" 2>&1)"
+        CORE_FIXTURES="${workdir}/fixtures" CURL_LOG="${workdir}/curl.log" STUB_STATUS="${STUB_STATUS:-}" bash "${workdir}/step.sh" 2>&1)"
     rc=$?
 }
 
@@ -166,11 +171,15 @@ assert "a module with only locales that core does not ship passes" 0 "No catalog
 OMIT_DE=1 run_step "" "~2.2.0" "Detaljar"
 assert "a missing german catalogue means the core layout changed" 1 "layout of the core repository changed"
 
+run_step "" "~2.2.0" "Detaljar"
+[ -s "${workdir}/curl.log" ] || fail "a run with a valid directory name made no request, so the request log proves nothing"
+
 run_step "" "~2.2.0" "Detaljar" 'de,x'
-assert "a directory name that is no locale tag fails before any request" 1 "is not a locale tag"
+assert "a directory name that is no locale tag fails before any request" 1 "'de,x' is not a locale tag"
+[ ! -s "${workdir}/curl.log" ] || fail "a request was made for a rejected directory name: $(cat "${workdir}/curl.log")"
 
 run_step "" "~2.2.0" "Detaljar" $'de\n::add-mask::x'
-assert "a directory name with a line break fails" 1 "'de???add-mask??x' is not a locale tag"
+assert "a directory name with a line break fails" 1 "'de%0A::add-mask::x' is not a locale tag"
 [ "$(grep -c '^::add-mask::' <<<"${out}")" -eq 0 ] || fail "the rejected directory name starts a workflow command: ${out}"
 
 STUB_STATUS=500 run_step "" "~2.2.0" ""

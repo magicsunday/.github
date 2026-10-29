@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs the "Decide whether the check applies" step of i18n.yml against a real
 # merge commit, so the choice between running and skipping the core overlap
-# check is covered in both directions: a pull request that changes a catalogue
+# check is covered in both directions. A pull request that changes a catalogue
 # or the composer file runs it, one that changes neither skips it, and every
 # other event and every failure to list the changes runs it.
 set -uo pipefail
@@ -10,14 +10,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 WORKFLOW="${REPO_ROOT}/.github/workflows/i18n.yml"
 
-failures=0
+# shellcheck source=lib/harness.sh
+source "${SCRIPT_DIR}/lib/harness.sh"
+
 workdir="$(mktemp -d)"
 trap 'rm -rf "${workdir}"' EXIT
-
-fail() {
-    echo "FAIL: $1"
-    failures=$((failures + 1))
-}
 
 # Extract the run block of the step, the way the runner would execute it.
 python3 - "${WORKFLOW}" "${workdir}/step.sh" <<'EOF' || { echo "FAIL: cannot extract the step"; exit 1; }
@@ -85,10 +82,9 @@ assert_relevant() {
     local value
     value="$(grep '^relevant=' "${output_file}" | tail -n 1)"
     if [ "${rc}" -ne 0 ]; then
-        fail "$1: exit ${rc}: $(cat "${workdir}/log")"
-    elif [ "${value}" != "relevant=$2" ]; then
-        fail "$1: expected relevant=$2, got '${value}'"
+        value="exit ${rc}: $(cat "${workdir}/log")"
     fi
+    assert_eq "$1" "relevant=$2" "${value}"
 }
 
 build_merge resources/lang/de/messages.po
@@ -119,6 +115,19 @@ build_merge i18n/de/messages.po
 run_step pull_request ./i18n
 assert_relevant "a custom language directory with a leading dot slash is honoured" true
 
+run_step pull_request ./i18n/
+assert_relevant "a custom language directory with a leading dot slash and a trailing slash is honoured" true
+
+run_step pull_request i18n//
+assert_relevant "a custom language directory with doubled trailing slashes is honoured" true
+
+run_step pull_request ././i18n
+assert_relevant "a custom language directory with a repeated leading dot slash is honoured" true
+
+build_merge src/Thing.php
+run_step pull_request i18n//
+assert_relevant "a language directory with doubled trailing slashes still skips an unrelated pull request" false
+
 build_merge .github/workflows/i18n.yml
 run_step pull_request
 assert_relevant "a changed workflow file runs the check because it can set the core tags" true
@@ -130,6 +139,15 @@ assert_relevant "a file next to the workflows skips the check" false
 build_merge src/Thing.php
 run_step pull_request .
 assert_relevant "catalogues at the repository root cannot be told apart, so every pull request runs the check" true
+
+run_step pull_request ./
+assert_relevant "a dot slash language directory is the repository root, so the check runs" true
+
+run_step pull_request .//
+assert_relevant "a language directory of dot and doubled slashes is the repository root, so the check runs" true
+
+run_step pull_request .///
+assert_relevant "a language directory of dot and repeated slashes is the repository root, so the check runs" true
 
 run_step pull_request ''
 assert_relevant "an empty language directory runs the check" true
@@ -160,11 +178,6 @@ git -C "${workdir}/repo" add -A
 git -C "${workdir}/repo" commit -q -m only
 run_step pull_request
 assert_relevant "a checkout without a parent runs the check" true
-grep -q "Could not list the changed files" "${workdir}/log" || fail "the fallback is not announced: $(cat "${workdir}/log")"
+assert_contains "the fallback is announced" "$(cat "${workdir}/log")" "Could not list the changed files"
 
-if [ "${failures}" -gt 0 ]; then
-    echo "${failures} assertion(s) failed."
-    exit 1
-fi
-
-echo "All i18n core overlap scope tests passed."
+report_and_exit "i18n core overlap scope tests"
