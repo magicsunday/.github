@@ -53,6 +53,11 @@ def _write(lang_dir, locale, entries):
     return path
 
 
+def _line_of(path, text):
+    with open(path, encoding="utf-8") as handle:
+        return handle.read().split("\n").index(text) + 1
+
+
 class IsCopyTest(unittest.TestCase):
     def test_singular_translation_equal_to_the_source_is_a_copy(self):
         self.assertTrue(copies.is_copy(_entry("Portal", "Portal")))
@@ -113,7 +118,23 @@ class FindCopiesTest(unittest.TestCase):
             [("de", "Portal"), ("en-GB", "Colorful")],
             [(record["locale"], record["msgid"]) for record in found],
         )
-        self.assertTrue(all(record["line"] > 0 for record in found))
+
+    def test_reports_the_line_of_each_copy(self):
+        with tempfile.TemporaryDirectory() as lang_dir:
+            path = _write(
+                lang_dir,
+                "de",
+                [_entry("Home", "Start"), _entry("Portal", "Portal"), _entry("Menu", "Menu")],
+            )
+
+            with open(path, encoding="utf-8") as handle:
+                lines = handle.read().split("\n")
+
+            expected = [lines.index('msgid "Portal"') + 1, lines.index('msgid "Menu"') + 1]
+            found = copies.find_copies(lang_dir)
+
+        self.assertEqual(expected, [record["line"] for record in found])
+        self.assertNotEqual(expected[0], expected[1])
 
     def test_clean_catalogues_report_nothing(self):
         with tempfile.TemporaryDirectory() as lang_dir:
@@ -142,10 +163,12 @@ class MainTest(unittest.TestCase):
             path = _write(lang_dir, "de", [_entry("Portal", "Portal")])
 
             status, out, err = self._run(lang_dir)
+            portal_line = _line_of(path, 'msgid "Portal"')
 
         self.assertEqual(1, status)
         self.assertIn("::error file=%s,line=" % path.replace(":", "%3A").replace(",", "%2C"), out)
         self.assertIn("'Portal'", out)
+        self.assertIn("line=%d::" % portal_line, out)
         self.assertIn("1 catalogue entry repeat", err)
 
     def test_clean_catalogue_passes(self):
