@@ -339,6 +339,22 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   other event, a pull request whose changed files cannot be listed and a
   failed scope job run the check. The check job keeps its name, so a repository can require it, and
   `test-i18n-core-overlap-scope.sh` pins both directions.
+- **The source copies job of `i18n.yml` rejects catalogue entries that repeat their own source text.**
+  The message ids of a module are its source texts, so a translation equal to
+  its message id carries nothing and an empty entry shows the same text through
+  the gettext fallback. A singular entry is a copy when its translation equals
+  the message id. A plural entry is a copy only when every form is filled and
+  each one equals the message id or the plural message id, because a plural
+  entry in which one form differs from both source texts is a real translation.
+  A fuzzy and an obsolete entry are not looked at. Every locale below
+  `lang-dir` is checked, `en-GB` included, since a British catalogue holds only
+  the British variants. The job is on by default for the same reason as the
+  core overlap job and a repository that is no webtrees module sets
+  `check-source-copies: false`. The logic is `scripts/lib/i18n_source_copies.py`,
+  which shares the catalogue reading and the annotation escaping of
+  `i18n_core_overlap.py` and is unit-tested by `test_i18n_source_copies.py`
+  through its `test-*.sh` wrapper. The job needs no scope job, because it reads
+  only the catalogues and costs little.
 - **The `p/*` Semgrep rule packs `code-scanning.yml` scans with cannot be pinned or
   vendored.** The Semgrep Rules License v. 1.0 forbids distributing the rules or
   making them available to others as a service, which a commit to this public,
