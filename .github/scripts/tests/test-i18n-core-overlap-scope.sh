@@ -115,6 +115,19 @@ build_merge i18n/de/messages.po
 run_step pull_request ./i18n
 assert_relevant "a custom language directory with a leading dot slash is honoured" true
 
+run_step pull_request ./i18n/
+assert_relevant "a custom language directory with a leading dot slash and a trailing slash is honoured" true
+
+run_step pull_request i18n//
+assert_relevant "a custom language directory with doubled trailing slashes is honoured" true
+
+run_step pull_request ././i18n
+assert_relevant "a custom language directory with a repeated leading dot slash is honoured" true
+
+build_merge src/Thing.php
+run_step pull_request i18n//
+assert_relevant "a language directory with doubled trailing slashes still skips an unrelated pull request" false
+
 build_merge .github/workflows/i18n.yml
 run_step pull_request
 assert_relevant "a changed workflow file runs the check because it can set the core tags" true
@@ -126,6 +139,12 @@ assert_relevant "a file next to the workflows skips the check" false
 build_merge src/Thing.php
 run_step pull_request .
 assert_relevant "catalogues at the repository root cannot be told apart, so every pull request runs the check" true
+
+run_step pull_request ./
+assert_relevant "a dot slash language directory is the repository root, so the check runs" true
+
+run_step pull_request .//
+assert_relevant "a language directory of dot and doubled slashes is the repository root, so the check runs" true
 
 run_step pull_request ''
 assert_relevant "an empty language directory runs the check" true
