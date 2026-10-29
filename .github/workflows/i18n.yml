@@ -40,6 +40,13 @@ name: i18n (reusable)
 #      Every other event runs it, and so does a pull request whose changed
 #      files cannot be listed or whose scope job failed.
 #
+#   5. Source copies (HARD FAIL, on by default, off via `check-source-copies: false`):
+#      fails when a catalogue entry of any locale, `en-GB` included, is a copy
+#      of its own source text. A singular entry is a copy when its translation
+#      equals the message id. A plural entry is a copy only when every form is
+#      filled and each one equals the message id or the plural message id. An
+#      empty entry is fine, the source text shows through the gettext fallback.
+#
 # The generated .pot template is gitignored and never appears in the tree, so
 # it needs no special handling. Callers invoke this via
 # `uses: magicsunday/.github/.github/workflows/i18n.yml@main` and may override
@@ -57,6 +64,10 @@ on:
                 default: false
             check-core-overlap:
                 description: 'Fail when a catalogue entry translates a text that webtrees core already translates.'
+                type: boolean
+                default: true
+            check-source-copies:
+                description: 'Fail when a catalogue entry is a copy of its own source text.'
                 type: boolean
                 default: true
             core-tags:
@@ -405,4 +416,62 @@ jobs:
                   status=0
                   python3 "$script" check --lang-dir "$lang_dir" --core-root "$work/core" || status=$?
                   rm -rf .magicsunday-shared "$work"
+                  exit "$status"
+
+    source-copies:
+        name: Source text copies
+        if: ${{ inputs.check-source-copies }}
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            - name: Set up Python
+              uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+              with:
+                  python-version: '3.12'
+
+            # The workspace holds the CALLER's checkout, so the check script
+            # and its pinned requirements come from the commit of this workflow
+            # itself. Both values are asserted first so an empty one never
+            # falls back to the default branch. The path is claimed rather
+            # than assumed free, because the final step deletes it.
+            - name: Check the shared-checkout preconditions
+              env:
+                  WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+                  WORKFLOW_SHA: ${{ job.workflow_sha }}
+              run: |
+                  set -euo pipefail
+                  test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
+                  test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
+                  { test ! -e .magicsunday-shared && test ! -L .magicsunday-shared; } || { echo "::error::This repository contains a path named '.magicsunday-shared', which the shared workflows reserve for their own checkout and delete again."; exit 1; }
+
+            - name: Check out the check script
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
+                  path: .magicsunday-shared
+                  persist-credentials: false
+
+            - name: Install polib
+              run: |
+                  set -euo pipefail
+                  pip install --quiet --only-binary=:all: --require-hashes -r .magicsunday-shared/.github/requirements/polib.txt
+
+            - name: Look for catalogue entries that repeat their source text
+              env:
+                  LANG_DIR: ${{ inputs.lang-dir }}
+              run: |
+                  set -euo pipefail
+
+                  status=0
+                  python3 .magicsunday-shared/.github/scripts/lib/i18n_source_copies.py check --lang-dir "${LANG_DIR%/}" || status=$?
+                  rm -rf .magicsunday-shared
                   exit "$status"
