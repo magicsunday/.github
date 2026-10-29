@@ -233,7 +233,8 @@ jobs:
                   set -euo pipefail
                   pip install --quiet --only-binary=:all: --require-hashes -r .github/requirements/pyyaml.txt
 
-            # i18n_core_overlap.py reads gettext catalogues through polib.
+            # i18n_core_overlap.py and i18n_source_copies.py read gettext catalogues
+            # through polib.
             - name: Install polib
               run: |
                   set -euo pipefail
