@@ -347,7 +347,7 @@ class CheckCommandTest(unittest.TestCase):
         self.assertIn("1 catalogue entry override", err)
 
     def test_annotation_text_is_capped(self):
-        self.assertEqual(80, len(overlap._annotation_text("x" * 200)))
+        self.assertEqual("x" * 77 + "...", overlap._annotation_text("x" * 200))
         self.assertEqual("x" * 80, overlap._annotation_text("x" * 80))
 
     def test_annotation_text_is_escaped(self):
