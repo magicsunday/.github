@@ -171,6 +171,9 @@ assert "a module with only locales that core does not ship passes" 0 "No catalog
 OMIT_DE=1 run_step "" "~2.2.0" "Detaljar"
 assert "a missing german catalogue means the core layout changed" 1 "layout of the core repository changed"
 
+run_step "" "~2.2.0" "Detaljar"
+[ -s "${workdir}/curl.log" ] || fail "a run with a valid directory name made no request, so the request log proves nothing"
+
 run_step "" "~2.2.0" "Detaljar" 'de,x'
 assert "a directory name that is no locale tag fails before any request" 1 "'de,x' is not a locale tag"
 [ ! -s "${workdir}/curl.log" ] || fail "a request was made for a rejected directory name: $(cat "${workdir}/curl.log")"

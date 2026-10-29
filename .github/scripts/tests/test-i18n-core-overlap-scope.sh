@@ -146,6 +146,9 @@ assert_relevant "a dot slash language directory is the repository root, so the c
 run_step pull_request .//
 assert_relevant "a language directory of dot and doubled slashes is the repository root, so the check runs" true
 
+run_step pull_request .///
+assert_relevant "a language directory of dot and repeated slashes is the repository root, so the check runs" true
+
 run_step pull_request ''
 assert_relevant "an empty language directory runs the check" true
 

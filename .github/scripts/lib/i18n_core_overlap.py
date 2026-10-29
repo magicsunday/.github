@@ -6,7 +6,7 @@ a non-empty translation in a module replaces the core text of the same key in
 the whole installation. An entry with an empty translation is not compiled and
 lets core apply, so it is fine.
 
-Three subcommands:
+Subcommands:
 
   tags     Print the webtrees release tags that a composer constraint covers.
   locales  Print the locales that the module catalogues are written for.
