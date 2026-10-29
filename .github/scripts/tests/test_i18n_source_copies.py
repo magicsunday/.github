@@ -171,6 +171,17 @@ class MainTest(unittest.TestCase):
         self.assertIn("line=%d::" % portal_line, out)
         self.assertIn("Catalogue entries that copy their source text: 1", err)
 
+    def test_summary_counts_every_copy(self):
+        with tempfile.TemporaryDirectory() as lang_dir:
+            _write(lang_dir, "de", [_entry("Portal", "Portal"), _entry("Menu", "Menu")])
+            _write(lang_dir, "en-GB", [_entry("Colorful", "Colorful")])
+
+            status, out, err = self._run(lang_dir)
+
+        self.assertEqual(1, status)
+        self.assertEqual(3, out.count("::error file="))
+        self.assertIn("Catalogue entries that copy their source text: 3", err)
+
     def test_clean_catalogue_passes(self):
         with tempfile.TemporaryDirectory() as lang_dir:
             _write(lang_dir, "de", [_entry("Portal", "")])
