@@ -27,6 +27,11 @@
   override). For modules that build front-end assets, also run `make build`
   and commit the rebuilt bundle.
 - Include tests for new behavior and regression tests for fixes.
+- Sign off every commit, see "Sign-off" below.
+
+### Sign-off
+
+The DCO check fails a pull request when a commit lacks a `Signed-off-by:` trailer that matches the commit author. Add it with `git commit -s`. To repair a single commit that is already pushed, run `git commit --amend --signoff --no-edit` and then `git push --force-with-lease`. For a branch with several commits, `git rebase --signoff <base>` adds the trailer to each of them before the same push.
 
 ## 4. Development setup (minimal)
 
