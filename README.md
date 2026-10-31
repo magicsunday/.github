@@ -116,7 +116,7 @@ Workflows not listed here take no inputs.
 | | `node-image` — image whose Node/Rollup must match the local `make build` | `node:24-alpine` |
 | `php-quality.yml` | `php-versions` — JSON array of PHP versions for the build matrix | `["8.3", "8.4", "8.5"]` |
 | | `run-psr4` — run the strict PSR-4 autoload check | `false` |
-| | `run-infection` — run mutation testing, on the `infection-php` leg only | `false` |
+| | `run-infection` — run mutation testing, on the `infection-php` leg only. On a pull request the mutation leg fetches the full history, whether or not the consumer defines the composer script `ci:test:php:infection:changed`. A pull request of a consumer that defines it is gated on the covered code of its changed lines. Every other run, and a consumer without that script, runs `ci:test:php:infection` over the whole tree. That run only reports once the consumer's own configuration has no fixed score floor | `false` |
 | | `infection-php` — the single PHP version leg that runs mutation testing | `8.4` |
 
 ### Adopting a workflow
