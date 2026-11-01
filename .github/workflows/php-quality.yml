@@ -30,7 +30,7 @@ on:
                 type: boolean
                 default: false
             run-infection:
-                description: 'Run mutation testing (composer ci:test:php:infection), on the infection-php leg only.'
+                description: 'Run mutation testing on the infection-php leg only (composer ci:test:php:infection, or on a pull request composer ci:test:php:infection:changed when the consumer defines it).'
                 required: false
                 type: boolean
                 default: false
@@ -66,10 +66,16 @@ jobs:
                   tools: composer:v2
                   coverage: ${{ (inputs.run-infection && matrix.php == inputs.infection-php) && 'pcov' || 'none' }}
 
+            # On a pull request the mutation leg fetches the full history, because
+            # the changed-lines gate diffs against the base branch and the checkout
+            # runs before the probe that tells whether the consumer has the script.
+            # The depth is a string on purpose. A bare `0` is falsy in an expression,
+            # so `cond && 0 || 1` would always give the shallow depth.
             - name: Checkout
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
+                  fetch-depth: ${{ (inputs.run-infection && matrix.php == inputs.infection-php && github.event_name == 'pull_request') && '0' || '1' }}
 
             # A plain `echo "dir=$(composer config cache-files-dir)"` would let a
             # single embedded newline in the resolved path forge extra
@@ -131,13 +137,15 @@ jobs:
             - name: Unit tests
               run: composer ci:test:php:unit
 
-            # Four optional consumer-side gates. Three of them adopt an asset the
+            # Optional consumer-side gates. Some of them adopt an asset the
             # coding-standard package ships — the template lockstep gate, the phpat
             # subject-liveness guard and the Deptrac architecture-layer check; the
-            # fourth, a PHPStan pass over glue code, is configured per consumer. A
-            # consumer opts in to each by defining the composer script under the exact
-            # name probed below, so the steps stay green for consumers that have not
-            # adopted them yet.
+            # PHPStan pass over glue code is configured per consumer. A consumer opts
+            # in to each by defining the composer script under the exact name probed
+            # below, so the steps stay green for consumers that have not adopted them
+            # yet. The changed-lines mutation gate is probed the same way, but
+            # without its script the whole-tree mutation run takes its place, and
+            # that run can fail.
             #
             # Because each probe matches one exact name, a consumer whose script is
             # spelled differently is indistinguishable from one that never adopted the
@@ -166,6 +174,7 @@ jobs:
                   phpat_subjects=$(has ci:test:php:phpat-subjects)
                   deptrac=$(has ci:test:php:deptrac)
                   phpstan_glue=$(has ci:test:php:phpstan:glue)
+                  infection_changed=$(has ci:test:php:infection:changed)
                   # `ci:test:` rather than `ci:test:php:`, so a script that drops the
                   # `php:` segment still appears. The listing is best-effort by nature —
                   # a name drifting far enough falls outside any fixed prefix — and it
@@ -173,13 +182,14 @@ jobs:
                   # are flattened so no script name can break the line apart, and the
                   # fallback keeps it inert should a future `set -o pipefail` land here.
                   declared=$(jq -r '.scripts // {} | keys[] | select(startswith("ci:test:"))' composer.json 2>/dev/null | tr '\r\n' '  ') || declared=''
-                  echo "Optional consumer gates probed: templates=${templates} phpat_subjects=${phpat_subjects} deptrac=${deptrac} phpstan_glue=${phpstan_glue}"
+                  echo "Optional consumer gates probed: templates=${templates} phpat_subjects=${phpat_subjects} deptrac=${deptrac} phpstan_glue=${phpstan_glue} infection_changed=${infection_changed}"
                   echo "composer.json declares: ${declared}"
                   {
                       echo "templates=${templates}"
                       echo "phpat_subjects=${phpat_subjects}"
                       echo "deptrac=${deptrac}"
                       echo "phpstan_glue=${phpstan_glue}"
+                      echo "infection_changed=${infection_changed}"
                   } >> "$GITHUB_OUTPUT"
 
             # These gates are PHP-version-independent (they read config files and parse
@@ -216,6 +226,20 @@ jobs:
               if: ${{ steps.gates.outputs.phpstan_glue == 'true' }}
               run: composer ci:test:php:phpstan:glue
 
+            # A consumer that defines `ci:test:php:infection:changed` gates a pull
+            # request on the covered code of the lines it changes, which holds the
+            # tests of new code to its mutants without forcing tests for old trivial
+            # code. Every other run, and a consumer without that script, runs the whole
+            # tree through `ci:test:php:infection`. That run only reports once the
+            # consumer's own configuration carries no fixed score floor. The base
+            # branch name reaches the step through `env`, never through an
+            # expression inside `run`.
+            - name: Mutation testing (changed lines)
+              if: ${{ inputs.run-infection && matrix.php == inputs.infection-php && github.event_name == 'pull_request' && steps.gates.outputs.infection_changed == 'true' }}
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+              run: composer ci:test:php:infection:changed -- --git-diff-base="origin/${BASE_REF}"
+
             - name: Mutation testing
-              if: ${{ inputs.run-infection && matrix.php == inputs.infection-php }}
+              if: ${{ inputs.run-infection && matrix.php == inputs.infection-php && !(github.event_name == 'pull_request' && steps.gates.outputs.infection_changed == 'true') }}
               run: composer ci:test:php:infection
