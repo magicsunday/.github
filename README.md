@@ -111,9 +111,9 @@ Workflows not listed here take no inputs.
 | | `check-core-overlap` — fail when a catalogue entry translates a text that webtrees core already translates in that locale. An empty or fuzzy entry is fine, a compiled one replaces the core text in the whole installation. On a pull request the check runs when the pull request changes a file below `lang-dir`, the root `composer.json` or a workflow file | `true` |
 | | `check-source-copies` — fail when a catalogue entry of any locale is a copy of its own source text. A singular entry is a copy when its translation equals the message id. A plural entry is a copy only when every form is filled and each one equals the message id or the plural message id. An empty entry is fine, the source text shows without it | `true` |
 | | `core-tags` — space-separated webtrees release tags to compare with, empty derives them from the `fisharebest/webtrees` constraint of `composer.json` (`~`, `^` and exact forms) | *(none)* |
-| | `node-image` — image whose gettext must match the local `make lang` | `node:24-alpine` |
+| | `node-image` — image whose gettext must match the local `make lang` | `ghcr.io/magicsunday/webtrees-docker-module-base:node24` |
 | `bundle-freshness.yml` | `bundle-dir` — directory whose committed artefacts must match a rebuild | `resources/js` |
-| | `node-image` — image whose Node/Rollup must match the local `make build` | `node:24-alpine` |
+| | `node-image` — image whose Node/Rollup must match the local `make build` | `ghcr.io/magicsunday/webtrees-docker-module-base:node24` |
 | `php-quality.yml` | `php-versions` — JSON array of PHP versions for the build matrix | `["8.3", "8.4", "8.5"]` |
 | | `run-psr4` — run the strict PSR-4 autoload check | `false` |
 | | `run-infection` — run mutation testing, on the `infection-php` leg only. On a pull request the mutation leg fetches the full history, whether or not the consumer defines the composer script `ci:test:php:infection:changed`. A pull request of a consumer that defines it is gated on the covered code of its changed lines. Every other run, and a consumer without that script, runs `ci:test:php:infection` over the whole tree. That run only reports once the consumer's own configuration has no fixed score floor | `false` |

@@ -15,8 +15,8 @@ name: Bundle freshness (reusable)
 # "Pipeline freshness" check.
 #
 # Determinism: the rebuild runs in the caller's `node-image` (default
-# `node:24-alpine`) — pinned to the SAME exact Node major the compose `node`
-# service, the buildbox and `make build` use — so terser's mangled output is
+# `ghcr.io/magicsunday/webtrees-docker-module-base:node24`, the webtrees-docker tooling image) — pinned to the SAME exact
+# Node major the compose `node` service, the buildbox and `make build` use — so terser's mangled output is
 # byte-identical to the committed bundle. A different Node major remangles and
 # trips a phantom diff, so the image is pinned to an EXACT major; a floating
 # `lts`/`latest` tag must NOT be used (an LTS major rollover would re-mangle
@@ -35,7 +35,7 @@ on:
             node-image:
                 description: 'Container image whose Node/Rollup/terser must match the maintainer''s local `make build`.'
                 type: string
-                default: 'node:24-alpine'
+                default: 'ghcr.io/magicsunday/webtrees-docker-module-base:node24'
 
 permissions:
     contents: read
@@ -63,7 +63,7 @@ jobs:
                   set -euo pipefail
 
                   # Build inside the same image the maintainer's `make build`
-                  # uses (compose `node` service = node:24-alpine) so terser's
+                  # uses (compose `node` service = the tooling image) so terser's
                   # output is byte-identical to the committed bundle. `npm ci`
                   # needs git to fetch the `github:`-pinned chart-lib
                   # dependency; the container has no SSH key, so the insteadOf
