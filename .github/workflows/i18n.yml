@@ -177,9 +177,11 @@ jobs:
                   # maintainer's `make lang` uses, so xgettext / msgmerge /
                   # msgfmt output is byte-identical to the committed
                   # catalogue (a host gettext of a different version would
-                  # reflow PO lines and trip a phantom diff). COMPOSE_RUN is
-                  # emptied so each recipe runs in this container instead of
-                  # spawning a nested `docker compose` service; the
+                  # reflow PO lines and trip a phantom diff). COMPOSE_RUN and
+                  # COMPOSE_RUN_USER are emptied, the first for the recipes that
+                  # run as root and the second for the recipes that run as the
+                  # calling user, so each recipe runs in this container instead
+                  # of spawning a nested `docker compose` service; the
                   # fuzzy-resolver (python3) runs in the same container, so no
                   # host/container ownership split corrupts the PO files.
                   # `set -e` + visible apk stderr so a failed toolchain
@@ -187,7 +189,7 @@ jobs:
                   docker run --rm -v "$PWD":/app -w /app "$NODE_IMAGE" sh -c '
                       set -e
                       apk add --no-cache make bash gettext python3 >/dev/null
-                      make lang COMPOSE_RUN=
+                      make lang COMPOSE_RUN= COMPOSE_RUN_USER=
                   '
 
                   # Stage everything so the check also catches NEW untracked
