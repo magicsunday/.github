@@ -1,0 +1,65 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "description": "Shared Renovate preset of the repositories of this account, used as local>magicsunday/.github:renovate-config.",
+    "extends": [
+        "config:recommended",
+        "docker:pinDigests",
+        "helpers:pinGitHubActionDigests",
+        ":disableDependencyDashboard"
+    ],
+    "timezone": "Europe/Berlin",
+    "schedule": [
+        "on monday"
+    ],
+    "minimumReleaseAge": "7 days",
+    "prConcurrentLimit": 5,
+    "labels": [
+        "dependencies"
+    ],
+    "semanticCommits": "disabled",
+    "commitMessagePrefix": "Update dependencies:",
+    "commitMessageAction": "Bump",
+    "packageRules": [
+        {
+            "description": "One grouped pull request per package manager.",
+            "matchManagers": [
+                "composer"
+            ],
+            "groupName": "composer"
+        },
+        {
+            "matchManagers": [
+                "npm"
+            ],
+            "groupName": "npm"
+        },
+        {
+            "matchManagers": [
+                "github-actions"
+            ],
+            "groupName": "github-actions"
+        },
+        {
+            "description": "The chart library bundle is baked into the committed minified files at build time, so it arrives as its own pull request that a human reviews and rebuilds the bundle for.",
+            "matchPackageNames": [
+                "@magicsunday/webtrees-chart-lib"
+            ],
+            "groupName": "webtrees-chart-lib"
+        },
+        {
+            "description": "Registries other than Docker Hub, ghcr.io among them, publish no release timestamp, so image updates would never count as old enough.",
+            "matchDatasources": [
+                "docker"
+            ],
+            "minimumReleaseAgeBehaviour": "timestamp-optional"
+        },
+        {
+            "description": "Pins by git tag are taken without the age wait.",
+            "matchPackageNames": [
+                "@magicsunday/coding-standard",
+                "@magicsunday/webtrees-chart-lib"
+            ],
+            "minimumReleaseAge": null
+        }
+    ]
+}
