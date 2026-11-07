@@ -1,8 +1,13 @@
 version: 2
 
 updates:
+    # Version updates of this repository are proposed by Renovate. The limit of
+    # zero silences the version updates of Dependabot and leaves its security
+    # updates alone, while the entries stay because the canonical drift check
+    # reads this file.
     -   package-ecosystem: github-actions
         directory: /
+        open-pull-requests-limit: 0
         schedule:
             interval: weekly
         cooldown:
@@ -20,6 +25,7 @@ updates:
     # they are held for a human one at a time.
     -   package-ecosystem: pip
         directory: /.github/requirements
+        open-pull-requests-limit: 0
         schedule:
             interval: weekly
         cooldown:
