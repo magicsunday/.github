@@ -19,10 +19,11 @@ updates:
                 patterns:
                     - "*"
 
-    # The pinned tool versions the reusable workflows install. Kept ungrouped,
-    # and excluded from auto-merge in `auto-merge-deps.yml`: each bump changes
+    # The pinned tool versions the reusable workflows install. This entry stays
+    # for the canonical drift check only, and Renovate tracks the hash-locked
+    # closures through its `pip-compile` manager. A bump of such a tool changes
     # the behaviour of a different gate in every repository of the account, so
-    # they are held for a human one at a time.
+    # a human merges each one.
     -   package-ecosystem: pip
         directory: /.github/requirements
         open-pull-requests-limit: 0
