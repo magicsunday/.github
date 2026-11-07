@@ -19,6 +19,32 @@
     "semanticCommits": "disabled",
     "commitMessagePrefix": "Update dependencies:",
     "commitMessageAction": "Bump",
+    "customManagers": [
+        {
+            "description": "The tooling image that a workflow receives as its node-image input, so the digest pin reaches CI as well as the Compose file.",
+            "customType": "regex",
+            "managerFilePatterns": [
+                "/^\\.github/workflows/[^/]+\\.ya?ml$/"
+            ],
+            "matchStrings": [
+                "node-image: (?<depName>ghcr\\.io/magicsunday/webtrees-docker-module-base):(?<currentValue>[A-Za-z0-9._-]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
+            ],
+            "datasourceTemplate": "docker",
+            "autoReplaceStringTemplate": "node-image: {{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}"
+        },
+        {
+            "description": "The default of the node-image input in the shared workflows of this repository.",
+            "customType": "regex",
+            "managerFilePatterns": [
+                "/^\\.github/workflows/[^/]+\\.ya?ml$/"
+            ],
+            "matchStrings": [
+                "default: '(?<depName>ghcr\\.io/magicsunday/webtrees-docker-module-base):(?<currentValue>[A-Za-z0-9._-]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?'"
+            ],
+            "datasourceTemplate": "docker",
+            "autoReplaceStringTemplate": "default: '{{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}'"
+        }
+    ],
     "packageRules": [
         {
             "description": "One grouped pull request per package manager.",
@@ -55,6 +81,16 @@
                 "@magicsunday/webtrees-chart-lib"
             ],
             "groupName": "webtrees-chart-lib"
+        },
+        {
+            "description": "Every reference to the tooling image moves in one pull request, so the local build and CI keep using the same image.",
+            "matchDatasources": [
+                "docker"
+            ],
+            "matchPackageNames": [
+                "ghcr.io/magicsunday/webtrees-docker-module-base"
+            ],
+            "groupName": "tooling-image"
         },
         {
             "description": "Registries other than Docker Hub, ghcr.io among them, publish no release timestamp, so image updates would never count as old enough.",
