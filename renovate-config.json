@@ -40,7 +40,7 @@
             "groupName": "github-actions"
         },
         {
-            "description": "The Python and Node versions of the workflows are pinned on purpose, because the hash-locked pip closures are compiled for them, so a human moves them.",
+            "description": "The Python version of the workflows is pinned on purpose, because the hash-locked pip closures are compiled for it, so a human moves it. The Node version is held with it until it is decided whether it follows the LTS line.",
             "matchManagers": [
                 "github-actions"
             ],
