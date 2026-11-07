@@ -40,6 +40,17 @@
             "groupName": "github-actions"
         },
         {
+            "description": "The Python and Node versions of the workflows are pinned on purpose, because the hash-locked pip closures are compiled for them, so a human moves them.",
+            "matchManagers": [
+                "github-actions"
+            ],
+            "matchDepNames": [
+                "python",
+                "node"
+            ],
+            "enabled": false
+        },
+        {
             "description": "The chart library bundle is baked into the committed minified files at build time, so it arrives as its own pull request that a human reviews and rebuilds the bundle for.",
             "matchPackageNames": [
                 "@magicsunday/webtrees-chart-lib"
