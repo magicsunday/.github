@@ -36,9 +36,9 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
 - **Pin every tool a workflow installs, in `.github/requirements/`.** An unpinned
   install re-resolves on every run, so a new upstream release changes the behaviour of
   a gate across the whole account with nothing here having changed — and `yamllint` is
-  a required check. Renovate tracks these files through its `pip-compile` manager,
-  which `renovate.json` points at the `.txt` files of this directory; an inline
-  `pip install <tool>` in a `run:` block is invisible to it, pinned or not.
+  a required check. Renovate is set up to track these files through its `pip-compile`
+  manager, which `renovate.json` points at the `.txt` files of this directory. An
+  inline `pip install <tool>` in a `run:` block is invisible to it, pinned or not.
   The manager reads the compile command from the header that `pip-compile` writes
   into each `.txt`, so keep that header as `pip-compile` writes it, with the
   default header and every source file named in the command.
