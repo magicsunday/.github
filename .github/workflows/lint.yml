@@ -34,7 +34,7 @@ jobs:
             - name: Set up Python
               uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
               with:
-                  python-version: '3.12'
+                  python-version: '3.14'
 
             # See AGENTS.md, "hash-locked closure", for why pip-compile
             # without --upgrade only reports genuine .in drift here, rather
@@ -86,7 +86,7 @@ jobs:
             - name: Set up Python
               uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
               with:
-                  python-version: '3.12'
+                  python-version: '3.14'
 
             # test-semgrep-report-check.sh exercises assert_semgrep_report_complete()
             # against hand-written JSON fixtures - it pins the gate's own logic, but
@@ -222,7 +222,7 @@ jobs:
             - name: Set up Python
               uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
               with:
-                  python-version: '3.12'
+                  python-version: '3.14'
 
             # Tests run by run-tests.sh import PyYAML, directly or through
             # find_workflow_call_targets.py (issue #118), so the suite itself
@@ -268,7 +268,7 @@ jobs:
             - name: Set up Python
               uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
               with:
-                  python-version: '3.12'
+                  python-version: '3.14'
 
             # workflow_catalog.py imports find_workflow_call_targets.py
             # directly (issue #118's real YAML parse) into the same
