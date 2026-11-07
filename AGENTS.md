@@ -36,20 +36,18 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
 - **Pin every tool a workflow installs, in `.github/requirements/`.** An unpinned
   install re-resolves on every run, so a new upstream release changes the behaviour of
   a gate across the whole account with nothing here having changed — and `yamllint` is
-  a required check. Dependabot tracks these files through its `pip` ecosystem; an
-  inline `pip install <tool>` in a `run:` block is invisible to it, pinned or not.
-  What makes a file here discoverable is worth knowing before editing one: the
-  `pip` fetcher takes every `*.txt` / `*.in` in the configured directory and keeps
-  it if the name contains `requirements` **or** every line parses as a requirement
-  — blank lines and lines opening with `#`, `-r `, `-c `, `-e ` or `--` count as
-  parsing. Every hash-locked `.txt` here qualifies on the second arm by
-  construction — `pip-compile`'s own output is nothing but comment lines and
-  parseable requirement lines — so free prose added to one would drop it from
-  the updater silently.
-  These bumps are excluded from auto-merge — see `auto-merge-deps.yml`. (The rule is
+  a required check. Renovate tracks these files through its `pip-compile` manager,
+  which `renovate.json` points at the `.txt` files of this directory; an inline
+  `pip install <tool>` in a `run:` block is invisible to it, pinned or not.
+  What makes a file here trackable is worth knowing before editing one: the manager
+  reads the compile command from the header that `pip-compile` writes into each
+  `.txt`, so a header written with `--no-header`, or a command that does not name
+  every source file, drops the file from the updater.
+  These bumps are not auto-merged: Renovate sets no automerge here, and
+  `auto-merge-deps.yml` excludes pip bumps on the Dependabot path. (The rule is
   about what a workflow installs *itself*: a SHA-pinned action that brings its own
   binary, as `zizmor.yml` does, already has its version tracked by the
-  `github-actions` ecosystem.)
+  `github-actions` manager.)
   Before merging such a pull request by hand:
   - Read the release notes of the bumped tool, looking for a changed default or a
     removed option the gate relies on.
@@ -106,7 +104,7 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   than resolving to something unverified. `pip-tools.txt` is the same kind of
   hash-locked closure, compiled from `pip-tools.in` the same way — it exists so
   the `pip-tools` version the CI freshness check below installs itself comes from
-  a pinned, Dependabot-tracked file rather than a bare inline `pip install`,
+  a pinned, Renovate-tracked file rather than a bare inline `pip install`,
   which the "Pin every tool a workflow installs" rule above forbids. `lint.yml`'s
   `pip-closures-fresh` job installs `pip-tools` from that closure, checks every
   committed `.txt` has a matching `.in` (an orphan of either fails the job), then
