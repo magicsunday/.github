@@ -71,7 +71,7 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   stops an upstream release from changing the tool version, but not from changing
   what it depends on. Bump the version in the `.in` file, then regenerate matching
   the runner these tools actually install on. Re-derive which Python version and
-  runner that is (both currently `'3.12'` on `ubuntu-latest`, i.e. linux/amd64):
+  runner that is (both currently `'3.14'` on `ubuntu-latest`, i.e. linux/amd64):
 
   ```bash
   grep -h "python-version:\|runs-on:" .github/workflows/code-scanning.yml .github/workflows/yamllint.yml .github/workflows/lint.yml
@@ -81,7 +81,7 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   different architecture (e.g. Apple Silicon) resolves different wheels/hashes
   than the runner installs and `--only-binary=:all:` then fails the install rather
   than silently degrading:
-  `docker run --rm --platform linux/amd64 -v "$PWD/.github/requirements:/work" -w /work python:3.12 bash -c "pip install pip-tools==7.6.2 && pip-compile --allow-unsafe --generate-hashes --output-file=<name>.txt <name>.in"`
+  `docker run --rm --platform linux/amd64 -v "$PWD/.github/requirements:/work" -w /work python:3.14 bash -c "pip install pip-tools==7.6.2 && pip-compile --allow-unsafe --generate-hashes --output-file=<name>.txt <name>.in"`
   (run from the repo root — the mount source is relative to the caller's `$PWD`).
   Pinning the `pip-tools` version too avoids tool-version-driven hash churn
   between two regenerations of the same `.in`, so a genuine dependency change
@@ -91,7 +91,7 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   Verify the result installs before committing, in the same container so the
   platform and Python version actually match what CI installs against (run
   from the repo root, same as the regenerate command above):
-  `docker run --rm --platform linux/amd64 -v "$PWD/.github/requirements:/work" -w /work python:3.12 pip install --only-binary=:all: --require-hashes -r <name>.txt`.
+  `docker run --rm --platform linux/amd64 -v "$PWD/.github/requirements:/work" -w /work python:3.14 pip install --only-binary=:all: --require-hashes -r <name>.txt`.
   The header that `pip-compile` writes into a `.txt` records the command that
   produced it, and the freshness check below compares it byte for byte, so a
   `pip-tools` bump can change every header without changing any pin. Regenerate
