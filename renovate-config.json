@@ -76,6 +76,20 @@
             "enabled": false
         },
         {
+            "description": "Patch, minor and digest updates of GitHub Actions merge by themselves once the required checks pass. Major updates stay with a human.",
+            "matchManagers": [
+                "github-actions"
+            ],
+            "matchUpdateTypes": [
+                "patch",
+                "minor",
+                "digest",
+                "pin",
+                "pinDigest"
+            ],
+            "automerge": true
+        },
+        {
             "description": "The chart library bundle is baked into the committed minified files at build time, so it arrives as its own pull request that a human reviews and rebuilds the bundle for.",
             "matchPackageNames": [
                 "@magicsunday/webtrees-chart-lib"
