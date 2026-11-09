@@ -91,7 +91,7 @@
         },
         {
             "description": "The chart library bundle is baked into the committed minified files at build time, so it arrives as its own pull request that a human reviews and rebuilds the bundle for.",
-            "matchPackageNames": [
+            "matchDepNames": [
                 "@magicsunday/webtrees-chart-lib"
             ],
             "groupName": "webtrees-chart-lib"
@@ -115,7 +115,7 @@
         },
         {
             "description": "Pins by git tag are taken without the age wait.",
-            "matchPackageNames": [
+            "matchDepNames": [
                 "@magicsunday/coding-standard",
                 "@magicsunday/webtrees-chart-lib"
             ],
