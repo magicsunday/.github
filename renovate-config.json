@@ -19,6 +19,8 @@
     "semanticCommits": "disabled",
     "commitMessagePrefix": "Update dependencies:",
     "commitMessageAction": "Bump",
+    "npmrc": "allow-git=root",
+    "npmrcMerge": true,
     "customManagers": [
         {
             "description": "The tooling image that a workflow receives as its node-image input, so the digest pin reaches CI as well as the Compose file.",
