@@ -13,6 +13,14 @@
     ],
     "minimumReleaseAge": "7 days",
     "prConcurrentLimit": 5,
+    "platformAutomerge": false,
+    "vulnerabilityAlerts": {
+        "description": "A pull request for a known vulnerability carries its own label, so it stands out from the weekly updates.",
+        "labels": [
+            "dependencies",
+            "security"
+        ]
+    },
     "labels": [
         "dependencies"
     ],
@@ -86,7 +94,7 @@
             "enabled": false
         },
         {
-            "description": "Patch, minor and digest updates of GitHub Actions merge by themselves once the required checks pass. Major updates stay with a human.",
+            "description": "Patch, minor and digest updates of GitHub Actions merge by themselves once the required checks pass and the age wait is over. Renovate performs the merge itself, because a merge by the platform would not wait for the age check, which is no required status check. Major updates stay with a human.",
             "matchManagers": [
                 "github-actions"
             ],
