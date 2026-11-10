@@ -42,11 +42,6 @@ jobs:
               with:
                   persist-credentials: false
 
-            - name: Set up Python
-              uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-              with:
-                  python-version: '3.14'
-
             # The token reads other repositories only while they are public,
             # which is also this sweep's coverage limit (see the lib's
             # header). Values reach the script through the environment,

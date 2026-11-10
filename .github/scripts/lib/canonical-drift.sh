@@ -30,10 +30,10 @@
 # annotation-sanitize.sh is not sourced: every value this file prints into
 # an annotation is either an account or repository name, a count, or a path
 # from this repository's own manifest, which is maintainer input and printed
-# as written. As GitHub's docs stated on 2026-09-27, usernames may contain only alphanumerics and dashes
-# ("Username considerations for external authentication") and repository
-# names only ASCII letters, digits, `.`, `-` and `_` ("Creating a new
-# repository"). None of them needs annotation-sanitize.sh.
+# as written. A username may contain only alphanumerics and dashes (GitHub's
+# docs, "Username considerations for external authentication") and a
+# repository name only ASCII letters, digits, `.`, `-` and `_` ("Creating a
+# new repository"). None of them needs annotation-sanitize.sh.
 #
 # check_canonical_drift runs every call whose non-zero status is an expected
 # answer in a tested context (`|| rc=$?`, `|| return 1`, `if !`), and
