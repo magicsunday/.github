@@ -3,11 +3,6 @@
         {
             "path": ".github/zizmor.yml",
             "applies_when_present": ".github/workflows"
-        },
-        {
-            "path": ".github/dependabot.yml",
-            "check": "dependabot-commit-prefix",
-            "applies_when_present": ".github/dependabot.yml"
         }
     ]
 }
