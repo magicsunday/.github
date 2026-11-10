@@ -34,7 +34,6 @@ runs.
 <tr><td><code>yamllint.yml</code></td><td>Lints YAML against the house style (4-space indent)</td><td><code>contents: read</code></td></tr>
 <tr><td><code>i18n.yml</code></td><td>Enforces the catalogue layout, with an optional <code>make lang</code> freshness gate and a core text overlap check</td><td><code>contents: read</code></td></tr>
 <tr><td><code>bundle-freshness.yml</code></td><td>Verifies committed build artefacts match a clean rebuild</td><td><code>contents: read</code></td></tr>
-<tr><td><code>auto-merge-deps.yml</code></td><td>Auto-merges passing dependency bumps (patch and minor only; <code>pip</code> is excluded — see below)</td><td><code>contents: write</code>, <code>pull-requests: write</code></td></tr>
 <tr><td><code>ai-issue-labeler.yml</code></td><td>Classifies a newly opened issue via the Anthropic API against the caller's own live label set, leaves out the pull-request labels and the labels a maintainer sets, and applies the labels it is confident about (see below)</td><td><code>issues: write</code></td></tr>
 <tr><td><code>php-quality.yml</code></td><td>Runs the granular <code>composer ci:test:php:*</code> PHP quality gate across a version matrix</td><td><code>contents: read</code></td></tr>
 <tr><td><code>cpd.yml</code></td><td>Copy-paste detection with the caller's exact-pinned jscpd: <code>npm ci</code>, then the fixed jscpd command line; settings live in <code>.jscpd.json</code></td><td><code>contents: read</code></td></tr>
@@ -54,22 +53,6 @@ Two contracts are easy to miss when adopting `commit-convention.yml`: the caller
 must include `edited` in its `pull_request` `types:`, or a corrected subject is
 never re-checked; and the status context to require in branch protection is
 `<calling-job-id> / Commit convention`, not `Commit convention`.
-
-`auto-merge-deps.yml` skips the `pip` ecosystem **in this repository only**:
-`.github/requirements/*.txt` hold the pinned tool versions the shared gates run,
-so such a bump changes how a gate behaves in every repository, and a green run
-here only proves the new version against this repository's own files. Those pull
-requests stay open for a human. A consumer's own Python dependency is unaffected
-and keeps auto-merging.
-
-`auto-merge-deps.yml` also checks this repository out a second time, to source
-`.github/scripts/lib/auto-merge-update-type.sh`. Dependabot reports the new
-version of a git-pinned dependency (`github:owner/repo#X.Y.Z`) as a commit hash,
-from which no update type can be read. For a group that contains a git pin, the
-workflow takes the update type of that pin from the tag in the pull request's
-`package.json` patch, and a group it cannot classify (an unreadable pin or a
-malformed dependency list) stays open. The patches are fetched only for such a
-group.
 
 `code-scanning.yml` and `yamllint.yml` check this repository out a second time,
 at the revision of the workflow being executed, to read the pinned tool
@@ -166,17 +149,16 @@ magicsunday/coding-standard#219: jscpd pinned to an exact version in
 `.jscpd.json`. It installs Node 24 and the locked tooling with `npm ci`, then runs
 `node_modules/.bin/jscpd --config .jscpd.json --skip-comments --no-tips --fail-on-empty` —
 no PHP and no Composer, and no npm in Composer hooks. A missing contract file
-fails the job by name, and a scan that analyzes no file fails too. Give the
-caller's `.github/dependabot.yml` an `npm` entry, or nothing bumps the pin.
+fails the job by name, and a scan that analyzes no file fails too. The exact pin
+in `devDependencies` is what a dependency bot bumps.
 
 ## Labels
 
 `labels.yml` is the single source of truth for the shared label set: the type
 labels, the workflow labels such as `needs-triage` and `awaiting feedback`, the
-`priority: *` levels, and the Dependabot-managed labels. Names are
-lowercase. Keep the Dependabot ones (`dependencies`, `github_actions` and the
-language labels) lowercase in `labels.yml`, matching Dependabot's own
-ecosystem-default labels.
+`priority: *` levels, and the labels for dependency updates. Names are
+lowercase. Keep those (`dependencies`, `github_actions` and the language
+labels) lowercase in `labels.yml`.
 
 The AI issue labeler reads each label as `name: description` and chooses from
 that text, so a description there is a decision criterion and not a caption.
