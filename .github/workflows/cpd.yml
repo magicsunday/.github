@@ -6,7 +6,7 @@ name: Copy-paste detection (reusable)
 #
 #   - `package.json` declares jscpd in `devDependencies` with an exact
 #     version and `package-lock.json` is committed, so the version lives in
-#     one place and Dependabot's npm ecosystem bumps it;
+#     one place and a dependency bot bumps it;
 #   - nothing installs jscpd from a Composer hook: this workflow installs it
 #     explicitly with `npm ci`;
 #   - the scan runs the installed binary offline with a fixed command line,
@@ -31,8 +31,8 @@ name: Copy-paste detection (reusable)
 # this workflow RENAMES the reported status check (a reusable reports as
 # `<caller job> / Copy-paste detection`), so the calling repository's
 # branch-protection required-checks list must be updated in the same change.
-# The caller's `.github/dependabot.yml` needs an `npm` updates entry, or
-# nothing bumps the exact jscpd pin.
+# The caller's dependency bot must watch `package.json`, or nothing bumps
+# the exact jscpd pin.
 on:
     workflow_call:
 

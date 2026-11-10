@@ -4,14 +4,14 @@ name: Bundle freshness (reusable)
 # committed Rollup bundle (resources/js/*.min.js) built from source plus a
 # pinned @magicsunday/webtrees-chart-lib dependency.
 #
-# Why this exists: a Dependabot bump — or a hand edit of the chart-lib pin, or
+# Why this exists: a bump of a dependency bot, a hand edit of the chart-lib pin, or
 # any source change — updates package.json and the lockfile but NEVER rebuilds
 # the committed bundle. The shipped *.min.js therefore silently lags the
 # resolved dependency: the manifest claims chart-lib X, the bundle still embeds
 # chart-lib Y. This gate rebuilds the bundle inside the SAME container image the
 # maintainer's local `make build` uses, then fails on any non-empty diff —
 # turning a stale artefact into a hard CI failure for every pull request
-# (Dependabot and human alike). It is the bundle analogue of the i18n
+# (a bot and a human alike). It is the bundle analogue of the i18n
 # "Pipeline freshness" check.
 #
 # Determinism: the rebuild runs in the caller's `node-image` (default
