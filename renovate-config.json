@@ -21,6 +21,14 @@
     "commitMessageAction": "Bump",
     "npmrc": "allow-git=root",
     "npmrcMerge": true,
+    "lockFileMaintenance": {
+        "description": "Weekly refresh of the lock files, so a package that only a lock file holds gets updated. A refresh has no release timestamp, so the age wait is optional here. A person reviews and merges the pull request.",
+        "enabled": true,
+        "minimumReleaseAgeBehaviour": "timestamp-optional",
+        "schedule": [
+            "on monday"
+        ]
+    },
     "customManagers": [
         {
             "description": "The tooling image that a workflow receives as its node-image input, so the digest pin reaches CI as well as the Compose file.",
