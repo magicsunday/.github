@@ -43,8 +43,7 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   into each `.txt`, so keep that header as `pip-compile` writes it, with the
   default header and every source file named in the command.
   These bumps are not auto-merged. The automerge rule of the Renovate preset covers
-  GitHub Actions updates only, and `auto-merge-deps.yml` excludes pip bumps on the
-  Dependabot path. (The rule is
+  GitHub Actions updates only. (The rule is
   about what a workflow installs *itself*: a SHA-pinned action that brings its own
   binary, as `zizmor.yml` does, already has its version tracked by the
   `github-actions` manager.)

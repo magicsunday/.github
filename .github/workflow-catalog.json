@@ -35,10 +35,6 @@
         "purpose": "Verifies committed build artefacts match a clean rebuild",
         "permissions": ["contents: read"]
     },
-    "auto-merge-deps.yml": {
-        "purpose": "Auto-merges passing dependency bumps (patch and minor only; `pip` is excluded — see below)",
-        "permissions": ["contents: write", "pull-requests: write"]
-    },
     "ai-issue-labeler.yml": {
         "purpose": "Classifies a newly opened issue via the Anthropic API against the caller's own live label set, leaves out the pull-request labels and the labels a maintainer sets, and applies the labels it is confident about (see below)",
         "permissions": ["issues: write"]
