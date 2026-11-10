@@ -132,7 +132,7 @@ build_merge .github/workflows/i18n.yml
 run_step pull_request
 assert_relevant "a changed workflow file runs the check because it can set the core tags" true
 
-build_merge .github/dependabot.yml
+build_merge .github/CODEOWNERS
 run_step pull_request
 assert_relevant "a file next to the workflows skips the check" false
 
