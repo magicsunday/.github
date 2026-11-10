@@ -30,7 +30,7 @@
     "npmrc": "allow-git=root",
     "npmrcMerge": true,
     "lockFileMaintenance": {
-        "description": "Weekly refresh of the lock files, so a package that only a lock file holds gets updated. A refresh has no release timestamp, so the age wait is optional here. A person reviews and merges the pull request.",
+        "description": "Weekly refresh of the lock files, so a package that only a lock file holds gets updated. A refresh has no release timestamp, so the age wait is optional here. For Composer lock files the age wait cannot be applied during the refresh, so a freshly published release of a transitive package can enter the lock file. This risk is accepted, because a person reviews and merges the pull request and no automerge rule matches it.",
         "enabled": true,
         "minimumReleaseAgeBehaviour": "timestamp-optional",
         "schedule": [
