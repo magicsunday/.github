@@ -104,9 +104,8 @@ JSON
     echo '{"packages": []}' > "$1/composer.lock"
 }
 
-prepare_symlinked_json() {
-    echo '{}' > "$1/real.json"
-    ln -s real.json "$1/composer.json"
+prepare_dangling_json() {
+    ln -s missing.json "$1/composer.json"
 }
 
 STUB_UPDATE_STATUS=0
@@ -127,8 +126,8 @@ assert_eq 'no lock file resolves without installing, then audits the lock' \
     $'update --no-install --no-scripts --no-plugins --no-interaction --no-progress\naudit --locked --no-interaction' \
     "${case_calls}"
 
-run_case prepare_symlinked_json
-assert_eq 'a symlinked composer.json counts as present and is resolved fresh' \
+run_case prepare_dangling_json
+assert_eq 'a dangling composer.json symlink counts as present and is not skipped' \
     $'update --no-install --no-scripts --no-plugins --no-interaction --no-progress\naudit --locked --no-interaction' \
     "${case_calls}"
 
