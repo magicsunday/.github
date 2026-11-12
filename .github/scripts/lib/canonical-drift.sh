@@ -16,30 +16,48 @@
 # is the obvious follow-up once the canonical set is stable.
 #
 # Which files are canonical is declared in .github/canonical-files.json, and
-# the canonical CONTENT of each is this repository's own copy at the same
-# path. The manifest therefore only names paths; there is no second copy of
-# the content to fall out of step with the file it describes, and
+# the canonical CONTENT of each `files` entry is this repository's own copy at
+# the same path. The manifest therefore only names paths; there is no second
+# copy of the content to fall out of step with the file it describes, and
 # assert_canonical_manifest_valid() fails the run if a listed path does not
 # exist here.
+#
+# A second kind of entry, `template_sets`, covers the shared release files of
+# the ZIP webtrees modules. Their canonical content is a directory of another
+# repository's default branch (the template of coding-standard), read through
+# the API at sweep time, so this repository holds no third copy. Every file of
+# that directory except the listed exclusions is compared with the same path in
+# each named repository, which is the file set that the template's own sync
+# script copies. The PHP files differ per module in their identity lines (the
+# package name and the namespace), so for a `.php` file the template text is
+# rendered with the module's MODULE_NAME and MODULE_NS, read from the parameter
+# file of the module, before its blob hash is compared. That is the same
+# rendering the sync script does, with the same shape checks on both values.
 #
 # Coverage limit, stated rather than hidden: the sweep runs on this
 # repository's own GITHUB_TOKEN, which can read another repository only while
 # that repository is public. A private repository is not listed and not
 # checked.
 #
-# annotation-sanitize.sh is not sourced: every value this file prints into
-# an annotation is either an account or repository name, a count, or a path
-# from this repository's own manifest, which is maintainer input and printed
-# as written. A username may contain only alphanumerics and dashes (GitHub's
-# docs, "Username considerations for external authentication") and a
-# repository name only ASCII letters, digits, `.`, `-` and `_` ("Creating a
-# new repository"). None of them needs annotation-sanitize.sh.
+# Printed values and where they come from. An account or repository name, a
+# count, a path from this repository's own manifest and the source repository
+# and directory of a template set are maintainer input or constrained by
+# GitHub's naming rules (a username may contain only alphanumerics and dashes,
+# a repository name only ASCII letters, digits, `.`, `-` and `_`) and are
+# printed as written. A file path read from the tree listing of a template
+# repository is the one value that another repository controls. It passes
+# through annotation-sanitize.sh (_canonical_drift_label) before it reaches an
+# annotation or a report row, and it travels base64 encoded between the
+# listing and its use, so a newline in it cannot split a line.
 #
 # check_canonical_drift runs every call whose non-zero status is an expected
 # answer in a tested context (`|| rc=$?`, `|| return 1`, `if !`), and
 # classify_canonical_entry answers through what it prints rather than its
 # status: canonical-drift.yml calls the sweep under `set -euo pipefail`,
 # where a bare failing call would end it before it reports anything.
+
+# shellcheck source=annotation-sanitize.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/annotation-sanitize.sh"
 
 # Per page of `GET /users/{owner}/repos`: the repositories worth checking.
 # Archived repositories are frozen and forks mirror an upstream, so neither is
@@ -57,8 +75,11 @@ canonical_blob_sha() {
 
 # Validates manifest "$1" against canonical root "$2": a non-empty `files`
 # array, every `path` a string naming a regular (non-symlink) file under the
-# root, and `applies_when_present`, when given, a non-empty string. Returns 1
-# with an ::error:: per problem.
+# root, and `applies_when_present`, when given, a non-empty string. When
+# `template_sets` is present, each entry names a source repository, a source
+# directory, a parameter file and a non-empty list of repositories, and its
+# `exclude`, when given, is a list of paths. Returns 1 with an ::error:: per
+# problem.
 assert_canonical_manifest_valid() {
     local manifest="$1"
     local canonical_root="$2"
@@ -93,6 +114,37 @@ assert_canonical_manifest_valid() {
             problems=$((problems + 1))
         fi
     done
+
+    if jq -e 'has("template_sets")' "${manifest}" >/dev/null 2>&1; then
+        local set_problems
+        set_problems="$(jq -r '
+            .template_sets
+            | if type != "array" or length == 0 then "template_sets must be a non-empty array."
+              else to_entries[]
+                | .key as $i | .value as $set
+                | (if ($set | type) != "object" then "template_sets[\($i)] is not an object."
+                   else
+                       ( ["source_repository", "source_directory", "parameter_file"][]
+                         | select(($set[.] | type) != "string" or ($set[.] | length) == 0)
+                         | "template_sets[\($i)].\(.) must be a non-empty string." ),
+                       ( select(($set.repositories | type) != "array"
+                                or ($set.repositories | length) == 0
+                                or ($set.repositories | map(type == "string" and length > 0) | all | not))
+                         | "template_sets[\($i)].repositories must be a non-empty array of names." ),
+                       ( select(($set | has("exclude"))
+                                and (($set.exclude | type) != "array"
+                                     or ($set.exclude | map(type == "string" and length > 0) | all | not)))
+                         | "template_sets[\($i)].exclude must be an array of paths." )
+                   end)
+              end' "${manifest}" 2>/dev/null)" || set_problems="template_sets could not be read."
+
+        if [ -n "${set_problems}" ]; then
+            while IFS= read -r line; do
+                echo "::error::${manifest}: ${line}"
+                problems=$((problems + 1))
+            done <<<"${set_problems}"
+        fi
+    fi
 
     [ "${problems}" -eq 0 ]
 }
@@ -155,6 +207,241 @@ classify_canonical_entry() {
     printf 'drifted'
 }
 
+# Prints the value that parameter file "$1" assigns to name "$2", read the way
+# make and the sync script of the template read it: a line is an assignment
+# when it holds the name, optionally indented with spaces, then `=`, `:=`,
+# `::=` or `?=`. The last `=`-style assignment wins and a `?=` only sets a name
+# nothing set before. Whitespace around the value and a carriage return are
+# dropped. Returns 1 when the file assigns the name nowhere.
+_canonical_drift_module_parameter() {
+    local file="$1"
+    local wanted="$2"
+    local assignment='^ *([A-Z][A-Z0-9_]*)[[:space:]]*(:?:?=|\?=)[[:space:]]*(.*)$'
+    local line value found=1 result=""
+
+    while IFS= read -r line || [ -n "${line}" ]; do
+        [[ "${line}" =~ ${assignment} ]] || continue
+        [ "${BASH_REMATCH[1]}" = "${wanted}" ] || continue
+
+        if [ "${BASH_REMATCH[2]}" = "?=" ] && [ "${found}" -eq 0 ]; then
+            continue
+        fi
+
+        value="${BASH_REMATCH[3]}"
+        result="${value%"${value##*[![:space:]]}"}"
+        found=0
+    done <"${file}"
+
+    printf '%s' "${result}"
+    return "${found}"
+}
+
+# Decodes the base64 `content` of contents-API body "$1" into file "$2".
+# Returns non-zero when the body has no content or does not decode, which is
+# also what an empty body (a failed fetch prints none) amounts to.
+_canonical_drift_decode_content() {
+    jq -er '.content' <<<"$1" 2>/dev/null | base64 -d >"$2" 2>/dev/null
+}
+
+# Prints "$1" made safe for a workflow-command annotation (see
+# annotation-sanitize.sh) and for one cell of a Markdown table row, where a
+# pipe would start a new cell.
+_canonical_drift_label() {
+    local safe
+    safe="$(sanitize_for_annotation "$1")"
+    printf '%s' "${safe//|/\\|}"
+}
+
+# Compares one file of repository "$2" (owner "$1") at path "$3" with the
+# canonical blob hash "$4" and records the outcome. "$5" names the canonical
+# source in the message of a drift ("the template X/dir", "the canonical copy
+# in X/Y"). "$6" is the path as shown in annotations and rows, which differs
+# from "$3" only when the path came from another repository and had to be made
+# safe first. It writes into the counters and the report rows of the
+# calling sweep (checked, failures, unchecked, rows), which it sees through
+# bash's dynamic scoping, so every kind of entry shares one report and one
+# verdict.
+_canonical_drift_compare_remote() {
+    local owner="$1" repo="$2" path="$3" canonical_sha="$4" origin_label="$5" shown="$6"
+    local body rc=0
+
+    body="$(_canonical_drift_fetch "repos/${owner}/${repo}/contents/${path}")" || rc=$?
+    checked=$((checked + 1))
+
+    case "${rc}" in
+        0)
+            case "$(classify_canonical_entry "${body}" "${canonical_sha}")" in
+                ok)
+                    rows+="| ${repo} | \`${shown}\` | ok |"$'\n'
+                    ;;
+                drifted)
+                    echo "::error::${owner}/${repo}: ${shown} differs from ${origin_label}."
+                    rows+="| ${repo} | \`${shown}\` | **drifted** |"$'\n'
+                    failures=$((failures + 1))
+                    ;;
+                *)
+                    echo "::error::${owner}/${repo}: ${shown} exists but is not a regular file."
+                    rows+="| ${repo} | \`${shown}\` | **not a regular file** |"$'\n'
+                    failures=$((failures + 1))
+                    ;;
+            esac
+            ;;
+        1)
+            echo "::error::${owner}/${repo}: ${shown} is missing."
+            rows+="| ${repo} | \`${shown}\` | **missing** |"$'\n'
+            failures=$((failures + 1))
+            ;;
+        *)
+            echo "::error::${owner}/${repo}: fetching ${shown} failed, so it went unchecked."
+            rows+="| ${repo} | \`${shown}\` | **unchecked** (API error) |"$'\n'
+            checked=$((checked - 1))
+            unchecked=$((unchecked + 1))
+            ;;
+    esac
+}
+
+# Checks the repositories named by `template_sets[$3]` of manifest "$1" against
+# the template directory of that set. "$2" is the owner. The work happens in
+# _canonical_drift_check_template_set_in with a scratch directory that is
+# removed here, so no way out of it leaks the directory. Returns 0 always, a
+# problem is a counted outcome. It shares the counters and rows of the sweep
+# through dynamic scoping, see _canonical_drift_compare_remote.
+_canonical_drift_check_template_set() {
+    local scratch
+    scratch="$(mktemp -d)" || {
+        echo "::error::Could not create a scratch directory for template set $3, so its modules went unchecked."
+        unchecked=$((unchecked + 1))
+        return 0
+    }
+
+    _canonical_drift_check_template_set_in "$1" "$2" "$3" "${scratch}" || true
+    rm -rf "${scratch}"
+    return 0
+}
+
+_canonical_drift_check_template_set_in() {
+    local manifest="$1"
+    local owner="$2"
+    local index="$3"
+    local scratch="$4"
+
+    local source_repo directory parameter_file
+    source_repo="$(jq -r ".template_sets[${index}].source_repository" "${manifest}")"
+    directory="$(jq -r ".template_sets[${index}].source_directory" "${manifest}")"
+    parameter_file="$(jq -r ".template_sets[${index}].parameter_file" "${manifest}")"
+
+    local tree rc
+    rc=0
+    tree="$(_canonical_drift_fetch "repos/${owner}/${source_repo}/git/trees/HEAD?recursive=1")" || rc=$?
+    if [ "${rc}" -ne 0 ] || [ "$(jq -r '.truncated // false' <<<"${tree}" 2>/dev/null)" != "false" ]; then
+        echo "::error::Could not list the template ${owner}/${source_repo}/${directory} completely, so its modules went unchecked."
+        rows+="| ${source_repo} | \`${directory}\` | **unchecked** (template not listed) |"$'\n'
+        unchecked=$((unchecked + 1))
+        return 0
+    fi
+
+    # One line per template file: blob sha, then the path relative to the
+    # directory as base64, because the path comes from another repository and
+    # may hold any byte, a newline included.
+    local template_files
+    template_files="$(jq -r --arg dir "${directory}/" --argjson exclude "$(jq -c ".template_sets[${index}].exclude // []" "${manifest}")" '
+        .tree[]
+        | select(.type == "blob" and (.path | startswith($dir)))
+        | (.path | ltrimstr($dir)) as $relative
+        | select(($exclude | index($relative)) | not)
+        | "\(.sha) \($relative | @base64)"' <<<"${tree}" 2>/dev/null)" || template_files=""
+
+    if [ -z "${template_files}" ]; then
+        echo "::error::The template ${owner}/${source_repo}/${directory} lists no files, so its modules went unchecked."
+        rows+="| ${source_repo} | \`${directory}\` | **unchecked** (template is empty) |"$'\n'
+        unchecked=$((unchecked + 1))
+        return 0
+    fi
+
+    # The text of every PHP file is needed to render it per module, so it is
+    # fetched once here. Other files compare by the template's own blob sha.
+    local sha encoded relative shown body
+    while read -r sha encoded; do
+        relative="$(printf '%s' "${encoded}" | base64 -d)"
+        [[ "${relative}" == *.php ]] || continue
+        shown="$(_canonical_drift_label "${relative}")"
+
+        # A failed fetch prints no body, so the decode below fails with it.
+        body="$(_canonical_drift_fetch "repos/${owner}/${source_repo}/contents/${directory}/${relative}")" || true
+        if ! mkdir -p "${scratch}/template/$(dirname "${relative}")" \
+            || ! _canonical_drift_decode_content "${body}" "${scratch}/template/${relative}"; then
+            echo "::error::Could not fetch the template file ${shown}, so its modules went unchecked."
+            rows+="| ${source_repo} | \`${directory}/${shown}\` | **unchecked** (template file not fetched) |"$'\n'
+            unchecked=$((unchecked + 1))
+            return 0
+        fi
+    done <<<"${template_files}"
+
+    local repo module_name module_ns canonical_sha rendered module_dir
+    while IFS= read -r repo; do
+        [ -n "${repo}" ] || continue
+
+        module_dir="${scratch}/module-${repo}"
+        mkdir -p "${module_dir}"
+
+        rc=0
+        body="$(_canonical_drift_fetch "repos/${owner}/${repo}/contents/${parameter_file}")" || rc=$?
+        if [ "${rc}" -eq 1 ]; then
+            echo "::error::${owner}/${repo}: ${parameter_file} is missing, so the files of ${source_repo}/${directory} cannot be compared."
+            rows+="| ${repo} | \`${parameter_file}\` | **missing** |"$'\n'
+            checked=$((checked + 1))
+            failures=$((failures + 1))
+            continue
+        fi
+        if ! _canonical_drift_decode_content "${body}" "${module_dir}/parameters"; then
+            echo "::error::${owner}/${repo}: fetching ${parameter_file} failed, so its template files went unchecked."
+            rows+="| ${repo} | \`${parameter_file}\` | **unchecked** (API error) |"$'\n'
+            unchecked=$((unchecked + 1))
+            continue
+        fi
+
+        module_name="$(_canonical_drift_module_parameter "${module_dir}/parameters" MODULE_NAME)" || module_name=""
+        module_ns="$(_canonical_drift_module_parameter "${module_dir}/parameters" MODULE_NS)" || module_ns=""
+        if [[ ! "${module_name}" =~ ^webtrees-[a-z0-9]+(-[a-z0-9]+)*$ ]] || [[ ! "${module_ns}" =~ ^[A-Za-z][A-Za-z0-9]*$ ]]; then
+            echo "::error::${owner}/${repo}: ${parameter_file} does not hold a usable MODULE_NAME and MODULE_NS, so its template files went unchecked."
+            rows+="| ${repo} | \`${parameter_file}\` | **unchecked** (MODULE_NAME or MODULE_NS unusable) |"$'\n'
+            unchecked=$((unchecked + 1))
+            continue
+        fi
+
+        while read -r sha encoded; do
+            relative="$(printf '%s' "${encoded}" | base64 -d)"
+            shown="$(_canonical_drift_label "${relative}")"
+            canonical_sha="${sha}"
+
+            if [[ "${relative}" == *.php ]]; then
+                rendered="${module_dir}/rendered"
+                sed -e "s/webtrees-<name>/${module_name}/g" \
+                    -e "s/Webtrees\\\\ModuleName\\\\/Webtrees\\\\${module_ns}\\\\/g" \
+                    "${scratch}/template/${relative}" >"${rendered}"
+
+                if grep -q -e '<name>' -e 'ModuleName' "${rendered}"; then
+                    echo "::error::The template file ${shown} holds a placeholder that is not rendered, so ${owner}/${repo} went unchecked for it."
+                    rows+="| ${repo} | \`${shown}\` | **unchecked** (template placeholder) |"$'\n'
+                    unchecked=$((unchecked + 1))
+                    continue
+                fi
+
+                canonical_sha="$(git hash-object --stdin <"${rendered}")" || {
+                    echo "::error::Could not hash the rendered ${shown}."
+                    unchecked=$((unchecked + 1))
+                    continue
+                }
+            fi
+
+            _canonical_drift_compare_remote "${owner}" "${repo}" "${relative}" "${canonical_sha}" \
+                "the template ${source_repo}/${directory}" "${shown}"
+        done <<<"${template_files}"
+    done < <(jq -r ".template_sets[${index}].repositories[]" "${manifest}")
+
+    return 0
+}
+
 # Runs the sweep. Arguments: the manifest, the canonical root (this
 # repository's checkout), the account that owns the repositories, and this
 # repository's own name (the source of the canonical copies, so never
@@ -183,7 +470,7 @@ check_canonical_drift() {
 
     local checked=0 failures=0 unchecked=0
     local rows=""
-    local repo i path applies canonical_sha body rc status
+    local repo i path applies canonical_sha rc
 
     while IFS= read -r repo; do
         [ -n "${repo}" ] || continue
@@ -214,49 +501,23 @@ check_canonical_drift() {
                 return 1
             }
 
-            rc=0
-            body="$(_canonical_drift_fetch "repos/${owner}/${repo}/contents/${path}")" || rc=$?
-            checked=$((checked + 1))
-
-            case "${rc}" in
-                0)
-                    status="$(classify_canonical_entry "${body}" "${canonical_sha}")"
-                    case "${status}" in
-                        ok)
-                            rows+="| ${repo} | \`${path}\` | ok |"$'\n'
-                            ;;
-                        drifted)
-                            echo "::error::${owner}/${repo}: ${path} differs from the canonical copy in ${owner}/${self_repo}."
-                            rows+="| ${repo} | \`${path}\` | **drifted** |"$'\n'
-                            failures=$((failures + 1))
-                            ;;
-                        *)
-                            echo "::error::${owner}/${repo}: ${path} exists but is not a regular file."
-                            rows+="| ${repo} | \`${path}\` | **not a regular file** |"$'\n'
-                            failures=$((failures + 1))
-                            ;;
-                    esac
-                    ;;
-                1)
-                    echo "::error::${owner}/${repo}: ${path} is missing."
-                    rows+="| ${repo} | \`${path}\` | **missing** |"$'\n'
-                    failures=$((failures + 1))
-                    ;;
-                *)
-                    echo "::error::${owner}/${repo}: fetching ${path} failed, so it went unchecked."
-                    rows+="| ${repo} | \`${path}\` | **unchecked** (API error) |"$'\n'
-                    checked=$((checked - 1))
-                    unchecked=$((unchecked + 1))
-                    ;;
-            esac
+            _canonical_drift_compare_remote "${owner}" "${repo}" "${path}" "${canonical_sha}" \
+                "the canonical copy in ${owner}/${self_repo}" "${path}"
         done
     done <<<"${repos}"
+
+    local set_count compared_against="${owner}/${self_repo}"
+    set_count="$(jq -r '(.template_sets // []) | length' "${manifest}")"
+    for ((i = 0; i < set_count; i++)); do
+        compared_against+=" and $(jq -r ".template_sets[${i}] | \"${owner}/\" + .source_repository + \"/\" + .source_directory" "${manifest}")"
+        _canonical_drift_check_template_set "${manifest}" "${owner}" "${i}"
+    done
 
     if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
         {
             echo "## Canonical-file drift"
             echo
-            echo "Compared against \`${owner}/${self_repo}\` - ${checked} file(s) checked, ${failures} failed (drifted, missing or not a regular file), ${unchecked} unchecked."
+            echo "Compared against \`${compared_against}\` - ${checked} file(s) checked, ${failures} failed (drifted, missing or not a regular file), ${unchecked} unchecked."
             echo
             if [ -n "${rows}" ]; then
                 echo "| Repository | File | Result |"
@@ -276,6 +537,6 @@ check_canonical_drift() {
         return 1
     fi
 
-    echo "  ✔ ${checked} canonical file(s) across ${owner}'s repositories pass against ${owner}/${self_repo}"
+    echo "  ✔ ${checked} canonical file(s) across ${owner}'s repositories pass against ${compared_against}"
     return 0
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Sourced by semgrepignore-guard.sh, semgrep-report-check.sh and
-# semgrep-smoke-helpers.sh (re-derive:
+# Sourced by semgrepignore-guard.sh, semgrep-report-check.sh,
+# semgrep-smoke-helpers.sh and canonical-drift.sh (re-derive:
 # `grep -rl '^source ".*annotation-sanitize\.sh"' .github/scripts/lib`) and
 # by commit-convention.yml out of its own checkout of this repository
 # (re-derive: `grep -n '^ *\. ".*annotation-sanitize\.sh"' .github/workflows/commit-convention.yml`),
@@ -74,7 +74,12 @@
 # fourth site elsewhere would need to be added to this scheme by hand,
 # the same way each of the three got here (issues #78, #80, #49);
 # test-annotation-sanitize-jq-parity.sh tracks exactly these three, not
-# the whole repository.
+# the whole repository. The three are the filter sites only, the function
+# below and the two jq programs of semgrep-report-check.sh (re-derive:
+# `grep -rnF '"${ANNOTATION_SANITIZE_JQ_FILTER}"' .github/scripts/lib`, whose
+# hit in this comment is not a site). A
+# caller that only calls sanitize_for_annotation(), such as
+# canonical-drift.sh, retypes no filter and is not one of them.
 readonly ANNOTATION_SANITIZE_JQ_FILTER='gsub("%"; "%25") | gsub("[[:cntrl:]]"; " ")'
 
 sanitize_for_annotation() {
