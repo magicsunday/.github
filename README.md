@@ -10,7 +10,9 @@ a repository adopts one by calling it.
 
 ## Reusable workflows
 
-Every workflow is called with the `@main` ref. **The calling job must grant the
+Every workflow is called with the `@main` ref, and the shared Renovate preset
+(`renovate-config.json`) leaves these calls unpinned, while every other GitHub
+Action keeps its digest pin. **The calling job must grant the
 permissions listed here**: a reusable workflow's token is capped by the caller's
 ceiling, so a missing permission does not fail the lint — it fails at runtime.
 
