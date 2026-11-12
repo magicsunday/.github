@@ -16,6 +16,9 @@ name: Composer audit (reusable)
 #   - No `composer.lock`: the declared constraints are resolved fresh, as a
 #     consumer install does, and the result is audited. Nothing is installed
 #     and no script or plugin of the repository runs.
+#     Platform requirements are ignored during that resolution, because
+#     nothing is installed and the advisories do not depend on the platform of
+#     the runner.
 #
 # The audit settings of the caller's `composer.json` apply exactly as they do
 # for Composer itself, so an advisory the repository ignores through
