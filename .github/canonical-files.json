@@ -4,5 +4,21 @@
             "path": ".github/zizmor.yml",
             "applies_when_present": ".github/workflows"
         }
+    ],
+    "template_sets": [
+        {
+            "source_repository": "coding-standard",
+            "source_directory": "templates/webtrees-module",
+            "exclude": [
+                "module.mk.example"
+            ],
+            "parameter_file": "Make/module.mk",
+            "repositories": [
+                "webtrees-fan-chart",
+                "webtrees-pedigree-chart",
+                "webtrees-descendants-chart",
+                "webtrees-statistics"
+            ]
+        }
     ]
 }

@@ -190,6 +190,24 @@ can narrow its scope with `applies_when_present` (a path the repository must
 have for the file to matter, `.github/workflows` for `zizmor.yml`). It runs on
 this repository's own token, so it sees public repositories only.
 
+The manifest has a second list, `template_sets`, for files whose canonical
+content lives in another repository. A set names the source repository and
+directory, the paths to leave out, the parameter file of a module and the
+repositories that must carry the files. The sweep reads the directory from the
+default branch of the source, so there is no copy of it here, and compares every
+file of it, except the excluded ones, with the same path in each named
+repository. That is the file set that the sync script of the template copies.
+The identity lines of a PHP file (the package name and the namespace) belong to
+the module, so the sweep renders them from `MODULE_NAME` and `MODULE_NS` in the
+module's `Make/module.mk` before it compares, the same way the sync script does.
+A module-local file that the template does not have is never looked at. The
+report names the module and the file. A template file that a module lacks, one
+with other content and a module without a usable `Make/module.mk` fail the run
+like any other drift, and a template that cannot be read leaves its modules
+unchecked. The comparison is by blob hash, so a changed file mode is not seen. The sync
+script writes every file with the same non-executable mode, so the mode carries
+no state of its own that the sweep would need to report.
+
 ## Contributing to this repository
 
 `CONTRIBUTING.md` above stays generic since it is also served as the default
