@@ -33,6 +33,16 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   workflow does not survive the move. When you add a scope a workflow needs, note it as
   a *caller* requirement in that workflow's own header comment (as the existing
   workflows do) — do not assume the job-level grant is enough.
+- **The `needs` list of `all-security-checks` names every other job of its caller.**
+  The gate job in `templates/security.yml` (the canonical caller for the
+  repositories) and in `.github/workflows/security.yml` (this repository's own)
+  passes or fails on the results of the jobs it depends on, so a job that is not
+  listed can fail without failing the gate. Add a job and its `needs` entry in the
+  same change. The job name `All security checks` is the status check that branch
+  protections require, so renaming it leaves those repositories waiting for a check
+  that never reports. `.github/scripts/tests/test-security-gate.sh` pins the list,
+  the name and the pass and fail results for both files. The `README.md` section
+  "Security gate" describes the gate and the branch protection notes.
 - **Pin every tool a workflow installs, in `.github/requirements/`.** An unpinned
   install re-resolves on every run, so a new upstream release changes the behaviour of
   a gate across the whole account with nothing here having changed — and `yamllint` is

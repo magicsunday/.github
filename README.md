@@ -185,6 +185,80 @@ no PHP and no Composer, and no npm in Composer hooks. A missing contract file
 fails the job by name, and a scan that analyzes no file fails too. The exact pin
 in `devDependencies` is what a dependency bot bumps.
 
+## Security gate
+
+`templates/security.yml` is the canonical `Security` caller. It sits outside
+`.github/workflows/`, so it never runs in this repository, and a repository copies
+it to its own `.github/workflows/security.yml`. This repository's own
+`.github/workflows/security.yml` carries the same gate job next to its own jobs.
+
+The job `all-security-checks`, named `All security checks`, is the one status check
+that a branch protection requires. The set of security jobs differs per repository,
+and a skipped job posts a different check than a run one, so listing each job as a
+required check would be fragile.
+
+- It depends on every other job of its file and runs whatever those jobs did
+  (`if: ${{ always() }}`).
+- It passes when each job succeeded or was skipped. It fails on `failure`,
+  `cancelled`, any other result and a result document that is empty, malformed or
+  has no job in it. A skipped job passes, which matters because `dependency-review`
+  is skipped on every event but a pull request.
+- It has no permissions (`permissions: {}`), checks nothing out and reads the
+  results of the jobs from the environment, never from an interpolation into the
+  script.
+- Its name does not change with the event, so it can be required for pull requests
+  and pushes alike.
+
+The gate judges job results only. Whether a finding of a scanner fails that
+scanner's job is a property of the shared workflow, and a repository that wants
+findings to block a pull request needs a rule for that besides this check.
+
+**The `needs` list must name every other job of the file.** A job that is not listed
+cannot fail the gate. Add a job and its entry in the same change.
+`.github/scripts/tests/test-security-gate.sh` checks that the list equals the other
+jobs of both callers, runs the step against result documents of every kind and runs
+in the shell tests of `lint.yml`.
+
+### Variants of the caller
+
+The callers of the repositories are the canonical file plus a few differences. A
+difference is either a real parameter, which stays, or a gap, which the roll-out
+aligns.
+
+Real parameters, kept as inputs or guards:
+
+- `excludes` of `code-scanning` and `paths` of `yamllint`, where a repository has
+  large vendored documents or extra YAML.
+- The guard `if: ${{ !github.event.repository.private }}` on the scanner jobs of a
+  private repository. With every job skipped the gate passes.
+- The self reference `$/` of this repository's own caller, documented in `AGENTS.md`.
+
+Gaps, which the canonical file settles:
+
+- The Composer audit is one job that calls `composer-audit.yml`, in every
+  repository. It passes where there is no `composer.json`.
+- One trigger branch list, `[main, master]`, and the `workflow_dispatch` trigger.
+- The scorecard job publishes only for the default branch, and a manual run is
+  allowed.
+- The shared workflows are referenced as `@main`, the form that the zizmor policy of
+  this repository (`.github/zizmor.yml`) sets for them.
+- A `yamllint` job wherever the repository has YAML.
+
+### Branch protection
+
+Require the check `All security checks` next to the checks the repository requires
+already. The gate is a job of the caller itself, so its status context is the job
+name and has no `<caller job> / ` prefix (the reusable jobs report with that prefix).
+
+- No pull-request review is required and no merge queue is used. The repositories
+  have a single maintainer. A merge queue would need a `merge_group` trigger on the
+  `Security` workflow, which the caller does not have.
+- A repository whose security jobs are not green on the default branch yet gets an
+  issue instead of a required check, since a required check that is red blocks every
+  merge.
+- Signed commits, the rules for administrators and the up-to-date requirement of the
+  branch protection are decided in issue #292, not here.
+
 ## Labels
 
 `labels.yml` is the single source of truth for the shared label set: the type
