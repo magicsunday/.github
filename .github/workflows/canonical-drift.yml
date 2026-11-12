@@ -7,7 +7,9 @@ name: Canonical-file drift
 # that gate; this sweep also covers the ones that never do.
 #
 # Which files are canonical is declared in .github/canonical-files.json; the
-# canonical content of each is this repository's own copy at the same path.
+# canonical content of each `files` entry is this repository's own copy at the
+# same path. A `template_sets` entry takes it from a directory of another
+# repository instead, read through the API at run time.
 # The comparison itself, its scoping rules and its limits are documented in
 # .github/scripts/lib/canonical-drift.sh, which this workflow sources and
 # test-canonical-drift.sh pins.

@@ -232,7 +232,11 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   sweep for canonical files listed in `.github/canonical-files.json`, not a
   reusable workflow (issue #87) — keeps its logic in `canonical-drift.sh`
   the same way, with `gh` replaced by a fixture-serving function in
-  `test-canonical-drift.sh`.
+  `test-canonical-drift.sh`. Its manifest also holds `template_sets`, whose
+  canonical content is a directory of another repository's default branch
+  read at sweep time, with the identity lines of the PHP files rendered from
+  each module's `Make/module.mk`, so a change to the manifest keys needs
+  `assert_canonical_manifest_valid` and its tests updated together.
   `lint.yml`'s own `semgrep-smoke` job follows the same pattern
   (`semgrep-smoke-helpers.sh`, split out of `semgrep-report-check.sh` per the
   scan-report-completeness bullet above). `lint.yml`'s `workflow-catalog-fresh`
