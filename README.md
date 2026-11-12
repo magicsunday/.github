@@ -119,6 +119,9 @@ and fails on an advisory. The job is the same in every repository:
 - Without a `composer.lock` it resolves the declared constraints fresh, as a consumer
   install does, and audits the result. Nothing is installed and no script or plugin
   of the repository runs.
+  Platform requirements are ignored during that resolution, because nothing is
+  installed and the advisories do not depend on the platform of the runner, so a
+  repository that requires a newer PHP than `php-version` still gets audited.
 
 The audit settings of the caller's `composer.json` apply exactly as they do for
 Composer itself. An advisory ignored through `config.audit.ignore` or through
