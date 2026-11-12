@@ -17,7 +17,10 @@
 # - No composer.lock: resolves the declared constraints fresh, which is what a
 #   consumer install does, and audits the result. The resolution writes a lock
 #   file into the workspace without installing a package and without running
-#   a script or a plugin of the repository.
+#   a script or a plugin of the repository. Platform requirements are ignored
+#   during the resolution, because nothing is installed and the advisories do
+#   not depend on the platform of the runner. Without that, a repository that
+#   requires a newer PHP than the runner provides fails before the audit runs.
 composer_audit_run() {
     if [ ! -e composer.json ] && [ ! -L composer.json ]; then
         echo "No composer.json in this repository, so there is nothing to audit."
@@ -36,6 +39,7 @@ composer_audit_run() {
     fi
 
     echo "No composer.lock is committed, so the constraints are resolved fresh."
-    composer update --no-install --no-scripts --no-plugins --no-interaction --no-progress || return
+    composer update --no-install --no-scripts --no-plugins --no-interaction --no-progress \
+        --ignore-platform-reqs || return
     composer audit --locked --no-interaction
 }

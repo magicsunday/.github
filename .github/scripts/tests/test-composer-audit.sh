@@ -123,12 +123,16 @@ assert_eq 'a committed lock file is audited as locked and not resolved' 'audit -
 run_case prepare_json_only
 assert_eq 'no lock file passes when the audit passes' '0' "${case_status}"
 assert_eq 'no lock file resolves without installing, then audits the lock' \
-    $'update --no-install --no-scripts --no-plugins --no-interaction --no-progress\naudit --locked --no-interaction' \
+    $'update --no-install --no-scripts --no-plugins --no-interaction --no-progress --ignore-platform-reqs\naudit --locked --no-interaction' \
     "${case_calls}"
+
+run_case prepare_json_only
+assert_contains 'a fresh resolution ignores platform requirements' \
+    "${case_calls}" 'update --no-install --no-scripts --no-plugins --no-interaction --no-progress --ignore-platform-reqs'
 
 run_case prepare_dangling_json
 assert_eq 'a dangling composer.json symlink counts as present and is not skipped' \
-    $'update --no-install --no-scripts --no-plugins --no-interaction --no-progress\naudit --locked --no-interaction' \
+    $'update --no-install --no-scripts --no-plugins --no-interaction --no-progress --ignore-platform-reqs\naudit --locked --no-interaction' \
     "${case_calls}"
 
 run_case prepare_json_and_empty_lock
@@ -170,7 +174,7 @@ STUB_UPDATE_STATUS=2
 run_case prepare_json_only
 assert_eq 'a failing resolution fails the check with its status' '2' "${case_status}"
 assert_eq 'a failing resolution never reaches the audit' \
-    'update --no-install --no-scripts --no-plugins --no-interaction --no-progress' "${case_calls}"
+    'update --no-install --no-scripts --no-plugins --no-interaction --no-progress --ignore-platform-reqs' "${case_calls}"
 
 STUB_UPDATE_STATUS=0
 run_case prepare_json_with_ignore_settings
