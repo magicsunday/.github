@@ -1,0 +1,104 @@
+name: Composer audit (reusable)
+
+# Reusable Composer audit of the calling repository. Callers invoke it via
+# `uses: magicsunday/.github/.github/workflows/composer-audit.yml@main`.
+#
+# Callers must grant `contents: read`. The ceiling is the CALLING JOB's
+# `permissions:` block when it has one, otherwise the caller's top-level block,
+# otherwise the repository default.
+#
+# What is audited:
+#
+#   - No `composer.json`: the job passes and says that there is nothing to
+#     audit, so every repository can carry the same job.
+#   - A committed `composer.lock`: exactly that lock file (`composer audit
+#     --locked`). An empty, unreadable or symlinked lock file fails the job.
+#   - No `composer.lock`: the declared constraints are resolved fresh, as a
+#     consumer install does, and the result is audited. Nothing is installed
+#     and no script or plugin of the repository runs.
+#
+# The audit settings of the caller's `composer.json` apply exactly as they do
+# for Composer itself, so an advisory the repository ignores through
+# `config.audit.ignore` or `config.policy.advisories.ignore-id` stays ignored
+# here. This workflow adds no ignore handling of its own. A repository that
+# already audits in its own CI runs the audit twice and can drop its own step.
+#
+# The logic is `.github/scripts/lib/composer-audit.sh`, checked out at the
+# revision of this workflow and tested by
+# `.github/scripts/tests/test-composer-audit.sh`.
+#
+# Events. The workflow itself accepts any event. The caller job decides. The
+# canonical caller (`templates/security.yml`) skips it on `pull_request` and
+# runs it on `push`, `schedule` and `workflow_dispatch`, because the audit
+# reads the advisory database of the day. A newly published advisory against an
+# existing dependency would otherwise turn every open pull request red without
+# any change in it, and `dependency-review.yml` already covers what a pull
+# request adds or changes.
+on:
+    workflow_call:
+        inputs:
+            php-version:
+                description: 'PHP version the audit runs with.'
+                required: false
+                type: string
+                default: '8.3'
+
+permissions:
+    contents: read
+
+jobs:
+    composer-audit:
+        name: Composer audit
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Set up PHP version ${{ inputs.php-version }}
+              uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+              with:
+                  php-version: ${{ inputs.php-version }}
+                  tools: composer:v2
+
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            # The shared library is fetched from the commit of this workflow
+            # itself (see AGENTS.md). An undefined context property would
+            # interpolate to an empty string and silently degrade to the
+            # default branch, so both values are asserted before they are
+            # used. The checkout path is claimed rather than assumed free, and
+            # `-e` follows symlinks while the later removal does not, so a
+            # dangling link of that name is rejected explicitly.
+            - name: Check the shared-checkout preconditions
+              env:
+                  WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+                  WORKFLOW_SHA: ${{ job.workflow_sha }}
+              run: |
+                  set -euo pipefail
+                  test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
+                  test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
+                  { test ! -e .magicsunday-shared && test ! -L .magicsunday-shared; } || { echo "::error::A path named '.magicsunday-shared' is reserved for the shared checkout."; exit 1; }
+
+            - name: Check out the shared audit logic
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
+                  path: .magicsunday-shared
+                  persist-credentials: false
+
+            # The library is loaded first and the shared checkout is removed
+            # before the audit, so Composer only sees the caller's own tree.
+            - name: Audit the Composer dependencies
+              run: |
+                  set -euo pipefail
+
+                  # shellcheck source=/dev/null
+                  . ".magicsunday-shared/.github/scripts/lib/composer-audit.sh"
+                  rm -rf .magicsunday-shared
+
+                  composer_audit_run

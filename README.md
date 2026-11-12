@@ -37,6 +37,7 @@ runs.
 <tr><td><code>ai-issue-labeler.yml</code></td><td>Classifies a newly opened issue via the Anthropic API against the caller's own live label set, leaves out the pull-request labels and the labels a maintainer sets, and applies the labels it is confident about (see below)</td><td><code>issues: write</code></td></tr>
 <tr><td><code>php-quality.yml</code></td><td>Runs the granular <code>composer ci:test:php:*</code> PHP quality gate across a version matrix</td><td><code>contents: read</code></td></tr>
 <tr><td><code>cpd.yml</code></td><td>Copy-paste detection with the caller's exact-pinned jscpd: <code>npm ci</code>, then the fixed jscpd command line; settings live in <code>.jscpd.json</code></td><td><code>contents: read</code></td></tr>
+<tr><td><code>composer-audit.yml</code></td><td>Audits the Composer dependencies, the committed lock file when there is one and the freshly resolved set otherwise</td><td><code>contents: read</code></td></tr>
 </tbody>
 </table>
 
@@ -63,18 +64,19 @@ version. `commit-convention.yml` does it to source its subject predicate
 (`.github/scripts/lib/commit-subject-predicate.sh`), self-test it against its
 decision table, and source the shared annotation sanitizer
 (`.github/scripts/lib/annotation-sanitize.sh`) its `::error::` lines route
-through, and `ai-issue-labeler.yml` to stage its own
+through, `composer-audit.yml` to source its audit logic
+(`.github/scripts/lib/composer-audit.sh`), and `ai-issue-labeler.yml` to stage its own
 `ai-issue-labeler.sh`.
 That works with the caller's own `GITHUB_TOKEN` because this repository is
 public, and it is the reason it has to stay public: making it private would red
 `yamllint`, a required check in several repositories.
 
 That second checkout lands at `.magicsunday-shared`. `code-scanning.yml`,
-`yamllint.yml` and `zizmor.yml` also check the caller out, so they delete it
-again once the job no longer needs it - before the scan or the lint runs in
-the first two, and right after the comparison in `zizmor.yml`, which reads the
+`yamllint.yml`, `composer-audit.yml` and `zizmor.yml` also check the caller out, so they delete it
+again once the job no longer needs it - before the scan, the lint or the audit runs in
+the first three, and right after the comparison in `zizmor.yml`, which reads the
 canonical copy out of `.magicsunday-shared` itself and so has to delete it
-after, not before. For those three, **`.magicsunday-shared` is a reserved path
+after, not before. For those four, **`.magicsunday-shared` is a reserved path
 in a calling repository**: each stops with a message naming it rather than
 deleting a path of that name, which would leave it out of the scan (or make
 the verification pass vacuously) without anything appearing to be missing.
@@ -89,6 +91,7 @@ Workflows not listed here take no inputs.
 | --- | --- | --- |
 | `code-scanning.yml` | `excludes` — newline-separated extra paths to keep out of the scan, one pattern per line (a pattern may itself contain a space). Every path declared here leaves the uploaded report, so code scanning retires whatever alerts it held: declare only files that are not source | *(none)* |
 | `yamllint.yml` | `paths` — space-separated YAML paths to lint | `.github/workflows/` |
+| `composer-audit.yml` | `php-version` — PHP version the audit runs with. The default is the first version of the `php-quality.yml` matrix | `8.3` |
 | `i18n.yml` | `lang-dir` — root directory holding the per-locale catalogues | `resources/lang` |
 | | `check-pipeline` — run `make lang` and fail on a non-empty diff | `false` |
 | | `check-core-overlap` — fail when a catalogue entry translates a text that webtrees core already translates in that locale. An empty or fuzzy entry is fine, a compiled one replaces the core text in the whole installation. On a pull request the check runs when the pull request changes a file below `lang-dir`, the root `composer.json` or a workflow file | `true` |
@@ -101,6 +104,36 @@ Workflows not listed here take no inputs.
 | | `run-psr4` — run the strict PSR-4 autoload check | `false` |
 | | `run-infection` — run mutation testing, on the `infection-php` leg only. On a pull request the mutation leg fetches the full history, whether or not the consumer defines the composer script `ci:test:php:infection:changed`. A pull request of a consumer that defines it is gated on the covered code of its changed lines. Every other run, and a consumer without that script, runs `ci:test:php:infection` over the whole tree. That run only reports once the consumer's own configuration has no fixed score floor | `false` |
 | | `infection-php` — the single PHP version leg that runs mutation testing | `8.4` |
+
+### Composer audit
+
+`composer-audit.yml` audits the Composer dependencies of the calling repository
+and fails on an advisory. The job is the same in every repository:
+
+- Without a `composer.json` the job passes and says that there is nothing to audit.
+- With a committed `composer.lock` it audits exactly that file. An empty, unreadable
+  or symlinked lock file fails the job, so a broken lock file never turns into a
+  quiet fresh resolution.
+- Without a `composer.lock` it resolves the declared constraints fresh, as a consumer
+  install does, and audits the result. Nothing is installed and no script or plugin
+  of the repository runs.
+
+The audit settings of the caller's `composer.json` apply exactly as they do for
+Composer itself. An advisory ignored through `config.audit.ignore` or through
+`config.policy.advisories.ignore-id` stays ignored, and the workflow has no ignore
+handling of its own. A repository that already audits in its own CI, for example
+through a Composer script that runs `composer audit`, runs the audit twice and may
+drop its own step. The advisory policy of Composer also applies to the fresh
+resolution, so a repository whose constraints resolve only to an advisory-flagged
+version needs the ignore entries it needs for its own install.
+
+The caller decides on which events the job runs. The canonical caller
+(`templates/security.yml`) skips it on `pull_request` and runs it on `push`,
+`schedule` and `workflow_dispatch`. This is a change for a repository whose inline
+audit job ran on pull requests as well. The audit reads the advisory database of the
+day, so on a pull request a newly published advisory against an existing dependency
+would turn every open pull request red without any change in it. `dependency-review.yml`
+covers what a pull request adds or changes.
 
 ### Adopting a workflow
 
