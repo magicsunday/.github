@@ -44,3 +44,34 @@ jobs:
         permissions:
             contents: read
             pull-requests: write
+
+    all-security-checks:
+        # One stable check name for the branch protection. It runs whatever the
+        # other jobs did, passes when each of them succeeded or was skipped, and
+        # fails on a failure, a cancellation or any other result. The needs
+        # list must name every other job of this file.
+        name: All security checks
+        if: ${{ always() }}
+        needs: [zizmor, scorecard, code-scanning, dependency-review]
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions: {}
+
+        steps:
+            - name: Check the results of the security jobs
+              env:
+                  NEEDS: ${{ toJSON(needs) }}
+              run: |
+                  set -euo pipefail
+                  verdict=$(jq -rn --argjson needs "${NEEDS}" '
+                      $needs
+                      | if (type != "object") or (length == 0) then "no job results"
+                      else
+                          [to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key)=\(.value.result)"]
+                          | join(" ")
+                      end')
+                  if [ -n "${verdict}" ]; then
+                      echo "::error::Security jobs did not pass: ${verdict}"
+                      exit 1
+                  fi
+                  echo 'Every security job succeeded or was skipped.'
