@@ -94,6 +94,16 @@
             "enabled": false
         },
         {
+            "description": "The shared workflows of this repository are called with the @main ref by policy, so they stay unpinned and a change of a shared workflow reaches every consumer at once. Every other action keeps its digest pin.",
+            "matchManagers": [
+                "github-actions"
+            ],
+            "matchPackageNames": [
+                "magicsunday/.github"
+            ],
+            "pinDigests": false
+        },
+        {
             "description": "Patch, minor and digest updates of GitHub Actions merge by themselves once the required checks pass and the age wait is over. Renovate performs the merge itself, because a merge by the platform would not wait for the age check, which is no required status check. Major updates stay with a human.",
             "matchManagers": [
                 "github-actions"
