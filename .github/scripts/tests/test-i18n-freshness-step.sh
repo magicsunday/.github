@@ -2,7 +2,9 @@
 # Runs the "Assert the catalogue is up to date" step of the pipeline job in
 # i18n.yml against a scratch caller repository with staged changes, so the
 # shell around i18n_only_references_changed() is covered: each outcome, its
-# summary text, and the removal of the shared checkout before the decision. The comparison itself is covered by test-i18n-freshness.sh.
+# summary text, and the removal of the shared checkout before the decision.
+# The comparison itself is covered by test-i18n-freshness.sh. The step that
+# claims the path of the shared checkout is covered here as well.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,20 +17,9 @@ work_dir="$(mktemp -d)" || exit 1
 trap 'rm -rf "${work_dir}"' EXIT
 original_dir="$(pwd)" || exit 1
 
-# Extract the run block of the step, the way the runner would execute it.
-python3 - "${WORKFLOW}" "${work_dir}/step.sh" <<'EOF' || { echo "FAIL: cannot extract the step"; exit 1; }
-import sys
-import yaml
-
-with open(sys.argv[1], encoding="utf-8") as handle:
-    workflow = yaml.safe_load(handle)
-
-steps = workflow["jobs"]["pipeline"]["steps"]
-step = [s for s in steps if s.get("name") == "Assert the catalogue is up to date"][0]
-
-with open(sys.argv[2], "w", encoding="utf-8") as handle:
-    handle.write(step["run"])
-EOF
+# Extract the run block of each step, the way the runner would execute it.
+workflow_step_run "${WORKFLOW}" "Assert the catalogue is up to date" > "${work_dir}/step.sh" || { echo "FAIL: cannot extract the step"; exit 1; }
+workflow_step_run "${WORKFLOW}" "Check the shared-checkout preconditions" > "${work_dir}/preconditions.sh" || { echo "FAIL: cannot extract the preconditions step"; exit 1; }
 
 # run_step NAME
 # Creates a caller repository with one committed catalogue, applies the
@@ -83,5 +74,42 @@ assert_contains "stale catalogue: the error annotation is printed" "${out}" "::e
 assert_contains "stale catalogue: the diff is printed" "${out}" "+msgstr \"Opent\""
 assert_contains "stale catalogue: the summary lists the changes" "${summary}" "### Changes"
 assert_eq "stale catalogue: the shared checkout is removed" "no" "${shared_left}"
+
+# run_preconditions REPOSITORY SHA
+# Runs the preconditions step in a fresh caller directory. The directory is
+# prepared by the caller of this function through the PREPARE variable. The
+# result is left in $out and $rc.
+run_preconditions() {
+    local caller="${work_dir}/preconditions-case"
+
+    rm -rf "${caller}"
+    mkdir -p "${caller}" || exit 1
+    cd "${caller}" || exit 1
+    eval "${PREPARE}"
+    out="$(WORKFLOW_REPOSITORY="$1" WORKFLOW_SHA="$2" bash "${work_dir}/preconditions.sh" 2>&1)"
+    rc=$?
+    cd "${original_dir}" || exit 1
+}
+
+PREPARE=':'
+run_preconditions "magicsunday/.github" "abc123"
+assert_eq "preconditions: both values set and the path free passes" "0" "${rc}"
+
+run_preconditions "" "abc123"
+assert_eq "preconditions: an empty repository fails" "1" "${rc}"
+assert_contains "preconditions: the empty repository is named" "${out}" "job.workflow_repository is empty"
+
+run_preconditions "magicsunday/.github" ""
+assert_eq "preconditions: an empty sha fails" "1" "${rc}"
+assert_contains "preconditions: the empty sha is named" "${out}" "job.workflow_sha is empty"
+
+PREPARE=': > .magicsunday-shared'
+run_preconditions "magicsunday/.github" "abc123"
+assert_eq "preconditions: a claimed path as a file fails" "1" "${rc}"
+assert_contains "preconditions: the claimed path is named" "${out}" ".magicsunday-shared"
+
+PREPARE='ln -s /nonexistent-target .magicsunday-shared'
+run_preconditions "magicsunday/.github" "abc123"
+assert_eq "preconditions: a claimed path as a dangling symlink fails" "1" "${rc}"
 
 report_and_exit "i18n freshness step tests"
