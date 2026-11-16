@@ -366,6 +366,16 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   `i18n_core_overlap.py` and is unit-tested by `test_i18n_source_copies.py`
   through its `test-*.sh` wrapper. The job needs no scope job, because it reads
   only the catalogues and costs little.
+- **The pipeline freshness job of `i18n.yml` does not fail on moved source references.**
+  The `#: src/File.php:LINE` lines of a catalogue shift with every unrelated code
+  change, and a contributor without the pipeline cannot refresh them. The job
+  stages the result of `make lang` and passes when the staged diff consists of
+  those lines alone. Any other change fails it: an entry that is added, removed
+  or changed, a new file and a compiled catalogue that differs. The decision is
+  `i18n_only_references_changed` in `scripts/lib/i18n-freshness.sh`, which the job
+  sources from a checkout of this repository made after the staging, so that the
+  checkout stays out of the staged diff. `test-i18n-freshness.sh` pins both
+  directions against real staged changes.
 - **The `p/*` Semgrep rule packs `code-scanning.yml` scans with cannot be pinned or
   vendored.** The Semgrep Rules License v. 1.0 forbids distributing the rules or
   making them available to others as a service, which a commit to this public,

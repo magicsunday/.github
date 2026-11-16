@@ -95,7 +95,7 @@ Workflows not listed here take no inputs.
 | `yamllint.yml` | `paths` — space-separated YAML paths to lint | `.github/workflows/` |
 | `composer-audit.yml` | `php-version` — PHP version the audit runs with. The default is the first version of the `php-quality.yml` matrix | `8.3` |
 | `i18n.yml` | `lang-dir` — root directory holding the per-locale catalogues | `resources/lang` |
-| | `check-pipeline` — run `make lang` and fail on a non-empty diff | `false` |
+| | `check-pipeline` — run `make lang` and fail on a non-empty diff, except one made of moved `#:` source reference lines | `false` |
 | | `check-core-overlap` — fail when a catalogue entry translates a text that webtrees core already translates in that locale. An empty or fuzzy entry is fine, a compiled one replaces the core text in the whole installation. On a pull request the check runs when the pull request changes a file below `lang-dir`, the root `composer.json` or a workflow file | `true` |
 | | `check-source-copies` — fail when a catalogue entry of any locale is a copy of its own source text. A singular entry is a copy when its translation equals the message id. A plural entry is a copy only when every form is filled and each one equals the message id or the plural message id. An empty entry is fine, the source text shows without it | `true` |
 | | `core-tags` — space-separated webtrees release tags to compare with, empty derives them from the `fisharebest/webtrees` constraint of `composer.json` (`~`, `^` and exact forms) | *(none)* |

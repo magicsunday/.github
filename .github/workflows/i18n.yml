@@ -20,7 +20,10 @@ name: i18n (reusable)
 #      the module's source-driven `make lang` and fails if it errors or leaves
 #      a non-empty diff. This catches a stale catalogue (a source string added
 #      or removed without re-running the pipeline) and a broken pipeline (such
-#      as a bad msgmerge flag) before either ships green. Repositories whose
+#      as a bad msgmerge flag) before either ships green. A diff made of `#:`
+#      source reference lines alone does not count, because every unrelated
+#      code change moves them and a contributor cannot refresh them without
+#      the pipeline. Repositories whose
 #      `make lang` is still compile-only leave `check-pipeline` at its default
 #      (false) and the job is skipped.
 #
@@ -166,7 +169,7 @@ jobs:
               with:
                   persist-credentials: false
 
-            - name: Run `make lang` and assert the catalogue is up to date
+            - name: Run `make lang` and stage the result
               timeout-minutes: 15
               env:
                   NODE_IMAGE: ${{ inputs.node-image }}
@@ -197,8 +200,51 @@ jobs:
                   # .po that lacked one) — `git diff` alone ignores untracked
                   # files. Gitignored artefacts (the generated .pot) stay out.
                   git add -A
+
+            # The workspace holds the CALLER's checkout, so the comparison
+            # helper comes from the commit of this workflow itself. It is
+            # checked out only after everything is staged, so the checkout
+            # never becomes part of the staged diff. Both values are asserted
+            # first so an empty one never falls back to the default branch.
+            # The path is claimed rather than assumed free, because the final
+            # step deletes it.
+            - name: Check the shared-checkout preconditions
+              env:
+                  WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+                  WORKFLOW_SHA: ${{ job.workflow_sha }}
+              run: |
+                  set -euo pipefail
+                  test -n "$WORKFLOW_REPOSITORY" || { echo "::error::job.workflow_repository is empty."; exit 1; }
+                  test -n "$WORKFLOW_SHA" || { echo "::error::job.workflow_sha is empty."; exit 1; }
+                  { test ! -e .magicsunday-shared && test ! -L .magicsunday-shared; } || { echo "::error::This repository contains a path named '.magicsunday-shared', which the shared workflows reserve for their own checkout and delete again."; exit 1; }
+
+            - name: Check out the comparison helper
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
+                  path: .magicsunday-shared
+                  persist-credentials: false
+
+            - name: Assert the catalogue is up to date
+              run: |
+                  set -euo pipefail
+
                   if git diff --cached --quiet; then
+                      rm -rf .magicsunday-shared
                       echo "i18n pipeline freshness check passed: \`make lang\` is a no-op." >> "$GITHUB_STEP_SUMMARY"
+                      exit 0
+                  fi
+
+                  # shellcheck source=/dev/null
+                  source .magicsunday-shared/.github/scripts/lib/i18n-freshness.sh
+                  rm -rf .magicsunday-shared
+
+                  # Source references shift with every unrelated code change
+                  # and are no translation, so a diff made of them alone is
+                  # not a stale catalogue.
+                  if i18n_only_references_changed; then
+                      echo "i18n pipeline freshness check passed: \`make lang\` only moved source references." >> "$GITHUB_STEP_SUMMARY"
                       exit 0
                   fi
 
