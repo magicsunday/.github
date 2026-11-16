@@ -140,6 +140,21 @@ day, so on a pull request a newly published advisory against an existing depende
 would turn every open pull request red without any change in it. `dependency-review.yml`
 covers what a pull request adds or changes.
 
+### Bundle freshness
+
+`bundle-freshness.yml` rebuilds the committed JavaScript bundle in the tooling image
+and fails on any difference from the committed files. An update of the npm packages
+or a refresh of the lock file changes the bundle output, so a pull request of the
+dependency bot fails this check until a person rebuilds the bundle.
+
+The job summary of a failed run names the rebuild command. It runs the install and
+build steps of the job in the same image, needs only Docker and works from a plain
+checkout of the pull request branch, without the Compose stack of the module. Commit
+the changed files of `bundle-dir` afterwards. The steps are defined once in the
+workflow, so the printed command is the build the job itself runs. Run it after the
+last rebase of the pull request, because a bot that rebases the branch may drop the
+commit.
+
 ### Adopting a workflow
 
 Security scanners, in a `Security` workflow:

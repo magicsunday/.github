@@ -70,14 +70,20 @@ jobs:
                   # rewrite resolves the lockfile's git+ssh URL over anonymous
                   # HTTPS (chart-lib is a public repo). `npm run prepare` is the
                   # repo's Rollup build — the same recipe as `make build`.
-                  docker run --rm -v "$PWD":/app -w /app "$NODE_IMAGE" sh -c '
-                      set -e
-                      apk add --no-cache git >/dev/null
-                      git config --global url."https://github.com/".insteadOf "git@github.com:"
-                      git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-                      npm ci
-                      npm run prepare
-                  '
+                  # The steps live in one variable, because the failure message
+                  # below prints them as the command that fixes the failure. The
+                  # script must stay free of single quotes, the printed command
+                  # wraps it in them.
+                  BUILD_SCRIPT=$(cat <<'BUILD_SCRIPT_END'
+                  set -e
+                  apk add --no-cache git >/dev/null
+                  git config --global url."https://github.com/".insteadOf "git@github.com:"
+                  git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+                  npm ci
+                  npm run prepare
+                  BUILD_SCRIPT_END
+                  )
+                  docker run --rm -v "$PWD":/app -w /app "$NODE_IMAGE" sh -c "$BUILD_SCRIPT"
 
                   # Stage everything so a NEW untracked bundle file is caught
                   # too — `git diff` alone ignores untracked files. node_modules
@@ -88,11 +94,19 @@ jobs:
                       exit 0
                   fi
 
-                  echo "::error::The committed JavaScript bundle is out of date. Run \`make build\` locally and commit the resulting ${BUNDLE_DIR} changes."
+                  echo "::error::The committed JavaScript bundle is out of date. The job summary names the command that rebuilds it, commit the resulting ${BUNDLE_DIR} changes."
                   {
                       echo "## Bundle freshness"
                       echo
-                      echo "Rebuilding changed the tree: the committed \`${BUNDLE_DIR}\` bundle lags the resolved dependencies (typically a chart-lib bump not followed by \`make build\`)."
+                      echo "Rebuilding changed the tree: the committed \`${BUNDLE_DIR}\` bundle lags the resolved dependencies (typically a dependency update not followed by a rebuild)."
+                      echo
+                      echo '### Rebuild'
+                      echo
+                      echo "Run this in a checkout of the pull request branch, then commit the changed \`${BUNDLE_DIR}\` files. It needs Docker and no other tooling, and it is the same build as this job. A dependency bot that rebases the branch afterwards may drop the commit, so run it after the last rebase."
+                      echo
+                      echo '```'
+                      echo "docker run --rm -v \"\$PWD\":/app -w /app ${NODE_IMAGE} sh -c '${BUILD_SCRIPT}'"
+                      echo '```'
                       echo
                       echo '### Changes'
                       echo '```'
