@@ -371,11 +371,13 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   change, and a contributor without the pipeline cannot refresh them. The job
   stages the result of `make lang` and passes when the staged diff consists of
   those lines alone. Any other change fails it: an entry that is added, removed
-  or changed, a new file and a compiled catalogue that differs. The decision is
+  or changed, a compiled catalogue that differs, and a file that is created,
+  deleted, renamed or changed in mode. The decision is
   `i18n_only_references_changed` in `scripts/lib/i18n-freshness.sh`, which the job
   sources from a checkout of this repository made after the staging, so that the
   checkout stays out of the staged diff. `test-i18n-freshness.sh` pins both
-  directions against real staged changes.
+  directions against real staged changes, and `test-i18n-freshness-step.sh` runs
+  the step itself, extracted from the workflow, for each of its outcomes.
 - **The `p/*` Semgrep rule packs `code-scanning.yml` scans with cannot be pinned or
   vendored.** The Semgrep Rules License v. 1.0 forbids distributing the rules or
   making them available to others as a service, which a commit to this public,
