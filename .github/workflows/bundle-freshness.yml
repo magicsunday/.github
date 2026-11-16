@@ -125,7 +125,7 @@ jobs:
                   if [ "$AUTO_PUSH" = "true" ]; then
                       outside=$(git diff --cached --name-only -- ":(exclude)${BUNDLE_DIR}")
                       if [ -z "$outside" ]; then
-                          git diff --cached --binary -- "$BUNDLE_DIR" > "$RUNNER_TEMP/bundle.patch"
+                          git diff --cached --binary --no-renames -- "$BUNDLE_DIR" > "$RUNNER_TEMP/bundle.patch"
                           echo "patchable=true" >> "$GITHUB_OUTPUT"
                       fi
                   fi
@@ -164,13 +164,20 @@ jobs:
 
     # Pushes the rebuilt bundle to the branch of a bot pull request. The build
     # above installs packages and runs their lifecycle scripts, so it never
-    # holds a write token. This job holds the token and runs nothing but the
-    # patch that the build produced, after it checked that the branch still
-    # is the commit that was built.
+    # holds a write token, and what it hands over is untrusted. This job holds
+    # the token and applies the patch only after it checked that the branch
+    # still is the head commit the run started on and that the patch changes
+    # regular files inside the bundle directory and nothing else. The patch is
+    # made on the merge of the pull request, so it fails to apply when the base
+    # branch changed the bundle meanwhile, and the next run after a rebase
+    # does the rebuild.
     push-rebuild:
         name: Push the rebuilt bundle
         needs: bundle-freshness
-        if: ${{ !cancelled() && needs.bundle-freshness.outputs.patchable == 'true' }}
+        # The build job runs package scripts and can set its own output, so
+        # the gate of the build step is repeated here with values that come
+        # from the event and not from the build.
+        if: ${{ !cancelled() && needs.bundle-freshness.outputs.patchable == 'true' && github.event_name == 'pull_request' && github.event.pull_request.user.login == inputs.bot-login && github.event.pull_request.head.repo.full_name == github.repository }}
         runs-on: ubuntu-latest
 
         permissions: {}
@@ -199,6 +206,7 @@ jobs:
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
                   HEAD_REF: ${{ github.event.pull_request.head.ref }}
                   REPOSITORY: ${{ github.repository }}
+                  BUNDLE_DIR: ${{ inputs.bundle-dir }}
                   PATCH_DIR: ${{ runner.temp }}/bundle-patch
               run: |
                   set -euo pipefail
@@ -213,11 +221,31 @@ jobs:
                       exit 0
                   fi
 
+                  # The build ran package scripts, so the patch is not trusted.
+                  # It is applied to the index first and the result is checked,
+                  # not the text of the patch. Every entry must end as a regular
+                  # file below the bundle directory or as a deletion, which also
+                  # covers a rename, a symlink and a submodule, in every
+                  # spelling the patch format allows.
+                  git apply --index "${PATCH_DIR}/bundle.patch"
+                  unexpected=$(git diff --cached --raw --no-renames -z | tr '\0' '\n' | awk -v dir="${BUNDLE_DIR%/}/" '
+                      NR % 2 == 1 {
+                          if ($2 !~ /^(000000|100644|100755)$/) {
+                              print "mode " $2
+                          }
+                          next
+                      }
+                      substr($0, 1, length(dir)) != dir { print "path " $0 }
+                  ')
+                  if [ -n "$unexpected" ]; then
+                      echo "::error::The rebuilt patch changes something other than regular files inside the bundle directory, so it is not pushed."
+                      exit 1
+                  fi
+
                   # The commit is made as the bot user of GitHub Actions, with
                   # the sign-off of that identity.
                   git config user.name "github-actions[bot]"
                   git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-                  git apply --index "${PATCH_DIR}/bundle.patch"
                   git commit --signoff -m "Rebuild the bundle after the dependency update"
                   git push "$remote" "HEAD:refs/heads/${HEAD_REF}"

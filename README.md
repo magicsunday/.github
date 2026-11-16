@@ -170,7 +170,12 @@ never holds the token, the push job runs after it and applies only the patch of
 the changed files of `bundle-dir`. A rebuild that changes a file outside
 `bundle-dir`, a pull request from a fork and a pull request of any author but
 `bot-login` are never pushed. When the branch moved after the check started, the run
-of the newer commit does the rebuild. The caller keeps the token in a secret:
+of the newer commit does the rebuild. The patch is made on the merge of the pull
+request, so it fails to apply when the base branch changed the bundle meanwhile,
+and the run after the next rebase does the rebuild. The commit is made by
+`github-actions[bot]`, so Renovate may treat the branch as edited by someone else
+and stop rebasing it, and a person then rebases it by hand. The caller keeps the
+token in a secret:
 
 ```yaml
 jobs:

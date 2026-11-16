@@ -55,14 +55,12 @@ name: AI issue labeler (reusable)
 # a spending cap on the Anthropic API key itself (the correct control point,
 # not bash logic in this workflow); treat the applied labels as a
 # suggestion a human can still see and correct, not an authoritative
-# decision. Re-derive that this is still the only such workflow before
-# assuming the "first"/"only" claims below still hold:
-# `grep -rl "harden-runner" .github/workflows/` for the Harden Runner claim;
-# for the "only workflow declaring a workflow_call secrets input" claim, see
+# decision. Which workflows declare a workflow_call secrets input is in
 # AGENTS.md's "No secrets passing" bullet - a plain
 # `grep -rl "^\s*secrets:" .github/workflows/` is NOT sufficient (it also
 # matches a caller's passthrough `secrets:` block); that bullet has the
-# per-file command and the full reasoning.
+# per-file command and the full reasoning. Re-derive the Harden Runner claim
+# with `grep -rl "harden-runner" .github/workflows/`.
 on:
     workflow_call:
         secrets:
