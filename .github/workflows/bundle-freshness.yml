@@ -25,6 +25,14 @@ name: Bundle freshness (reusable)
 # Callers invoke this via
 # `uses: magicsunday/.github/.github/workflows/bundle-freshness.yml@main`
 # and may override `bundle-dir` if their committed bundle lives elsewhere.
+#
+# Optional push of the rebuilt bundle: a caller that passes the secret
+# `push-token`, a token with write access to the contents of its repository,
+# gets the rebuilt bundle committed to the branch of a pull request of the bot
+# (`bot-login`), so the next run passes without a person. The check itself
+# stays a failure on the commit that lags. The token must not be the token of
+# the workflow run, because a push with that one starts no new checks. Without
+# `push-token` nothing is pushed and the check only fails.
 on:
     workflow_call:
         inputs:
@@ -36,6 +44,14 @@ on:
                 description: 'Container image whose Node/Rollup/terser must match the maintainer''s local `make build`.'
                 type: string
                 default: 'ghcr.io/magicsunday/webtrees-docker-module-base:node24@sha256:39fc8641796056a05d6dd5112b181706bad299282b163147e20d4c3b9cce9da7'
+            bot-login:
+                description: 'Login of the pull request author whose pull requests get the rebuilt bundle pushed.'
+                type: string
+                default: 'renovate[bot]'
+        secrets:
+            push-token:
+                description: 'Token with write access to the contents of the calling repository, for example a fine-grained personal access token limited to that repository. Empty switches the push off, and the check only fails.'
+                required: false
 
 permissions:
     contents: read
@@ -48,6 +64,9 @@ jobs:
         permissions:
             contents: read
 
+        outputs:
+            patchable: ${{ steps.rebuild.outputs.patchable }}
+
         steps:
             - name: Checkout
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -55,10 +74,14 @@ jobs:
                   persist-credentials: false
 
             - name: Rebuild the bundle and assert it is up to date
+              id: rebuild
               timeout-minutes: 15
               env:
                   BUNDLE_DIR: ${{ inputs.bundle-dir }}
                   NODE_IMAGE: ${{ inputs.node-image }}
+                  # Only a pull request of the configured bot in this repository
+                  # gets its rebuilt bundle pushed, never a fork or a human.
+                  AUTO_PUSH: ${{ secrets.push-token != '' && github.event_name == 'pull_request' && github.event.pull_request.user.login == inputs.bot-login && github.event.pull_request.head.repo.full_name == github.repository }}
               run: |
                   set -euo pipefail
 
@@ -96,6 +119,17 @@ jobs:
                       exit 0
                   fi
 
+                  # Hand the change to the push job as a patch, but only when it
+                  # stays inside the bundle directory. A rebuild that touches
+                  # anything else is never pushed, a person looks at it.
+                  if [ "$AUTO_PUSH" = "true" ]; then
+                      outside=$(git diff --cached --name-only -- ":(exclude)${BUNDLE_DIR}")
+                      if [ -z "$outside" ]; then
+                          git diff --cached --binary -- "$BUNDLE_DIR" > "$RUNNER_TEMP/bundle.patch"
+                          echo "patchable=true" >> "$GITHUB_OUTPUT"
+                      fi
+                  fi
+
                   echo "::error::The committed JavaScript bundle is out of date. The job summary names the command that rebuilds it. Commit the files that the rebuild changes."
                   {
                       echo "## Bundle freshness"
@@ -118,3 +152,72 @@ jobs:
 
                   git --no-pager diff --cached -- "$BUNDLE_DIR"
                   exit 1
+
+            - name: Keep the patch for the push job
+              if: ${{ failure() && steps.rebuild.outputs.patchable == 'true' }}
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: bundle-patch
+                  path: ${{ runner.temp }}/bundle.patch
+                  if-no-files-found: error
+                  retention-days: 1
+
+    # Pushes the rebuilt bundle to the branch of a bot pull request. The build
+    # above installs packages and runs their lifecycle scripts, so it never
+    # holds a write token. This job holds the token and runs nothing but the
+    # patch that the build produced, after it checked that the branch still
+    # is the commit that was built.
+    push-rebuild:
+        name: Push the rebuilt bundle
+        needs: bundle-freshness
+        if: ${{ !cancelled() && needs.bundle-freshness.outputs.patchable == 'true' }}
+        runs-on: ubuntu-latest
+
+        permissions: {}
+
+        concurrency:
+            group: bundle-rebuild-${{ github.event.pull_request.number }}
+            cancel-in-progress: true
+
+        steps:
+            - name: Download the patch
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  name: bundle-patch
+                  path: ${{ runner.temp }}/bundle-patch
+
+            - name: Checkout the pull request head
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  ref: ${{ github.event.pull_request.head.sha }}
+                  token: ${{ secrets.push-token }}
+                  persist-credentials: false
+
+            - name: Commit the rebuilt bundle and push it
+              env:
+                  TOKEN: ${{ secrets.push-token }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  HEAD_REF: ${{ github.event.pull_request.head.ref }}
+                  REPOSITORY: ${{ github.repository }}
+                  PATCH_DIR: ${{ runner.temp }}/bundle-patch
+              run: |
+                  set -euo pipefail
+
+                  remote="https://x-access-token:${TOKEN}@github.com/${REPOSITORY}.git"
+
+                  # A newer push to the branch starts its own run, which then
+                  # does the rebuild for that commit.
+                  current=$(git ls-remote "$remote" "refs/heads/${HEAD_REF}" | cut -f1)
+                  if [ "$current" != "$HEAD_SHA" ]; then
+                      echo "::notice::The branch moved on after this check started, so the rebuild is left to the run of the newer commit."
+                      exit 0
+                  fi
+
+                  # The commit is made as the bot user of GitHub Actions, with
+                  # the sign-off of that identity.
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+                  git apply --index "${PATCH_DIR}/bundle.patch"
+                  git commit --signoff -m "Rebuild the bundle after the dependency update"
+                  git push "$remote" "HEAD:refs/heads/${HEAD_REF}"

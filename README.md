@@ -35,7 +35,7 @@ runs.
 <tr><td><code>commit-convention.yml</code></td><td>Enforces the commit-subject convention</td><td><code>contents: read</code>, <code>pull-requests: read</code></td></tr>
 <tr><td><code>yamllint.yml</code></td><td>Lints YAML against the house style (4-space indent)</td><td><code>contents: read</code></td></tr>
 <tr><td><code>i18n.yml</code></td><td>Enforces the catalogue layout, with an optional <code>make lang</code> freshness gate and a core text overlap check</td><td><code>contents: read</code></td></tr>
-<tr><td><code>bundle-freshness.yml</code></td><td>Verifies committed build artefacts match a clean rebuild</td><td><code>contents: read</code></td></tr>
+<tr><td><code>bundle-freshness.yml</code></td><td>Verifies committed build artefacts match a clean rebuild, and can push the rebuilt bundle to a bot pull request</td><td><code>contents: read</code></td></tr>
 <tr><td><code>ai-issue-labeler.yml</code></td><td>Classifies a newly opened issue via the Anthropic API against the caller's own live label set, leaves out the pull-request labels and the labels a maintainer sets, and applies the labels it is confident about (see below)</td><td><code>issues: write</code></td></tr>
 <tr><td><code>php-quality.yml</code></td><td>Runs the granular <code>composer ci:test:php:*</code> PHP quality gate across a version matrix</td><td><code>contents: read</code></td></tr>
 <tr><td><code>cpd.yml</code></td><td>Copy-paste detection with the caller's exact-pinned jscpd: <code>npm ci</code>, then the fixed jscpd command line; settings live in <code>.jscpd.json</code></td><td><code>contents: read</code></td></tr>
@@ -102,6 +102,7 @@ Workflows not listed here take no inputs.
 | | `node-image` — image whose gettext must match the local `make lang` | `ghcr.io/magicsunday/webtrees-docker-module-base:node24` |
 | `bundle-freshness.yml` | `bundle-dir` — directory whose committed artefacts must match a rebuild | `resources/js` |
 | | `node-image` — image whose Node/Rollup must match the local `make build` | `ghcr.io/magicsunday/webtrees-docker-module-base:node24` |
+| | `bot-login` — login of the pull request author whose pull requests get the push | `renovate[bot]` |
 | `php-quality.yml` | `php-versions` — JSON array of PHP versions for the build matrix | `["8.3", "8.4", "8.5"]` |
 | | `run-psr4` — run the strict PSR-4 autoload check | `false` |
 | | `run-infection` — run mutation testing, on the `infection-php` leg only. On a pull request the mutation leg fetches the full history, whether or not the consumer defines the composer script `ci:test:php:infection:changed`. A pull request of a consumer that defines it is gated on the covered code of its changed lines. Every other run, and a consumer without that script, runs `ci:test:php:infection` over the whole tree. That run only reports once the consumer's own configuration has no fixed score floor | `false` |
@@ -155,6 +156,31 @@ writes belong to root in the checkout. The steps are defined once in the workflo
 so the printed command is the build the job itself runs. Run it after the last
 rebase of the pull request, because a bot that rebases the branch may drop the
 commit.
+
+A caller that passes the secret `push-token` gets the rebuilt bundle pushed to the
+branch of a pull request of the bot, so the next run passes without a person. The
+check still fails on the commit that lags, and a second job then adds a commit with
+the rebuilt bundle files. That push starts the checks again.
+
+The token needs write access to the contents of the calling repository and nothing
+else. A fine-grained personal access token limited to that repository does it. It
+must not be the token of the workflow run, because a push with that one starts no
+new checks and the pull request would wait for checks that never run. The build
+never holds the token, the push job runs after it and applies only the patch of
+the changed files of `bundle-dir`. A rebuild that changes a file outside
+`bundle-dir`, a pull request from a fork and a pull request of any author but
+`bot-login` are never pushed. When the branch moved after the check started, the run
+of the newer commit does the rebuild. The caller keeps the token in a secret:
+
+```yaml
+jobs:
+    bundle-freshness:
+        uses: magicsunday/.github/.github/workflows/bundle-freshness.yml@main
+        permissions:
+            contents: read
+        secrets:
+            push-token: ${{ secrets.BUNDLE_PUSH_TOKEN }}
+```
 
 ### Adopting a workflow
 
