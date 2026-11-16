@@ -82,6 +82,24 @@ printf 'compiled-two' > resources/lang/nl/messages.mo
 assert_eq "changed compiled catalogue: fails" "1" "$(decide_after)"
 cd "${original_dir}" || exit 1
 
+new_repo fuzzy-flag-added
+sed -i 's|^msgid "Open"|#, fuzzy\nmsgid "Open"|' resources/lang/nl/messages.po
+assert_eq "added fuzzy flag: fails" "1" "$(decide_after)"
+cd "${original_dir}" || exit 1
+
+new_repo extracted-comment-added
+sed -i 's|^msgid "Open"|#. Label of the open button\nmsgid "Open"|' resources/lang/nl/messages.po
+assert_eq "added extracted comment: fails" "1" "$(decide_after)"
+cd "${original_dir}" || exit 1
+
+new_repo translation-with-reference-marker
+sed -i 's|msgstr "Openen"|msgstr "Nr #: 6"|' resources/lang/nl/messages.po
+git add -A
+git commit --quiet -m "Add a translation with a marker" || exit 1
+sed -i 's|Nr #: 6|Nr #: 7|' resources/lang/nl/messages.po
+assert_eq "changed translation that contains the reference marker: fails" "1" "$(decide_after)"
+cd "${original_dir}" || exit 1
+
 new_repo new-locale
 mkdir -p resources/lang/de
 printf '#: src/Module.php:10\nmsgid "Open"\nmsgstr ""\n' > resources/lang/de/messages.po
