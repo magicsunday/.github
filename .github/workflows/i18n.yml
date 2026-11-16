@@ -62,7 +62,7 @@ on:
                 type: string
                 default: 'resources/lang'
             check-pipeline:
-                description: 'Run `make lang` and fail on a non-empty diff (source-driven pipeline only).'
+                description: 'Run `make lang` and fail on a non-empty diff, except one made of moved `#:` source reference lines (source-driven pipeline only).'
                 type: boolean
                 default: false
             check-core-overlap:
