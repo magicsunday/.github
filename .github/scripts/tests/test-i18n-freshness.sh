@@ -26,6 +26,9 @@ new_repo() {
     git config user.email "test@example.invalid"
     git config user.name "Test"
     git config commit.gpgsign false
+    # A mode change is staged explicitly in its case, so the filesystem the
+    # test runs on cannot decide whether git sees it.
+    git config core.fileMode false
     cat > resources/lang/nl/messages.po <<'PO'
 #: src/Module.php:10
 msgid "Open"
@@ -83,6 +86,33 @@ new_repo new-locale
 mkdir -p resources/lang/de
 printf '#: src/Module.php:10\nmsgid "Open"\nmsgstr ""\n' > resources/lang/de/messages.po
 assert_eq "new locale: fails" "1" "$(decide_after)"
+cd "${original_dir}" || exit 1
+
+new_repo new-empty-file
+mkdir -p resources/lang/de
+: > resources/lang/de/messages.po
+assert_eq "new empty file: fails" "1" "$(decide_after)"
+cd "${original_dir}" || exit 1
+
+new_repo new-file-of-references-only
+mkdir -p resources/lang/de
+printf '#: src/Module.php:10\n' > resources/lang/de/messages.po
+assert_eq "new file made of references only: fails" "1" "$(decide_after)"
+cd "${original_dir}" || exit 1
+
+new_repo deleted-catalogue
+git rm --quiet resources/lang/nl/messages.mo
+assert_eq "deleted compiled catalogue: fails" "1" "$(decide_after)"
+cd "${original_dir}" || exit 1
+
+new_repo renamed-catalogue
+git mv resources/lang/nl/messages.po resources/lang/nl/renamed.po
+assert_eq "renamed catalogue: fails" "1" "$(decide_after)"
+cd "${original_dir}" || exit 1
+
+new_repo changed-mode
+git update-index --chmod=+x resources/lang/nl/messages.po
+assert_eq "changed file mode: fails" "1" "$(decide_after)"
 cd "${original_dir}" || exit 1
 
 new_repo no-change

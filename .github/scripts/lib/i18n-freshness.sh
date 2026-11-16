@@ -7,8 +7,11 @@
 # source reference lines (`#: src/File.php:LINE`) alone, and when nothing is
 # staged. A reference shifts with every unrelated code change and is no
 # translation, so a catalogue that differs only there is not stale. Any other
-# staged change fails the check: an added, removed or changed entry, a new
-# file, and a compiled catalogue that differs.
+# staged change fails the check: an added, removed or changed entry, a
+# compiled catalogue that differs, and a file that is created, deleted,
+# renamed or changed in mode. The summary catches the last group, because a
+# change of that kind carries no content line that the line filter could judge.
 i18n_only_references_changed() {
+    [ -z "$(git diff --cached --summary)" ] || return 1
     git diff --cached --quiet -I '^#:'
 }
