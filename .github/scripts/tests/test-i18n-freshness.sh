@@ -57,6 +57,14 @@ sed -i 's|src/Module.php:10|src/Module.php:12|; s|src/Module.php:20|src/Module.p
 assert_eq "moved references only: passes" "0" "$(decide_after)"
 cd "${original_dir}" || exit 1
 
+new_repo moved-references-outside-src
+sed -i 's|^#: src/Module.php:10|#: src/Module.php:10 resources/views/modules/chart/page.phtml:263\n#: resources/views/modules/chart/tab.phtml:156|' resources/lang/nl/messages.po
+git add -A
+git commit --quiet -m "Add references to templates" || exit 1
+sed -i 's|page.phtml:263|page.phtml:271|; s|tab.phtml:156|tab.phtml:158|' resources/lang/nl/messages.po
+assert_eq "moved references to templates and several references per entry: passes" "0" "$(decide_after)"
+cd "${original_dir}" || exit 1
+
 new_repo changed-translation
 sed -i 's|Openen|Opent|' resources/lang/nl/messages.po
 assert_eq "changed translation: fails" "1" "$(decide_after)"
