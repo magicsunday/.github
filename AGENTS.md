@@ -479,11 +479,16 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   Do not widen a scope without a concrete reason.
 - **No secrets passing.** The workflows run on the caller's `GITHUB_TOKEN`. Do not
   declare a NEW `on: workflow_call: secrets:` input on a reusable workflow unless it
-  genuinely needs a non-default token. `ai-issue-labeler.yml` is the one exception:
-  it calls the Anthropic API, which needs its own key, and this account has no
-  org-wide secret inheritance to source it from — every consuming repository
-  configures its own `ANTHROPIC_API_KEY` and passes it through explicitly (see that
-  workflow's own header comment for the exact shape). Re-derive per-file, since a
+  genuinely needs a non-default token. The exceptions are the workflows that the
+  command below prints.
+  `ai-issue-labeler.yml` calls the Anthropic API, which needs its own key, and this
+  account has no org-wide secret inheritance to source it from — every consuming
+  repository configures its own `ANTHROPIC_API_KEY` and passes it through explicitly
+  (see that workflow's own header comment for the exact shape).
+  `bundle-freshness.yml` takes the optional secret `push-token`, because a push with
+  the token of the workflow run starts no new checks, so a rebuilt bundle pushed with
+  that token would leave the pull request waiting for checks that never run. Without
+  the secret the workflow only reports. Re-derive per-file, since a
   plain `grep -rl "^\s*secrets:"` also matches a caller job's `secrets:` block that
   PASSES a value into such a workflow — a different YAML shape for a different
   purpose, e.g. `issue-labels.yml`'s own caller job — rather than a reusable
@@ -505,7 +510,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   done
   ```
 
-  Should print only `.github/workflows/ai-issue-labeler.yml`.
+  Should print only `.github/workflows/ai-issue-labeler.yml` and
+  `.github/workflows/bundle-freshness.yml`.
 - **A `pull_request` run gives the PR real influence over execution — that is the model,
   not a leak — though the reach differs by shape.** In the same repo as the PR (this
   repo's own `lint.yml`, triggered directly), GitHub takes the workflow file itself from

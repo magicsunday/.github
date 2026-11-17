@@ -32,7 +32,7 @@
         "permissions": ["contents: read"]
     },
     "bundle-freshness.yml": {
-        "purpose": "Verifies committed build artefacts match a clean rebuild",
+        "purpose": "Verifies committed build artefacts match a clean rebuild, and can push the rebuilt bundle to a bot pull request",
         "permissions": ["contents: read"]
     },
     "ai-issue-labeler.yml": {
