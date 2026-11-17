@@ -157,9 +157,9 @@ so the printed command is the build the job itself runs. Run it after the last
 rebase of the pull request, because a bot that rebases the branch may drop the
 commit.
 
-A caller that passes the secret `push-token` gets the rebuilt bundle pushed to the
+A caller that passes the secret `push_token` gets the rebuilt bundle pushed to the
 branch of a pull request of the bot, so the next run passes without a person. The
-check still fails on the commit that lags, and a second job then adds a commit with
+check still fails on the commit that lags, and a follow-up job then adds a commit with
 the rebuilt bundle files. That push starts the checks again.
 
 The token needs write access to the contents of the calling repository and nothing
@@ -169,9 +169,10 @@ new checks and the pull request would wait for checks that never run. Only the
 push job names the secret, because a job that references a secret has it loaded
 into its runner and the build job runs package scripts. Without the secret the
 push job ends without a push. The push job applies only the patch of the changed
-files of `bundle-dir`. A rebuild that changes a file outside
-`bundle-dir`, a pull request from a fork and a pull request of any author but
-`bot-login` are never pushed. When the branch moved after the check started, the run
+files of `bundle-dir`. A rebuild that never converges is not pushed again, because
+the push job refuses to push on top of its own rebuild commit and fails instead. A
+rebuild that changes a file outside `bundle-dir`, a pull request from a fork and a
+pull request of any author but `bot-login` are never pushed. When the branch moved after the check started, the run
 of the newer commit does the rebuild. The patch is made on the merge of the pull
 request, so it fails to apply when the base branch changed the bundle meanwhile,
 and the run after the next rebase does the rebuild. The commit is made by
@@ -186,7 +187,7 @@ jobs:
         permissions:
             contents: read
         secrets:
-            push-token: ${{ secrets.BUNDLE_PUSH_TOKEN }}
+            push_token: ${{ secrets.BUNDLE_PUSH_TOKEN }}
 ```
 
 ### Adopting a workflow

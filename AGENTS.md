@@ -482,10 +482,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   genuinely needs a non-default token. The exceptions are the workflows that the
   command below prints.
   `ai-issue-labeler.yml` calls the Anthropic API, which needs its own key, and this
-  account has no org-wide secret inheritance to source it from — every consuming
+  account has no org-wide secret inheritance to source it from. Every consuming
   repository configures its own `ANTHROPIC_API_KEY` and passes it through explicitly
   (see that workflow's own header comment for the exact shape).
-  `bundle-freshness.yml` takes the optional secret `push-token`, because a push with
+  `bundle-freshness.yml` takes the optional secret `push_token`, because a push with
   the token of the workflow run starts no new checks, so a rebuilt bundle pushed with
   that token would leave the pull request waiting for checks that never run. Without
   the secret the workflow only reports. Re-derive per-file, since a

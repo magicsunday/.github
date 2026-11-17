@@ -26,13 +26,13 @@ name: Bundle freshness (reusable)
 # `uses: magicsunday/.github/.github/workflows/bundle-freshness.yml@main`
 # and may override `bundle-dir` if their committed bundle lives elsewhere.
 #
-# Optional push of the rebuilt bundle: a caller that passes the secret
-# `push-token`, a token with write access to the contents of its repository,
+# Optional push of the rebuilt bundle. A caller that passes the secret
+# `push_token`, a token with write access to the contents of its repository,
 # gets the rebuilt bundle committed to the branch of a pull request of the bot
 # (`bot-login`), so the next run passes without a person. The check itself
 # stays a failure on the commit that lags. The token must not be the token of
 # the workflow run, because a push with that one starts no new checks. Without
-# `push-token` nothing is pushed and the check only fails. Only the push job
+# `push_token` nothing is pushed and the check only fails. Only the push job
 # references the secret. A job that references a secret has it loaded into
 # its runner, and the build job runs package scripts, so the build job must
 # not name it.
@@ -52,7 +52,7 @@ on:
                 type: string
                 default: 'renovate[bot]'
         secrets:
-            push-token:
+            push_token:
                 description: 'Token with write access to the contents of the calling repository, for example a fine-grained personal access token limited to that repository. Empty switches the push off, and the check only fails.'
                 required: false
 
@@ -164,10 +164,11 @@ jobs:
                   path: ${{ runner.temp }}/bundle.patch
                   if-no-files-found: error
                   retention-days: 1
+                  overwrite: true
 
     # Pushes the rebuilt bundle to the branch of a bot pull request. The build
-    # above installs packages and runs their lifecycle scripts, so it never
-    # holds a write token, and what it hands over is untrusted. This job holds
+    # above installs packages and runs their lifecycle scripts, so it does not
+    # name the secret, and what it hands over is untrusted. This job holds
     # the token and applies the patch only after it checked that the branch
     # still is the head commit the run started on and that the patch changes
     # regular files inside the bundle directory and nothing else. The patch is
@@ -179,12 +180,17 @@ jobs:
         needs: bundle-freshness
         # The build job runs package scripts and can set its own output, so
         # the gate of the build step is repeated here with values that come
-        # from the event and not from the build.
+        # from the event and not from the build. The needed job fails on
+        # purpose whenever the bundle lags, which is when a patch exists, so
+        # the default success condition would skip this job exactly then and
+        # the not-cancelled condition lets it run after that failure.
         if: ${{ !cancelled() && needs.bundle-freshness.outputs.patchable == 'true' && github.event_name == 'pull_request' && github.event.pull_request.user.login == inputs.bot-login && github.event.pull_request.head.repo.full_name == github.repository }}
         runs-on: ubuntu-latest
 
         permissions: {}
 
+        # A newer push to the branch makes the older run obsolete, and the
+        # newer commit starts its own run, so cancelling the older one is safe.
         concurrency:
             group: bundle-rebuild-${{ github.event.pull_request.number }}
             cancel-in-progress: true
@@ -195,7 +201,7 @@ jobs:
             - name: Check that a push token is present
               id: token
               env:
-                  TOKEN: ${{ secrets.push-token }}
+                  TOKEN: ${{ secrets.push_token }}
               run: |
                   if [ -n "$TOKEN" ]; then
                       echo "present=true" >> "$GITHUB_OUTPUT"
@@ -215,13 +221,13 @@ jobs:
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   ref: ${{ github.event.pull_request.head.sha }}
-                  token: ${{ secrets.push-token }}
+                  token: ${{ secrets.push_token }}
                   persist-credentials: false
 
             - name: Commit the rebuilt bundle and push it
               if: ${{ steps.token.outputs.present == 'true' }}
               env:
-                  TOKEN: ${{ secrets.push-token }}
+                  TOKEN: ${{ secrets.push_token }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
                   HEAD_REF: ${{ github.event.pull_request.head.ref }}
                   REPOSITORY: ${{ github.repository }}
@@ -238,6 +244,16 @@ jobs:
                   if [ "$current" != "$HEAD_SHA" ]; then
                       echo "::notice::The branch moved on after this check started, so the rebuild is left to the run of the newer commit."
                       exit 0
+                  fi
+
+                  # A rebuild that never converges would push again for every
+                  # run, so the push stops when the head commit already is the
+                  # rebuild commit of this job.
+                  head_author=$(git log -1 --format=%ae)
+                  head_subject=$(git log -1 --format=%s)
+                  if [ "$head_author" = "41898282+github-actions[bot]@users.noreply.github.com" ] && [ "$head_subject" = "Rebuild the bundle after the dependency update" ]; then
+                      echo "::error::The head commit already is the rebuild of the bundle and the bundle still lags, so the rebuild does not converge and is not pushed again."
+                      exit 1
                   fi
 
                   # The build ran package scripts, so the patch is not trusted.

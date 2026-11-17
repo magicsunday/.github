@@ -12,11 +12,17 @@
 #     opens the commit identity. It applies the patch to the index and checks
 #     the result, so each case leaves the index clean again,
 #   - the check that the branch still is the head commit of the run, in the
-#     same step, from the remote line to the comment on the validation,
+#     same step, from the remote line to the comment on the loop guard,
+#   - the loop guard, which refuses to push on top of the rebuild commit of
+#     this job, up to the comment on the validation,
+#   - the token check, the step "Check that a push token is present", which
+#     writes its result to the output file that the later steps of the push
+#     job test,
 #   - the hand-over of the patch, in the step "Rebuild the bundle and assert
 #     it is up to date", from its comment to the error line.
 # The conditions that select a pull request are Actions expressions that no
-# shell runs, so they are compared in full as text.
+# shell runs, so they are compared in full as text. The dependencies of the
+# push job steps are read from the parsed workflow.
 #
 # Run via run-tests.sh. Needs PyYAML, which lint.yml's shell-tests job
 # installs.
@@ -41,13 +47,15 @@ workflow_step_run "${WORKFLOW_FILE}" "${PUSH_STEP}" >"${WORK_DIR}/push-step.sh" 
 workflow_step_run "${WORKFLOW_FILE}" "${BUILD_STEP}" >"${WORK_DIR}/build-step.sh" || exit 1
 
 awk '/^# The build ran package scripts/ {on = 1} /^# The commit is made as/ {on = 0} on' "${WORK_DIR}/push-step.sh" >"${WORK_DIR}/validation.sh"
-awk '/^remote=/ {on = 1} /^# The build ran package scripts/ {on = 0} on' "${WORK_DIR}/push-step.sh" >"${WORK_DIR}/moved-check.sh"
+awk '/^remote=/ {on = 1} /^# (A rebuild that never converges|The build ran package scripts)/ {on = 0} on' "${WORK_DIR}/push-step.sh" >"${WORK_DIR}/moved-check.sh"
+awk '/^# A rebuild that never converges/ {on = 1} /^# The build ran package scripts/ {on = 0} on' "${WORK_DIR}/push-step.sh" >"${WORK_DIR}/loop-guard.sh"
 awk '/^# Hand the change to the push job/ {on = 1} /^echo "::error::The committed/ {on = 0} on' "${WORK_DIR}/build-step.sh" >"${WORK_DIR}/handover.sh"
 # A workflow without this step must fail an assertion below and not stop the test here.
 workflow_step_run "${WORKFLOW_FILE}" "Check that a push token is present" >"${WORK_DIR}/token-check.sh" 2>/dev/null || : >"${WORK_DIR}/token-check.sh"
 assert_nonempty "$(cat "${WORK_DIR}/validation.sh")" "validation cut from the step"
 assert_nonempty "$(cat "${WORK_DIR}/moved-check.sh")" "branch check cut from the step"
 assert_nonempty "$(cat "${WORK_DIR}/handover.sh")" "hand-over cut from the step"
+assert_nonempty "$(cat "${WORK_DIR}/loop-guard.sh")" "loop guard cut from the step"
 assert_nonempty "$(cat "${WORK_DIR}/token-check.sh")" "token check step"
 
 REPO_DIR="${WORK_DIR}/repo"
@@ -79,7 +87,7 @@ make_patch() {
 # Runs the validation on one patch, leaving rc and output for the asserts.
 validate() {
     output="$(
-        BUNDLE_DIR="resources/js" bash -c "set -euo pipefail; $(sed "s#\${PATCH_DIR}/bundle.patch#${WORK_DIR}/$1.patch#" "${WORK_DIR}/validation.sh")" 2>&1
+        BUNDLE_DIR="${2:-resources/js}" bash -c "set -euo pipefail; $(sed "s#\${PATCH_DIR}/bundle.patch#${WORK_DIR}/$1.patch#" "${WORK_DIR}/validation.sh")" 2>&1
     )"
     rc=$?
     reset_tree
@@ -90,6 +98,19 @@ echo new >resources/js/extra.min.js.map
 make_patch good --no-renames
 validate good
 assert_eq "change inside the bundle directory: accepted" "0" "${rc}"
+
+# An executable regular file is a regular file, and a bundle-dir with a
+# trailing slash names the same directory.
+echo run >resources/js/runner.sh
+chmod +x resources/js/runner.sh
+make_patch executable --no-renames
+validate executable
+assert_eq "executable regular file inside the bundle directory: accepted" "0" "${rc}"
+
+echo two >resources/js/main.min.js
+make_patch slash --no-renames
+validate slash "resources/js/"
+assert_eq "bundle directory spelled with a trailing slash: accepted" "0" "${rc}"
 
 git rm -q resources/js/main.min.js
 make_patch delete --no-renames
@@ -224,6 +245,44 @@ assert_eq "bot pull request, change also outside: not handed over" "" "${handed_
 assert_eq "change also outside: no patch written" "no" "${patch_written}"
 reset_tree
 
+# A binary file in the bundle directory must survive the hand-over, so the
+# written patch has to apply to a clean tree.
+printf '\000\001\002' >resources/js/font.bin
+git add -A
+run_handover true
+assert_eq "binary file in the bundle directory: handed over" "patchable=true" "${handed_over}"
+reset_tree
+git apply --check "${WORK_DIR}/tmp/bundle.patch"
+assert_eq "binary file: the written patch applies to a clean tree" "0" "$?"
+
+# The loop guard. A head commit that is the rebuild commit of the bot stops
+# the push, any other head commit lets the step go on.
+run_loop_guard() {
+    guard="$(cat "${WORK_DIR}/loop-guard.sh")"
+    output="$(bash -c "set -euo pipefail; ${guard:-:}; echo CONTINUED" 2>&1)"
+    rc=$?
+}
+
+run_loop_guard
+assert_eq "head commit of a person: the push goes on" "0" "${rc}"
+assert_contains "head commit of a person: the step continues" "${output}" "CONTINUED"
+
+git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q --allow-empty -m "Rebuild the bundle after the dependency update"
+run_loop_guard
+assert_eq "head commit is the rebuild of the bot: the push stops" "1" "${rc}"
+assert_contains "rebuild commit: names the reason" "${output}" "does not converge"
+git reset -q --hard HEAD~1
+
+git commit -q --allow-empty -m "Rebuild the bundle after the dependency update"
+run_loop_guard
+assert_eq "same subject by a person: the push goes on" "0" "${rc}"
+git reset -q --hard HEAD~1
+
+git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q --allow-empty -m "Update the build tooling"
+run_loop_guard
+assert_eq "other commit of the bot: the push goes on" "0" "${rc}"
+git reset -q --hard HEAD~1
+
 # The check that the branch still is the head commit of the run. A stub git
 # answers the remote query, and a line after the cut shows whether the step
 # goes on.
@@ -262,7 +321,6 @@ esac
 # The push job names the secret and ends without a push when it is empty. The
 # step writes its result to the output file that the later steps test.
 run_token_check() {
-    command rm -f "${WORK_DIR}/token-out"
     : >"${WORK_DIR}/token-out"
     output="$(
         TOKEN="$1" GITHUB_OUTPUT="${WORK_DIR}/token-out" \
@@ -309,9 +367,11 @@ for step in jobs["push-rebuild"]["steps"]:
         print("GATED" if step.get("if") == condition else "OPEN " + step.get("name", ""))
 build = yaml.safe_dump(jobs["bundle-freshness"])
 print("BUILD_NAMES_SECRET" if re.search(r"\bsecrets\b", build) else "BUILD_CLEAN")
+upload = [s for s in jobs["bundle-freshness"]["steps"] if s.get("name") == "Keep the patch for the push job"][0]
+print("UPLOAD_OVERWRITES" if upload["with"].get("overwrite") is True else "UPLOAD_KEEPS")
 PY
 )"
-assert_eq "every later step of the push job depends on the token check, and the build job names no secret" \
-    "$(printf 'GATED\nGATED\nGATED\nBUILD_CLEAN')" "${dependencies}"
+assert_eq "every later step of the push job depends on the token check, the build job names no secret and the patch upload overwrites on a re-run" \
+    "$(printf 'GATED\nGATED\nGATED\nBUILD_CLEAN\nUPLOAD_OVERWRITES')" "${dependencies}"
 
 report_and_exit "bundle freshness push tests"
