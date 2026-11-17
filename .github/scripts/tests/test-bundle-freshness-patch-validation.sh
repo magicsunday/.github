@@ -43,11 +43,12 @@ workflow_step_run "${WORKFLOW_FILE}" "${BUILD_STEP}" >"${WORK_DIR}/build-step.sh
 awk '/^# The build ran package scripts/ {on = 1} /^# The commit is made as/ {on = 0} on' "${WORK_DIR}/push-step.sh" >"${WORK_DIR}/validation.sh"
 awk '/^remote=/ {on = 1} /^# The build ran package scripts/ {on = 0} on' "${WORK_DIR}/push-step.sh" >"${WORK_DIR}/moved-check.sh"
 awk '/^# Hand the change to the push job/ {on = 1} /^echo "::error::The committed/ {on = 0} on' "${WORK_DIR}/build-step.sh" >"${WORK_DIR}/handover.sh"
-workflow_step_run "${WORKFLOW_FILE}" "Check that a push token is present" >"${WORK_DIR}/token-check.sh" || exit 1
-assert_nonempty "validation cut from the step" "$(cat "${WORK_DIR}/validation.sh")"
-assert_nonempty "branch check cut from the step" "$(cat "${WORK_DIR}/moved-check.sh")"
-assert_nonempty "hand-over cut from the step" "$(cat "${WORK_DIR}/handover.sh")"
-assert_nonempty "token check step" "$(cat "${WORK_DIR}/token-check.sh")"
+# A workflow without this step must fail an assertion below and not stop the test here.
+workflow_step_run "${WORKFLOW_FILE}" "Check that a push token is present" >"${WORK_DIR}/token-check.sh" 2>/dev/null || : >"${WORK_DIR}/token-check.sh"
+assert_nonempty "$(cat "${WORK_DIR}/validation.sh")" "validation cut from the step"
+assert_nonempty "$(cat "${WORK_DIR}/moved-check.sh")" "branch check cut from the step"
+assert_nonempty "$(cat "${WORK_DIR}/handover.sh")" "hand-over cut from the step"
+assert_nonempty "$(cat "${WORK_DIR}/token-check.sh")" "token check step"
 
 REPO_DIR="${WORK_DIR}/repo"
 git init -q "${REPO_DIR}" || exit 1
@@ -297,6 +298,7 @@ assert_eq "build gate: pull request event, bot author and this repository, and n
 assert_eq "push gate: output of the build, pull request event, bot author and this repository" "${expected_push}" "${push_expression}"
 
 dependencies="$(python3 - "${WORKFLOW_FILE}" <<'PY'
+import re
 import sys
 import yaml
 
@@ -306,7 +308,7 @@ for step in jobs["push-rebuild"]["steps"]:
     if step.get("id") != "token":
         print("GATED" if step.get("if") == condition else "OPEN " + step.get("name", ""))
 build = yaml.safe_dump(jobs["bundle-freshness"])
-print("BUILD_NAMES_SECRET" if "secrets." in build else "BUILD_CLEAN")
+print("BUILD_NAMES_SECRET" if re.search(r"\bsecrets\b", build) else "BUILD_CLEAN")
 PY
 )"
 assert_eq "every later step of the push job depends on the token check, and the build job names no secret" \
