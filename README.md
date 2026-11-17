@@ -165,9 +165,11 @@ the rebuilt bundle files. That push starts the checks again.
 The token needs write access to the contents of the calling repository and nothing
 else. A fine-grained personal access token limited to that repository does it. It
 must not be the token of the workflow run, because a push with that one starts no
-new checks and the pull request would wait for checks that never run. The build
-never holds the token, the push job runs after it and applies only the patch of
-the changed files of `bundle-dir`. A rebuild that changes a file outside
+new checks and the pull request would wait for checks that never run. Only the
+push job names the secret, because a job that references a secret has it loaded
+into its runner and the build job runs package scripts. Without the secret the
+push job ends without a push. The push job applies only the patch of the changed
+files of `bundle-dir`. A rebuild that changes a file outside
 `bundle-dir`, a pull request from a fork and a pull request of any author but
 `bot-login` are never pushed. When the branch moved after the check started, the run
 of the newer commit does the rebuild. The patch is made on the merge of the pull

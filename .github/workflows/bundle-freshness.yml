@@ -32,7 +32,10 @@ name: Bundle freshness (reusable)
 # (`bot-login`), so the next run passes without a person. The check itself
 # stays a failure on the commit that lags. The token must not be the token of
 # the workflow run, because a push with that one starts no new checks. Without
-# `push-token` nothing is pushed and the check only fails.
+# `push-token` nothing is pushed and the check only fails. Only the push job
+# references the secret. A job that references a secret has it loaded into
+# its runner, and the build job runs package scripts, so the build job must
+# not name it.
 on:
     workflow_call:
         inputs:
@@ -81,7 +84,7 @@ jobs:
                   NODE_IMAGE: ${{ inputs.node-image }}
                   # Only a pull request of the configured bot in this repository
                   # gets its rebuilt bundle pushed, never a fork or a human.
-                  AUTO_PUSH: ${{ secrets.push-token != '' && github.event_name == 'pull_request' && github.event.pull_request.user.login == inputs.bot-login && github.event.pull_request.head.repo.full_name == github.repository }}
+                  AUTO_PUSH: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login == inputs.bot-login && github.event.pull_request.head.repo.full_name == github.repository }}
               run: |
                   set -euo pipefail
 
@@ -187,13 +190,28 @@ jobs:
             cancel-in-progress: true
 
         steps:
+            # Without a token the job ends here and nothing is pushed. The
+            # check lives in this job because only this job may name the secret.
+            - name: Check that a push token is present
+              id: token
+              env:
+                  TOKEN: ${{ secrets.push-token }}
+              run: |
+                  if [ -n "$TOKEN" ]; then
+                      echo "present=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "::notice::No push token was passed, so the rebuilt bundle is not pushed."
+                  fi
+
             - name: Download the patch
+              if: ${{ steps.token.outputs.present == 'true' }}
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
                   name: bundle-patch
                   path: ${{ runner.temp }}/bundle-patch
 
             - name: Checkout the pull request head
+              if: ${{ steps.token.outputs.present == 'true' }}
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   ref: ${{ github.event.pull_request.head.sha }}
@@ -201,6 +219,7 @@ jobs:
                   persist-credentials: false
 
             - name: Commit the rebuilt bundle and push it
+              if: ${{ steps.token.outputs.present == 'true' }}
               env:
                   TOKEN: ${{ secrets.push-token }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}

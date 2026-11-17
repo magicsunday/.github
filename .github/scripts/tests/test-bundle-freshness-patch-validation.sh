@@ -43,9 +43,11 @@ workflow_step_run "${WORKFLOW_FILE}" "${BUILD_STEP}" >"${WORK_DIR}/build-step.sh
 awk '/^# The build ran package scripts/ {on = 1} /^# The commit is made as/ {on = 0} on' "${WORK_DIR}/push-step.sh" >"${WORK_DIR}/validation.sh"
 awk '/^remote=/ {on = 1} /^# The build ran package scripts/ {on = 0} on' "${WORK_DIR}/push-step.sh" >"${WORK_DIR}/moved-check.sh"
 awk '/^# Hand the change to the push job/ {on = 1} /^echo "::error::The committed/ {on = 0} on' "${WORK_DIR}/build-step.sh" >"${WORK_DIR}/handover.sh"
+workflow_step_run "${WORKFLOW_FILE}" "Check that a push token is present" >"${WORK_DIR}/token-check.sh" || exit 1
 assert_nonempty "validation cut from the step" "$(cat "${WORK_DIR}/validation.sh")"
 assert_nonempty "branch check cut from the step" "$(cat "${WORK_DIR}/moved-check.sh")"
 assert_nonempty "hand-over cut from the step" "$(cat "${WORK_DIR}/handover.sh")"
+assert_nonempty "token check step" "$(cat "${WORK_DIR}/token-check.sh")"
 
 REPO_DIR="${WORK_DIR}/repo"
 git init -q "${REPO_DIR}" || exit 1
@@ -256,7 +258,27 @@ case "${output}" in
     *) echo "PASS: branch moved on: the step stops" ;;
 esac
 
-# The two conditions that select a pull request are Actions expressions.
+# The push job names the secret and ends without a push when it is empty. The
+# step writes its result to the output file that the later steps test.
+run_token_check() {
+    command rm -f "${WORK_DIR}/token-out"
+    : >"${WORK_DIR}/token-out"
+    output="$(
+        TOKEN="$1" GITHUB_OUTPUT="${WORK_DIR}/token-out" \
+            bash -c "set -euo pipefail; $(cat "${WORK_DIR}/token-check.sh")" 2>&1
+    )"
+    rc=$?
+    token_output="$(cat "${WORK_DIR}/token-out")"
+}
+
+run_token_check "a-token"
+assert_eq "token present: the later steps are enabled" "present=true" "${token_output}"
+run_token_check ""
+assert_eq "token empty: the later steps stay disabled" "" "${token_output}"
+assert_eq "token empty: the step ends successfully" "0" "${rc}"
+assert_contains "token empty: names the reason" "${output}" "the rebuilt bundle is not pushed"
+
+# The conditions that select a pull request are Actions expressions.
 expressions="$(python3 - "${WORKFLOW_FILE}" <<'PY'
 import sys
 import yaml
@@ -269,9 +291,25 @@ PY
 )"
 build_expression="$(printf '%s\n' "${expressions}" | sed -n 's/^BUILD=//p')"
 push_expression="$(printf '%s\n' "${expressions}" | sed -n 's/^PUSH=//p')"
-expected_build=$'${{ secrets.push-token != \'\' && github.event_name == \'pull_request\' && github.event.pull_request.user.login == inputs.bot-login && github.event.pull_request.head.repo.full_name == github.repository }}'
+expected_build=$'${{ github.event_name == \'pull_request\' && github.event.pull_request.user.login == inputs.bot-login && github.event.pull_request.head.repo.full_name == github.repository }}'
 expected_push=$'${{ !cancelled() && needs.bundle-freshness.outputs.patchable == \'true\' && github.event_name == \'pull_request\' && github.event.pull_request.user.login == inputs.bot-login && github.event.pull_request.head.repo.full_name == github.repository }}'
-assert_eq "build gate: token, pull request event, bot author and this repository" "${expected_build}" "${build_expression}"
+assert_eq "build gate: pull request event, bot author and this repository, and no secret" "${expected_build}" "${build_expression}"
 assert_eq "push gate: output of the build, pull request event, bot author and this repository" "${expected_push}" "${push_expression}"
+
+dependencies="$(python3 - "${WORKFLOW_FILE}" <<'PY'
+import sys
+import yaml
+
+jobs = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))["jobs"]
+condition = "${{ steps.token.outputs.present == 'true' }}"
+for step in jobs["push-rebuild"]["steps"]:
+    if step.get("id") != "token":
+        print("GATED" if step.get("if") == condition else "OPEN " + step.get("name", ""))
+build = yaml.safe_dump(jobs["bundle-freshness"])
+print("BUILD_NAMES_SECRET" if "secrets." in build else "BUILD_CLEAN")
+PY
+)"
+assert_eq "every later step of the push job depends on the token check, and the build job names no secret" \
+    "$(printf 'GATED\nGATED\nGATED\nBUILD_CLEAN')" "${dependencies}"
 
 report_and_exit "bundle freshness push tests"
