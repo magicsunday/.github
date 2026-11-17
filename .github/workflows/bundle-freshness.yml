@@ -27,12 +27,12 @@ name: Bundle freshness (reusable)
 # and may override `bundle-dir` if their committed bundle lives elsewhere.
 #
 # Optional push of the rebuilt bundle: a caller that passes the secret
-# `push-token`, a token with write access to the contents of its repository,
+# `push_token`, a token with write access to the contents of its repository,
 # gets the rebuilt bundle committed to the branch of a pull request of the bot
 # (`bot-login`), so the next run passes without a person. The check itself
 # stays a failure on the commit that lags. The token must not be the token of
 # the workflow run, because a push with that one starts no new checks. Without
-# `push-token` nothing is pushed and the check only fails. Only the push job
+# `push_token` nothing is pushed and the check only fails. Only the push job
 # references the secret. A job that references a secret has it loaded into
 # its runner, and the build job runs package scripts, so the build job must
 # not name it.
@@ -52,7 +52,7 @@ on:
                 type: string
                 default: 'renovate[bot]'
         secrets:
-            push-token:
+            push_token:
                 description: 'Token with write access to the contents of the calling repository, for example a fine-grained personal access token limited to that repository. Empty switches the push off, and the check only fails.'
                 required: false
 
@@ -195,7 +195,7 @@ jobs:
             - name: Check that a push token is present
               id: token
               env:
-                  TOKEN: ${{ secrets.push-token }}
+                  TOKEN: ${{ secrets.push_token }}
               run: |
                   if [ -n "$TOKEN" ]; then
                       echo "present=true" >> "$GITHUB_OUTPUT"
@@ -215,13 +215,13 @@ jobs:
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   ref: ${{ github.event.pull_request.head.sha }}
-                  token: ${{ secrets.push-token }}
+                  token: ${{ secrets.push_token }}
                   persist-credentials: false
 
             - name: Commit the rebuilt bundle and push it
               if: ${{ steps.token.outputs.present == 'true' }}
               env:
-                  TOKEN: ${{ secrets.push-token }}
+                  TOKEN: ${{ secrets.push_token }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
                   HEAD_REF: ${{ github.event.pull_request.head.ref }}
                   REPOSITORY: ${{ github.repository }}

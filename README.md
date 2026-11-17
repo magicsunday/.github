@@ -157,7 +157,7 @@ so the printed command is the build the job itself runs. Run it after the last
 rebase of the pull request, because a bot that rebases the branch may drop the
 commit.
 
-A caller that passes the secret `push-token` gets the rebuilt bundle pushed to the
+A caller that passes the secret `push_token` gets the rebuilt bundle pushed to the
 branch of a pull request of the bot, so the next run passes without a person. The
 check still fails on the commit that lags, and a second job then adds a commit with
 the rebuilt bundle files. That push starts the checks again.
@@ -186,7 +186,7 @@ jobs:
         permissions:
             contents: read
         secrets:
-            push-token: ${{ secrets.BUNDLE_PUSH_TOKEN }}
+            push_token: ${{ secrets.BUNDLE_PUSH_TOKEN }}
 ```
 
 ### Adopting a workflow
