@@ -6,7 +6,7 @@
 # the test at another copy of the preset and defaults to the file of this
 # repository. Run via run-tests.sh.
 #
-# No `set -e`: a failing assertion must be counted, not abort the run.
+# No `set -e`, because a failing assertion must be counted and not abort the run.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)" || exit 1
@@ -32,12 +32,38 @@ pin_digests="$(jq -r --arg name "${SHARED_WORKFLOWS}" \
     '[.packageRules[] | select((.matchPackageNames // []) | index($name)) | .pinDigests] | first | tojson' "${PRESET}")"
 assert_eq "the rule for ${SHARED_WORKFLOWS} sets pinDigests to false" false "${pin_digests}"
 
-# A later rule that sets pinDigests, whatever it matches, could undo the
-# exemption, because rules are merged in order and the later one wins.
-later_pin_rules="$(jq --arg name "${SHARED_WORKFLOWS}" \
-    '[.packageRules | (map((.matchPackageNames // []) | index($name) != null) | index(true)) as $at
-      | to_entries[] | select(.key > ($at // -1) and (.value | has("pinDigests")))] | length' "${PRESET}")"
-assert_eq "no package rule after the one for ${SHARED_WORKFLOWS} sets pinDigests" 0 "${later_pin_rules}"
+# A later rule that changes the pinning, whatever it matches, could undo the
+# exemption, because rules are merged in order and the later one wins. A rule
+# changes the pinning when it sets pinDigests or when it takes the pin update
+# types and sets `enabled`, which can switch the pin pull requests back on. A
+# rule that only sets automerge for those types leaves the pinning alone. The
+# matcher of such a rule does not matter, so one that matches the shared
+# workflows by matchDepNames or through a manager counts the same as one that
+# names the package.
+later_pin_rules_in() {
+    jq --arg name "${SHARED_WORKFLOWS}" \
+        '[.packageRules | (map((.matchPackageNames // []) | index($name) != null) | index(true)) as $at
+          | to_entries[] | select(.key > ($at // -1)
+              and (.value | has("pinDigests")
+                  or (has("enabled") and ((.matchUpdateTypes // []) | any(. == "pin" or . == "pinDigest")))))] | length' "$1"
+}
+assert_eq "no package rule after the one for ${SHARED_WORKFLOWS} changes the pinning" 0 "$(later_pin_rules_in "${PRESET}")"
+
+# Each way a later rule can change the pinning is seen, and an unrelated later
+# rule is not. The cases append one rule to a copy of the preset.
+mutated_preset="$(mktemp)" || exit 1
+trap 'rm -f "${mutated_preset}"' EXIT
+for later_rule in \
+    "{\"matchPackageNames\": [\"${SHARED_WORKFLOWS}\"], \"pinDigests\": true}|1|a later rule by matchPackageNames that sets pinDigests" \
+    "{\"matchDepNames\": [\"${SHARED_WORKFLOWS}\"], \"pinDigests\": true}|1|a later rule by matchDepNames that sets pinDigests" \
+    "{\"matchManagers\": [\"github-actions\"], \"pinDigests\": true}|1|a later rule by matchManagers that sets pinDigests" \
+    "{\"matchDepNames\": [\"${SHARED_WORKFLOWS}\"], \"matchUpdateTypes\": [\"pinDigest\"], \"enabled\": true}|1|a later rule by matchDepNames that takes the pinDigest update type" \
+    "{\"matchManagers\": [\"github-actions\"], \"matchUpdateTypes\": [\"pin\"], \"enabled\": true}|1|a later rule by matchManagers that takes the pin update type" \
+    "{\"matchDepNames\": [\"${SHARED_WORKFLOWS}\"], \"matchUpdateTypes\": [\"pinDigest\"], \"automerge\": true}|0|a later rule that only sets automerge for the pin update types"; do
+    IFS='|' read -r rule_json expected_count rule_what <<<"${later_rule}"
+    jq --argjson rule "${rule_json}" '.packageRules += [$rule]' "${PRESET}" >"${mutated_preset}"
+    assert_eq "${rule_what}: counted as ${expected_count}" "${expected_count}" "$(later_pin_rules_in "${mutated_preset}")"
+done
 
 helper="$(jq -r '[.extends[] | select(. == "helpers:pinGitHubActionDigests")] | length' "${PRESET}")"
 assert_eq "the preset still extends helpers:pinGitHubActionDigests" 1 "${helper}"

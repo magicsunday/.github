@@ -17,7 +17,7 @@
 #
 # Which files are canonical is declared in .github/canonical-files.json, and
 # the canonical CONTENT of each `files` entry is this repository's own copy at
-# the same path. The manifest therefore only names paths; there is no second
+# the same path. The manifest therefore only names paths, so there is no second
 # copy of the content to fall out of step with the file it describes, and
 # assert_canonical_manifest_valid() fails the run if a listed path does not
 # exist here.
@@ -32,7 +32,8 @@
 # package name and the namespace), so for a `.php` file the template text is
 # rendered with the module's MODULE_NAME and MODULE_NS, read from the parameter
 # file of the module, before its blob hash is compared. That is the same
-# rendering the sync script does, with the same shape checks on both values.
+# rendering the sync script does, and the two identity values get the same
+# shape checks as there. The other values of the parameter file are not read.
 #
 # Coverage limit, stated rather than hidden: the sweep runs on this
 # repository's own GITHUB_TOKEN, which can read another repository only while
@@ -208,7 +209,7 @@ classify_canonical_entry() {
 }
 
 # Prints the value that parameter file "$1" assigns to name "$2", read the way
-# make and the sync script of the template read it: a line is an assignment
+# make and the sync script of the template read it. A line is an assignment
 # when it holds the name, optionally indented with spaces, then `=`, `:=`,
 # `::=` or `?=`. The last `=`-style assignment wins and a `?=` only sets a name
 # nothing set before. Whitespace around the value and a carriage return are
@@ -238,18 +239,43 @@ _canonical_drift_module_parameter() {
 
 # Decodes the base64 `content` of contents-API body "$1" into file "$2".
 # Returns non-zero when the body has no content or does not decode, which is
-# also what an empty body (a failed fetch prints none) amounts to.
+# also what an empty body (a failed fetch prints none) amounts to. The status
+# of a failing jq reaches the caller only through `pipefail`, which the
+# workflow step and the tests set.
 _canonical_drift_decode_content() {
     jq -er '.content' <<<"$1" 2>/dev/null | base64 -d >"$2" 2>/dev/null
 }
 
 # Prints "$1" made safe for a workflow-command annotation (see
-# annotation-sanitize.sh) and for one cell of a Markdown table row, where a
-# pipe would start a new cell.
+# annotation-sanitize.sh) and for one cell of a Markdown table row. A pipe
+# would start a new cell, a backtick would end the code span the path is shown
+# in, and an opening bracket or angle bracket would start a link or HTML. The
+# pipe is backslash-escaped and the other three are percent-encoded, which
+# cannot clash with a literal percent sign because the sanitizer has already
+# turned that into `%25`.
 _canonical_drift_label() {
     local safe
     safe="$(sanitize_for_annotation "$1")"
-    printf '%s' "${safe//|/\\|}"
+    safe="${safe//|/\\|}"
+    safe="${safe//\`/%60}"
+    safe="${safe//[/%5B}"
+    printf '%s' "${safe//</%3C}"
+}
+
+# Prints path "$1" with each segment percent-encoded and the slashes kept, so
+# a name holding a space, `?` or `#` stays one path in a contents-API endpoint.
+_canonical_drift_encode_path() {
+    printf '%s' "$1" | jq -Rrs 'split("/") | map(@uri) | join("/")'
+}
+
+# Records one outcome that could not be checked: a row for repository "$1" and
+# file "$2" (already safe to print) with reason "$3", and one more in the
+# unchecked count, so the table and the count cannot disagree. It writes into
+# the report rows and counters of the calling sweep, see
+# _canonical_drift_compare_remote.
+_canonical_drift_record_unchecked() {
+    rows+="| $1 | \`$2\` | **unchecked** ($3) |"$'\n'
+    unchecked=$((unchecked + 1))
 }
 
 # Compares one file of repository "$2" (owner "$1") at path "$3" with the
@@ -265,7 +291,7 @@ _canonical_drift_compare_remote() {
     local owner="$1" repo="$2" path="$3" canonical_sha="$4" origin_label="$5" shown="$6"
     local body rc=0
 
-    body="$(_canonical_drift_fetch "repos/${owner}/${repo}/contents/${path}")" || rc=$?
+    body="$(_canonical_drift_fetch "repos/${owner}/${repo}/contents/$(_canonical_drift_encode_path "${path}")")" || rc=$?
     checked=$((checked + 1))
 
     case "${rc}" in
@@ -293,9 +319,8 @@ _canonical_drift_compare_remote() {
             ;;
         *)
             echo "::error::${owner}/${repo}: fetching ${shown} failed, so it went unchecked."
-            rows+="| ${repo} | \`${shown}\` | **unchecked** (API error) |"$'\n'
+            _canonical_drift_record_unchecked "${repo}" "${shown}" "API error"
             checked=$((checked - 1))
-            unchecked=$((unchecked + 1))
             ;;
     esac
 }
@@ -310,7 +335,8 @@ _canonical_drift_check_template_set() {
     local scratch
     scratch="$(mktemp -d)" || {
         echo "::error::Could not create a scratch directory for template set $3, so its modules went unchecked."
-        unchecked=$((unchecked + 1))
+        _canonical_drift_record_unchecked "$(jq -r ".template_sets[$3].source_repository" "$1")" \
+            "$(jq -r ".template_sets[$3].source_directory" "$1")" "scratch directory"
         return 0
     }
 
@@ -335,8 +361,7 @@ _canonical_drift_check_template_set_in() {
     tree="$(_canonical_drift_fetch "repos/${owner}/${source_repo}/git/trees/HEAD?recursive=1")" || rc=$?
     if [ "${rc}" -ne 0 ] || [ "$(jq -r '.truncated // false' <<<"${tree}" 2>/dev/null)" != "false" ]; then
         echo "::error::Could not list the template ${owner}/${source_repo}/${directory} completely, so its modules went unchecked."
-        rows+="| ${source_repo} | \`${directory}\` | **unchecked** (template not listed) |"$'\n'
-        unchecked=$((unchecked + 1))
+        _canonical_drift_record_unchecked "${source_repo}" "${directory}" "template not listed"
         return 0
     fi
 
@@ -353,8 +378,7 @@ _canonical_drift_check_template_set_in() {
 
     if [ -z "${template_files}" ]; then
         echo "::error::The template ${owner}/${source_repo}/${directory} lists no files, so its modules went unchecked."
-        rows+="| ${source_repo} | \`${directory}\` | **unchecked** (template is empty) |"$'\n'
-        unchecked=$((unchecked + 1))
+        _canonical_drift_record_unchecked "${source_repo}" "${directory}" "template is empty"
         return 0
     fi
 
@@ -367,12 +391,11 @@ _canonical_drift_check_template_set_in() {
         shown="$(_canonical_drift_label "${relative}")"
 
         # A failed fetch prints no body, so the decode below fails with it.
-        body="$(_canonical_drift_fetch "repos/${owner}/${source_repo}/contents/${directory}/${relative}")" || true
+        body="$(_canonical_drift_fetch "repos/${owner}/${source_repo}/contents/$(_canonical_drift_encode_path "${directory}/${relative}")")" || true
         if ! mkdir -p "${scratch}/template/$(dirname "${relative}")" \
             || ! _canonical_drift_decode_content "${body}" "${scratch}/template/${relative}"; then
             echo "::error::Could not fetch the template file ${shown}, so its modules went unchecked."
-            rows+="| ${source_repo} | \`${directory}/${shown}\` | **unchecked** (template file not fetched) |"$'\n'
-            unchecked=$((unchecked + 1))
+            _canonical_drift_record_unchecked "${source_repo}" "${directory}/${shown}" "template file not fetched"
             return 0
         fi
     done <<<"${template_files}"
@@ -395,8 +418,7 @@ _canonical_drift_check_template_set_in() {
         fi
         if ! _canonical_drift_decode_content "${body}" "${module_dir}/parameters"; then
             echo "::error::${owner}/${repo}: fetching ${parameter_file} failed, so its template files went unchecked."
-            rows+="| ${repo} | \`${parameter_file}\` | **unchecked** (API error) |"$'\n'
-            unchecked=$((unchecked + 1))
+            _canonical_drift_record_unchecked "${repo}" "${parameter_file}" "API error"
             continue
         fi
 
@@ -404,8 +426,7 @@ _canonical_drift_check_template_set_in() {
         module_ns="$(_canonical_drift_module_parameter "${module_dir}/parameters" MODULE_NS)" || module_ns=""
         if [[ ! "${module_name}" =~ ^webtrees-[a-z0-9]+(-[a-z0-9]+)*$ ]] || [[ ! "${module_ns}" =~ ^[A-Za-z][A-Za-z0-9]*$ ]]; then
             echo "::error::${owner}/${repo}: ${parameter_file} does not hold a usable MODULE_NAME and MODULE_NS, so its template files went unchecked."
-            rows+="| ${repo} | \`${parameter_file}\` | **unchecked** (MODULE_NAME or MODULE_NS unusable) |"$'\n'
-            unchecked=$((unchecked + 1))
+            _canonical_drift_record_unchecked "${repo}" "${parameter_file}" "MODULE_NAME or MODULE_NS unusable"
             continue
         fi
 
@@ -422,14 +443,13 @@ _canonical_drift_check_template_set_in() {
 
                 if grep -q -e '<name>' -e 'ModuleName' "${rendered}"; then
                     echo "::error::The template file ${shown} holds a placeholder that is not rendered, so ${owner}/${repo} went unchecked for it."
-                    rows+="| ${repo} | \`${shown}\` | **unchecked** (template placeholder) |"$'\n'
-                    unchecked=$((unchecked + 1))
+                    _canonical_drift_record_unchecked "${repo}" "${shown}" "template placeholder"
                     continue
                 fi
 
                 canonical_sha="$(git hash-object --stdin <"${rendered}")" || {
                     echo "::error::Could not hash the rendered ${shown}."
-                    unchecked=$((unchecked + 1))
+                    _canonical_drift_record_unchecked "${repo}" "${shown}" "rendered file not hashed"
                     continue
                 }
             fi
@@ -490,8 +510,7 @@ check_canonical_drift() {
                 fi
                 if [ "${rc}" -ne 0 ]; then
                     echo "::error::${owner}/${repo}: could not check whether ${applies} exists, so ${path} went unchecked."
-                    rows+="| ${repo} | \`${path}\` | **unchecked** (API error) |"$'\n'
-                    unchecked=$((unchecked + 1))
+                    _canonical_drift_record_unchecked "${repo}" "${path}" "API error"
                     continue
                 fi
             fi
@@ -517,7 +536,7 @@ check_canonical_drift() {
         {
             echo "## Canonical-file drift"
             echo
-            echo "Compared against \`${compared_against}\` - ${checked} file(s) checked, ${failures} failed (drifted, missing or not a regular file), ${unchecked} unchecked."
+            echo "Compared against \`${compared_against}\`, ${checked} file(s) checked, ${failures} failed (drifted, missing or not a regular file), ${unchecked} unchecked."
             echo
             if [ -n "${rows}" ]; then
                 echo "| Repository | File | Result |"

@@ -7,7 +7,8 @@
 # and returns the exit status of the audit, so a vulnerable dependency fails
 # the caller. The audit settings of the repository's own composer.json apply
 # unchanged, because every call below is a plain Composer command. This
-# function adds no ignore handling of its own.
+# function adds no ignore handling of its own. Both audit calls run without
+# the scripts and plugins of the repository.
 #
 # - No composer.json: nothing to audit, the check passes and says so.
 # - A committed composer.lock: audits exactly that lock file. The lock file
@@ -18,9 +19,11 @@
 #   consumer install does, and audits the result. The resolution writes a lock
 #   file into the workspace without installing a package and without running
 #   a script or a plugin of the repository. Platform requirements are ignored
-#   during the resolution, because nothing is installed and the advisories do
-#   not depend on the platform of the runner. Without that, a repository that
-#   requires a newer PHP than the runner provides fails before the audit runs.
+#   during the resolution, because nothing is installed, so the resolution
+#   reflects the declared constraints and not the PHP of the runner. Without
+#   that, a repository that requires a newer PHP than the runner provides fails
+#   before the audit runs. The flag can pick newer versions than a consumer on
+#   an older PHP would get.
 composer_audit_run() {
     if [ ! -e composer.json ] && [ ! -L composer.json ]; then
         echo "No composer.json in this repository, so there is nothing to audit."
@@ -34,12 +37,12 @@ composer_audit_run() {
         fi
 
         echo "Auditing the committed composer.lock."
-        composer audit --locked --no-interaction
+        composer audit --locked --no-scripts --no-plugins --no-interaction
         return
     fi
 
     echo "No composer.lock is committed, so the constraints are resolved fresh."
     composer update --no-install --no-scripts --no-plugins --no-interaction --no-progress \
         --ignore-platform-reqs || return
-    composer audit --locked --no-interaction
+    composer audit --locked --no-scripts --no-plugins --no-interaction
 }

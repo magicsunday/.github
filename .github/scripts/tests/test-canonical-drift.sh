@@ -105,7 +105,7 @@ lib="${SCRIPT_DIR}/../lib/canonical-drift.sh"
 export -f gh
 export fixtures
 run_sweep() {
-    output="$(bash -c 'set -euo pipefail; . "$1"; shift; check_canonical_drift "$@"' _ \
+    output="$(bash -c 'set -euo pipefail; eval "${SWEEP_PRELUDE:-}"; . "$1"; shift; check_canonical_drift "$@"' _ \
         "${lib}" "${manifest}" "${canonical}" acme .github 2>&1)"
     rc=$?
 }
@@ -487,7 +487,7 @@ run_sweep
 assert_eq "template set, MODULE_NS absent: exit 1" 1 "${rc}"
 assert_contains "template set, MODULE_NS absent: unchecked" "${output}" "does not hold a usable MODULE_NAME and MODULE_NS"
 
-# The parameter file is read the way make reads it: the last assignment wins
+# The parameter file is read the way make reads it. The last assignment wins
 # and ?= only sets a name that is still unset.
 fixture "repos/acme/mod-a/contents/Make/module.mk" "{\"type\":\"file\",\"content\":\"$(base64_of $'MODULE_NAME := webtrees-old\nMODULE_NS ?= Other\nMODULE_NS := Fan\n  MODULE_NAME = webtrees-fan-chart\nMODULE_NAME ?= webtrees-ignored\n')\"}"
 run_sweep
@@ -511,15 +511,35 @@ for bad_identity in \
     $'webtrees-Fan|Fan|an uppercase letter in the name' \
     $'webtrees-fan_chart|Fan|an underscore in the name' \
     $'webtrees-|Fan|a name that ends after the prefix' \
+    $'fan-chart|Fan|a name without the webtrees- prefix' \
+    $'xwebtrees-fan-chart|Fan|text in front of the prefix' \
+    $'webtrees-fan--chart|Fan|a doubled hyphen in the name' \
+    $'webtrees-fan-|Fan|a trailing hyphen in the name' \
     $'webtrees-fan-chart|Fan\\Ns|a backslash in the namespace' \
     $'webtrees-fan-chart|1Fan|a leading digit in the namespace' \
-    $'webtrees-fan-chart|Fan;x|a semicolon in the namespace'; do
+    $'webtrees-fan-chart|Fan;x|a semicolon in the namespace' \
+    $'webtrees-fan-chart|Fan_x|an underscore in the namespace' \
+    $'webtrees-fan-chart|Fan-x|a hyphen in the namespace'; do
     IFS='|' read -r bad_name bad_ns bad_what <<<"${bad_identity}"
     module_fixtures mod-a webtrees-fan-chart Fan
     fixture "repos/acme/mod-a/contents/Make/module.mk" "{\"type\":\"file\",\"content\":\"$(base64_of "MODULE_NAME := ${bad_name}"$'\n'"MODULE_NS := ${bad_ns}"$'\n')\"}"
     run_sweep
     assert_eq "template set, ${bad_what}: exit 1" 1 "${rc}"
     assert_contains "template set, ${bad_what}: unchecked" "${output}" "acme/mod-a: Make/module.mk does not hold a usable MODULE_NAME and MODULE_NS"
+done
+
+# The shapes that are allowed are accepted: digits in every segment of the
+# name, and a namespace of letters and digits that starts with a letter of
+# either case.
+for good_identity in \
+    $'webtrees-fan2-chart3|Fan2' \
+    $'webtrees-2fa|Fan' \
+    $'webtrees-fan-chart|fan' \
+    $'webtrees-fan-chart|F'; do
+    IFS='|' read -r good_name good_ns <<<"${good_identity}"
+    module_fixtures mod-a "${good_name}" "${good_ns}"
+    run_sweep
+    assert_eq "template set, MODULE_NAME ${good_name} with MODULE_NS ${good_ns}: exit 0" 0 "${rc}"
 done
 
 # A failed or truncated template listing never passes.
@@ -592,6 +612,83 @@ case "${output}" in
 esac
 assert_eq "template path with a newline: no forged annotation line" intact "${r}"
 assert_contains "template path with a pipe: the row cell escapes the pipe" "$(cat "${summary}")" "| mod-a | \`evil ::error::forged%250A\\|x.txt\` | **missing** |"
+
+# A backtick, an opening bracket and an angle bracket in a template path would
+# close the code span of the row, start a link or open HTML in the job summary,
+# so each one is escaped in the cell and in the annotation.
+markup_path='a`b[c]<d>.txt'
+template_fixtures
+module_fixtures mod-a webtrees-fan-chart Fan
+module_fixtures mod-b webtrees-statistics Statistic
+fixture "repos/acme/coding-standard/git/trees/HEAD?recursive=1" "$(jq -cn --arg mk "${tpl_makefile_sha}" --arg dir "${template_dir}" --arg path "${markup_path}" '{truncated: false, tree: [
+    {type: "blob", path: ($dir + "/Makefile"), sha: $mk},
+    {type: "blob", path: ($dir + "/" + $path), sha: "1111111111111111111111111111111111111111"}]}')"
+summary="${work_dir}/summary-markup.md"
+: >"${summary}"
+GITHUB_STEP_SUMMARY="${summary}" run_sweep
+assert_eq "template path with markup characters: exit 1" 1 "${rc}"
+assert_contains "template path with markup characters: the row cell holds them escaped" "$(cat "${summary}")" "| mod-a | \`a%60b%5Bc]%3Cd>.txt\` | **missing** |"
+assert_contains "template path with markup characters: the annotation holds them escaped" "${output}" "::error::acme/mod-a: a%60b%5Bc]%3Cd>.txt is missing."
+
+# A path with a space, a question mark or a hash must reach the contents
+# endpoint as one percent-encoded path, otherwise the request names another
+# resource. The segments are encoded one by one, so the slashes stay.
+odd_dir_file='odd dir/a b?#.txt'
+odd_php_file='odd dir/we ird?#.php'
+odd_php_tpl=$'<?php\n// webtrees-<name>\n'
+template_fixtures
+module_fixtures mod-a webtrees-fan-chart Fan
+module_fixtures mod-b webtrees-statistics Statistic
+fixture "repos/acme/coding-standard/git/trees/HEAD?recursive=1" "$(jq -cn --arg mk "${tpl_makefile_sha}" --arg dir "${template_dir}" \
+    --arg plain "${odd_dir_file}" --arg php "${odd_php_file}" --arg phpsha "$(blob_of "${odd_php_tpl}")" '{truncated: false, tree: [
+    {type: "blob", path: ($dir + "/Makefile"), sha: $mk},
+    {type: "blob", path: ($dir + "/" + $plain), sha: "2222222222222222222222222222222222222222"},
+    {type: "blob", path: ($dir + "/" + $php), sha: $phpsha}]}')"
+fixture "repos/acme/coding-standard/contents/${template_dir}/odd%20dir/we%20ird%3F%23.php" "{\"type\":\"file\",\"content\":\"$(base64_of "${odd_php_tpl}")\"}"
+for odd_repo in mod-a mod-b; do
+    fixture "repos/acme/${odd_repo}/contents/odd%20dir/a%20b%3F%23.txt" '{"type":"file","sha":"2222222222222222222222222222222222222222"}'
+done
+fixture "repos/acme/mod-a/contents/odd%20dir/we%20ird%3F%23.php" "{\"type\":\"file\",\"sha\":\"$(blob_of $'<?php\n// webtrees-fan-chart\n')\"}"
+fixture "repos/acme/mod-b/contents/odd%20dir/we%20ird%3F%23.php" "{\"type\":\"file\",\"sha\":\"$(blob_of $'<?php\n// webtrees-statistics\n')\"}"
+run_sweep
+assert_eq "template paths with a space, ? and #: exit 0" 0 "${rc}"
+assert_eq "template paths with a space, ? and #: the template file is requested percent-encoded" 1 \
+    "$(grep -cxF "repos/acme/coding-standard/contents/${template_dir}/odd%20dir/we%20ird%3F%23.php" "${fixtures}/requests.log")"
+assert_eq "template paths with a space, ? and #: the module file is requested percent-encoded" 1 \
+    "$(grep -cxF 'repos/acme/mod-a/contents/odd%20dir/a%20b%3F%23.txt' "${fixtures}/requests.log")"
+assert_eq "template paths with a space, ? and #: no request carries the raw characters" 0 \
+    "$(grep -c -e ' ' -e 'contents/.*[?#]' "${fixtures}/requests.log")"
+
+# Every unchecked outcome adds a row to the table and one to the count, so the
+# two agree. These two fail before any request is made or after the rendering
+# of a PHP file, where a stub in the sweep's shell stands in for the failing tool.
+unchecked_rows_of() {
+    grep -c '\*\*unchecked\*\*' <<<"$1" || true
+}
+template_fixtures
+module_fixtures mod-a webtrees-fan-chart Fan
+module_fixtures mod-b webtrees-statistics Statistic
+summary="${work_dir}/summary-scratch.md"
+: >"${summary}"
+GITHUB_STEP_SUMMARY="${summary}" SWEEP_PRELUDE='mktemp() { if [ "${1:-}" = "-d" ]; then return 1; fi; command mktemp "$@"; }' run_sweep
+summary_text="$(cat "${summary}")"
+assert_eq "template set without a scratch directory: exit 1" 1 "${rc}"
+assert_contains "template set without a scratch directory: the table has a row for it" "${summary_text}" "| coding-standard | \`templates/webtrees-module\` | **unchecked** (scratch directory) |"
+assert_contains "template set without a scratch directory: counted as unchecked" "${summary_text}" "0 file(s) checked, 0 failed (drifted, missing or not a regular file), 1 unchecked."
+assert_eq "template set without a scratch directory: rows and count agree" 1 "$(unchecked_rows_of "${summary_text}")"
+
+template_fixtures
+module_fixtures mod-a webtrees-fan-chart Fan
+module_fixtures mod-b webtrees-statistics Statistic
+summary="${work_dir}/summary-hash.md"
+: >"${summary}"
+GITHUB_STEP_SUMMARY="${summary}" SWEEP_PRELUDE='git() { if [ "${1:-}" = "hash-object" ] && [ "${2:-}" = "--stdin" ]; then return 1; fi; command git "$@"; }' run_sweep
+summary_text="$(cat "${summary}")"
+assert_eq "rendered PHP file that cannot be hashed: exit 1" 1 "${rc}"
+assert_contains "rendered PHP file that cannot be hashed: the table has a row for the first module" "${summary_text}" "| mod-a | \`tests/Release/A.php\` | **unchecked** (rendered file not hashed) |"
+assert_contains "rendered PHP file that cannot be hashed: the table has a row for the second module" "${summary_text}" "| mod-b | \`tests/Release/A.php\` | **unchecked** (rendered file not hashed) |"
+assert_contains "rendered PHP file that cannot be hashed: counted as unchecked per module" "${summary_text}" "2 file(s) checked, 0 failed (drifted, missing or not a regular file), 2 unchecked."
+assert_eq "rendered PHP file that cannot be hashed: rows and count agree" 2 "$(unchecked_rows_of "${summary_text}")"
 
 # --- template_sets validation ---
 for bad_case in \
