@@ -190,8 +190,11 @@ assert_eq 'a repository with audit and policy ignore settings is audited unchang
 # build matrix of php-quality.yml, as the README says, so the audit runs on the
 # version that every consumer's build runs first.
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)" || exit 1
-read -r audit_default matrix_first < <(python3 -I - \
-    "${REPO_ROOT}/.github/workflows/composer-audit.yml" "${REPO_ROOT}/.github/workflows/php-quality.yml" << 'PY'
+# Prints the audit default and the first matrix entry, space separated. It
+# exits non-zero when either file or key cannot be read, so the caller can tell
+# an unreadable input from two equal values.
+workflow_php_defaults() {
+    python3 -I - "$1" "$2" << 'PY'
 import json
 import sys
 import yaml
@@ -205,8 +208,23 @@ audit = inputs(sys.argv[1])["php-version"]["default"]
 matrix = json.loads(inputs(sys.argv[2])["php-versions"]["default"])[0]
 print(audit, matrix)
 PY
-)
+}
+
+audit_workflow="${REPO_ROOT}/.github/workflows/composer-audit.yml"
+quality_workflow="${REPO_ROOT}/.github/workflows/php-quality.yml"
+
+pair_status=0
+pair="$(workflow_php_defaults "${audit_workflow}" "${quality_workflow}" 2> /dev/null)" || pair_status=$?
+assert_eq 'the php-version defaults of both workflows can be read' '0' "${pair_status}"
+read -r audit_default matrix_first <<< "${pair}"
+assert_nonempty "${audit_default}" 'the php-version default of composer-audit.yml was read'
+assert_nonempty "${matrix_first}" 'the first php-quality.yml matrix entry was read'
 assert_eq 'the php-version default of composer-audit.yml is the first php-quality.yml matrix entry' \
     "${matrix_first}" "${audit_default}"
+
+# An unreadable workflow must be reported and not read as two empty values.
+missing_status=0
+workflow_php_defaults "${WORK_DIR}/absent.yml" "${quality_workflow}" > /dev/null 2>&1 || missing_status=$?
+assert_eq 'a missing workflow file makes the reader fail' '1' "${missing_status}"
 
 report_and_exit 'composer-audit tests'
