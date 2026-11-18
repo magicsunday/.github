@@ -262,6 +262,12 @@ _canonical_drift_label() {
     printf '%s' "${safe//</%3C}"
 }
 
+# Prints path "$1" with each segment percent-encoded and the slashes kept, so
+# a name holding a space, `?` or `#` stays one path in a contents-API endpoint.
+_canonical_drift_encode_path() {
+    printf '%s' "$1" | jq -Rrs 'split("/") | map(@uri) | join("/")'
+}
+
 # Compares one file of repository "$2" (owner "$1") at path "$3" with the
 # canonical blob hash "$4" and records the outcome. "$5" names the canonical
 # source in the message of a drift ("the template X/dir", "the canonical copy
@@ -275,7 +281,7 @@ _canonical_drift_compare_remote() {
     local owner="$1" repo="$2" path="$3" canonical_sha="$4" origin_label="$5" shown="$6"
     local body rc=0
 
-    body="$(_canonical_drift_fetch "repos/${owner}/${repo}/contents/${path}")" || rc=$?
+    body="$(_canonical_drift_fetch "repos/${owner}/${repo}/contents/$(_canonical_drift_encode_path "${path}")")" || rc=$?
     checked=$((checked + 1))
 
     case "${rc}" in
@@ -377,7 +383,7 @@ _canonical_drift_check_template_set_in() {
         shown="$(_canonical_drift_label "${relative}")"
 
         # A failed fetch prints no body, so the decode below fails with it.
-        body="$(_canonical_drift_fetch "repos/${owner}/${source_repo}/contents/${directory}/${relative}")" || true
+        body="$(_canonical_drift_fetch "repos/${owner}/${source_repo}/contents/$(_canonical_drift_encode_path "${directory}/${relative}")")" || true
         if ! mkdir -p "${scratch}/template/$(dirname "${relative}")" \
             || ! _canonical_drift_decode_content "${body}" "${scratch}/template/${relative}"; then
             echo "::error::Could not fetch the template file ${shown}, so its modules went unchecked."

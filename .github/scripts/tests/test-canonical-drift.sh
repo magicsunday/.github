@@ -610,6 +610,35 @@ assert_eq "template path with markup characters: exit 1" 1 "${rc}"
 assert_contains "template path with markup characters: the row cell holds them escaped" "$(cat "${summary}")" "| mod-a | \`a%60b%5Bc]%3Cd>.txt\` | **missing** |"
 assert_contains "template path with markup characters: the annotation holds them escaped" "${output}" "::error::acme/mod-a: a%60b%5Bc]%3Cd>.txt is missing."
 
+# A path with a space, a question mark or a hash must reach the contents
+# endpoint as one percent-encoded path, otherwise the request names another
+# resource. The segments are encoded one by one, so the slashes stay.
+odd_dir_file='odd dir/a b?#.txt'
+odd_php_file='odd dir/we ird?#.php'
+odd_php_tpl=$'<?php\n// webtrees-<name>\n'
+template_fixtures
+module_fixtures mod-a webtrees-fan-chart Fan
+module_fixtures mod-b webtrees-statistics Statistic
+fixture "repos/acme/coding-standard/git/trees/HEAD?recursive=1" "$(jq -cn --arg mk "${tpl_makefile_sha}" --arg dir "${template_dir}" \
+    --arg plain "${odd_dir_file}" --arg php "${odd_php_file}" --arg phpsha "$(blob_of "${odd_php_tpl}")" '{truncated: false, tree: [
+    {type: "blob", path: ($dir + "/Makefile"), sha: $mk},
+    {type: "blob", path: ($dir + "/" + $plain), sha: "2222222222222222222222222222222222222222"},
+    {type: "blob", path: ($dir + "/" + $php), sha: $phpsha}]}')"
+fixture "repos/acme/coding-standard/contents/${template_dir}/odd%20dir/we%20ird%3F%23.php" "{\"type\":\"file\",\"content\":\"$(base64_of "${odd_php_tpl}")\"}"
+for odd_repo in mod-a mod-b; do
+    fixture "repos/acme/${odd_repo}/contents/odd%20dir/a%20b%3F%23.txt" '{"type":"file","sha":"2222222222222222222222222222222222222222"}'
+done
+fixture "repos/acme/mod-a/contents/odd%20dir/we%20ird%3F%23.php" "{\"type\":\"file\",\"sha\":\"$(blob_of $'<?php\n// webtrees-fan-chart\n')\"}"
+fixture "repos/acme/mod-b/contents/odd%20dir/we%20ird%3F%23.php" "{\"type\":\"file\",\"sha\":\"$(blob_of $'<?php\n// webtrees-statistics\n')\"}"
+run_sweep
+assert_eq "template paths with a space, ? and #: exit 0" 0 "${rc}"
+assert_eq "template paths with a space, ? and #: the template file is requested percent-encoded" 1 \
+    "$(grep -cxF "repos/acme/coding-standard/contents/${template_dir}/odd%20dir/we%20ird%3F%23.php" "${fixtures}/requests.log")"
+assert_eq "template paths with a space, ? and #: the module file is requested percent-encoded" 1 \
+    "$(grep -cxF 'repos/acme/mod-a/contents/odd%20dir/a%20b%3F%23.txt' "${fixtures}/requests.log")"
+assert_eq "template paths with a space, ? and #: no request carries the raw characters" 0 \
+    "$(grep -c -e ' ' -e 'contents/.*[?#]' "${fixtures}/requests.log")"
+
 # --- template_sets validation ---
 for bad_case in \
     '[]|template_sets must be a non-empty array.' \
