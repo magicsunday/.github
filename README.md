@@ -94,6 +94,7 @@ Workflows not listed here take no inputs.
 | `code-scanning.yml` | `excludes` — newline-separated extra paths to keep out of the scan, one pattern per line (a pattern may itself contain a space). Every path declared here leaves the uploaded report, so code scanning retires whatever alerts it held: declare only files that are not source | *(none)* |
 | `yamllint.yml` | `paths` — space-separated YAML paths to lint | `.github/workflows/` |
 | `composer-audit.yml` | `php-version` — PHP version the audit runs with. The default is the first version of the `php-quality.yml` matrix | `8.3` |
+| | `working-directory`: folder of the Composer manifest to audit, relative to the repository root. A repository with several manifest folders calls the job once per folder | `.` |
 | `i18n.yml` | `lang-dir` — root directory holding the per-locale catalogues | `resources/lang` |
 | | `check-pipeline` — run `make lang` and fail on a non-empty diff, except one made of moved `#:` source reference lines | `false` |
 | | `check-core-overlap` — fail when a catalogue entry translates a text that webtrees core already translates in that locale. An empty or fuzzy entry is fine, a compiled one replaces the core text in the whole installation. On a pull request the check runs when the pull request changes a file below `lang-dir`, the root `composer.json` or a workflow file | `true` |
@@ -113,7 +114,15 @@ Workflows not listed here take no inputs.
 `composer-audit.yml` audits the Composer dependencies of the calling repository
 and fails on an advisory. The job is the same in every repository:
 
-- Without a `composer.json` the job passes and says that there is nothing to audit.
+- Without a `composer.json` at the repository root the job passes and says that there
+  is nothing to audit. The manifest is the one at the root, or the one in the folder
+  given by `working-directory`. Only a plain folder name is supported, written with
+  letters, digits and the characters `.`, `_`, `-` and `/`, starting with none of `-`
+  and `/`. Anything else fails the job, and so does a parent segment, a name that is
+  no directory of the repository, and a link that leads out of the repository. A folder
+  that is named but holds no `composer.json` is a mistake in the folder name and fails,
+  so a typo cannot turn into an audit of nothing. A repository with several manifest
+  folders calls the job once per folder.
 - With a committed `composer.lock` it audits exactly that file. An empty, unreadable
   or symlinked lock file fails the job, so a broken lock file never turns into a
   quiet fresh resolution.

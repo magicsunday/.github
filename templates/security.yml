@@ -75,6 +75,10 @@ jobs:
         uses: magicsunday/.github/.github/workflows/composer-audit.yml@main
         permissions:
             contents: read
+        # A repository that keeps its Composer manifests in subfolders adds one
+        # job of this kind per folder, each with its own name, a
+        # `with: working-directory: <folder>` block, and an entry in the needs
+        # list of all-security-checks below.
 
     all-security-checks:
         # One stable check name for the branch protection. It runs whatever the
