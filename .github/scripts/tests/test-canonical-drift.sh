@@ -593,6 +593,23 @@ esac
 assert_eq "template path with a newline: no forged annotation line" intact "${r}"
 assert_contains "template path with a pipe: the row cell escapes the pipe" "$(cat "${summary}")" "| mod-a | \`evil ::error::forged%250A\\|x.txt\` | **missing** |"
 
+# A backtick, an opening bracket and an angle bracket in a template path would
+# close the code span of the row, start a link or open HTML in the job summary,
+# so each one is escaped in the cell and in the annotation.
+markup_path='a`b[c]<d>.txt'
+template_fixtures
+module_fixtures mod-a webtrees-fan-chart Fan
+module_fixtures mod-b webtrees-statistics Statistic
+fixture "repos/acme/coding-standard/git/trees/HEAD?recursive=1" "$(jq -cn --arg mk "${tpl_makefile_sha}" --arg dir "${template_dir}" --arg path "${markup_path}" '{truncated: false, tree: [
+    {type: "blob", path: ($dir + "/Makefile"), sha: $mk},
+    {type: "blob", path: ($dir + "/" + $path), sha: "1111111111111111111111111111111111111111"}]}')"
+summary="${work_dir}/summary-markup.md"
+: >"${summary}"
+GITHUB_STEP_SUMMARY="${summary}" run_sweep
+assert_eq "template path with markup characters: exit 1" 1 "${rc}"
+assert_contains "template path with markup characters: the row cell holds them escaped" "$(cat "${summary}")" "| mod-a | \`a%60b%5Bc]%3Cd>.txt\` | **missing** |"
+assert_contains "template path with markup characters: the annotation holds them escaped" "${output}" "::error::acme/mod-a: a%60b%5Bc]%3Cd>.txt is missing."
+
 # --- template_sets validation ---
 for bad_case in \
     '[]|template_sets must be a non-empty array.' \

@@ -247,12 +247,19 @@ _canonical_drift_decode_content() {
 }
 
 # Prints "$1" made safe for a workflow-command annotation (see
-# annotation-sanitize.sh) and for one cell of a Markdown table row, where a
-# pipe would start a new cell.
+# annotation-sanitize.sh) and for one cell of a Markdown table row. A pipe
+# would start a new cell, a backtick would end the code span the path is shown
+# in, and an opening bracket or angle bracket would start a link or HTML. The
+# pipe is backslash-escaped and the other three are percent-encoded, which
+# cannot clash with a literal percent sign because the sanitizer has already
+# turned that into `%25`.
 _canonical_drift_label() {
     local safe
     safe="$(sanitize_for_annotation "$1")"
-    printf '%s' "${safe//|/\\|}"
+    safe="${safe//|/\\|}"
+    safe="${safe//\`/%60}"
+    safe="${safe//[/%5B}"
+    printf '%s' "${safe//</%3C}"
 }
 
 # Compares one file of repository "$2" (owner "$1") at path "$3" with the
