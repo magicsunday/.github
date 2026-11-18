@@ -511,15 +511,35 @@ for bad_identity in \
     $'webtrees-Fan|Fan|an uppercase letter in the name' \
     $'webtrees-fan_chart|Fan|an underscore in the name' \
     $'webtrees-|Fan|a name that ends after the prefix' \
+    $'fan-chart|Fan|a name without the webtrees- prefix' \
+    $'xwebtrees-fan-chart|Fan|text in front of the prefix' \
+    $'webtrees-fan--chart|Fan|a doubled hyphen in the name' \
+    $'webtrees-fan-|Fan|a trailing hyphen in the name' \
     $'webtrees-fan-chart|Fan\\Ns|a backslash in the namespace' \
     $'webtrees-fan-chart|1Fan|a leading digit in the namespace' \
-    $'webtrees-fan-chart|Fan;x|a semicolon in the namespace'; do
+    $'webtrees-fan-chart|Fan;x|a semicolon in the namespace' \
+    $'webtrees-fan-chart|Fan_x|an underscore in the namespace' \
+    $'webtrees-fan-chart|Fan-x|a hyphen in the namespace'; do
     IFS='|' read -r bad_name bad_ns bad_what <<<"${bad_identity}"
     module_fixtures mod-a webtrees-fan-chart Fan
     fixture "repos/acme/mod-a/contents/Make/module.mk" "{\"type\":\"file\",\"content\":\"$(base64_of "MODULE_NAME := ${bad_name}"$'\n'"MODULE_NS := ${bad_ns}"$'\n')\"}"
     run_sweep
     assert_eq "template set, ${bad_what}: exit 1" 1 "${rc}"
     assert_contains "template set, ${bad_what}: unchecked" "${output}" "acme/mod-a: Make/module.mk does not hold a usable MODULE_NAME and MODULE_NS"
+done
+
+# The shapes that are allowed are accepted: digits in every segment of the
+# name, and a namespace of letters and digits that starts with a letter of
+# either case.
+for good_identity in \
+    $'webtrees-fan2-chart3|Fan2' \
+    $'webtrees-2fa|Fan' \
+    $'webtrees-fan-chart|fan' \
+    $'webtrees-fan-chart|F'; do
+    IFS='|' read -r good_name good_ns <<<"${good_identity}"
+    module_fixtures mod-a "${good_name}" "${good_ns}"
+    run_sweep
+    assert_eq "template set, MODULE_NAME ${good_name} with MODULE_NS ${good_ns}: exit 0" 0 "${rc}"
 done
 
 # A failed or truncated template listing never passes.
