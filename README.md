@@ -118,11 +118,14 @@ and fails on an advisory. The job is the same in every repository:
   or symlinked lock file fails the job, so a broken lock file never turns into a
   quiet fresh resolution.
 - Without a `composer.lock` it resolves the declared constraints fresh, as a consumer
-  install does, and audits the result. Nothing is installed and no script or plugin
-  of the repository runs.
+  install does, and audits the result. Nothing is installed, and neither the
+  resolution nor the audit runs a script or plugin of the repository.
   Platform requirements are ignored during that resolution, because nothing is
-  installed and the advisories do not depend on the platform of the runner, so a
-  repository that requires a newer PHP than `php-version` still gets audited.
+  installed, so the resolution reflects the declared constraints and not the PHP of
+  the runner. A repository that requires a newer PHP than `php-version` still gets
+  audited. The audit therefore covers the newest versions the constraints allow,
+  which can be newer than what a consumer on an older PHP gets, and a committed
+  lock file gives an exact audit.
 
 The audit settings of the caller's `composer.json` apply exactly as they do for
 Composer itself. An advisory ignored through `config.audit.ignore` or through
