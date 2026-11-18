@@ -38,8 +38,8 @@ assert_eq "the rule for ${SHARED_WORKFLOWS} sets pinDigests to false" false "${p
 # types and sets `enabled`, which can switch the pin pull requests back on. A
 # rule that only sets automerge for those types leaves the pinning alone. The
 # matcher of such a rule does not matter, so one that matches the shared
-# workflows by matchDepNames or by matchPackagePatterns counts the same as one
-# that names the package.
+# workflows by matchDepNames or through a manager counts the same as one that
+# names the package.
 later_pin_rules_in() {
     jq --arg name "${SHARED_WORKFLOWS}" \
         '[.packageRules | (map((.matchPackageNames // []) | index($name) != null) | index(true)) as $at
@@ -56,9 +56,9 @@ trap 'rm -f "${mutated_preset}"' EXIT
 for later_rule in \
     "{\"matchPackageNames\": [\"${SHARED_WORKFLOWS}\"], \"pinDigests\": true}|1|a later rule by matchPackageNames that sets pinDigests" \
     "{\"matchDepNames\": [\"${SHARED_WORKFLOWS}\"], \"pinDigests\": true}|1|a later rule by matchDepNames that sets pinDigests" \
-    "{\"matchPackagePatterns\": [\"^magicsunday/\"], \"pinDigests\": true}|1|a later rule by matchPackagePatterns that sets pinDigests" \
+    "{\"matchManagers\": [\"github-actions\"], \"pinDigests\": true}|1|a later rule by matchManagers that sets pinDigests" \
     "{\"matchDepNames\": [\"${SHARED_WORKFLOWS}\"], \"matchUpdateTypes\": [\"pinDigest\"], \"enabled\": true}|1|a later rule by matchDepNames that takes the pinDigest update type" \
-    "{\"matchPackagePatterns\": [\"^magicsunday/\"], \"matchUpdateTypes\": [\"pin\"], \"enabled\": true}|1|a later rule by matchPackagePatterns that takes the pin update type" \
+    "{\"matchManagers\": [\"github-actions\"], \"matchUpdateTypes\": [\"pin\"], \"enabled\": true}|1|a later rule by matchManagers that takes the pin update type" \
     "{\"matchDepNames\": [\"${SHARED_WORKFLOWS}\"], \"matchUpdateTypes\": [\"pinDigest\"], \"automerge\": true}|0|a later rule that only sets automerge for the pin update types"; do
     IFS='|' read -r rule_json expected_count rule_what <<<"${later_rule}"
     jq --argjson rule "${rule_json}" '.packageRules += [$rule]' "${PRESET}" >"${mutated_preset}"
