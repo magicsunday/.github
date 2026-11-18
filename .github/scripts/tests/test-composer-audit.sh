@@ -121,14 +121,8 @@ assert_eq 'a committed lock file passes when the audit passes' '0' "${case_statu
 assert_eq 'a committed lock file is audited as locked and not resolved' 'audit --locked --no-scripts --no-plugins --no-interaction' "${case_calls}"
 
 # The audit of the repository must not run its own composer scripts or plugins,
-# on either path, because the job reads a repository that is not trusted.
-for audit_case in prepare_json_and_lock prepare_json_only; do
-    run_case "${audit_case}"
-    audit_line="$(grep '^audit ' <<<"${case_calls}")"
-    assert_contains "${audit_case}: the audit runs without scripts" "${audit_line}" ' --no-scripts '
-    assert_contains "${audit_case}: the audit runs without plugins" "${audit_line}" ' --no-plugins '
-done
-
+# on either path, because the job reads a repository that is not trusted. The
+# exact command lines of the cases around this comment pin both flags.
 run_case prepare_json_only
 assert_eq 'no lock file passes when the audit passes' '0' "${case_status}"
 assert_eq 'no lock file resolves without installing, then audits the lock' \
@@ -206,6 +200,10 @@ def inputs(path):
 
 audit = inputs(sys.argv[1])["php-version"]["default"]
 matrix = json.loads(inputs(sys.argv[2])["php-versions"]["default"])[0]
+# A null or empty default would print as text and still compare equal.
+for value in (audit, matrix):
+    if not isinstance(value, str) or not value:
+        sys.exit("not a PHP version: %r" % (value,))
 print(audit, matrix)
 PY
 }
