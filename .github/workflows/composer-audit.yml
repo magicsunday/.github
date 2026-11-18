@@ -9,8 +9,10 @@ name: Composer audit (reusable)
 #
 # What is audited:
 #
-#   - No `composer.json`: the job passes and says that there is nothing to
-#     audit, so every repository can carry the same job.
+#   - No `composer.json` at the repository root: the job passes and says that
+#     there is nothing to audit, so every repository can carry the same job. A
+#     folder named by `working-directory` without a `composer.json` fails the
+#     job.
 #   - A committed `composer.lock`: exactly that lock file (`composer audit
 #     --locked`). An empty, unreadable or symlinked lock file fails the job.
 #   - No `composer.lock`: the declared constraints are resolved fresh, as a
@@ -20,6 +22,14 @@ name: Composer audit (reusable)
 #     nothing is installed, so the resolution reflects the declared
 #     constraints and not the PHP of the runner. The audit can therefore cover
 #     newer versions than a consumer on an older PHP would get.
+#
+# The manifest is read from the repository root, or from the folder named by
+# the `working-directory` input. Only a plain folder name is supported, written
+# with letters, digits and the characters . _ - and /, and starting with none
+# of - and /. The folder holds no parent segment, is a directory of the
+# repository that holds a `composer.json`, and does not lead out of the
+# repository through a link, or the job fails before any Composer command runs.
+# Each folder is its own call of the job.
 #
 # The audit settings of the caller's `composer.json` apply exactly as they do
 # for Composer itself, so an advisory the repository ignores through
@@ -46,6 +56,11 @@ on:
                 required: false
                 type: string
                 default: '8.3'
+            working-directory:
+                description: 'Folder of the Composer manifest to audit, relative to the repository root. A repository that keeps several manifests in subfolders calls the job once per folder.'
+                required: false
+                type: string
+                default: '.'
 
 permissions:
     contents: read
@@ -98,6 +113,8 @@ jobs:
             # The library is loaded first and the shared checkout is removed
             # before the audit, so Composer only sees the caller's own tree.
             - name: Audit the Composer dependencies
+              env:
+                  AUDIT_DIRECTORY: ${{ inputs.working-directory }}
               run: |
                   set -euo pipefail
 
@@ -105,4 +122,4 @@ jobs:
                   . ".magicsunday-shared/.github/scripts/lib/composer-audit.sh"
                   rm -rf .magicsunday-shared
 
-                  composer_audit_run
+                  composer_audit_run "${AUDIT_DIRECTORY}"
