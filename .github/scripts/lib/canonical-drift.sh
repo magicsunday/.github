@@ -268,6 +268,16 @@ _canonical_drift_encode_path() {
     printf '%s' "$1" | jq -Rrs 'split("/") | map(@uri) | join("/")'
 }
 
+# Records one outcome that could not be checked: a row for repository "$1" and
+# file "$2" (already safe to print) with reason "$3", and one more in the
+# unchecked count, so the table and the count cannot disagree. It writes into
+# the report rows and counters of the calling sweep, see
+# _canonical_drift_compare_remote.
+_canonical_drift_record_unchecked() {
+    rows+="| $1 | \`$2\` | **unchecked** ($3) |"$'\n'
+    unchecked=$((unchecked + 1))
+}
+
 # Compares one file of repository "$2" (owner "$1") at path "$3" with the
 # canonical blob hash "$4" and records the outcome. "$5" names the canonical
 # source in the message of a drift ("the template X/dir", "the canonical copy
@@ -309,9 +319,8 @@ _canonical_drift_compare_remote() {
             ;;
         *)
             echo "::error::${owner}/${repo}: fetching ${shown} failed, so it went unchecked."
-            rows+="| ${repo} | \`${shown}\` | **unchecked** (API error) |"$'\n'
+            _canonical_drift_record_unchecked "${repo}" "${shown}" "API error"
             checked=$((checked - 1))
-            unchecked=$((unchecked + 1))
             ;;
     esac
 }
@@ -326,7 +335,8 @@ _canonical_drift_check_template_set() {
     local scratch
     scratch="$(mktemp -d)" || {
         echo "::error::Could not create a scratch directory for template set $3, so its modules went unchecked."
-        unchecked=$((unchecked + 1))
+        _canonical_drift_record_unchecked "$(jq -r ".template_sets[$3].source_repository" "$1")" \
+            "$(jq -r ".template_sets[$3].source_directory" "$1")" "scratch directory"
         return 0
     }
 
@@ -351,8 +361,7 @@ _canonical_drift_check_template_set_in() {
     tree="$(_canonical_drift_fetch "repos/${owner}/${source_repo}/git/trees/HEAD?recursive=1")" || rc=$?
     if [ "${rc}" -ne 0 ] || [ "$(jq -r '.truncated // false' <<<"${tree}" 2>/dev/null)" != "false" ]; then
         echo "::error::Could not list the template ${owner}/${source_repo}/${directory} completely, so its modules went unchecked."
-        rows+="| ${source_repo} | \`${directory}\` | **unchecked** (template not listed) |"$'\n'
-        unchecked=$((unchecked + 1))
+        _canonical_drift_record_unchecked "${source_repo}" "${directory}" "template not listed"
         return 0
     fi
 
@@ -369,8 +378,7 @@ _canonical_drift_check_template_set_in() {
 
     if [ -z "${template_files}" ]; then
         echo "::error::The template ${owner}/${source_repo}/${directory} lists no files, so its modules went unchecked."
-        rows+="| ${source_repo} | \`${directory}\` | **unchecked** (template is empty) |"$'\n'
-        unchecked=$((unchecked + 1))
+        _canonical_drift_record_unchecked "${source_repo}" "${directory}" "template is empty"
         return 0
     fi
 
@@ -387,8 +395,7 @@ _canonical_drift_check_template_set_in() {
         if ! mkdir -p "${scratch}/template/$(dirname "${relative}")" \
             || ! _canonical_drift_decode_content "${body}" "${scratch}/template/${relative}"; then
             echo "::error::Could not fetch the template file ${shown}, so its modules went unchecked."
-            rows+="| ${source_repo} | \`${directory}/${shown}\` | **unchecked** (template file not fetched) |"$'\n'
-            unchecked=$((unchecked + 1))
+            _canonical_drift_record_unchecked "${source_repo}" "${directory}/${shown}" "template file not fetched"
             return 0
         fi
     done <<<"${template_files}"
@@ -411,8 +418,7 @@ _canonical_drift_check_template_set_in() {
         fi
         if ! _canonical_drift_decode_content "${body}" "${module_dir}/parameters"; then
             echo "::error::${owner}/${repo}: fetching ${parameter_file} failed, so its template files went unchecked."
-            rows+="| ${repo} | \`${parameter_file}\` | **unchecked** (API error) |"$'\n'
-            unchecked=$((unchecked + 1))
+            _canonical_drift_record_unchecked "${repo}" "${parameter_file}" "API error"
             continue
         fi
 
@@ -420,8 +426,7 @@ _canonical_drift_check_template_set_in() {
         module_ns="$(_canonical_drift_module_parameter "${module_dir}/parameters" MODULE_NS)" || module_ns=""
         if [[ ! "${module_name}" =~ ^webtrees-[a-z0-9]+(-[a-z0-9]+)*$ ]] || [[ ! "${module_ns}" =~ ^[A-Za-z][A-Za-z0-9]*$ ]]; then
             echo "::error::${owner}/${repo}: ${parameter_file} does not hold a usable MODULE_NAME and MODULE_NS, so its template files went unchecked."
-            rows+="| ${repo} | \`${parameter_file}\` | **unchecked** (MODULE_NAME or MODULE_NS unusable) |"$'\n'
-            unchecked=$((unchecked + 1))
+            _canonical_drift_record_unchecked "${repo}" "${parameter_file}" "MODULE_NAME or MODULE_NS unusable"
             continue
         fi
 
@@ -438,14 +443,13 @@ _canonical_drift_check_template_set_in() {
 
                 if grep -q -e '<name>' -e 'ModuleName' "${rendered}"; then
                     echo "::error::The template file ${shown} holds a placeholder that is not rendered, so ${owner}/${repo} went unchecked for it."
-                    rows+="| ${repo} | \`${shown}\` | **unchecked** (template placeholder) |"$'\n'
-                    unchecked=$((unchecked + 1))
+                    _canonical_drift_record_unchecked "${repo}" "${shown}" "template placeholder"
                     continue
                 fi
 
                 canonical_sha="$(git hash-object --stdin <"${rendered}")" || {
                     echo "::error::Could not hash the rendered ${shown}."
-                    unchecked=$((unchecked + 1))
+                    _canonical_drift_record_unchecked "${repo}" "${shown}" "rendered file not hashed"
                     continue
                 }
             fi
@@ -506,8 +510,7 @@ check_canonical_drift() {
                 fi
                 if [ "${rc}" -ne 0 ]; then
                     echo "::error::${owner}/${repo}: could not check whether ${applies} exists, so ${path} went unchecked."
-                    rows+="| ${repo} | \`${path}\` | **unchecked** (API error) |"$'\n'
-                    unchecked=$((unchecked + 1))
+                    _canonical_drift_record_unchecked "${repo}" "${path}" "API error"
                     continue
                 fi
             fi

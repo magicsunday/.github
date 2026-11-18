@@ -105,7 +105,7 @@ lib="${SCRIPT_DIR}/../lib/canonical-drift.sh"
 export -f gh
 export fixtures
 run_sweep() {
-    output="$(bash -c 'set -euo pipefail; . "$1"; shift; check_canonical_drift "$@"' _ \
+    output="$(bash -c 'set -euo pipefail; eval "${SWEEP_PRELUDE:-}"; . "$1"; shift; check_canonical_drift "$@"' _ \
         "${lib}" "${manifest}" "${canonical}" acme .github 2>&1)"
     rc=$?
 }
@@ -638,6 +638,36 @@ assert_eq "template paths with a space, ? and #: the module file is requested pe
     "$(grep -cxF 'repos/acme/mod-a/contents/odd%20dir/a%20b%3F%23.txt' "${fixtures}/requests.log")"
 assert_eq "template paths with a space, ? and #: no request carries the raw characters" 0 \
     "$(grep -c -e ' ' -e 'contents/.*[?#]' "${fixtures}/requests.log")"
+
+# Every unchecked outcome adds a row to the table and one to the count, so the
+# two agree. These two fail before any request is made or after the rendering
+# of a PHP file, where a stub in the sweep's shell stands in for the failing tool.
+unchecked_rows_of() {
+    grep -c '\*\*unchecked\*\*' <<<"$1" || true
+}
+template_fixtures
+module_fixtures mod-a webtrees-fan-chart Fan
+module_fixtures mod-b webtrees-statistics Statistic
+summary="${work_dir}/summary-scratch.md"
+: >"${summary}"
+GITHUB_STEP_SUMMARY="${summary}" SWEEP_PRELUDE='mktemp() { if [ "${1:-}" = "-d" ]; then return 1; fi; command mktemp "$@"; }' run_sweep
+summary_text="$(cat "${summary}")"
+assert_eq "template set without a scratch directory: exit 1" 1 "${rc}"
+assert_contains "template set without a scratch directory: the table has a row for it" "${summary_text}" "| coding-standard | \`templates/webtrees-module\` | **unchecked** (scratch directory) |"
+assert_contains "template set without a scratch directory: counted as unchecked" "${summary_text}" "0 file(s) checked, 0 failed (drifted, missing or not a regular file), 1 unchecked."
+assert_eq "template set without a scratch directory: rows and count agree" 1 "$(unchecked_rows_of "${summary_text}")"
+
+template_fixtures
+module_fixtures mod-a webtrees-fan-chart Fan
+module_fixtures mod-b webtrees-statistics Statistic
+summary="${work_dir}/summary-hash.md"
+: >"${summary}"
+GITHUB_STEP_SUMMARY="${summary}" SWEEP_PRELUDE='git() { if [ "${1:-}" = "hash-object" ] && [ "${2:-}" = "--stdin" ]; then return 1; fi; command git "$@"; }' run_sweep
+summary_text="$(cat "${summary}")"
+assert_eq "rendered PHP file that cannot be hashed: exit 1" 1 "${rc}"
+assert_contains "rendered PHP file that cannot be hashed: the table has a row per module" "${summary_text}" "| mod-a | \`tests/Release/A.php\` | **unchecked** (rendered file not hashed) |"
+assert_contains "rendered PHP file that cannot be hashed: counted as unchecked per module" "${summary_text}" "2 file(s) checked, 0 failed (drifted, missing or not a regular file), 2 unchecked."
+assert_eq "rendered PHP file that cannot be hashed: rows and count agree" 2 "$(unchecked_rows_of "${summary_text}")"
 
 # --- template_sets validation ---
 for bad_case in \
