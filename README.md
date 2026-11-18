@@ -121,8 +121,9 @@ and fails on an advisory. The job is the same in every repository:
   and `/`. Anything else fails the job, and so does a parent segment, a name that is
   no directory of the repository, and a link that leads out of the repository. A folder
   that is named but holds no `composer.json` is a mistake in the folder name and fails,
-  so a typo cannot turn into an audit of nothing. A repository with several manifest
-  folders calls the job once per folder.
+  so a typo cannot turn into an audit of nothing. The root is named by an empty input or
+  a dot. A dot with a slash counts as a named folder and needs a `composer.json` as well.
+  A repository with several manifest folders calls the job once per folder.
 - With a committed `composer.lock` it audits exactly that file. An empty, unreadable
   or symlinked lock file fails the job, so a broken lock file never turns into a
   quiet fresh resolution.
