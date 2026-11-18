@@ -17,7 +17,7 @@
 #
 # Which files are canonical is declared in .github/canonical-files.json, and
 # the canonical CONTENT of each `files` entry is this repository's own copy at
-# the same path. The manifest therefore only names paths; there is no second
+# the same path. The manifest therefore only names paths, so there is no second
 # copy of the content to fall out of step with the file it describes, and
 # assert_canonical_manifest_valid() fails the run if a listed path does not
 # exist here.
@@ -32,7 +32,8 @@
 # package name and the namespace), so for a `.php` file the template text is
 # rendered with the module's MODULE_NAME and MODULE_NS, read from the parameter
 # file of the module, before its blob hash is compared. That is the same
-# rendering the sync script does, with the same shape checks on both values.
+# rendering the sync script does, and the two identity values get the same
+# shape checks as there. The other values of the parameter file are not read.
 #
 # Coverage limit, stated rather than hidden: the sweep runs on this
 # repository's own GITHUB_TOKEN, which can read another repository only while
@@ -208,7 +209,7 @@ classify_canonical_entry() {
 }
 
 # Prints the value that parameter file "$1" assigns to name "$2", read the way
-# make and the sync script of the template read it: a line is an assignment
+# make and the sync script of the template read it. A line is an assignment
 # when it holds the name, optionally indented with spaces, then `=`, `:=`,
 # `::=` or `?=`. The last `=`-style assignment wins and a `?=` only sets a name
 # nothing set before. Whitespace around the value and a carriage return are
@@ -238,7 +239,9 @@ _canonical_drift_module_parameter() {
 
 # Decodes the base64 `content` of contents-API body "$1" into file "$2".
 # Returns non-zero when the body has no content or does not decode, which is
-# also what an empty body (a failed fetch prints none) amounts to.
+# also what an empty body (a failed fetch prints none) amounts to. The status
+# of a failing jq reaches the caller only through `pipefail`, which the
+# workflow step and the tests set.
 _canonical_drift_decode_content() {
     jq -er '.content' <<<"$1" 2>/dev/null | base64 -d >"$2" 2>/dev/null
 }
@@ -517,7 +520,7 @@ check_canonical_drift() {
         {
             echo "## Canonical-file drift"
             echo
-            echo "Compared against \`${compared_against}\` - ${checked} file(s) checked, ${failures} failed (drifted, missing or not a regular file), ${unchecked} unchecked."
+            echo "Compared against \`${compared_against}\`, ${checked} file(s) checked, ${failures} failed (drifted, missing or not a regular file), ${unchecked} unchecked."
             echo
             if [ -n "${rows}" ]; then
                 echo "| Repository | File | Result |"

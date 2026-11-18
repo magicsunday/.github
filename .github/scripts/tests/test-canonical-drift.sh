@@ -487,7 +487,7 @@ run_sweep
 assert_eq "template set, MODULE_NS absent: exit 1" 1 "${rc}"
 assert_contains "template set, MODULE_NS absent: unchecked" "${output}" "does not hold a usable MODULE_NAME and MODULE_NS"
 
-# The parameter file is read the way make reads it: the last assignment wins
+# The parameter file is read the way make reads it. The last assignment wins
 # and ?= only sets a name that is still unset.
 fixture "repos/acme/mod-a/contents/Make/module.mk" "{\"type\":\"file\",\"content\":\"$(base64_of $'MODULE_NAME := webtrees-old\nMODULE_NS ?= Other\nMODULE_NS := Fan\n  MODULE_NAME = webtrees-fan-chart\nMODULE_NAME ?= webtrees-ignored\n')\"}"
 run_sweep

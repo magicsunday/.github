@@ -362,6 +362,7 @@ repository. That is the file set that the sync script of the template copies.
 The identity lines of a PHP file (the package name and the namespace) belong to
 the module, so the sweep renders them from `MODULE_NAME` and `MODULE_NS` in the
 module's `Make/module.mk` before it compares, the same way the sync script does.
+Those two identity values are the only ones the sweep reads from that file.
 A module-local file that the template does not have is never looked at. The
 report names the module and the file. A template file that a module lacks, one
 with other content and a module without a usable `Make/module.mk` fail the run
