@@ -685,7 +685,8 @@ summary="${work_dir}/summary-hash.md"
 GITHUB_STEP_SUMMARY="${summary}" SWEEP_PRELUDE='git() { if [ "${1:-}" = "hash-object" ] && [ "${2:-}" = "--stdin" ]; then return 1; fi; command git "$@"; }' run_sweep
 summary_text="$(cat "${summary}")"
 assert_eq "rendered PHP file that cannot be hashed: exit 1" 1 "${rc}"
-assert_contains "rendered PHP file that cannot be hashed: the table has a row per module" "${summary_text}" "| mod-a | \`tests/Release/A.php\` | **unchecked** (rendered file not hashed) |"
+assert_contains "rendered PHP file that cannot be hashed: the table has a row for the first module" "${summary_text}" "| mod-a | \`tests/Release/A.php\` | **unchecked** (rendered file not hashed) |"
+assert_contains "rendered PHP file that cannot be hashed: the table has a row for the second module" "${summary_text}" "| mod-b | \`tests/Release/A.php\` | **unchecked** (rendered file not hashed) |"
 assert_contains "rendered PHP file that cannot be hashed: counted as unchecked per module" "${summary_text}" "2 file(s) checked, 0 failed (drifted, missing or not a regular file), 2 unchecked."
 assert_eq "rendered PHP file that cannot be hashed: rows and count agree" 2 "$(unchecked_rows_of "${summary_text}")"
 
