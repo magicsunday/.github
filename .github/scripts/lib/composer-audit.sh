@@ -12,8 +12,8 @@
 # starting with none of - and /. Everything else is refused, and so is a
 # parent segment, a name that is no directory, a link that leads out of the
 # current directory, a path below it that leaves the supported characters, and a
-# folder without a composer.json, before any Composer command runs. The audit
-# settings of the repository's own composer.json apply unchanged, because every
+# folder without the manifest file, before any Composer command runs. The audit
+# settings of the manifest file apply unchanged, because every
 # call below is a plain Composer command. This function adds no ignore handling
 # of its own. Both audit calls run without the scripts and plugins of the
 # repository.
@@ -27,8 +27,12 @@
 # A named file that does not exist fails the check, because a typo would
 # otherwise audit nothing.
 #
-# - No composer.json at the repository root: nothing to audit, the check passes
-#   and says so, so every repository can carry the same job.
+# In the cases below, composer.json and composer.lock stand for the named
+# manifest and its lock file when a manifest is named.
+#
+# - No composer.json at the repository root and no manifest named: nothing to
+#   audit, the check passes and says so, so every repository can carry the same
+#   job.
 # - A committed composer.lock: audits exactly that lock file. The lock file
 #   must be a regular, readable, non-empty file. An empty file, a symlink or
 #   an unreadable file fails, so a broken lock file never turns into a quiet
@@ -58,8 +62,9 @@ composer_audit_run() {
     (_composer_audit_in_folder "${directory}" "${manifest}")
 }
 
-# The letters and digits of a supported folder name, written out one by one,
-# because a range such as a-z also matches accented letters in some locales.
+# The letters and digits of a supported folder or manifest file name, written
+# out one by one, because a range such as a-z also matches accented letters in
+# some locales.
 _COMPOSER_AUDIT_FOLDER_CHARACTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 
 # Checks the file name "$1" of the manifest. It prints an error annotation
@@ -139,7 +144,7 @@ _composer_audit_in_folder() {
 }
 
 # The audit of the current directory. "$1" names it in the notice for a
-# directory without a composer.json, and "$2" is `root` for the repository root,
+# directory without the manifest file, and "$2" is `root` for the repository root,
 # where that is no error, or `folder` for a folder that the caller named, where
 # it is one, because a folder name with a typo would otherwise audit nothing.
 # "$3" is the file name of the manifest. A manifest with another name than

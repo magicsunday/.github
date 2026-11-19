@@ -146,8 +146,8 @@ and fails on an advisory. The job is the same in every repository:
   which can be newer than what a consumer on an older PHP gets, and a committed
   lock file gives an exact audit.
 
-The audit settings of the caller's `composer.json` apply exactly as they do for
-Composer itself. An advisory ignored through `config.audit.ignore` or through
+The audit settings of the manifest file apply exactly as they do for Composer
+itself. An advisory ignored through `config.audit.ignore` or through
 `config.policy.advisories.ignore-id` stays ignored, and the workflow has no ignore
 handling of its own. A repository that already audits in its own CI, for example
 through a Composer script that runs `composer audit`, runs the audit twice and may

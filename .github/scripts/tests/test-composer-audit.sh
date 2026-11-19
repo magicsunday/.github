@@ -615,6 +615,11 @@ prepare_named_manifest_with_symlinked_lock() {
     ln -s real.lock "$1/setup/composer-core-2.2.lock"
 }
 
+prepare_named_manifest_with_underscore() {
+    mkdir -p "$1/setup"
+    echo '{}' > "$1/setup/_composer.json"
+}
+
 prepare_named_manifest_at_the_root() {
     echo '{}' > "$1/composer-core-2.2.json"
 }
@@ -673,6 +678,14 @@ refuse_manifest_name() {
     assert_eq "the manifest name ${label} runs no composer command" '' "${case_calls}"
     assert_contains "the manifest name ${label} is reported as an error" "${case_output}" '::error::The manifest file'
 }
+run_manifest_case prepare_named_manifest_with_underscore "setup" "_composer.json"
+assert_eq 'a manifest name that starts with an underscore is audited' '0' "${case_status}"
+assert_eq 'a manifest name that starts with an underscore is read by every Composer command' '_composer.json' "${case_envs}"
+
+run_manifest_case prepare_named_manifest "setup" "zzmarker!.json"
+case_marker_hits="$(grep -c 'zzmarker' <<< "${case_output}" || true)"
+assert_eq 'the error for a refused manifest name does not repeat the name' '0' "${case_marker_hits}"
+
 refuse_manifest_name '../composer.json' 'with a parent segment'
 refuse_manifest_name 'sub/composer.json' 'with a slash'
 refuse_manifest_name 'composer.txt' 'without the extension json'
