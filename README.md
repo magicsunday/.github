@@ -95,6 +95,7 @@ Workflows not listed here take no inputs.
 | `yamllint.yml` | `paths` — space-separated YAML paths to lint | `.github/workflows/` |
 | `composer-audit.yml` | `php-version` — PHP version the audit runs with. The default is the first version of the `php-quality.yml` matrix | `8.3` |
 | | `working-directory`: folder of the Composer manifest to audit, relative to the repository root. A repository with several manifest folders calls the job once per folder | `.` |
+| | `composer-file`: file name of the Composer manifest to audit in that folder, for a repository that keeps manifests under other names than `composer.json`. A repository with several such files calls the job once per file | `composer.json` |
 | `i18n.yml` | `lang-dir` — root directory holding the per-locale catalogues | `resources/lang` |
 | | `check-pipeline` — run `make lang` and fail on a non-empty diff, except one made of moved `#:` source reference lines | `false` |
 | | `check-core-overlap` — fail when a catalogue entry translates a text that webtrees core already translates in that locale. An empty or fuzzy entry is fine, a compiled one replaces the core text in the whole installation. On a pull request the check runs when the pull request changes a file below `lang-dir`, the root `composer.json` or a workflow file | `true` |
@@ -124,7 +125,15 @@ and fails on an advisory. The job is the same in every repository:
   so a typo cannot turn into an audit of nothing. The root is named by an empty input or
   a dot. A dot with a slash counts as a named folder and needs a `composer.json` as well.
   A repository with several manifest folders calls the job once per folder.
-- With a committed `composer.lock` it audits exactly that file. An empty, unreadable
+- The manifest file is `composer.json`, or the file named by `composer-file`. Only a
+  plain file name is supported, written with letters, digits and the characters `.`,
+  `_` and `-`, starting with a letter, a digit or an underscore and ending in `.json`.
+  Anything else fails the job before any Composer command runs. Composer reads that
+  file for every command, and its lock file is the file name with the extension
+  `.lock`. A named file that does not exist fails the job, so a typo cannot turn into
+  an audit of nothing. A repository with several such files calls the job once per file.
+- With a committed lock file (`composer.lock`, or the one of the named manifest) it
+  audits exactly that file. An empty, unreadable
   or symlinked lock file fails the job, so a broken lock file never turns into a
   quiet fresh resolution.
 - Without a `composer.lock` it resolves the declared constraints fresh, as a consumer
@@ -137,8 +146,8 @@ and fails on an advisory. The job is the same in every repository:
   which can be newer than what a consumer on an older PHP gets, and a committed
   lock file gives an exact audit.
 
-The audit settings of the caller's `composer.json` apply exactly as they do for
-Composer itself. An advisory ignored through `config.audit.ignore` or through
+The audit settings of the manifest file apply exactly as they do for Composer
+itself. An advisory ignored through `config.audit.ignore` or through
 `config.policy.advisories.ignore-id` stays ignored, and the workflow has no ignore
 handling of its own. A repository that already audits in its own CI, for example
 through a Composer script that runs `composer audit`, runs the audit twice and may

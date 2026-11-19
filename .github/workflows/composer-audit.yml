@@ -9,10 +9,11 @@ name: Composer audit (reusable)
 #
 # What is audited:
 #
-#   - No `composer.json` at the repository root: the job passes and says that
-#     there is nothing to audit, so every repository can carry the same job. A
-#     folder named by `working-directory` without a `composer.json` fails the
-#     job.
+#   - No `composer.json` at the repository root and no `composer-file` named:
+#     the job passes and says that there is nothing to audit, so every
+#     repository can carry the same job. A folder named by `working-directory`
+#     without the manifest file fails the job, and so does a named
+#     `composer-file` that does not exist.
 #   - A committed `composer.lock`: exactly that lock file (`composer audit
 #     --locked`). An empty, unreadable or symlinked lock file fails the job.
 #   - No `composer.lock`: the declared constraints are resolved fresh, as a
@@ -27,12 +28,20 @@ name: Composer audit (reusable)
 # the `working-directory` input. Only a plain folder name is supported, written
 # with letters, digits and the characters . _ - and /, and starting with none
 # of - and /. The folder holds no parent segment, is a directory of the
-# repository that holds a `composer.json`, and does not lead out of the
+# repository that holds the manifest file, and does not lead out of the
 # repository through a link, or the job fails before any Composer command runs.
 # Each folder is its own call of the job.
 #
-# The audit settings of the caller's `composer.json` apply exactly as they do
-# for Composer itself, so an advisory the repository ignores through
+# The manifest file is `composer.json`, or the file named by the
+# `composer-file` input, for a repository that keeps manifests under other
+# names. Only a plain file name is supported, written with letters, digits and
+# the characters . _ and -, starting with a letter, a digit or an underscore and
+# ending in `.json`. Composer reads that file for every command, and its lock
+# file is the file name with the extension `.lock`. A named file that does not
+# exist fails the job. Each file is its own call of the job.
+#
+# The audit settings of the manifest file apply exactly as they do for Composer
+# itself, so an advisory the repository ignores through
 # `config.audit.ignore` or `config.policy.advisories.ignore-id` stays ignored
 # here. This workflow adds no ignore handling of its own. A repository that
 # already audits in its own CI runs the audit twice and can drop its own step.
@@ -61,6 +70,11 @@ on:
                 required: false
                 type: string
                 default: '.'
+            composer-file:
+                description: 'File name of the Composer manifest to audit in that folder, for a repository that keeps manifests under other names than composer.json. A repository that keeps several such files calls the job once per file.'
+                required: false
+                type: string
+                default: 'composer.json'
 
 permissions:
     contents: read
@@ -115,6 +129,7 @@ jobs:
             - name: Audit the Composer dependencies
               env:
                   AUDIT_DIRECTORY: ${{ inputs.working-directory }}
+                  AUDIT_FILE: ${{ inputs.composer-file }}
               run: |
                   set -euo pipefail
 
@@ -122,4 +137,4 @@ jobs:
                   . ".magicsunday-shared/.github/scripts/lib/composer-audit.sh"
                   rm -rf .magicsunday-shared
 
-                  composer_audit_run "${AUDIT_DIRECTORY}"
+                  composer_audit_run "${AUDIT_DIRECTORY}" "${AUDIT_FILE}"
