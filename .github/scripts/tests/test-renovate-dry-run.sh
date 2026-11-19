@@ -60,7 +60,7 @@ assert_eq "the Renovate step writes its report as a file" file "$(renovate_env R
 
 # The input is checked before it reaches Renovate, so a typo or another
 # account's repository stops the run instead of reading it.
-assert_eq "a step checks the input before the Renovate step" 1 "$(query '[.jobs[].steps | to_entries[] | select((.value.run // "") | test("magicsunday/")) | .key] | length')"
+assert_eq "a step checks the input before the Renovate step" true "$(query '[.jobs[].steps | (map((.uses // "") | startswith("renovatebot/github-action@")) | index(true)) as $run | to_entries[] | select(.key < $run and ((.value.run // "") | contains("renovate_dry_run_check_repository \"$CONSUMER_REPOSITORY\"")))] | length == 1')"
 
 # The report is evaluated by the library that its own test pins, and that step
 # comes after the Renovate step that writes the report.

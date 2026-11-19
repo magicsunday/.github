@@ -11,6 +11,16 @@
 
 SHARED_WORKFLOWS_DEP_NAME="magicsunday/.github"
 
+# Fails unless "$1" names a repository of this account, as magicsunday/name. The
+# value reaches Renovate as the repository to read, so a typo, another owner or
+# a value with a path, a blank or a shell metacharacter stops the run here.
+renovate_dry_run_check_repository() {
+    if ! [[ "$1" =~ ^magicsunday/[A-Za-z0-9._-]+$ ]]; then
+        echo "::error::The repository input must read magicsunday/name."
+        return 1
+    fi
+}
+
 # Prints the number of calls of the dependency "$2" that the github-actions
 # manager found in the report "$1". Prints nothing and fails on a report that
 # cannot be read as JSON.

@@ -122,4 +122,31 @@ printf '{"repositories": {}}' >"${workdir}/norepo.json"
 renovate_report_check_shared_workflows "${workdir}/norepo.json" >/dev/null 2>&1
 assert_eq "a report without a repository fails" 1 "$?"
 
+# The repository input names a repository of this account, and nothing else
+# reaches Renovate: another owner, a nested path, a missing name, an empty
+# value, blanks and shell metacharacters all stop the run.
+renovate_dry_run_check_repository "magicsunday/webtrees-fan-chart" >/dev/null 2>&1
+assert_eq "a repository of the account passes" 0 "$?"
+renovate_dry_run_check_repository "magicsunday/.github" >/dev/null 2>&1
+assert_eq "a repository name with a leading dot passes" 0 "$?"
+renovate_dry_run_check_repository "magicsunday/a_b.c-d1" >/dev/null 2>&1
+assert_eq "a repository name with underscore, dot, dash and digit passes" 0 "$?"
+for repository in \
+    "other/webtrees-fan-chart" \
+    "magicsunday" \
+    "magicsunday/" \
+    "magicsunday/a/b" \
+    "magicsunday/a b" \
+    "magicsunday/a;b" \
+    "magicsunday/\$(id)" \
+    "magicsunday/a
+b" \
+    "Magicsunday/a" \
+    " magicsunday/a" \
+    ""; do
+    out="$(renovate_dry_run_check_repository "${repository}" 2>&1)"
+    assert_eq "the repository input '${repository//$'\n'/\\n}' fails" 1 "$?"
+    assert_contains "the failure for '${repository//$'\n'/\\n}' says what the input must read" "${out}" "magicsunday/name"
+done
+
 report_and_exit "renovate dry run report tests"
