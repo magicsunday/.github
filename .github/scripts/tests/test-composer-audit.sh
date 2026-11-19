@@ -25,6 +25,7 @@ WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "${WORK_DIR}"' EXIT
 CALL_LOG="${WORK_DIR}/calls.log"
 CWD_LOG="${WORK_DIR}/cwds.log"
+ENV_LOG="${WORK_DIR}/envs.log"
 
 # Exit status of the stubbed subcommands, set per case.
 STUB_UPDATE_STATUS=0
@@ -33,6 +34,7 @@ STUB_AUDIT_STATUS=0
 composer() {
     echo "$*" >> "${CALL_LOG}"
     pwd -P >> "${CWD_LOG}"
+    echo "${COMPOSER-unset}" >> "${ENV_LOG}"
     case "$1" in
         update) return "${STUB_UPDATE_STATUS}" ;;
         audit) return "${STUB_AUDIT_STATUS}" ;;
@@ -267,16 +269,17 @@ PY
 assert_eq 'the audit step of the workflow can be read' '0' "${step_status}"
 
 run_step() {
-    local directory="$1" step_dir
+    local directory="$1" manifest="${2-composer.json}" step_dir
     step_dir="$(mktemp -d "${WORK_DIR}/step.XXXXXX")"
     mkdir -p "${step_dir}/.magicsunday-shared/.github/scripts/lib"
     # The stand-in function is written literally, its variables expand when the step calls it.
     # shellcheck disable=SC2016
-    printf '%s\n' 'composer_audit_run() { printf "%s" "$1" > "${STEP_ARGUMENT_FILE}"; if [ -e "${STEP_ARGUMENT_FILE%/*}/.magicsunday-shared" ]; then echo yes; else echo no; fi > "${STEP_ARGUMENT_FILE}.shared"; }' \
+    printf '%s\n' 'composer_audit_run() { printf "%s" "$1" > "${STEP_ARGUMENT_FILE}"; printf "%s" "$2" > "${STEP_ARGUMENT_FILE}.manifest"; if [ -e "${STEP_ARGUMENT_FILE%/*}/.magicsunday-shared" ]; then echo yes; else echo no; fi > "${STEP_ARGUMENT_FILE}.shared"; }' \
         > "${step_dir}/.magicsunday-shared/.github/scripts/lib/composer-audit.sh"
     step_status=0
-    (cd "${step_dir}" && AUDIT_DIRECTORY="${directory}" STEP_ARGUMENT_FILE="${step_dir}/argument" bash "${step_script}" > /dev/null 2>&1) || step_status=$?
+    (cd "${step_dir}" && AUDIT_DIRECTORY="${directory}" AUDIT_FILE="${manifest}" STEP_ARGUMENT_FILE="${step_dir}/argument" bash "${step_script}" > /dev/null 2>&1) || step_status=$?
     step_argument="$(cat "${step_dir}/argument" 2> /dev/null || echo 'NOT CALLED')"
+    step_manifest="$(cat "${step_dir}/argument.manifest" 2> /dev/null || echo 'NOT CALLED')"
     step_shared_left="$([ -e "${step_dir}/.magicsunday-shared" ] && echo yes || echo no)"
     step_shared_at_call="$(cat "${step_dir}/argument.shared" 2> /dev/null || echo 'NOT CALLED')"
 }
@@ -289,6 +292,11 @@ assert_eq 'the shared checkout is already gone when the audit function runs' 'no
 
 run_step "."
 assert_eq 'the audit step hands the default to the function' '.' "${step_argument}"
+assert_eq 'the audit step hands the default manifest to the function' 'composer.json' "${step_manifest}"
+
+run_step "setup" "composer-core-2.2.json"
+assert_eq 'the audit step hands the manifest file to the function' 'composer-core-2.2.json' "${step_manifest}"
+assert_eq 'the audit step hands the folder next to the manifest file to the function' 'setup' "${step_argument}"
 
 # --- The directory to audit ---
 
@@ -542,5 +550,137 @@ assert_eq 'a dot with a slash names the repository root' "${case_root}" "${case_
 run_directory_case prepare_folder_without_manifest "./"
 assert_eq 'a dot with a slash needs a composer.json at the root' '1' "${case_status}"
 assert_contains 'a dot with a slash without a composer.json is reported as an error' "${case_output}" 'holds no composer.json'
+
+# --- The manifest file to audit ---
+
+# The input `composer-file` is optional, a string and defaults to composer.json,
+# and it reaches the function through the environment like the folder does.
+file_wiring_status=0
+# shellcheck disable=SC2016
+file_wiring="$(python3 -I - "${audit_workflow}" << 'PY' 2> /dev/null
+import sys
+import yaml
+
+document = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+declared = (document.get("on") or document.get(True))["workflow_call"]["inputs"]["composer-file"]
+steps = document["jobs"]["composer-audit"]["steps"]
+step = [s for s in steps if s.get("name") == "Audit the Composer dependencies"][0]
+call_wired = 'composer_audit_run "${AUDIT_DIRECTORY}" "${AUDIT_FILE}"' in step["run"]
+spliced = "inputs.composer-file" in step["run"]
+print(declared["type"], declared["required"], declared["default"], step["env"]["AUDIT_FILE"], call_wired, spliced)
+PY
+)" || file_wiring_status=$?
+assert_eq 'the composer-file input of the workflow can be read' '0' "${file_wiring_status}"
+# shellcheck disable=SC2016
+assert_eq 'the input is optional, defaults to composer.json and reaches the function through the environment' \
+    'string False composer.json ${{ inputs.composer-file }} True False' "${file_wiring}"
+
+# Like run_directory_case, but the function also gets the manifest file name.
+# Sets `case_envs` too, the manifest settings of Composer that the stubbed
+# composer saw, one per line without duplicates.
+run_manifest_case() {
+    local prepare="$1" directory="$2" manifest="$3"
+    local case_dir
+    case_dir="$(mktemp -d "${WORK_DIR}/case.XXXXXX")"
+    : > "${CALL_LOG}"
+    : > "${CWD_LOG}"
+    : > "${ENV_LOG}"
+    "${prepare}" "${case_dir}"
+    case_root="$(cd "${case_dir}" && pwd -P)"
+    case_status=0
+    case_output="$(cd "${case_dir}" && composer_audit_run "${directory}" "${manifest}" 2>&1)" || case_status=$?
+    case_calls="$(cat "${CALL_LOG}")"
+    case_cwds="$(sort -u "${CWD_LOG}")"
+    case_envs="$(sort -u "${ENV_LOG}")"
+}
+
+prepare_named_manifest() {
+    mkdir -p "$1/setup"
+    echo '{}' > "$1/setup/composer-core-2.2.json"
+}
+
+prepare_named_manifest_with_lock() {
+    prepare_named_manifest "$1"
+    echo '{"packages": []}' > "$1/setup/composer-core-2.2.lock"
+}
+
+prepare_named_manifest_with_the_default_lock() {
+    prepare_named_manifest "$1"
+    echo '{"packages": []}' > "$1/setup/composer.lock"
+}
+
+prepare_named_manifest_with_symlinked_lock() {
+    prepare_named_manifest "$1"
+    echo '{"packages": []}' > "$1/setup/real.lock"
+    ln -s real.lock "$1/setup/composer-core-2.2.lock"
+}
+
+prepare_named_manifest_at_the_root() {
+    echo '{}' > "$1/composer-core-2.2.json"
+}
+
+prepare_default_manifest_only() {
+    mkdir -p "$1/setup"
+    echo '{}' > "$1/setup/composer.json"
+}
+
+fresh_calls='update --no-install --no-scripts --no-plugins --no-interaction --no-progress --ignore-platform-reqs
+audit --locked --no-scripts --no-plugins --no-interaction'
+locked_calls='audit --locked --no-scripts --no-plugins --no-interaction'
+
+run_manifest_case prepare_named_manifest "setup" "composer-core-2.2.json"
+assert_eq 'a named manifest without a lock file is resolved fresh and audited' '0' "${case_status}"
+assert_eq 'the fresh resolution of a named manifest runs the same commands as for composer.json' "${fresh_calls}" "${case_calls}"
+assert_eq 'every Composer command of a named manifest reads that file' 'composer-core-2.2.json' "${case_envs}"
+assert_eq 'a named manifest is audited in its folder' "${case_root}/setup" "${case_cwds}"
+
+run_manifest_case prepare_named_manifest_with_lock "setup" "composer-core-2.2.json"
+assert_eq 'a named manifest with a committed lock file passes' '0' "${case_status}"
+assert_eq 'the lock file that belongs to the named manifest is audited as it is' "${locked_calls}" "${case_calls}"
+assert_eq 'the audit of the lock file of a named manifest reads that manifest' 'composer-core-2.2.json' "${case_envs}"
+
+run_manifest_case prepare_named_manifest_with_the_default_lock "setup" "composer-core-2.2.json"
+assert_eq 'the lock file of composer.json does not belong to a named manifest' "${fresh_calls}" "${case_calls}"
+
+run_manifest_case prepare_named_manifest_with_symlinked_lock "setup" "composer-core-2.2.json"
+assert_eq 'a symlinked lock file of a named manifest fails' '1' "${case_status}"
+assert_eq 'a symlinked lock file of a named manifest runs no composer command' '' "${case_calls}"
+
+run_manifest_case prepare_named_manifest_at_the_root "." "composer-core-2.2.json"
+assert_eq 'a named manifest at the repository root is audited' '0' "${case_status}"
+assert_eq 'a named manifest at the repository root reads that file' 'composer-core-2.2.json' "${case_envs}"
+
+run_manifest_case prepare_default_manifest_only "setup" "composer-core-2.2.json"
+assert_eq 'a named manifest that does not exist fails' '1' "${case_status}"
+assert_eq 'a missing named manifest runs no composer command' '' "${case_calls}"
+assert_contains 'a missing named manifest is reported as an error' "${case_output}" 'holds no manifest file of that name'
+
+run_manifest_case prepare_named_manifest_at_the_root "." "composer.json"
+assert_eq 'the default manifest name at a root without composer.json still passes' '0' "${case_status}"
+assert_contains 'the default manifest name at a root without composer.json says there is nothing to audit' "${case_output}" 'nothing to audit'
+
+run_manifest_case prepare_default_manifest_only "setup" ""
+assert_eq 'an empty manifest name means composer.json' '0' "${case_status}"
+assert_eq 'an empty manifest name audits composer.json' 'composer.json' "${case_envs}"
+
+# Only a plain file name is supported. Every other name is refused before any
+# Composer command runs, and the message does not name it, so a line break in a
+# name cannot reach the log as a workflow command.
+refuse_manifest_name() {
+    local name="$1" label="$2"
+    run_manifest_case prepare_named_manifest "setup" "${name}"
+    assert_eq "the manifest name ${label} is refused" '1' "${case_status}"
+    assert_eq "the manifest name ${label} runs no composer command" '' "${case_calls}"
+    assert_contains "the manifest name ${label} is reported as an error" "${case_output}" '::error::The manifest file'
+}
+refuse_manifest_name '../composer.json' 'with a parent segment'
+refuse_manifest_name 'sub/composer.json' 'with a slash'
+refuse_manifest_name 'composer.txt' 'without the extension json'
+refuse_manifest_name '.json' 'that is only the extension'
+refuse_manifest_name '-composer.json' 'with a leading dash'
+refuse_manifest_name 'compo ser.json' 'with a space'
+refuse_manifest_name $'composer.json\n::error::x' 'with a line break'
+refuse_manifest_name 'cömposer.json' 'with an accented letter'
+refuse_manifest_name 'composer.json ' 'with a trailing space'
 
 report_and_exit 'composer-audit tests'

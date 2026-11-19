@@ -31,6 +31,14 @@ name: Composer audit (reusable)
 # repository through a link, or the job fails before any Composer command runs.
 # Each folder is its own call of the job.
 #
+# The manifest file is `composer.json`, or the file named by the
+# `composer-file` input, for a repository that keeps manifests under other
+# names. Only a plain file name is supported, written with letters, digits and
+# the characters . _ and -, starting with a letter, a digit or an underscore and
+# ending in `.json`. Composer reads that file for every command, and its lock
+# file is the file name with the extension `.lock`. A named file that does not
+# exist fails the job. Each file is its own call of the job.
+#
 # The audit settings of the caller's `composer.json` apply exactly as they do
 # for Composer itself, so an advisory the repository ignores through
 # `config.audit.ignore` or `config.policy.advisories.ignore-id` stays ignored
@@ -61,6 +69,11 @@ on:
                 required: false
                 type: string
                 default: '.'
+            composer-file:
+                description: 'File name of the Composer manifest to audit in that folder, for a repository that keeps manifests under other names than composer.json. A repository that keeps several such files calls the job once per file.'
+                required: false
+                type: string
+                default: 'composer.json'
 
 permissions:
     contents: read
@@ -115,6 +128,7 @@ jobs:
             - name: Audit the Composer dependencies
               env:
                   AUDIT_DIRECTORY: ${{ inputs.working-directory }}
+                  AUDIT_FILE: ${{ inputs.composer-file }}
               run: |
                   set -euo pipefail
 
@@ -122,4 +136,4 @@ jobs:
                   . ".magicsunday-shared/.github/scripts/lib/composer-audit.sh"
                   rm -rf .magicsunday-shared
 
-                  composer_audit_run "${AUDIT_DIRECTORY}"
+                  composer_audit_run "${AUDIT_DIRECTORY}" "${AUDIT_FILE}"

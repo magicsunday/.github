@@ -78,7 +78,8 @@ jobs:
         # A repository that keeps its Composer manifests in subfolders adds one
         # job of this kind per folder, each with its own name, a
         # `with: working-directory: <folder>` block, and an entry in the needs
-        # list of all-security-checks below.
+        # list of all-security-checks below. A manifest under another name than
+        # `composer.json` is named with `with: composer-file: <file name>`.
 
     all-security-checks:
         # One stable check name for the branch protection. It runs whatever the

@@ -18,6 +18,15 @@
 # of its own. Both audit calls run without the scripts and plugins of the
 # repository.
 #
+# The optional second argument names the Composer manifest in that folder, and
+# the default is composer.json. Only a plain file name is supported, written
+# with letters, digits and the characters . _ and -, starting with a letter, a
+# digit or an underscore and ending in .json. Everything else is refused before
+# any Composer command runs. Every Composer command reads that file through the
+# COMPOSER setting, and its lock file is the file name with the extension .lock.
+# A named file that does not exist fails the check, because a typo would
+# otherwise audit nothing.
+#
 # - No composer.json at the repository root: nothing to audit, the check passes
 #   and says so, so every repository can carry the same job.
 # - A committed composer.lock: audits exactly that lock file. The lock file
@@ -34,22 +43,36 @@
 #   before the audit runs. The flag can pick newer versions than a consumer on
 #   an older PHP would get.
 composer_audit_run() {
-    local directory="${1:-.}"
+    local directory="${1:-.}" manifest="${2:-composer.json}"
+
+    _composer_audit_check_manifest_name "${manifest}" || return 1
 
     if [ "${directory}" = "." ]; then
-        _composer_audit_here "this repository" root
+        _composer_audit_here "this repository" root "${manifest}"
         return
     fi
 
     _composer_audit_check_folder_name "${directory}" || return 1
 
     # A subshell, so the caller keeps its own working directory.
-    (_composer_audit_in_folder "${directory}")
+    (_composer_audit_in_folder "${directory}" "${manifest}")
 }
 
 # The letters and digits of a supported folder name, written out one by one,
 # because a range such as a-z also matches accented letters in some locales.
 _COMPOSER_AUDIT_FOLDER_CHARACTERS='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+
+# Checks the file name "$1" of the manifest. It prints an error annotation
+# without the name and fails when the name is not a plain file name that ends in
+# .json.
+_composer_audit_check_manifest_name() {
+    local manifest="$1"
+
+    if [[ ! "${manifest}" =~ ^[${_COMPOSER_AUDIT_FOLDER_CHARACTERS}_][${_COMPOSER_AUDIT_FOLDER_CHARACTERS}._-]*\.json$ ]]; then
+        echo "::error::The manifest file to audit may only use letters, digits and the characters . _ and -, must start with a letter, a digit or an underscore and must end in .json."
+        return 1
+    fi
+}
 
 # Checks the name of folder "$1" before it is looked at on disk. It prints an
 # error annotation without the folder name, so a name with a line break cannot
@@ -80,9 +103,10 @@ _composer_audit_check_folder_name() {
 # physical path is read from `PWD` and not through command substitution, which
 # strips a line break at the end of a directory name. A link can lead to a
 # directory below the repository with a name outside the supported characters,
-# and such a path is refused like one that leads out of the repository.
+# and such a path is refused like one that leads out of the repository. "$2" is
+# the file name of the manifest.
 _composer_audit_in_folder() {
-    local directory="$1" workspace below
+    local directory="$1" manifest="$2" workspace below
 
     cd -P . 2> /dev/null || {
         echo "::error::The current directory cannot be resolved."
@@ -111,15 +135,24 @@ _composer_audit_in_folder() {
         return 1
     fi
 
-    _composer_audit_here "${directory}" folder
+    _composer_audit_here "${directory}" folder "${manifest}"
 }
 
 # The audit of the current directory. "$1" names it in the notice for a
 # directory without a composer.json, and "$2" is `root` for the repository root,
 # where that is no error, or `folder` for a folder that the caller named, where
 # it is one, because a folder name with a typo would otherwise audit nothing.
+# "$3" is the file name of the manifest. A manifest with another name than
+# composer.json that is missing is an error in both cases, for the same reason.
 _composer_audit_here() {
-    if [ ! -e composer.json ] && [ ! -L composer.json ]; then
+    local manifest="$3" lock="${3%.json}.lock"
+
+    if [ ! -e "${manifest}" ] && [ ! -L "${manifest}" ]; then
+        if [ "${manifest}" != "composer.json" ]; then
+            echo "No ${manifest} in $1."
+            echo "::error::The folder to audit holds no manifest file of that name. Fix the file name, or leave it out to audit composer.json."
+            return 1
+        fi
         if [ "$2" = "folder" ]; then
             echo "No composer.json in the folder $1."
             echo "::error::The folder to audit holds no composer.json. Fix the folder name, or leave the folder out to audit the repository root."
@@ -129,19 +162,19 @@ _composer_audit_here() {
         return 0
     fi
 
-    if [ -e composer.lock ] || [ -L composer.lock ]; then
-        if [ -L composer.lock ] || [ ! -f composer.lock ] || [ ! -s composer.lock ] || [ ! -r composer.lock ]; then
-            echo "::error::composer.lock is not a regular, readable, non-empty file. Commit a valid lock file or remove it so the dependencies are resolved fresh."
+    if [ -e "${lock}" ] || [ -L "${lock}" ]; then
+        if [ -L "${lock}" ] || [ ! -f "${lock}" ] || [ ! -s "${lock}" ] || [ ! -r "${lock}" ]; then
+            echo "::error::${lock} is not a regular, readable, non-empty file. Commit a valid lock file or remove it so the dependencies are resolved fresh."
             return 1
         fi
 
-        echo "Auditing the committed composer.lock."
-        composer audit --locked --no-scripts --no-plugins --no-interaction
+        echo "Auditing the committed ${lock}."
+        COMPOSER="${manifest}" composer audit --locked --no-scripts --no-plugins --no-interaction
         return
     fi
 
-    echo "No composer.lock is committed, so the constraints are resolved fresh."
-    composer update --no-install --no-scripts --no-plugins --no-interaction --no-progress \
+    echo "No ${lock} is committed, so the constraints are resolved fresh."
+    COMPOSER="${manifest}" composer update --no-install --no-scripts --no-plugins --no-interaction --no-progress \
         --ignore-platform-reqs || return
-    composer audit --locked --no-scripts --no-plugins --no-interaction
+    COMPOSER="${manifest}" composer audit --locked --no-scripts --no-plugins --no-interaction
 }
