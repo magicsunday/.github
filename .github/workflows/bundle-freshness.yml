@@ -101,9 +101,14 @@ jobs:
                   # script must stay free of single quotes. The printed command
                   # wraps it in them. Both insteadOf rewrites use one config key,
                   # so the second call adds a value. A plain call would replace
-                  # the first rewrite.
+                  # the first rewrite. A local run passes OWNER as the user and
+                  # group id of the caller, and the script hands the tree back to
+                  # it when it ends, also after a failure, because the container
+                  # runs as root. The job's own run passes none and changes no owner.
                   BUILD_SCRIPT=$(cat <<'BUILD_SCRIPT_END'
                   set -e
+                  hand_back() { chown -R "$OWNER" /app; }
+                  [ -z "${OWNER:-}" ] || trap hand_back EXIT
                   apk add --no-cache git >/dev/null
                   git config --global url."https://github.com/".insteadOf "git@github.com:"
                   git config --global --add url."https://github.com/".insteadOf "ssh://git@github.com/"
@@ -141,10 +146,10 @@ jobs:
                       echo
                       echo '### Rebuild'
                       echo
-                      echo "Run this in a checkout of the pull request branch, then commit the files it changed. It needs Docker and no other tooling, and it is the same build as this job. The container runs as root, so the files it writes belong to root in your checkout. A dependency bot that rebases the branch afterwards may drop the commit, so run it after the last rebase."
+                      echo "Run this in a checkout of the pull request branch, then commit the files it changed. It needs Docker and no other tooling, and it is the same build as this job. The command passes your user and group id, so the files it writes stay yours. A dependency bot that rebases the branch afterwards may drop the commit, so run it after the last rebase."
                       echo
                       echo '```'
-                      echo "docker run --rm -v \"\$PWD\":/app -w /app ${NODE_IMAGE} sh -c '${BUILD_SCRIPT}'"
+                      echo "docker run --rm -e OWNER=\"\$(id -u):\$(id -g)\" -v \"\$PWD\":/app -w /app ${NODE_IMAGE} sh -c '${BUILD_SCRIPT}'"
                       echo '```'
                       echo
                       echo '### Changes'
