@@ -44,7 +44,7 @@ renovate_report_updates() {
          | "\($dep.depName) \($dep.currentValue) \(.updateType) \(.newValue // "")" | rtrimstr(" ")' "$1"
 }
 
-# Checks the report "$1" against the policy of the shared Renovate preset: the
+# Checks the report "$1" against the policy of the shared Renovate preset. The
 # shared workflows are called with the @main ref, so Renovate proposes no update
 # for them, neither a pin nor a newer ref. Fails when the report cannot be read,
 # when it never saw a call of the shared workflows (the run then proves nothing
@@ -76,5 +76,5 @@ renovate_report_check_shared_workflows() {
         return 1
     fi
 
-    echo "The shared workflows were seen in ${calls} calls and receive no update."
+    echo "Calls of the shared workflows seen: ${calls}. They receive no update."
 }

@@ -343,9 +343,9 @@ rules, which cannot show what the rules do to a repository. The workflow
 `renovate-dry-run.yml` shows that. It is started by hand, takes one repository of
 this account as input and runs Renovate against it with the dry run set to full,
 so nothing is written to that repository. The job summary lists every update
-Renovate would propose, and the run fails when Renovate would propose an update
-for the shared workflows, which the preset keeps unpinned, or when the report
-never saw them.
+Renovate would propose for the GitHub Actions of that repository. The run fails
+when Renovate would propose an update for the shared workflows, which the preset
+keeps unpinned, or when the report never saw them.
 
 ```
 gh workflow run renovate-dry-run.yml -R magicsunday/.github -f repository=magicsunday/<name>

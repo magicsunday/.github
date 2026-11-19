@@ -68,7 +68,7 @@ assert_eq "the shared workflows are counted in the github-actions manager only" 
 
 renovate_report_check_shared_workflows "${report}" >"${workdir}/out.txt" 2>&1
 assert_eq "a report without updates for the shared workflows passes" 0 "$?"
-assert_eq "the pass says how many calls it saw" "The shared workflows were seen in 3 calls and receive no update." "$(cat "${workdir}/out.txt")"
+assert_eq "the pass says how many calls it saw" "Calls of the shared workflows seen: 3. They receive no update." "$(cat "${workdir}/out.txt")"
 
 assert_eq "an up to date report lists no update" "" "$(renovate_report_updates "${report}")"
 
@@ -102,6 +102,29 @@ renovate_report_check_shared_workflows "${lookalike}" >/dev/null 2>&1
 assert_eq "an update for a dependency that only contains the shared name does not fail the check" 0 "$?"
 assert_eq "the update list narrowed to the shared workflows is empty for that report" "" "$(renovate_report_updates "${lookalike}" "magicsunday/.github")"
 assert_eq "the update list narrowed to the lookalike names its update" "other/magicsunday/.github main pinDigest v2" "$(renovate_report_updates "${lookalike}" "other/magicsunday/.github")"
+
+# A call without an updates key counts as a call without updates, and a later
+# call with an update still fails the check.
+noupdates="${workdir}/noupdates.json"
+jq '.repositories["magicsunday/example"].packageFiles["github-actions"][0].deps = [{"depName": "magicsunday/.github", "currentValue": "main"}, {"depName": "magicsunday/.github", "currentValue": "main", "updates": [{"updateType": "pinDigest", "newValue": "v2"}]}]' \
+    "${report}" >"${noupdates}"
+out="$(renovate_report_check_shared_workflows "${noupdates}" 2>&1)"
+assert_eq "an update after a call without an updates key still fails the check" 1 "$?"
+assert_contains "the failure lists the update after a call without an updates key" "${out}" "magicsunday/.github main pinDigest v2"
+jq '.repositories["magicsunday/example"].packageFiles["github-actions"][0].deps = [{"depName": "magicsunday/.github", "currentValue": "main"}]' \
+    "${report}" >"${noupdates}"
+renovate_report_check_shared_workflows "${noupdates}" >/dev/null 2>&1
+assert_eq "a call without an updates key passes the check" 0 "$?"
+
+# A report whose only call has a lookalike name saw no call of the shared
+# workflows, so the run proves nothing.
+onlylookalike="${workdir}/onlylookalike.json"
+jq '.repositories["magicsunday/example"].packageFiles["github-actions"] |= map(.deps |= map(if .depName == "magicsunday/.github" then .depName = "other/magicsunday/.github" else . end))' \
+    "${report}" >"${onlylookalike}"
+out="$(renovate_report_check_shared_workflows "${onlylookalike}" 2>&1)"
+assert_eq "a report with only a lookalike dependency fails the check" 1 "$?"
+assert_contains "the failure for a lookalike-only report says that the run proves nothing" "${out}" "proves nothing"
+assert_eq "a lookalike-only report counts no call of the shared workflows" 0 "$(renovate_report_dependency_count "${onlylookalike}" "magicsunday/.github")"
 
 # A run that never saw the shared workflows proves nothing, so it fails. The
 # consumer may not call them, or Renovate may have read another manager.
@@ -152,6 +175,8 @@ for repository in \
     "magicsunday/\$(id)" \
     "magicsunday/a
 b" \
+    "magicsunday/a
+" \
     "Magicsunday/a" \
     " magicsunday/a" \
     ""; do

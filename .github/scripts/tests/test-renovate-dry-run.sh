@@ -41,7 +41,7 @@ assert_eq "no job takes another permission block" '0' "$(query '[.jobs[] | selec
 secret_refs="$(grep -c 'secrets\.' "${WORKFLOW}" || true)"
 assert_eq "the workflow references no secret" 0 "${secret_refs}"
 
-# Every action is pinned by a full commit and carries its version in a comment.
+# Every action is pinned by a full commit.
 unpinned="$(query '[.jobs[].steps[] | select(has("uses")) | .uses | select(test("@[0-9a-f]{40}$") | not)] | length')"
 assert_eq "every action is pinned by a full commit" 0 "${unpinned}"
 
@@ -101,7 +101,7 @@ make_report() {
 make_report ok.json '[]'
 out="$(run_evaluation ok.json)"
 assert_eq "an up to date report passes the evaluation step" 0 "$?"
-assert_contains "the summary of a passing run says that nothing is proposed" "$(cat "${workdir}/summary.md")" "Renovate would propose no update." "Verdict: The shared workflows were seen in 1 calls"
+assert_contains "the summary of a passing run says that nothing is proposed" "$(cat "${workdir}/summary.md")" "Renovate would propose no update." "Verdict: Calls of the shared workflows seen: 1."
 
 make_report pin.json '[{"updateType": "pinDigest", "newValue": "v2"}]'
 out="$(run_evaluation pin.json)"
@@ -113,5 +113,9 @@ out="$(run_evaluation absent.json)"
 assert_eq "a missing report fails the evaluation step" 1 "$?"
 assert_contains "a missing report reaches the verdict of the library" "${out}" "missing or empty"
 assert_contains "the summary of a missing report holds the verdict" "$(cat "${workdir}/summary.md")" "Verdict:" "missing or empty"
+case "$(cat "${workdir}/summary.md")" in
+    *"would propose no update"*) _harness_fail "the summary of a missing report does not claim that no update is proposed" "$(cat "${workdir}/summary.md")" ;;
+    *) echo "PASS: the summary of a missing report does not claim that no update is proposed" ;;
+esac
 
 report_and_exit "renovate dry run tests"

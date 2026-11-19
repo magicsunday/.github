@@ -65,11 +65,12 @@ jobs:
                   RENOVATE_REPORT_PATH: /tmp/renovate-report.json
                   LOG_LEVEL: info
 
-            # Lists every update Renovate would propose and fails when one is
-            # proposed for the shared workflows, which the preset keeps unpinned,
-            # or when the report never saw them. renovate-dry-run.sh carries the
-            # evaluation, so test-renovate-dry-run-report.sh exercises the exact
-            # check this step relies on.
+            # Lists every update Renovate would propose for the GitHub Actions of
+            # the repository. It fails when one is proposed for the shared
+            # workflows, which the preset keeps unpinned, or when the report never
+            # saw them. renovate-dry-run.sh carries the evaluation, so
+            # test-renovate-dry-run-report.sh exercises the exact check this step
+            # relies on.
             - name: Evaluate the report
               env:
                   CONSUMER_REPOSITORY: ${{ inputs.repository }}
@@ -91,7 +92,7 @@ jobs:
                           echo '```'
                           echo "$updates"
                           echo '```'
-                      else
+                      elif [ "$status" -eq 0 ]; then
                           echo 'Renovate would propose no update.'
                       fi
                       echo
