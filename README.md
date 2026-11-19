@@ -336,6 +336,25 @@ name and has no `<caller job> / ` prefix (the reusable jobs report with that pre
 - Signed commits, the rules for administrators and the up-to-date requirement of the
   branch protection are decided in issue #292, not here.
 
+## Renovate dry run
+
+The shared Renovate preset (`renovate-config.json`) is pinned by a test of its
+rules, which cannot show what the rules do to a repository. The workflow
+`renovate-dry-run.yml` shows that. It is started by hand, takes one repository of
+this account as input and runs Renovate against it with the dry run set to full,
+so nothing is written to that repository. The job summary lists every update
+Renovate would propose, and the run fails when Renovate would propose an update
+for the shared workflows, which the preset keeps unpinned, or when the report
+never saw them.
+
+```
+gh workflow run renovate-dry-run.yml -R magicsunday/.github -f repository=magicsunday/<name>
+```
+
+The token of the run can read public repositories and nothing else, so a private
+repository is out of reach. The workflow is not part of the catalog above,
+because it is not a reusable workflow.
+
 ## Labels
 
 `labels.yml` is the single source of truth for the shared label set: the type
