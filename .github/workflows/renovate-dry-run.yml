@@ -1,0 +1,94 @@
+name: Renovate dry run
+
+# Runs Renovate against one repository that consumes the shared preset
+# (renovate-config.json) and reports what it would do, without opening a pull
+# request, pushing a branch or committing to the repository. The preset test
+# pins the content of the rules, and only a Renovate run shows their effect on
+# a real repository, so this is the way to read that effect.
+#
+# Started by hand, with the consumer as input. Not scheduled, not reusable and
+# not triggered by pull requests on purpose: a run reads another repository, so
+# it must not start without a person asking for it, and its verdict is about
+# that repository and not about a change here. The properties that keep it
+# harmless (read-only token, no secret, full dry run, pinned action) are
+# pinned by test-renovate-dry-run.sh, which lint.yml runs on every pull request.
+#
+# The token is the one this workflow gets, which can read public repositories
+# and nothing else. A private consumer is out of reach, which is intended.
+on:
+    workflow_dispatch:
+        inputs:
+            repository:
+                description: 'Consumer repository to read, as magicsunday/name'
+                required: true
+                default: 'magicsunday/webtrees-fan-chart'
+                type: string
+
+permissions:
+    contents: read
+
+jobs:
+    renovate-dry-run:
+        name: Renovate dry run
+        runs-on: ubuntu-latest
+
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            # The input names a repository of this account. Anything else stops
+            # here, so a typo or a foreign repository is not read.
+            - name: Check the repository input
+              env:
+                  CONSUMER_REPOSITORY: ${{ inputs.repository }}
+              run: |
+                  set -euo pipefail
+                  if ! [[ "$CONSUMER_REPOSITORY" =~ ^magicsunday/[A-Za-z0-9._-]+$ ]]; then
+                      echo "::error::The repository input must read magicsunday/name."
+                      exit 1
+                  fi
+
+            - name: Run Renovate in dry run mode
+              uses: renovatebot/github-action@266fef21329c44765ad42f9dea1f01f5d2d91084 # v46.3.13
+              with:
+                  token: ${{ github.token }}
+              env:
+                  RENOVATE_REPOSITORIES: ${{ inputs.repository }}
+                  RENOVATE_DRY_RUN: full
+                  RENOVATE_ONBOARDING: false
+                  RENOVATE_REPORT_TYPE: file
+                  RENOVATE_REPORT_PATH: /tmp/renovate-report.json
+                  LOG_LEVEL: info
+
+            # Lists every update Renovate would propose and fails when one is
+            # proposed for the shared workflows, which the preset keeps unpinned,
+            # or when the report never saw them. renovate-dry-run.sh carries the
+            # evaluation, so test-renovate-dry-run-report.sh exercises the exact
+            # check this step relies on.
+            - name: Evaluate the report
+              env:
+                  CONSUMER_REPOSITORY: ${{ inputs.repository }}
+              run: |
+                  set -euo pipefail
+                  # shellcheck source=scripts/lib/renovate-dry-run.sh
+                  source .github/scripts/lib/renovate-dry-run.sh
+                  updates="$(renovate_report_updates /tmp/renovate-report.json)"
+                  {
+                      echo "### Renovate dry run of ${CONSUMER_REPOSITORY}"
+                      echo
+                      if [ -n "$updates" ]; then
+                          echo 'Updates Renovate would propose (dependency, current value, type, new value):'
+                          echo
+                          echo '```'
+                          echo "$updates"
+                          echo '```'
+                      else
+                          echo 'Renovate would propose no update.'
+                      fi
+                  } >> "$GITHUB_STEP_SUMMARY"
+                  renovate_report_check_shared_workflows /tmp/renovate-report.json
