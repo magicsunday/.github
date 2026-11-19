@@ -270,18 +270,22 @@ run_step() {
     local directory="$1" step_dir
     step_dir="$(mktemp -d "${WORK_DIR}/step.XXXXXX")"
     mkdir -p "${step_dir}/.magicsunday-shared/.github/scripts/lib"
-    printf '%s\n' 'composer_audit_run() { printf "%s" "$1" > "${STEP_ARGUMENT_FILE}"; }' \
+    # The stand-in function is written literally, its variables expand when the step calls it.
+    # shellcheck disable=SC2016
+    printf '%s\n' 'composer_audit_run() { printf "%s" "$1" > "${STEP_ARGUMENT_FILE}"; if [ -e "${STEP_ARGUMENT_FILE%/*}/.magicsunday-shared" ]; then echo yes; else echo no; fi > "${STEP_ARGUMENT_FILE}.shared"; }' \
         > "${step_dir}/.magicsunday-shared/.github/scripts/lib/composer-audit.sh"
     step_status=0
     (cd "${step_dir}" && AUDIT_DIRECTORY="${directory}" STEP_ARGUMENT_FILE="${step_dir}/argument" bash "${step_script}" > /dev/null 2>&1) || step_status=$?
     step_argument="$(cat "${step_dir}/argument" 2> /dev/null || echo 'NOT CALLED')"
     step_shared_left="$([ -e "${step_dir}/.magicsunday-shared" ] && echo yes || echo no)"
+    step_shared_at_call="$(cat "${step_dir}/argument.shared" 2> /dev/null || echo 'NOT CALLED')"
 }
 
 run_step "setup/release"
 assert_eq 'the audit step passes' '0' "${step_status}"
 assert_eq 'the audit step hands the input to the function' 'setup/release' "${step_argument}"
 assert_eq 'the audit step removes the shared checkout before the audit' 'no' "${step_shared_left}"
+assert_eq 'the shared checkout is already gone when the audit function runs' 'no' "${step_shared_at_call}"
 
 run_step "."
 assert_eq 'the audit step hands the default to the function' '.' "${step_argument}"
@@ -514,5 +518,29 @@ STUB_AUDIT_STATUS=1
 run_directory_case prepare_folder_with_lock "setup/release"
 assert_eq 'a failing audit of a folder fails the check' '1' "${case_status}"
 STUB_AUDIT_STATUS=0
+
+# A caller whose working directory is reached through a link still audits a
+# valid folder. The function resolves the workspace physically, so the
+# containment check compares physical paths on both sides.
+linked_case_dir="$(mktemp -d "${WORK_DIR}/linked.XXXXXX")"
+prepare_folder_with_lock "${linked_case_dir}"
+ln -s "${linked_case_dir}" "${WORK_DIR}/work-link"
+: > "${CALL_LOG}"
+: > "${CWD_LOG}"
+linked_status=0
+(cd "${WORK_DIR}/work-link" && composer_audit_run "setup/release" > /dev/null 2>&1) || linked_status=$?
+linked_cwds="$(sort -u "${CWD_LOG}")"
+assert_eq 'a folder is audited when the working directory is reached through a link' '0' "${linked_status}"
+assert_eq 'composer runs inside the folder of a working directory reached through a link' \
+    "$(cd "${linked_case_dir}" && pwd -P)/setup/release" "${linked_cwds}"
+
+# A dot with a slash names the repository root like a folder, so it needs a
+# composer.json, while a dot or an empty input tolerates a root without one.
+run_directory_case prepare_root_and_folder_manifests "./"
+assert_eq 'a dot with a slash names the repository root' "${case_root}" "${case_cwds}"
+
+run_directory_case prepare_folder_without_manifest "./"
+assert_eq 'a dot with a slash needs a composer.json at the root' '1' "${case_status}"
+assert_contains 'a dot with a slash without a composer.json is reported as an error' "${case_output}" 'holds no composer.json'
 
 report_and_exit 'composer-audit tests'
