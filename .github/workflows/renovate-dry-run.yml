@@ -7,7 +7,7 @@ name: Renovate dry run
 # a real repository, so this is the way to read that effect.
 #
 # Started by hand, with the consumer as input. Not scheduled, not reusable and
-# not triggered by pull requests on purpose: a run reads another repository, so
+# not triggered by pull requests on purpose. A run reads another repository, so
 # it must not start without a person asking for it, and its verdict is about
 # that repository and not about a change here. The properties that keep it
 # harmless (read-only token, no secret, full dry run, pinned action) are
@@ -77,7 +77,11 @@ jobs:
                   set -euo pipefail
                   # shellcheck source=scripts/lib/renovate-dry-run.sh
                   source .github/scripts/lib/renovate-dry-run.sh
-                  updates="$(renovate_report_updates /tmp/renovate-report.json)"
+                  status=0
+                  verdict="$(renovate_report_check_shared_workflows /tmp/renovate-report.json)" || status=$?
+                  # An unreadable report has no updates to list, and the verdict
+                  # already says why the run proves nothing.
+                  updates="$(renovate_report_updates /tmp/renovate-report.json 2>/dev/null || true)"
                   {
                       echo "### Renovate dry run of ${CONSUMER_REPOSITORY}"
                       echo
@@ -90,5 +94,8 @@ jobs:
                       else
                           echo 'Renovate would propose no update.'
                       fi
+                      echo
+                      echo "Verdict: ${verdict}"
                   } >> "$GITHUB_STEP_SUMMARY"
-                  renovate_report_check_shared_workflows /tmp/renovate-report.json
+                  echo "$verdict"
+                  exit "$status"

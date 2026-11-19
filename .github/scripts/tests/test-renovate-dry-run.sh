@@ -70,4 +70,48 @@ assert_eq "the evaluation step sources the library after the Renovate step" true
 persist="$(query '[.jobs[].steps[] | select((.uses // "") | startswith("actions/checkout@")) | .with["persist-credentials"]] | unique | tojson')"
 assert_eq "every checkout drops the credentials" '[false]' "${persist}"
 
+# The report path the Renovate step writes is the path the evaluation step reads.
+report_path="$(renovate_env RENOVATE_REPORT_PATH)"
+evaluate_run="$(workflow_step_run "${WORKFLOW}" "Evaluate the report")" || exit 1
+case "${evaluate_run}" in
+    *"${report_path}"*) echo "PASS: the evaluation step reads the report path that the Renovate step writes" ;;
+    *) _harness_fail "the evaluation step reads the report path that the Renovate step writes" "${evaluate_run}" ;;
+esac
+
+# The evaluation step itself runs here, with the report path moved into a
+# scratch directory, so the verdict, the job summary and the exit status are
+# the ones a runner would produce. A missing report must reach the verdict of
+# the library and not a bare jq error.
+workdir="$(mktemp -d)" || exit 1
+trap 'rm -rf "${workdir}"' EXIT
+run_evaluation() {
+    # $1 is the report file name inside the scratch directory.
+    local script="${evaluate_run//${report_path}/${workdir}/$1}"
+    : >"${workdir}/summary.md"
+    (cd "${REPO_ROOT}" && CONSUMER_REPOSITORY="magicsunday/example" GITHUB_STEP_SUMMARY="${workdir}/summary.md" bash -c "${script}") 2>&1
+}
+
+make_report() {
+    # $1 file name, $2 the updates array of one shared workflow call.
+    jq -n --argjson updates "$2" \
+        '{repositories: {"magicsunday/example": {packageFiles: {"github-actions": [{packageFile: ".github/workflows/ci.yml", deps: [{depName: "magicsunday/.github", currentValue: "main", updates: $updates}]}]}}}}' \
+        >"${workdir}/$1"
+}
+
+make_report ok.json '[]'
+out="$(run_evaluation ok.json)"
+assert_eq "an up to date report passes the evaluation step" 0 "$?"
+assert_contains "the summary of a passing run says that nothing is proposed" "$(cat "${workdir}/summary.md")" "Renovate would propose no update." "Verdict: The shared workflows were seen in 1 calls"
+
+make_report pin.json '[{"updateType": "pinDigest", "newValue": "v2"}]'
+out="$(run_evaluation pin.json)"
+assert_eq "a pin update for the shared workflows fails the evaluation step" 1 "$?"
+assert_contains "the summary of a failing run lists the update" "$(cat "${workdir}/summary.md")" "magicsunday/.github main pinDigest v2" "Verdict:"
+assert_contains "the output of a failing run carries the error annotation" "${out}" "::error::"
+
+out="$(run_evaluation absent.json)"
+assert_eq "a missing report fails the evaluation step" 1 "$?"
+assert_contains "a missing report reaches the verdict of the library" "${out}" "missing or empty"
+assert_contains "the summary of a missing report holds the verdict" "$(cat "${workdir}/summary.md")" "Verdict:" "missing or empty"
+
 report_and_exit "renovate dry run tests"
