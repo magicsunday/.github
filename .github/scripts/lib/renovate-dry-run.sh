@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Sourced by renovate-dry-run.yml's "Evaluate the report" step and by
-# .github/scripts/tests/test-renovate-dry-run-report.sh, so the workflow and its
-# test drive the same file rather than two copies that can drift apart.
+# Sourced by the "Check the repository input" and "Evaluate the report" steps of
+# renovate-dry-run.yml and by .github/scripts/tests/test-renovate-dry-run-report.sh,
+# so the workflow and its test drive the same file rather than two copies that
+# can drift apart.
 #
-# The report is the JSON file that a Renovate dry run writes: the repositories
-# it read, for each the package files by manager, for each package file its
-# dependencies, and for each dependency the updates Renovate would propose.
+# The report is the JSON file that a Renovate dry run writes. It holds the
+# repositories it read, for each the package files by manager, for each package
+# file its dependencies, and for each dependency the updates Renovate would
+# propose.
 # Only the github-actions manager is read, because that is where the calls of
 # the shared workflows are.
 
@@ -29,12 +31,14 @@ renovate_report_dependency_count() {
         '[.repositories[]?.packageFiles["github-actions"][]?.deps[]? | select(.depName == $name)] | length' "$1"
 }
 
-# Prints one line for every update that the report proposes for a dependency of
-# the github-actions manager: the dependency, the current value, the update type
-# and the new value, separated by blanks.
+# Prints one line for every update that the report "$1" proposes for a
+# dependency of the github-actions manager. A line holds the dependency, the
+# current value, the update type and the new value, separated by blanks. An
+# optional "$2" narrows the list to the dependency of exactly that name.
 renovate_report_updates() {
-    jq -r \
+    jq -r --arg name "${2:-}" \
         '.repositories[]?.packageFiles["github-actions"][]?.deps[]?
+         | select($name == "" or .depName == $name)
          | . as $dep
          | ($dep.updates // [])[]
          | "\($dep.depName) \($dep.currentValue) \(.updateType) \(.newValue // "")" | rtrimstr(" ")' "$1"
@@ -65,7 +69,7 @@ renovate_report_check_shared_workflows() {
         return 1
     fi
 
-    shared_updates="$(renovate_report_updates "${report}" | grep -F -e "${SHARED_WORKFLOWS_DEP_NAME} " || true)"
+    shared_updates="$(renovate_report_updates "${report}" "${SHARED_WORKFLOWS_DEP_NAME}")"
     if [ -n "${shared_updates}" ]; then
         echo "::error::Renovate proposes updates for the shared workflows, which the preset keeps unpinned:"
         echo "${shared_updates}"

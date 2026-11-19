@@ -92,7 +92,18 @@ renovate_report_check_shared_workflows "${other}" >/dev/null 2>&1
 assert_eq "an update for another action does not fail the check" 0 "$?"
 assert_eq "an update for another action is listed" "actions/checkout v7.0.1 pinDigest v7.0.2" "$(renovate_report_updates "${other}")"
 
-# A run that never saw the shared workflows proves nothing, so it fails: the
+# A dependency whose name only contains the name of the shared workflows is
+# another dependency and does not fail the check, and the update list can be
+# narrowed to one dependency by its exact name.
+lookalike="${workdir}/lookalike.json"
+jq '.repositories["magicsunday/example"].packageFiles["github-actions"][0].deps += [{"depName": "other/magicsunday/.github", "currentValue": "main", "updates": [{"updateType": "pinDigest", "newValue": "v2"}]}]' \
+    "${report}" >"${lookalike}"
+renovate_report_check_shared_workflows "${lookalike}" >/dev/null 2>&1
+assert_eq "an update for a dependency that only contains the shared name does not fail the check" 0 "$?"
+assert_eq "the update list narrowed to the shared workflows is empty for that report" "" "$(renovate_report_updates "${lookalike}" "magicsunday/.github")"
+assert_eq "the update list narrowed to the lookalike names its update" "other/magicsunday/.github main pinDigest v2" "$(renovate_report_updates "${lookalike}" "other/magicsunday/.github")"
+
+# A run that never saw the shared workflows proves nothing, so it fails. The
 # consumer may not call them, or Renovate may have read another manager.
 none="${workdir}/none.json"
 jq '.repositories["magicsunday/example"].packageFiles["github-actions"] |= map(.deps |= map(select(.depName != "magicsunday/.github")))' \
