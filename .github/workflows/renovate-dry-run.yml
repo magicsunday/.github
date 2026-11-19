@@ -87,7 +87,7 @@ jobs:
                       echo "### Renovate dry run of ${CONSUMER_REPOSITORY}"
                       echo
                       if [ -n "$updates" ]; then
-                          echo 'Updates Renovate would propose (dependency, current value, type, new value):'
+                          echo 'Updates Renovate would propose (dependency, current value, type, new value and proposed commit where present):'
                           echo
                           echo '```'
                           echo "$updates"

@@ -116,6 +116,38 @@ jq '.repositories["magicsunday/example"].packageFiles["github-actions"][0].deps 
 renovate_report_check_shared_workflows "${noupdates}" >/dev/null 2>&1
 assert_eq "a call without an updates key passes the check" 0 "$?"
 
+# A digest update lists the proposed commit after the new value.
+digest="${workdir}/digest.json"
+jq '.repositories["magicsunday/example"].packageFiles["github-actions"][0].deps[2].updates = [{"updateType": "digest", "newValue": "v7.0.1", "currentDigest": "aaaa", "newDigest": "bbbb"}]' \
+    "${report}" >"${digest}"
+assert_eq "a digest update lists the proposed commit after the new value" "actions/checkout v7.0.1 digest v7.0.1 bbbb" "$(renovate_report_updates "${digest}")"
+renovate_report_check_shared_workflows "${digest}" >/dev/null 2>&1
+assert_eq "a digest update for another action does not fail the check" 0 "$?"
+# A field that is absent leaves no blank behind in the line.
+bare="${workdir}/bare.json"
+jq '.repositories["magicsunday/example"].packageFiles["github-actions"][0].deps[2].updates = [{"updateType": "pin"}]' \
+    "${report}" >"${bare}"
+assert_eq "an update without a new value and a commit ends after its type" "actions/checkout v7.0.1 pin" "$(renovate_report_updates "${bare}")"
+jq '.repositories["magicsunday/example"].packageFiles["github-actions"][0].deps[2].updates = [{"updateType": "pinDigest", "newDigest": "bbbb"}]' \
+    "${report}" >"${bare}"
+assert_eq "an update with only a commit lists it after its type" "actions/checkout v7.0.1 pinDigest bbbb" "$(renovate_report_updates "${bare}")"
+jq '.repositories["magicsunday/example"].packageFiles["github-actions"][0].deps[2].updates = [{"updateType": "pin", "newValue": "", "newDigest": ""}]' \
+    "${report}" >"${bare}"
+assert_eq "an empty new value and an empty commit leave no blank in the line" "actions/checkout v7.0.1 pin" "$(renovate_report_updates "${bare}")"
+
+# An updates value that cannot be read for a call of the shared workflows is an
+# unreadable report, and the check must not pass it as a report without updates.
+badupdates="${workdir}/badupdates.json"
+jq '.repositories["magicsunday/example"].packageFiles["github-actions"][0].deps[0].updates = 1' \
+    "${report}" >"${badupdates}"
+out="$(renovate_report_check_shared_workflows "${badupdates}" 2>&1)"
+assert_eq "an unreadable updates value for the shared workflows fails the check" 1 "$?"
+assert_contains "the failure for an unreadable updates value says that the run proves nothing" "${out}" "cannot be read" "proves nothing"
+jq '.repositories["magicsunday/example"].packageFiles["github-actions"][0].deps[2].updates = 1' \
+    "${report}" >"${badupdates}"
+renovate_report_check_shared_workflows "${badupdates}" >/dev/null 2>&1
+assert_eq "an unreadable updates value of another action does not fail the check" 0 "$?"
+
 # A report whose only call has a lookalike name saw no call of the shared
 # workflows, so the run proves nothing.
 onlylookalike="${workdir}/onlylookalike.json"

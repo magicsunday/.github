@@ -33,15 +33,19 @@ renovate_report_dependency_count() {
 
 # Prints one line for every update that the report "$1" proposes for a
 # dependency of the github-actions manager. A line holds the dependency, the
-# current value, the update type and the new value, separated by blanks. An
-# optional "$2" narrows the list to the dependency of exactly that name.
+# current value, the update type, the new value and the proposed commit,
+# separated by blanks. The new value and the commit are left out when the
+# update carries none. An optional "$2" narrows the list to the dependency of
+# exactly that name.
 renovate_report_updates() {
     jq -r --arg name "${2:-}" \
         '.repositories[]?.packageFiles["github-actions"][]?.deps[]?
          | select($name == "" or .depName == $name)
          | . as $dep
          | ($dep.updates // [])[]
-         | "\($dep.depName) \($dep.currentValue) \(.updateType) \(.newValue // "")" | rtrimstr(" ")' "$1"
+         | "\($dep.depName) \($dep.currentValue) \(.updateType)"
+           + (if (.newValue // "") != "" then " \(.newValue)" else "" end)
+           + (if (.newDigest // "") != "" then " \(.newDigest)" else "" end)' "$1"
 }
 
 # Checks the report "$1" against the policy of the shared Renovate preset. The
@@ -69,7 +73,10 @@ renovate_report_check_shared_workflows() {
         return 1
     fi
 
-    shared_updates="$(renovate_report_updates "${report}" "${SHARED_WORKFLOWS_DEP_NAME}")"
+    if ! shared_updates="$(renovate_report_updates "${report}" "${SHARED_WORKFLOWS_DEP_NAME}")"; then
+        echo "::error::The updates of the shared workflows in the report cannot be read, so the run proves nothing."
+        return 1
+    fi
     if [ -n "${shared_updates}" ]; then
         echo "::error::Renovate proposes updates for the shared workflows, which the preset keeps unpinned:"
         echo "${shared_updates}"
