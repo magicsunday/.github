@@ -127,6 +127,19 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   treating an already-committed output file as its resolution baseline (no
   `--upgrade`), the same baseline-reuse behaviour — and the same caveat about
   it — described above.
+- **Read the effect of a change to `renovate-config.json` with the Renovate dry run,
+  not with the preset test.** `test-renovate-preset.sh` pins the content of the
+  rules, and only a Renovate run shows what the rules do to a repository that uses
+  the preset. `renovate-dry-run.yml` starts by hand, runs Renovate with the dry run
+  set to full against one repository of the account and writes no pull request,
+  no branch and no commit. Its last step reads the report and fails when Renovate
+  would propose any update for the shared workflows, which the preset keeps
+  unpinned, or when the report never saw them. `renovate-dry-run.sh` carries that
+  evaluation, and `test-renovate-dry-run-report.sh` and `test-renovate-dry-run.sh`
+  pin it and the properties that keep the workflow harmless (a start only by hand,
+  a read-only token, no secret, a pinned action). A workflow that starts by hand
+  can be started only once it exists on the default branch, so a change to the
+  preset runs against the dry run after its merge, and the next run is the check.
 - **A scan report is only uploaded once the report itself says it is complete.**
   Code scanning reads what an uploaded report omits as *fixed*, so a scan that
   quietly covered less than the tree retires real alerts, and an exit code does not
