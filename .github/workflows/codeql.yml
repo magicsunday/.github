@@ -22,7 +22,7 @@ on:
     workflow_call:
         inputs:
             languages:
-                description: 'JSON array of the CodeQL languages to analyze, for example ["actions","javascript-typescript"].'
+                description: 'JSON array of the CodeQL languages to analyze, for example ["actions","javascript-typescript"]. Every language runs without a build, so list only languages that need none.'
                 required: false
                 type: string
                 default: '["actions","javascript-typescript"]'
