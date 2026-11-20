@@ -52,9 +52,8 @@ jobs:
               with:
                   persist-credentials: false
 
-            # Both languages the default setup scanned here are interpreted ones,
-            # so no build is attempted. A compiled language needs a build mode of
-            # its own, which a caller has no input for yet.
+            # The default languages are interpreted ones, so no build is
+            # attempted. `build-mode: none` does not fit a compiled language.
             - name: Initialize CodeQL
               uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
               with:

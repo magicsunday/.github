@@ -28,7 +28,7 @@ runs.
 </thead>
 <tbody>
 <tr><td><code>code-scanning.yml</code></td><td>Semgrep scan, results uploaded as code-scanning alerts; fails when the scan does not complete</td><td><code>contents: read</code>, <code>security-events: write</code></td></tr>
-<tr><td><code>codeql.yml</code></td><td>CodeQL analysis from a workflow of the caller, so a pull request from a fork gets a result for the code scanning rule; replaces the default setup of GitHub</td><td><code>contents: read</code>, <code>actions: read</code>, <code>security-events: write</code></td></tr>
+<tr><td><code>codeql.yml</code></td><td>CodeQL analysis from a workflow of the caller, so a pull request from a fork gets a result for the code scanning rule, and it replaces the default setup of GitHub</td><td><code>contents: read</code>, <code>actions: read</code>, <code>security-events: write</code></td></tr>
 <tr><td><code>zizmor.yml</code></td><td>Audit of the caller's workflow YAML (injection, permissions, pins)</td><td><code>contents: read</code>, <code>security-events: write</code></td></tr>
 <tr><td><code>scorecard.yml</code></td><td>OSSF Scorecard supply-chain analysis (public repositories)</td><td><code>security-events: write</code>, <code>id-token: write</code></td></tr>
 <tr><td><code>dependency-review.yml</code></td><td>Blocks vulnerable dependencies in a pull request</td><td><code>contents: read</code>, <code>pull-requests: write</code></td></tr>

@@ -4,7 +4,7 @@
         "permissions": ["contents: read", "security-events: write"]
     },
     "codeql.yml": {
-        "purpose": "CodeQL analysis from a workflow of the caller, so a pull request from a fork gets a result for the code scanning rule; replaces the default setup of GitHub",
+        "purpose": "CodeQL analysis from a workflow of the caller, so a pull request from a fork gets a result for the code scanning rule, and it replaces the default setup of GitHub",
         "permissions": ["contents: read", "actions: read", "security-events: write"]
     },
     "zizmor.yml": {
