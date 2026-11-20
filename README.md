@@ -331,7 +331,7 @@ setup blocks the upload of a workflow. The reason to switch is a pull request fr
 fork. The default setup does not analyze it, while a workflow that runs on
 `pull_request` does. A ruleset rule that requires a CodeQL result for the commit
 therefore keeps such a pull request unmergeable under the default setup. The caller
-is not a job of the `Security` caller, so `all-security-checks` does not list it.
+is no job of the canonical `Security` caller, so its `all-security-checks` does not list it. The own security workflow of this repository runs CodeQL as the job `codeql`, because the file name `codeql.yml` is taken by the reusable workflow, and its gate job lists that job.
 
 ### Branch protection
 
