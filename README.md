@@ -28,6 +28,7 @@ runs.
 </thead>
 <tbody>
 <tr><td><code>code-scanning.yml</code></td><td>Semgrep scan, results uploaded as code-scanning alerts; fails when the scan does not complete</td><td><code>contents: read</code>, <code>security-events: write</code></td></tr>
+<tr><td><code>codeql.yml</code></td><td>CodeQL analysis from a workflow of the caller, so a pull request from a fork gets a result for the code scanning rule; replaces the default setup of GitHub</td><td><code>contents: read</code>, <code>actions: read</code>, <code>security-events: write</code></td></tr>
 <tr><td><code>zizmor.yml</code></td><td>Audit of the caller's workflow YAML (injection, permissions, pins)</td><td><code>contents: read</code>, <code>security-events: write</code></td></tr>
 <tr><td><code>scorecard.yml</code></td><td>OSSF Scorecard supply-chain analysis (public repositories)</td><td><code>security-events: write</code>, <code>id-token: write</code></td></tr>
 <tr><td><code>dependency-review.yml</code></td><td>Blocks vulnerable dependencies in a pull request</td><td><code>contents: read</code>, <code>pull-requests: write</code></td></tr>
@@ -321,6 +322,16 @@ Gaps, which the canonical file settles:
 - The shared workflows are referenced as `@main`, the form that the zizmor policy of
   this repository (`.github/zizmor.yml`) sets for them.
 - A `yamllint` job wherever the repository has YAML.
+
+### CodeQL for pull requests from forks
+
+`templates/codeql.yml` is the canonical `CodeQL` caller of `codeql.yml`. A repository
+uses it instead of the default setup of CodeQL, never next to it, because the default
+setup blocks the upload of a workflow. The reason to switch is a pull request from a
+fork. The default setup does not analyze it, while a workflow that runs on
+`pull_request` does. A ruleset rule that requires a CodeQL result for the commit
+therefore keeps such a pull request unmergeable under the default setup. The caller
+is not a job of the `Security` caller, so `all-security-checks` does not list it.
 
 ### Branch protection
 
