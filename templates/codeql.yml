@@ -1,0 +1,33 @@
+name: CodeQL
+
+# Canonical `CodeQL` caller for the repositories of this account, kept here
+# outside `.github/workflows/` so that it never runs in this repository. Copy it
+# to `.github/workflows/codeql.yml` of a repository and adapt only what is a
+# real parameter of that repository, which is the `languages` input.
+#
+# A repository that adopts this caller switches the default setup of CodeQL off
+# in its settings (Advanced Security, "Switch to advanced") in the same change.
+# The default setup blocks the upload of a workflow while it is switched on.
+# The `pull_request` trigger is the reason for the adoption, because a pull
+# request from a fork gets a CodeQL result only through a workflow of the
+# repository.
+on:
+    push:
+        branches: [main, master]
+    pull_request:
+    schedule:
+        - cron: '41 5 * * 1'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    codeql:
+        uses: magicsunday/.github/.github/workflows/codeql.yml@main
+        permissions:
+            contents: read
+            actions: read
+            security-events: write
+        with:
+            languages: '["actions","javascript-typescript"]'

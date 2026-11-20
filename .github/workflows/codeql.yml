@@ -1,0 +1,66 @@
+name: CodeQL (reusable)
+
+# Reusable CodeQL analysis of the calling repository. Callers invoke it via
+# `uses: magicsunday/.github/.github/workflows/codeql.yml@main` and must grant
+# `contents: read`, `actions: read` and `security-events: write` on the calling
+# job.
+#
+# This workflow replaces the default setup of GitHub, it does not run beside it.
+# The default setup blocks the upload of a workflow while it is switched on, so
+# a repository adopts this workflow and switches the default setup off in the
+# same change. The reason to run CodeQL from a workflow at all is the
+# `pull_request` event of the caller. A pull request from a fork gets a CodeQL
+# result through it, which the default setup does not produce, and the ruleset
+# rule that requires a CodeQL result keeps such a pull request unmergeable
+# without one.
+#
+# `languages` is a JSON array of CodeQL language identifiers. Each entry runs
+# as its own job and uploads under its own `/language:<name>` category, so the
+# results of two languages do not replace each other. CodeQL does not support
+# PHP, which another scan of the repository covers.
+on:
+    workflow_call:
+        inputs:
+            languages:
+                description: 'JSON array of the CodeQL languages to analyze, for example ["actions","javascript-typescript"]. Every language runs without a build, so list only languages that need none.'
+                required: false
+                type: string
+                default: '["actions","javascript-typescript"]'
+
+permissions:
+    contents: read
+
+jobs:
+    analyze:
+        name: Analyze (${{ matrix.language }})
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+
+        permissions:
+            contents: read
+            actions: read
+            security-events: write
+
+        strategy:
+            fail-fast: false
+            matrix:
+                language: ${{ fromJSON(inputs.languages) }}
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            # The default languages are interpreted ones, so no build is
+            # attempted.
+            - name: Initialize CodeQL
+              uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+              with:
+                  languages: ${{ matrix.language }}
+                  build-mode: none
+
+            - name: Analyze
+              uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+              with:
+                  category: /language:${{ matrix.language }}
