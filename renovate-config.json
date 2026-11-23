@@ -30,8 +30,9 @@
     "npmrc": "allow-git=root",
     "npmrcMerge": true,
     "lockFileMaintenance": {
-        "description": "Weekly refresh of the lock files, so a package that only a lock file holds gets updated. A refresh has no release timestamp, so the age wait is optional here. For Composer lock files the age wait cannot be applied during the refresh, so a freshly published release of a transitive package can enter the lock file. This risk is accepted, because a person reviews and merges the pull request and no automerge rule matches it.",
+        "description": "Weekly refresh of the lock files, so a package that only a lock file holds gets updated. A refresh has no release timestamp, so the age wait is optional here and cannot hold back a freshly published release of a transitive package. This risk is accepted on purpose. The pull request merges by itself once the required checks of the repository pass, so those checks are its only gate.",
         "enabled": true,
+        "automerge": true,
         "minimumReleaseAgeBehaviour": "timestamp-optional",
         "schedule": [
             "on monday"
@@ -118,7 +119,18 @@
             "automerge": true
         },
         {
-            "description": "The chart library bundle is baked into the committed minified files at build time, so it arrives as its own pull request that a human reviews and rebuilds the bundle for.",
+            "description": "Patch and minor updates of npm packages merge by themselves once the required checks pass and the age wait is over. Renovate performs the merge itself, for the reason given for GitHub Actions. The age wait applies where the registry gives a release date, and the git tag pins of the account are taken without it, see the last rule. Major updates stay with a human. An update that changes a committed bundle gets a commit of the bundle job on its branch. Renovate may treat that as a manual edit of the branch and leave the pull request open for a person, and the rules here do not decide that.",
+            "matchManagers": [
+                "npm"
+            ],
+            "matchUpdateTypes": [
+                "patch",
+                "minor"
+            ],
+            "automerge": true
+        },
+        {
+            "description": "The chart library bundle is baked into the committed minified files at build time, so it arrives as its own pull request that carries the rebuilt bundle.",
             "matchDepNames": [
                 "@magicsunday/webtrees-chart-lib"
             ],
@@ -133,6 +145,45 @@
                 "ghcr.io/magicsunday/webtrees-docker-module-base"
             ],
             "groupName": "tooling-image"
+        },
+        {
+            "description": "A new digest of the tooling image merges by itself once the required checks pass. The catalogue checks run with the new image. The bundle check does not guard against a changed image on a pull request of Renovate, because the bundle job commits the rebuilt files to that branch. A new tag of the image stays with a human.",
+            "matchDatasources": [
+                "docker"
+            ],
+            "matchPackageNames": [
+                "ghcr.io/magicsunday/webtrees-docker-module-base"
+            ],
+            "matchUpdateTypes": [
+                "digest"
+            ],
+            "automerge": true
+        },
+        {
+            "description": "The digest of the tooling image stays with a human in this repository. Its required checks do not run the image, and the default of the shared workflows reaches every consumer at once, while in a consumer the catalogue checks run with the new image before the merge. This rule comes after the one above so that it wins.",
+            "matchRepositories": [
+                "magicsunday/.github"
+            ],
+            "matchDatasources": [
+                "docker"
+            ],
+            "matchPackageNames": [
+                "ghcr.io/magicsunday/webtrees-docker-module-base"
+            ],
+            "matchUpdateTypes": [
+                "digest"
+            ],
+            "automerge": false
+        },
+        {
+            "description": "The hash-locked pip closures are compiled per Python version, so their weekly refresh stays with a human, whatever the switch of the lock file refresh says. This rule comes after that switch so that it wins.",
+            "matchManagers": [
+                "pip-compile"
+            ],
+            "matchUpdateTypes": [
+                "lockFileMaintenance"
+            ],
+            "automerge": false
         },
         {
             "description": "Registries other than Docker Hub, ghcr.io among them, publish no release timestamp, so image updates would never count as old enough.",

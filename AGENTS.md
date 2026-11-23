@@ -52,8 +52,10 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   The manager reads the compile command from the header that `pip-compile` writes
   into each `.txt`, so keep that header as `pip-compile` writes it, with the
   default header and every source file named in the command.
-  These bumps are not auto-merged. The automerge rule of the Renovate preset covers
-  GitHub Actions updates only. (The rule is
+  These bumps are not auto-merged. The automerge rules of the Renovate preset cover
+  GitHub Actions updates, npm patch and minor updates, the digest of the tooling
+  image in the consumer repositories and the weekly lock file refresh, and none of
+  them matches a `pip-compile` bump or the refresh of its closures. (The rule is
   about what a workflow installs *itself*: a SHA-pinned action that brings its own
   binary, as `zizmor.yml` does, already has its version tracked by the
   `github-actions` manager.)
@@ -128,8 +130,8 @@ The public profile page at `github.com/magicsunday` is **not** rendered from her
   `--upgrade`), the same baseline-reuse behaviour — and the same caveat about
   it — described above.
 - **Read the effect of a change to `renovate-config.json` with the Renovate dry run,
-  not with the preset test.** `test-renovate-preset.sh` pins the content of the
-  rules, and only a Renovate run shows what the rules do to a repository that uses
+  not with the preset test.** `test-renovate-preset.sh` and `test-renovate-automerge.sh`
+  pin the content of the rules, and only a Renovate run shows what the rules do to a repository that uses
   the preset. `renovate-dry-run.yml` starts by hand, runs Renovate with the dry run
   set to full against one repository of the account and writes no pull request,
   no branch and no commit. Its last step reads the report and fails when Renovate
